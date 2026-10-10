@@ -14,6 +14,7 @@ use pd_core::view::{Arrange, DiagramView, Request, Tool, ViewEvent};
 
 use crate::canvas::{self, CanvasState, MenuAction};
 use crate::fonts;
+use crate::inspector::Inspector;
 use crate::samples::SAMPLES;
 
 /// The sample shown at start-up.
@@ -72,6 +73,7 @@ enum Dialog {
 pub struct PathwayApp {
     view: DiagramView,
     canvas: CanvasState,
+    inspector: Inspector,
     dialog: Option<Dialog>,
     /// Name of what is shown, for the status bar.
     title: String,
@@ -103,6 +105,7 @@ impl PathwayApp {
         let mut app = Self {
             view: DiagramView::default(),
             canvas: CanvasState::default(),
+            inspector: Inspector::default(),
             dialog: None,
             title: "Untitled".to_owned(),
             warnings: Vec::new(),
@@ -578,6 +581,14 @@ impl eframe::App for PathwayApp {
         egui::Panel::left("tools").resizable(false).show(ui, |ui| {
             ui.add_enabled_ui(!busy, |ui| self.tool_palette(ui))
         });
+        egui::Panel::right("inspector")
+            .resizable(true)
+            .default_size(260.0)
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.add_enabled_ui(!busy, |ui| self.inspector.show(ui, &mut self.view));
+                });
+            });
         let mut output = None;
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)

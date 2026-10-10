@@ -16,19 +16,23 @@ pub mod hit;
 pub mod input;
 #[cfg(test)]
 mod interaction_tests;
+mod properties;
 mod tooltip;
 
 use crate::bezier::{Ctrl as HandleCtrl, apply_smooth_handles, store_auto_handles};
 use crate::geometry::{Pt, normalize, pt, screen_to_world, world_to_screen};
 use crate::model::{Id, Model, ReactionMode, Role};
 use crate::render::constants::{RUBBER_BAND, ZOOM_MAX, ZOOM_MIN};
-use crate::render::draw::{DrawOptions, content_bounds, draw_model};
+use crate::render::draw::{
+    DrawOptions, content_bounds, draw_model, linear_junction_t, linear_line,
+};
 use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::undo::{Command, CtrlState, UndoHistory};
 
 pub use arrange::Arrange;
 pub use hit::hit_test;
 pub use input::{Button, HandleId, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
+pub use properties::{ColourField, sync_modifiers};
 
 /// The rubber band's fill: its colour at 20 % (S §5.9).
 const RUBBER_BAND_FILL_ALPHA: u8 = 51;
@@ -108,6 +112,9 @@ struct NodeDrag {
     /// Smooth reactions whose junction moves: their handles are recomputed
     /// as it goes (S §6.4).
     smooth: Vec<Id>,
+    /// Linear reactions with one end moving: their junction keeps its place
+    /// along the line, as a fraction `t` (with its original position).
+    linear: Vec<(Id, Pt, f64)>,
     /// The model at the start, when the drag moves more than positions
     /// (stored handles, smooth junctions): it is undone as a snapshot (S §9.2).
     before: Option<Box<Model>>,
@@ -494,10 +501,18 @@ impl DiagramView {
                     before,
                     after: Box::new(self.model.clone()),
                 },
-                None => Command::MoveNodes {
-                    species: moved(&drag.species, drag.delta),
-                    junctions: moved(&drag.junctions, drag.delta),
-                },
+                None => {
+                    let mut junctions = moved(&drag.junctions, drag.delta);
+                    for (id, orig, _) in &drag.linear {
+                        if let Some(r) = self.model.find_reaction(id) {
+                            junctions.push((id.clone(), *orig, r.junction));
+                        }
+                    }
+                    Command::MoveNodes {
+                        species: moved(&drag.species, drag.delta),
+                        junctions,
+                    }
+                }
             }),
             Gesture::Handle(drag) if drag.delta == Pt::ZERO => {
                 // A press without a move changes nothing, not even storing
@@ -590,6 +605,7 @@ impl DiagramView {
         let mut junctions = Vec::new();
         let mut handles = Vec::new();
         let mut smooth = Vec::new();
+        let mut linear = Vec::new();
         for r in m.reactions() {
             // The junction follows when every reactant and product moves.
             let mut ends = r.reactants.iter().chain(&r.products).peekable();
@@ -599,6 +615,14 @@ impl DiagramView {
                 if r.junction_smooth && r.mode == ReactionMode::Bezier {
                     smooth.push(r.id.clone());
                 }
+            } else if r
+                .reactants
+                .iter()
+                .chain(&r.products)
+                .any(|p| is_moved(&p.species))
+                && let Some(t) = linear_junction_t(m, r)
+            {
+                linear.push((r.id.clone(), r.junction, t));
             }
             // Stored handles follow the end they belong to (S §5.6.1): the
             // species-side handle is ctrl1 on a reactant and ctrl2 on a product.
@@ -635,6 +659,7 @@ impl DiagramView {
             junctions,
             handles,
             smooth,
+            linear,
             before,
             delta: Pt::ZERO,
         }
@@ -688,6 +713,21 @@ impl DiagramView {
             }
         }
         self.move_handles(&drag.handles, drag.delta);
+        // A Linear reaction's junction keeps its place along the line, so the
+        // modifier arcs that end at it don't slide into a node.
+        for (id, orig, t) in &drag.linear {
+            let line = self
+                .model
+                .find_reaction(id)
+                .and_then(|r| linear_line(&self.model, r));
+            if let (Some((a, b)), Some(r)) = (line, self.model.find_reaction_mut(id)) {
+                r.junction = if drag.delta == Pt::ZERO {
+                    *orig
+                } else {
+                    a + (b - a) * *t
+                };
+            }
+        }
         // A smooth junction that moved gets its handles recomputed (S §6.4).
         for id in &drag.smooth {
             apply_smooth_handles(&mut self.model, id);

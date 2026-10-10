@@ -4,6 +4,7 @@
 mod app;
 mod canvas;
 mod fonts;
+mod inspector;
 mod renderer;
 mod samples;
 

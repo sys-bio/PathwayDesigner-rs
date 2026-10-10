@@ -6,6 +6,7 @@
 //! (SPEC-Rust §2).
 
 pub mod bezier;
+pub mod expr;
 pub mod generate;
 pub mod geometry;
 pub mod json;

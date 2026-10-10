@@ -112,28 +112,59 @@ pub fn effective_mode(r: &Reaction) -> ReactionMode {
     }
 }
 
+/// A Linear reaction's junction stays at least this far outside both nodes'
+/// borders, so the modifier dot next to it is never hidden inside a node.
+pub const LINEAR_JUNCTION_CLEARANCE: f64 = 10.0;
+
 /// Where a reaction's junction is drawn (S §5.5). For a Linear reaction it is
-/// the stored junction projected onto the reactant–product line, clamped to
-/// [0.1, 0.9] along it, or the midpoint if the two centres are less than 1
-/// apart.
+/// on the reactant–product line (see [`linear_junction_t`]); otherwise it is
+/// the stored junction.
 pub fn effective_junction(model: &Model, r: &Reaction) -> Pt {
+    match linear_line(model, r) {
+        Some((a, b)) => match linear_junction_t(model, r) {
+            Some(t) => a + (b - a) * t,
+            None => (a + b) / 2.0,
+        },
+        None => r.junction,
+    }
+}
+
+/// A Linear reaction's reactant and product centres, or `None` for any other
+/// reaction.
+pub fn linear_line(model: &Model, r: &Reaction) -> Option<(Pt, Pt)> {
     if effective_mode(r) != ReactionMode::Linear {
-        return r.junction;
+        return None;
     }
-    let ends = model
-        .find_species(&r.reactants[0].species)
-        .zip(model.find_species(&r.products[0].species));
-    let Some((a, b)) = ends else {
-        return r.junction;
-    };
-    let (a, b) = (a.center, b.center);
+    let a = model.find_species(&r.reactants[0].species)?.center;
+    let b = model.find_species(&r.products[0].species)?.center;
+    Some((a, b))
+}
+
+/// Where a Linear reaction's junction is along its line, from 0 at the
+/// reactant's centre to 1 at the product's: the stored junction projected onto
+/// the line, kept within [0.1, 0.9] (S §5.5) and at least 10 units outside both
+/// nodes' borders. If the nodes are too close for that, halfway between their
+/// borders. `None` if the centres are less than 1 apart, or the reaction isn't
+/// Linear.
+pub fn linear_junction_t(model: &Model, r: &Reaction) -> Option<f64> {
+    let (a, b) = linear_line(model, r)?;
     let ab = b - a;
-    let len2 = ab.dot(ab);
-    if len2 < 1.0 {
-        return (a + b) / 2.0;
+    let len = ab.length();
+    if len < 1.0 {
+        return None;
     }
-    let t = ((r.junction - a).dot(ab) / len2).clamp(0.1, 0.9);
-    a + ab * t
+    let t = ((r.junction - a).dot(ab) / (len * len)).clamp(0.1, 0.9);
+    let na = model.find_species(&r.reactants[0].species)?;
+    let nb = model.find_species(&r.products[0].species)?;
+    let lo = (border(na, b).distance(a) + LINEAR_JUNCTION_CLEARANCE) / len;
+    let hi = 1.0 - (border(nb, a).distance(b) + LINEAR_JUNCTION_CLEARANCE) / len;
+    Some(if lo <= hi {
+        t.clamp(lo, hi)
+    } else {
+        let lo = border(na, b).distance(a) / len;
+        let hi = 1.0 - border(nb, a).distance(b) / len;
+        (lo + hi) / 2.0
+    })
 }
 
 struct Drawer<'a> {
@@ -178,7 +209,7 @@ impl Drawer<'_> {
 
     fn line_stroke(&self, r: &Reaction) -> Stroke {
         let style = custom(&r.style);
-        let color = pick(style.map(|s| s.line_color), REACTION_LINE);
+        let color = line_colour(r);
         let mut width = pick_width(style.map(|s| s.line_width), DEFAULT_LINE_WIDTH);
         if self.selected(r.selected) {
             width *= SELECTED_LINE_FACTOR;
@@ -358,14 +389,8 @@ impl Drawer<'_> {
             return;
         }
         let alias = node.is_alias() && self.opts.show_alias_indicator;
-        let (fill, border) = if alias {
-            (ALIAS_FILL, ALIAS_BORDER)
-        } else {
-            (SPECIES_FILL, SPECIES_BORDER)
-        };
         let style = custom(&node.style);
-        let fill = pick(style.map(|s| s.fill_color), fill);
-        let border_color = pick(style.map(|s| s.border_color), border);
+        let (fill, border_color) = species_colours(node, self.opts.show_alias_indicator);
         let mut border_width = pick_width(style.map(|s| s.border_width), DEFAULT_LINE_WIDTH);
         if node.is_boundary {
             border_width *= BOUNDARY_BORDER_FACTOR;
@@ -522,6 +547,27 @@ pub fn leg_end(node: &SpeciesNode, from: Pt) -> (Pt, Pt) {
     let b = border(node, from);
     let back = normalize(from - node.center);
     (b + back * PRODUCT_LINE_GAP, b + back * ARROW_TIP_INSET)
+}
+
+/// The fill and border colours a species is drawn with: its custom colours
+/// where set, otherwise the defaults (the alias colours for an alias while the
+/// alias indicator is on). The inspector's swatches show these (S §8.1).
+pub fn species_colours(node: &SpeciesNode, show_alias_indicator: bool) -> (Rgba, Rgba) {
+    let (fill, border) = if node.is_alias() && show_alias_indicator {
+        (ALIAS_FILL, ALIAS_BORDER)
+    } else {
+        (SPECIES_FILL, SPECIES_BORDER)
+    };
+    let style = custom(&node.style);
+    (
+        pick(style.map(|s| s.fill_color), fill),
+        pick(style.map(|s| s.border_color), border),
+    )
+}
+
+/// The colour a reaction's lines are drawn with.
+pub fn line_colour(r: &Reaction) -> Rgba {
+    pick(custom(&r.style).map(|s| s.line_color), REACTION_LINE)
 }
 
 /// The style, if it is custom (`has_custom_style`); otherwise none of its
@@ -735,10 +781,25 @@ mod tests {
         let r = m.find_reaction("R3").unwrap().clone();
         // Projected onto the A–B line.
         assert_eq!(effective_junction(&m, &r), pt(100.0, 0.0));
-        // Clamped to [0.1, 0.9] along it.
+        // Clamped along the line. The 0.1 limit alone would put it at x = 40,
+        // on A's border; it is kept 10 outside it instead.
         let mut far = r.clone();
         far.junction = pt(-500.0, 0.0);
-        assert_eq!(effective_junction(&m, &far), pt(40.0, 0.0));
+        assert_eq!(
+            effective_junction(&m, &far),
+            pt(40.0 + LINEAR_JUNCTION_CLEARANCE, 0.0)
+        );
+        let mut far = r.clone();
+        far.junction = pt(900.0, 0.0);
+        assert_eq!(
+            effective_junction(&m, &far),
+            pt(360.0 - LINEAR_JUNCTION_CLEARANCE, 0.0)
+        );
+        // Nodes too close for the clearance: halfway between their borders.
+        let mut close = m.clone();
+        close.find_species_mut("S2").unwrap().center = pt(90.0, 0.0);
+        let rc = close.find_reaction("R3").unwrap().clone();
+        assert_eq!(effective_junction(&close, &rc), pt(45.0, 0.0));
         // Straight reactions use the stored junction.
         let mut straight = r;
         straight.mode = ReactionMode::Straight;

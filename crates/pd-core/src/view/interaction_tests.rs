@@ -265,6 +265,35 @@ fn modifiers_dont_count_for_moving_a_junction() {
 }
 
 #[test]
+fn a_linear_junction_keeps_its_place_along_the_line() {
+    // Reported: dragging one end of a Linear reaction slid its junction, and
+    // the modifier arc ending there, into a node.
+    use crate::render::draw::effective_junction;
+    let mut v = view();
+    let mut m = v.model().clone();
+    let e = m.add_species(pt(200.0, -200.0), 80.0, 36.0);
+    let r = m.find_reaction_mut("R4").unwrap();
+    r.mode = ReactionMode::Linear;
+    r.modifiers.push(Participant::new(e, 1.0));
+    v.set_model(m);
+    // B (400,0) dragged to (150,300): the junction stays halfway along.
+    drag(&mut v, (400.0, 0.0), (150.0, 300.0), Modifiers::NONE);
+    let m = v.model();
+    let r = m.find_reaction("R4").unwrap();
+    let j = effective_junction(m, r);
+    assert!(j.distance(pt(75.0, 150.0)) < 1e-9, "junction at {j:?}");
+    // Undo puts the stored junction back exactly.
+    assert_eq!(v.undo_description(), Some("Move"));
+    v.undo();
+    assert_eq!(junction(&v, "R4"), pt(200.0, 0.0));
+    // Esc during a drag does too.
+    down(&mut v, 400.0, 0.0, Modifiers::NONE);
+    move_to(&mut v, 100.0, 100.0);
+    v.handle(&ViewEvent::Cancel);
+    assert_eq!(junction(&v, "R4"), pt(200.0, 0.0));
+}
+
+#[test]
 fn locked_species_stay_put() {
     let mut v = view();
     let mut m = v.model().clone();

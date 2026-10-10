@@ -319,7 +319,7 @@ Each frame MUST be drawn in this order:
 | Mode | Flags | Drawing |
 |---|---|---|
 | **Straight** | neither flag | Each reactant leg is a straight segment from the node's border to the junction. Each product leg is a straight segment from the junction to the node's border, with an arrowhead. |
-| **Linear** | `isLinear` (UniUni only) | One straight line from reactant to product with one arrowhead. The junction handle is hidden. The *effective* junction is the stored junction projected onto the reactant–product line, with the projection parameter clamped to [0.1, 0.9]. If the two centres are less than 1 unit apart, it is their midpoint. |
+| **Linear** | `isLinear` (UniUni only) | One straight line from reactant to product with one arrowhead. The junction handle is hidden. The *effective* junction is the stored junction projected onto the reactant–product line, with the projection parameter clamped to [0.1, 0.9] and, further, to at least 10 units outside both nodes' borders, so modifier arcs never end inside a node. If the nodes are too close for that, it is halfway between their borders; if the two centres are less than 1 unit apart, it is their midpoint. When a drag or an alignment moves one end of a Linear reaction, the stored junction is moved to keep its place along the line. (The reference only clamps to [0.1, 0.9] and leaves the stored junction where it is, so a modifier's dot can slide into a node.) |
 | **Bézier** | `isBezier` | Each leg is one cubic Bézier curve (§5.6). |
 
 If `isLinear` is set on a reaction that is not UniUni, it MUST be ignored and the

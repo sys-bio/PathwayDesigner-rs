@@ -7,6 +7,7 @@ use crate::generate;
 use crate::geometry::{Pt, pt};
 use crate::layout::{LayoutParams, LayoutRun, Progress};
 use crate::model::{Id, Model, ReactionMode, Role};
+use crate::render::draw::{linear_junction_t, linear_line};
 use crate::view::ViewResponse;
 
 /// A layout in progress, and the model before it started.
@@ -291,6 +292,13 @@ impl DiagramView {
         }
 
         let before = self.model.clone();
+        // Where each Linear junction is along its line, to keep it there.
+        let linear: Vec<(Id, f64)> = self
+            .model
+            .reactions()
+            .iter()
+            .filter_map(|r| linear_junction_t(&self.model, r).map(|t| (r.id.clone(), t)))
+            .collect();
         let mut moved = Vec::new();
         for (id, at) in targets {
             let Some(s) = self.model.find_species_mut(&id) else {
@@ -306,6 +314,24 @@ impl DiagramView {
             return ViewResponse::default();
         }
         self.moved_species(&moved);
+        for (id, t) in linear {
+            let ends_moved = self.model.find_reaction(&id).is_some_and(|r| {
+                r.reactants
+                    .iter()
+                    .chain(&r.products)
+                    .any(|p| moved.iter().any(|(m, _)| *m == p.species))
+            });
+            let line = self
+                .model
+                .find_reaction(&id)
+                .and_then(|r| linear_line(&self.model, r));
+            if let (true, Some((a, b))) = (ends_moved, line) {
+                self.model
+                    .find_reaction_mut(&id)
+                    .expect("found above")
+                    .junction = a + (b - a) * t;
+            }
+        }
         self.record(cmd.label(), before)
     }
 
@@ -476,6 +502,23 @@ mod tests {
             v.model().find_reaction("R4").unwrap().junction,
             pt(150.0, -30.0)
         );
+    }
+
+    #[test]
+    fn aligning_keeps_a_linear_junction_in_place_along_its_line() {
+        let mut v = view();
+        let mut m = v.model().clone();
+        m.find_reaction_mut("R4").unwrap().mode = ReactionMode::Linear;
+        v.set_model(m);
+        v.select_all();
+        let before = {
+            let m = v.model();
+            linear_junction_t(m, m.find_reaction("R4").unwrap()).unwrap()
+        };
+        v.arrange(Arrange::Left);
+        let m = v.model();
+        let after = linear_junction_t(m, m.find_reaction("R4").unwrap()).unwrap();
+        assert!((before - after).abs() < 1e-9);
     }
 
     #[test]

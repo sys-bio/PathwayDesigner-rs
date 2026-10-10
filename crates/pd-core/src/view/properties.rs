@@ -1,0 +1,492 @@
+//! Property and style edits from the inspector (S §8.1, §8.2, §8.4).
+//!
+//! Every edit is one undo step (fixes D-4): colours, widths and junction
+//! visibility as a StyleEdit command, the rest as snapshots.
+
+use super::DiagramView;
+use crate::expr;
+use crate::model::{Id, Model, Rgba, VisualStyle};
+use crate::render::draw::{line_colour, species_colours};
+use crate::undo::Command;
+use crate::view::ViewResponse;
+
+/// Which colour a swatch sets (S §8.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColourField {
+    /// Fill of the selected species.
+    Fill,
+    /// Border of the selected species.
+    Border,
+    /// Lines of the selected reactions.
+    Line,
+}
+
+/// Brings a reaction's modifiers in line with its rate law (S §8.4):
+/// - an empty law removes every modifier;
+/// - a law that doesn't parse leaves them alone;
+/// - otherwise, modifiers no longer named in the law are removed, and every
+///   species the law names that isn't a reactant or product is added (once).
+///
+/// Species are matched by their primary's id, so aliases count as their
+/// primary.
+pub fn sync_modifiers(model: &mut Model, id: &str) {
+    let Some(r) = model.find_reaction(id) else {
+        return;
+    };
+    let primary = |sp: &str| {
+        model
+            .find_species(sp)
+            .map_or(sp.to_owned(), |s| s.primary_id().to_owned())
+    };
+    let named: Vec<String> = if r.kinetic_law.trim().is_empty() {
+        Vec::new()
+    } else {
+        match expr::parse(&r.kinetic_law) {
+            Ok(ast) => expr::identifiers(&ast)
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            Err(_) => return,
+        }
+    };
+    let ends: Vec<String> = r
+        .reactants
+        .iter()
+        .chain(&r.products)
+        .map(|p| primary(&p.species))
+        .collect();
+    let mut modifiers: Vec<_> = r
+        .modifiers
+        .iter()
+        .filter(|m| named.contains(&primary(&m.species)))
+        .cloned()
+        .collect();
+    for name in &named {
+        let is_species = model
+            .find_species(name)
+            .is_some_and(|s| !s.is_alias() && !s.is_null_node);
+        let present = modifiers.iter().any(|m| primary(&m.species) == *name);
+        if is_species && !ends.contains(name) && !present {
+            modifiers.push(crate::model::Participant::new(name.as_str(), 1.0));
+        }
+    }
+    model.find_reaction_mut(id).expect("found above").modifiers = modifiers;
+}
+
+impl DiagramView {
+    /// Sets a reaction's rate law and syncs its modifiers. The law is kept
+    /// even if it doesn't parse (S §8.4). One undo step.
+    pub fn set_kinetic_law(&mut self, id: &str, law: &str) -> ViewResponse {
+        let before = self.model.clone();
+        let Some(r) = self.model.find_reaction_mut(id) else {
+            return ViewResponse::default();
+        };
+        r.kinetic_law = law.to_owned();
+        sync_modifiers(&mut self.model, id);
+        self.record_if_changed("Edit Rate Law", before)
+    }
+
+    /// Sets a species' initial value. For an alias, its primary's. One undo step.
+    pub fn set_initial_value(&mut self, id: &str, value: f64) -> ViewResponse {
+        if !value.is_finite() {
+            return ViewResponse::default();
+        }
+        let Some(primary) = self
+            .model
+            .find_species(id)
+            .map(|s| s.primary_id().to_owned())
+        else {
+            return ViewResponse::default();
+        };
+        let before = self.model.clone();
+        if let Some(s) = self.model.find_species_mut(&primary) {
+            s.initial_value = value;
+        }
+        self.record_if_changed("Edit Concentration", before)
+    }
+
+    /// Makes the selected species boundary species, or not (their primaries,
+    /// for aliases). One undo step.
+    pub fn set_boundary(&mut self, boundary: bool) -> ViewResponse {
+        let ids: Vec<Id> = self
+            .model
+            .selected_species()
+            .map(|s| s.primary_id().to_owned())
+            .collect();
+        let before = self.model.clone();
+        for id in ids {
+            if let Some(s) = self.model.find_species_mut(&id) {
+                s.is_boundary = boundary;
+            }
+        }
+        self.record_if_changed("Boundary Species", before)
+    }
+
+    /// The colour a swatch shows: the first selected item's effective colour
+    /// (S §8.1). `None` if nothing of that kind is selected.
+    pub fn swatch_colour(&self, field: ColourField) -> Option<Rgba> {
+        match field {
+            ColourField::Fill | ColourField::Border => {
+                let s = self.model.selected_species().next()?;
+                let (fill, border) = species_colours(s, self.show_alias_indicator);
+                Some(if field == ColourField::Fill {
+                    fill
+                } else {
+                    border
+                })
+            }
+            ColourField::Line => self.model.selected_reactions().next().map(line_colour),
+        }
+    }
+
+    /// Applies a colour to every selected item of the matching kind, and
+    /// makes their styles custom. One undo step (S §8.2).
+    pub fn apply_colour(&mut self, field: ColourField, colour: Rgba) -> ViewResponse {
+        self.style_edit(
+            |s| {
+                match field {
+                    ColourField::Fill => Some(&mut s.fill_color),
+                    ColourField::Border => Some(&mut s.border_color),
+                    ColourField::Line => None,
+                }
+                .into_iter()
+                .for_each(|c| {
+                    *c = colour;
+                    s.has_custom_style = true;
+                })
+            },
+            |r| {
+                if field == ColourField::Line {
+                    r.line_color = colour;
+                    r.has_custom_style = true;
+                }
+            },
+            field != ColourField::Line,
+            field == ColourField::Line,
+        )
+    }
+
+    /// Sets the border width of species `id` (0 means the default). One undo step.
+    pub fn set_border_width(&mut self, id: &str, width: f64) -> ViewResponse {
+        if !(width.is_finite() && width >= 0.0) {
+            return ViewResponse::default();
+        }
+        self.style_edit_one(id, true, |s| {
+            s.border_width = width;
+            s.has_custom_style = true;
+        })
+    }
+
+    /// Sets the line width of reaction `id` (0 means the default). One undo step.
+    pub fn set_line_width(&mut self, id: &str, width: f64) -> ViewResponse {
+        if !(width.is_finite() && width >= 0.0) {
+            return ViewResponse::default();
+        }
+        self.style_edit_one(id, false, |s| {
+            s.line_width = width;
+            s.has_custom_style = true;
+        })
+    }
+
+    /// Shows or hides the junction of every selected reaction. A display
+    /// toggle: it doesn't make the style custom (S §3.6). One undo step.
+    pub fn set_junction_visible(&mut self, visible: bool) -> ViewResponse {
+        self.style_edit(|_| {}, |s| s.junction_visible = visible, false, true)
+    }
+
+    /// True if every selected reaction shows its junction (S §8.1).
+    pub fn all_junctions_visible(&self) -> bool {
+        self.model
+            .selected_reactions()
+            .all(|r| r.style.junction_visible)
+    }
+
+    /// Changes the styles of the selected species and/or reactions, recording
+    /// one StyleEdit with the styles before and after.
+    fn style_edit(
+        &mut self,
+        species: impl Fn(&mut VisualStyle),
+        reactions: impl Fn(&mut VisualStyle),
+        do_species: bool,
+        do_reactions: bool,
+    ) -> ViewResponse {
+        let mut sp = Vec::new();
+        if do_species {
+            for s in self.model.species_mut().filter(|s| s.selected) {
+                let before = s.style;
+                species(&mut s.style);
+                if s.style != before {
+                    sp.push((s.id.clone(), before, s.style));
+                }
+            }
+        }
+        let mut rx = Vec::new();
+        if do_reactions {
+            for r in self.model.reactions_mut().filter(|r| r.selected) {
+                let before = r.style;
+                reactions(&mut r.style);
+                if r.style != before {
+                    rx.push((r.id.clone(), before, r.style));
+                }
+            }
+        }
+        self.push_style_edit(sp, rx)
+    }
+
+    fn style_edit_one(
+        &mut self,
+        id: &str,
+        species: bool,
+        change: impl Fn(&mut VisualStyle),
+    ) -> ViewResponse {
+        let (mut sp, mut rx) = (Vec::new(), Vec::new());
+        if species {
+            if let Some(s) = self.model.find_species_mut(id) {
+                let before = s.style;
+                change(&mut s.style);
+                if s.style != before {
+                    sp.push((id.to_owned(), before, s.style));
+                }
+            }
+        } else if let Some(r) = self.model.find_reaction_mut(id) {
+            let before = r.style;
+            change(&mut r.style);
+            if r.style != before {
+                rx.push((id.to_owned(), before, r.style));
+            }
+        }
+        self.push_style_edit(sp, rx)
+    }
+
+    fn push_style_edit(
+        &mut self,
+        species: Vec<(Id, VisualStyle, VisualStyle)>,
+        reactions: Vec<(Id, VisualStyle, VisualStyle)>,
+    ) -> ViewResponse {
+        if species.is_empty() && reactions.is_empty() {
+            return ViewResponse::default();
+        }
+        self.undo.push(Command::StyleEdit { species, reactions });
+        ViewResponse {
+            repaint: true,
+            model_changed: true,
+            ..ViewResponse::default()
+        }
+    }
+
+    /// Records a change since `before` as one undo step, or nothing if the
+    /// model is the same.
+    fn record_if_changed(&mut self, desc: &'static str, before: Model) -> ViewResponse {
+        if self.model == before {
+            return ViewResponse::default();
+        }
+        self.record(desc, before)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::pt;
+    use crate::model::Participant;
+    use crate::render::constants::{ALIAS_BORDER, ALIAS_FILL, REACTION_LINE, SPECIES_BORDER};
+    use crate::view::{Button, Modifiers, ViewEvent};
+
+    /// S → P with E and Km-free species X around; R5 selected.
+    fn view() -> DiagramView {
+        let mut m = Model::new();
+        let s = m.add_species(pt(0.0, 0.0), 80.0, 36.0);
+        let p = m.add_species(pt(400.0, 0.0), 80.0, 36.0);
+        m.add_species(pt(200.0, -200.0), 80.0, 36.0);
+        m.rename_species("S3", "E").unwrap();
+        m.add_species(pt(200.0, 200.0), 80.0, 36.0);
+        let r = m.add_reaction(pt(200.0, 0.0));
+        let rr = m.find_reaction_mut(&r).unwrap();
+        rr.reactants.push(Participant::new(s, 1.0));
+        rr.products.push(Participant::new(p, 1.0));
+        rr.selected = true;
+        DiagramView::new(m)
+    }
+
+    fn modifiers(v: &DiagramView) -> Vec<String> {
+        v.model().reactions()[0]
+            .modifiers
+            .iter()
+            .map(|m| m.species.clone())
+            .collect()
+    }
+
+    #[test]
+    fn typing_a_law_adds_and_removes_modifier_arcs() {
+        // M7 acceptance.
+        let mut v = view();
+        v.set_kinetic_law("R5", "Vm*S1/(Km + S1)*E");
+        assert_eq!(modifiers(&v), ["E"]);
+        // Parameters, reactants and products are not modifiers.
+        v.set_kinetic_law("R5", "Vm*S1/(Km + S1)");
+        assert!(modifiers(&v).is_empty());
+        v.set_kinetic_law("R5", "k*E*S4*E");
+        assert_eq!(modifiers(&v), ["E", "S4"]);
+        assert_eq!(v.undo_description(), Some("Edit Rate Law"));
+        v.undo();
+        assert!(modifiers(&v).is_empty());
+    }
+
+    #[test]
+    fn a_law_that_doesnt_parse_is_kept_and_leaves_modifiers_alone() {
+        let mut v = view();
+        v.set_kinetic_law("R5", "k*E");
+        v.set_kinetic_law("R5", "k*(E + ");
+        assert_eq!(v.model().reactions()[0].kinetic_law, "k*(E + ");
+        assert_eq!(modifiers(&v), ["E"]);
+        // An empty law removes them all.
+        v.set_kinetic_law("R5", "  ");
+        assert!(modifiers(&v).is_empty());
+    }
+
+    #[test]
+    fn modifiers_are_matched_by_primary() {
+        let mut v = view();
+        let mut m = v.model().clone();
+        let alias = m.add_alias("E", pt(300.0, -200.0)).unwrap();
+        m.find_reaction_mut("R5")
+            .unwrap()
+            .modifiers
+            .push(Participant::new(alias.as_str(), 1.0));
+        v.set_model(m);
+        // The law names E; the alias modifier stands for E, so it stays and
+        // no second E is added.
+        v.set_kinetic_law("R5", "k*E");
+        assert_eq!(modifiers(&v), [alias]);
+    }
+
+    #[test]
+    fn unchanged_values_record_nothing() {
+        let mut v = view();
+        v.set_kinetic_law("R5", "");
+        assert!(!v.can_undo());
+        v.set_initial_value("S1", 0.0);
+        assert!(!v.can_undo());
+    }
+
+    #[test]
+    fn concentration_and_boundary() {
+        let mut v = view();
+        let alias = {
+            let mut m = v.model().clone();
+            let a = m.add_alias("S1", pt(0.0, 100.0)).unwrap();
+            v.set_model(m);
+            a
+        };
+        // An alias edits its primary.
+        v.set_initial_value(&alias, 2.5);
+        assert_eq!(v.model().find_species("S1").unwrap().initial_value, 2.5);
+        assert_eq!(v.undo_description(), Some("Edit Concentration"));
+        v.select_all();
+        v.set_boundary(true);
+        assert!(v.model().find_species("S1").unwrap().is_boundary);
+        assert!(
+            !v.model().find_species(&alias).unwrap().is_boundary,
+            "the primary holds it"
+        );
+        v.undo();
+        assert!(!v.model().find_species("S1").unwrap().is_boundary);
+        assert!(!v.set_initial_value("S1", f64::NAN).model_changed);
+    }
+
+    #[test]
+    fn colour_applies_to_every_selected_item_as_one_step() {
+        let mut v = view();
+        v.select_all();
+        let c = Rgba::rgb(0xFF, 0xE0, 0xB2);
+        v.apply_colour(ColourField::Fill, c);
+        assert!(
+            v.model()
+                .species()
+                .iter()
+                .all(|s| s.style.fill_color == c && s.style.has_custom_style)
+        );
+        assert_eq!(v.undo_description(), Some("Style"));
+        // Only the fill: the border stays the default (M7 acceptance).
+        assert_eq!(v.swatch_colour(ColourField::Border), Some(SPECIES_BORDER));
+        v.undo();
+        assert!(
+            v.model()
+                .species()
+                .iter()
+                .all(|s| !s.style.has_custom_style)
+        );
+        assert!(!v.can_undo(), "one step for all four species");
+    }
+
+    #[test]
+    fn line_colour_goes_to_reactions_only() {
+        let mut v = view();
+        v.select_all();
+        v.apply_colour(ColourField::Line, Rgba::rgb(1, 2, 3));
+        assert_eq!(
+            v.model().reactions()[0].style.line_color,
+            Rgba::rgb(1, 2, 3)
+        );
+        assert!(
+            v.model()
+                .species()
+                .iter()
+                .all(|s| !s.style.has_custom_style)
+        );
+        assert_eq!(v.swatch_colour(ColourField::Line), Some(Rgba::rgb(1, 2, 3)));
+    }
+
+    #[test]
+    fn swatches_show_effective_colours() {
+        let mut v = view();
+        assert_eq!(
+            v.swatch_colour(ColourField::Fill),
+            None,
+            "no species selected"
+        );
+        assert_eq!(v.swatch_colour(ColourField::Line), Some(REACTION_LINE));
+        let mut m = v.model().clone();
+        let a = m.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        m.find_species_mut(&a).unwrap().selected = true;
+        v.set_model(m);
+        assert_eq!(v.swatch_colour(ColourField::Fill), Some(ALIAS_FILL));
+        assert_eq!(v.swatch_colour(ColourField::Border), Some(ALIAS_BORDER));
+    }
+
+    #[test]
+    fn widths_and_junction_visibility() {
+        let mut v = view();
+        v.set_border_width("S1", 3.0);
+        let s = &v.model().find_species("S1").unwrap().style;
+        assert!(s.has_custom_style && s.border_width == 3.0);
+        v.set_line_width("R5", 2.0);
+        assert_eq!(v.model().reactions()[0].style.line_width, 2.0);
+        assert!(!v.set_line_width("R5", -1.0).model_changed);
+        v.set_junction_visible(false);
+        let st = v.model().reactions()[0].style;
+        assert!(!st.junction_visible);
+        assert!(!v.all_junctions_visible());
+        // Undo each, in turn.
+        v.undo();
+        assert!(v.all_junctions_visible());
+        v.undo();
+        assert_eq!(v.model().reactions()[0].style.line_width, 0.0);
+        v.undo();
+        assert!(!v.model().find_species("S1").unwrap().style.has_custom_style);
+    }
+
+    #[test]
+    fn junction_visibility_doesnt_make_a_style_custom() {
+        let mut v = view();
+        v.set_junction_visible(false);
+        assert!(!v.model().reactions()[0].style.has_custom_style);
+        // The box is ticked only if every selected reaction shows its junction.
+        v.handle(&ViewEvent::PointerDown {
+            pos: pt(0.0, 0.0),
+            button: Button::Primary,
+            modifiers: Modifiers::NONE,
+        });
+        assert!(v.all_junctions_visible(), "no reactions selected");
+    }
+}
