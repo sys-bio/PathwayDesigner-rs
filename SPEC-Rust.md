@@ -644,9 +644,23 @@ read the new crate's output. The panel, the view and the tests don't change.
 After importing, SHOULD offer to run auto-layout. A preference can make it run
 automatically.
 
-### 8.3 SBML (`pd-core::sbml`)
+### 8.3 SBML (`sbml-io` and `pd-core::sbml`)
 
-**Export** (S §11.5). Write with `quick-xml`.
+**A reusable crate.** SBML reading and writing lives in **`sbml-io`**
+(`crates/sbml-io`), a crate meant for others to use too. It is licensed MIT OR
+Apache-2.0, and its design is in `crates/sbml-io/README.md`:
+- plain Rust data, not libSBML's class hierarchy;
+- Level 2 and Level 3 core plus the Layout package;
+- MathML as a tree;
+- other packages, notes, annotations and unknown XML kept for a round trip.
+
+It knows nothing about PathwayDesigner. **`pd-core::sbml`** is the bridge, the same
+pattern as Antimony (§8.2): it maps between `sbml-io`'s `Document` and the
+`Model`, converts between `sbml-io`'s MathML tree and `pd-core::expr`, and holds
+the rules below. A level-converting or more complete SBML crate could later
+replace `sbml-io` behind the same bridge.
+
+**Export** (S §11.5).
 - **Core:** compartments, species (no null nodes, D-9), numeric parameters, other
   parameters as `initialAssignment`, reactions with `modifierSpeciesReference` (D-10),
   assignment rules, and rate laws as MathML.
@@ -658,7 +672,7 @@ automatically.
   - glyphs for modifiers;
   - unique glyph ids (D-13).
 
-**Import** (S §16.2 F-1). Read with `roxmltree` (or the `quick-xml` reader):
+**Import** (S §16.2 F-1), of Level 2 and Level 3 files:
 - **Core:** compartments, parameters, species (using `initialConcentration`, or
   `initialAmount` if it is missing or 0), reactions with stoichiometry and modifiers,
   rate laws via `from_mathml` and `to_infix`, and assignment rules.
