@@ -3,6 +3,7 @@
 //! Each command changes the model and records one undo step.
 
 use super::{DiagramView, Gesture, Pending};
+use crate::bezier::apply_smooth_handles;
 use crate::geometry::{Pt, pt};
 use crate::model::{
     ALIAS_OFFSET, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, Id, Model, Parameter, Participant,
@@ -16,6 +17,15 @@ use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::text::text_width;
 use crate::undo::Command;
 use crate::view::{Modifiers, Request, Target, Tool, ViewResponse};
+
+/// Halfway between a UniUni reaction's two species, or `None` for any other
+/// reaction.
+fn midpoint(m: &Model, id: &str) -> Option<Pt> {
+    let r = m.find_reaction(id).filter(|r| r.is_uni_uni())?;
+    let a = m.find_species(&r.reactants[0].species)?.center;
+    let b = m.find_species(&r.products[0].species)?.center;
+    Some((a + b) / 2.0)
+}
 
 /// The value of a parameter made for a new reaction's rate law (S §6.5).
 const NEW_PARAMETER_VALUE: &str = "0.1";
@@ -161,8 +171,10 @@ impl DiagramView {
             .collect();
         r.kinetic_law = law;
         r.mode = mode;
-        // Smooth-junction handles are computed from R5 on.
         r.junction_smooth = self.default_smooth && mode == ReactionMode::Bezier;
+        if r.junction_smooth {
+            apply_smooth_handles(&mut self.model, &id);
+        }
         if self.model.find_parameter(&k).is_none() {
             self.model.parameters.push(Parameter {
                 variable: k,
@@ -170,6 +182,157 @@ impl DiagramView {
             });
         }
         self.record("Add Reaction", before)
+    }
+
+    // ----- Reaction shape commands (S §7.4) ---------------------------------
+
+    /// Runs `change` on each selected reaction and records one undo step if
+    /// anything changed.
+    fn on_selected_reactions(
+        &mut self,
+        desc: &'static str,
+        change: impl Fn(&mut Model, &str),
+    ) -> ViewResponse {
+        let ids: Vec<Id> = self
+            .model
+            .selected_reactions()
+            .map(|r| r.id.clone())
+            .collect();
+        self.on_reactions(desc, &ids, change)
+    }
+
+    fn on_reactions(
+        &mut self,
+        desc: &'static str,
+        ids: &[Id],
+        change: impl Fn(&mut Model, &str),
+    ) -> ViewResponse {
+        let before = self.model.clone();
+        for id in ids {
+            change(&mut self.model, id);
+        }
+        if self.model == before {
+            return ViewResponse::default();
+        }
+        self.record(desc, before)
+    }
+
+    /// True if any selected reaction is UniUni (Toggle Linear applies).
+    pub fn selection_has_uni_uni(&self) -> bool {
+        self.model.selected_reactions().any(|r| r.is_uni_uni())
+    }
+
+    /// True if any selected reaction is Bézier (Toggle Smooth applies).
+    pub fn selection_has_bezier(&self) -> bool {
+        self.model
+            .selected_reactions()
+            .any(|r| r.mode == ReactionMode::Bezier)
+    }
+
+    /// Toggle Linear (S §7.4.1): flips UniUni reactions between Linear and
+    /// Straight. Turning Linear off puts the junction halfway between the two
+    /// species. Other reactions are left alone.
+    pub fn toggle_linear(&mut self) -> ViewResponse {
+        self.on_selected_reactions("Toggle Linear", |m, id| {
+            let Some(r) = m.find_reaction(id).filter(|r| r.is_uni_uni()) else {
+                return;
+            };
+            let linear = r.mode == ReactionMode::Linear;
+            let mid = midpoint(m, id);
+            let r = m.find_reaction_mut(id).expect("found above");
+            if linear {
+                r.mode = ReactionMode::Straight;
+                if let Some(mid) = mid {
+                    r.junction = mid;
+                }
+            } else {
+                r.mode = ReactionMode::Linear;
+            }
+        })
+    }
+
+    /// Set Bézier (S §7.4.2).
+    pub fn set_bezier(&mut self) -> ViewResponse {
+        self.on_selected_reactions("Set Bézier", |m, id| {
+            if let Some(r) = m.find_reaction_mut(id) {
+                r.mode = ReactionMode::Bezier;
+            }
+        })
+    }
+
+    /// Set Straight (S §7.4.3). A UniUni reaction's junction goes halfway
+    /// between its two species.
+    pub fn set_straight(&mut self) -> ViewResponse {
+        self.on_selected_reactions("Set Straight", |m, id| {
+            let mid = midpoint(m, id);
+            if let Some(r) = m.find_reaction_mut(id) {
+                r.mode = ReactionMode::Straight;
+                if let Some(mid) = mid {
+                    r.junction = mid;
+                }
+            }
+        })
+    }
+
+    /// Toggle Smooth Junction (S §7.4.4), Bézier reactions only. Turning it on
+    /// computes and stores the smooth handles at once.
+    pub fn toggle_smooth(&mut self) -> ViewResponse {
+        self.on_selected_reactions("Smooth Junction", |m, id| {
+            let Some(r) = m
+                .find_reaction_mut(id)
+                .filter(|r| r.mode == ReactionMode::Bezier)
+            else {
+                return;
+            };
+            r.junction_smooth = !r.junction_smooth;
+            if r.junction_smooth {
+                apply_smooth_handles(m, id);
+            }
+        })
+    }
+
+    /// Make Nice (S §7.4.5) on the selected reactions.
+    pub fn make_nice(&mut self) -> ViewResponse {
+        let ids: Vec<Id> = self
+            .model
+            .selected_reactions()
+            .map(|r| r.id.clone())
+            .collect();
+        self.make_nice_reactions(&ids)
+    }
+
+    /// Make Nice on the given reactions ("Adjust Reaction" in the context
+    /// menu): Bézier mode, the junction halfway between the reactant and
+    /// product centres, and fresh handles: automatic, or smooth if the
+    /// junction is smooth.
+    pub fn make_nice_reactions(&mut self, ids: &[Id]) -> ViewResponse {
+        self.on_reactions("Make Nice", ids, |m, id| {
+            let Some(r) = m.find_reaction(id) else {
+                return;
+            };
+            let centre = |list: &[crate::model::Participant]| {
+                let pts: Vec<Pt> = list
+                    .iter()
+                    .filter_map(|p| m.find_species(&p.species))
+                    .map(|s| s.center)
+                    .collect();
+                (!pts.is_empty())
+                    .then(|| pts.iter().fold(Pt::ZERO, |a, &p| a + p) / pts.len() as f64)
+            };
+            let cent_r = centre(&r.reactants).unwrap_or(r.junction);
+            let cent_p = centre(&r.products).unwrap_or(cent_r);
+            let smooth = r.junction_smooth;
+            let r = m.find_reaction_mut(id).expect("found above");
+            r.mode = ReactionMode::Bezier;
+            r.junction = (cent_r + cent_p) / 2.0;
+            if smooth {
+                apply_smooth_handles(m, id);
+            } else {
+                for p in r.reactants.iter_mut().chain(&mut r.products) {
+                    p.ctrl_pts_set = false;
+                }
+            }
+        })
     }
 
     // ----- Double click and context menu ------------------------------------
@@ -201,7 +364,11 @@ impl DiagramView {
         if self.tool != Tool::Select || self.is_busy() {
             return ViewResponse::default();
         }
-        let target = self.target_at(pos);
+        let target = match self.target_at(pos) {
+            // A handle stands for its reaction here.
+            Target::Handle(h) => Target::Leg(h.reaction),
+            t => t,
+        };
         match &target {
             Target::Species(id) => {
                 if !self.model.find_species(id).is_some_and(|s| s.selected) {
@@ -215,7 +382,7 @@ impl DiagramView {
                     self.set_reaction_selected(id, true);
                 }
             }
-            Target::Empty => return ViewResponse::default(),
+            Target::Handle(_) | Target::Empty => return ViewResponse::default(),
         }
         ViewResponse {
             repaint: true,

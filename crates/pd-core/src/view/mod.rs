@@ -6,6 +6,8 @@
 //! turns egui input into [`ViewEvent`]s and gives `draw` a renderer. Every
 //! change to the model goes through the view, so every change is undoable.
 
+#[cfg(test)]
+mod bezier_tests;
 mod editing;
 #[cfg(test)]
 mod editing_tests;
@@ -15,15 +17,16 @@ pub mod input;
 mod interaction_tests;
 mod tooltip;
 
-use crate::geometry::{Pt, pt, screen_to_world, world_to_screen};
+use crate::bezier::{Ctrl as HandleCtrl, apply_smooth_handles, store_auto_handles};
+use crate::geometry::{Pt, normalize, pt, screen_to_world, world_to_screen};
 use crate::model::{Id, Model, ReactionMode, Role};
 use crate::render::constants::{RUBBER_BAND, ZOOM_MAX, ZOOM_MIN};
 use crate::render::draw::{DrawOptions, content_bounds, draw_model};
 use crate::render::{Renderer, SRect, Stroke, spt};
-use crate::undo::{Command, UndoHistory};
+use crate::undo::{Command, CtrlState, UndoHistory};
 
 pub use hit::hit_test;
-pub use input::{Button, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
+pub use input::{Button, HandleId, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
 
 /// The rubber band's fill: its colour at 20 % (S §5.9).
 const RUBBER_BAND_FILL_ALPHA: u8 = 51;
@@ -65,6 +68,7 @@ enum Gesture {
     Idle,
     Nodes(NodeDrag),
     Junction(JunctionDrag),
+    Handle(HandleDrag),
     /// Corners in screen coordinates.
     RubberBand {
         start: Pt,
@@ -97,8 +101,26 @@ struct NodeDrag {
     species: Vec<(Id, Pt)>,
     junctions: Vec<(Id, Pt)>,
     handles: Vec<HandleRef>,
+    /// Smooth reactions whose junction moves: their handles are recomputed
+    /// as it goes (S §6.4).
+    smooth: Vec<Id>,
     /// The model at the start, when the drag moves more than positions
     /// (stored handles, smooth junctions): it is undone as a snapshot (S §9.2).
+    before: Option<Box<Model>>,
+    delta: Pt,
+}
+
+#[derive(Clone, Debug)]
+struct HandleDrag {
+    start: Pt,
+    handle: HandleId,
+    /// The participant's handles before the grab (possibly automatic).
+    from: CtrlState,
+    /// Where the dragged handle was once stored.
+    orig: Pt,
+    /// On a smooth junction, dragging an inner handle moves the others too,
+    /// so the drag is undone as a snapshot.
+    smooth: bool,
     before: Option<Box<Model>>,
     delta: Pt,
 }
@@ -368,6 +390,9 @@ impl DiagramView {
                     self.gesture = Gesture::Nodes(self.begin_node_drag(world));
                 }
             }
+            Target::Handle(h) => {
+                self.gesture = Gesture::Handle(self.begin_handle_drag(world, h));
+            }
             Target::Junction(id) => {
                 if !modifiers.shift {
                     self.model.clear_selection();
@@ -426,6 +451,11 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_junction_drag(&drag);
             }
+            Gesture::Handle(drag) => {
+                drag.delta = world - drag.start;
+                let drag = drag.clone();
+                self.apply_handle_drag(&drag);
+            }
             Gesture::RubberBand { current, .. } => *current = pos,
         }
         ViewResponse {
@@ -454,6 +484,35 @@ impl DiagramView {
                     species: moved(&drag.species, drag.delta),
                     junctions: moved(&drag.junctions, drag.delta),
                 },
+            }),
+            Gesture::Handle(drag) if drag.delta == Pt::ZERO => {
+                // A press without a move changes nothing, not even storing
+                // the automatic handles.
+                self.revert_handle_drag(drag);
+                None
+            }
+            Gesture::Handle(drag) => Some(match drag.before {
+                Some(before) => Command::Snapshot {
+                    desc: "Move Handle",
+                    before,
+                    after: Box::new(self.model.clone()),
+                },
+                None => {
+                    let h = &drag.handle;
+                    let r = self.model.find_reaction(&h.reaction).expect("dragged");
+                    let p = &r.participants(h.role)[h.index];
+                    Command::DragCtrlPt {
+                        reaction: h.reaction.clone(),
+                        role: h.role,
+                        index: h.index,
+                        from: drag.from,
+                        to: CtrlState {
+                            ctrl1: p.ctrl1,
+                            ctrl2: p.ctrl2,
+                            ctrl_pts_set: p.ctrl_pts_set,
+                        },
+                    }
+                }
             }),
             Gesture::Junction(drag) if drag.delta == Pt::ZERO => None,
             Gesture::Junction(drag) => Some(match drag.before {
@@ -493,6 +552,7 @@ impl DiagramView {
                 drag.delta = Pt::ZERO;
                 self.apply_junction_drag(&drag);
             }
+            Gesture::Handle(drag) => self.revert_handle_drag(drag),
             Gesture::RubberBand { .. } => {}
         }
         ViewResponse {
@@ -515,14 +575,16 @@ impl DiagramView {
 
         let mut junctions = Vec::new();
         let mut handles = Vec::new();
-        let mut smooth_moves = false;
+        let mut smooth = Vec::new();
         for r in m.reactions() {
             // The junction follows when every reactant and product moves.
             let mut ends = r.reactants.iter().chain(&r.products).peekable();
             let junction_moves = ends.peek().is_some() && ends.all(|p| is_moved(&p.species));
             if junction_moves {
                 junctions.push((r.id.clone(), r.junction));
-                smooth_moves |= r.junction_smooth && r.mode == ReactionMode::Bezier;
+                if r.junction_smooth && r.mode == ReactionMode::Bezier {
+                    smooth.push(r.id.clone());
+                }
             }
             // Stored handles follow the end they belong to (S §5.6.1): the
             // species-side handle is ctrl1 on a reactant and ctrl2 on a product.
@@ -552,12 +614,13 @@ impl DiagramView {
         }
         // Undo of a plain move restores positions only; a drag that moves more
         // needs a snapshot taken now (S §9.2).
-        let before = (!handles.is_empty() || smooth_moves).then(|| Box::new(m.clone()));
+        let before = (!handles.is_empty() || !smooth.is_empty()).then(|| Box::new(m.clone()));
         NodeDrag {
             start,
             species,
             junctions,
             handles,
+            smooth,
             before,
             delta: Pt::ZERO,
         }
@@ -611,6 +674,10 @@ impl DiagramView {
             }
         }
         self.move_handles(&drag.handles, drag.delta);
+        // A smooth junction that moved gets its handles recomputed (S §6.4).
+        for id in &drag.smooth {
+            apply_smooth_handles(&mut self.model, id);
+        }
     }
 
     fn apply_junction_drag(&mut self, drag: &JunctionDrag) {
@@ -618,6 +685,90 @@ impl DiagramView {
             r.junction = drag.orig + drag.delta;
         }
         self.move_handles(&drag.handles, drag.delta);
+    }
+
+    fn begin_handle_drag(&mut self, start: Pt, handle: HandleId) -> HandleDrag {
+        let r = self
+            .model
+            .find_reaction(&handle.reaction)
+            .expect("hit reaction exists");
+        let p = &r.participants(handle.role)[handle.index];
+        let from = CtrlState {
+            ctrl1: p.ctrl1,
+            ctrl2: p.ctrl2,
+            ctrl_pts_set: p.ctrl_pts_set,
+        };
+        let smooth = r.junction_smooth;
+        let before = smooth.then(|| Box::new(self.model.clone()));
+        // Save both automatic handles first, so the other one never jumps.
+        store_auto_handles(&mut self.model, &handle.reaction, handle.role, handle.index);
+        let r = self.model.find_reaction(&handle.reaction).expect("exists");
+        let orig = handle.ctrl.get(&r.participants(handle.role)[handle.index]);
+        HandleDrag {
+            start,
+            orig,
+            handle,
+            from,
+            smooth,
+            before,
+            delta: Pt::ZERO,
+        }
+    }
+
+    /// The handle follows the cursor. On a smooth junction, moving an inner
+    /// handle swings every other inner handle into line through the junction,
+    /// each keeping its distance from it (S §6.4).
+    fn apply_handle_drag(&mut self, drag: &HandleDrag) {
+        let h = &drag.handle;
+        let at = drag.orig + drag.delta;
+        let Some(r) = self.model.find_reaction_mut(&h.reaction) else {
+            return;
+        };
+        h.ctrl.set(&mut r.participants_mut(h.role)[h.index], at);
+        if !drag.smooth || h.ctrl != HandleCtrl::inner(h.role) {
+            return;
+        }
+        let j = r.junction;
+        let d = normalize(at - j);
+        let dragged_distance = at.distance(j);
+        let mut others = Vec::new();
+        for role in [Role::Reactant, Role::Product] {
+            for index in 0..r.participants(role).len() {
+                if !(role == h.role && index == h.index) {
+                    others.push((role, index));
+                }
+            }
+        }
+        for (role, index) in others {
+            store_auto_handles(&mut self.model, &h.reaction, role, index);
+            let r = self.model.find_reaction_mut(&h.reaction).expect("exists");
+            let p = &mut r.participants_mut(role)[index];
+            let inner = HandleCtrl::inner(role);
+            let mut a = inner.get(p).distance(j);
+            if a < 0.5 {
+                a = dragged_distance;
+            }
+            let side = if role == h.role { 1.0 } else { -1.0 };
+            inner.set(p, j + d * (side * a));
+        }
+    }
+
+    /// Puts back everything a handle drag changed.
+    fn revert_handle_drag(&mut self, drag: HandleDrag) {
+        if let Some(before) = drag.before {
+            self.model = *before;
+            return;
+        }
+        let h = &drag.handle;
+        if let Some(p) = self
+            .model
+            .find_reaction_mut(&h.reaction)
+            .and_then(|r| r.participants_mut(h.role).get_mut(h.index))
+        {
+            p.ctrl1 = drag.from.ctrl1;
+            p.ctrl2 = drag.from.ctrl2;
+            p.ctrl_pts_set = drag.from.ctrl_pts_set;
+        }
     }
 
     fn move_handles(&mut self, handles: &[HandleRef], delta: Pt) {

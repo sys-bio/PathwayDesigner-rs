@@ -41,6 +41,7 @@ pub enum MenuAction {
     RemoveNullNode(String),
     ToggleLock,
     DeleteReaction(String),
+    MakeNice(String),
 }
 
 /// What happened on the canvas this frame.
@@ -217,8 +218,13 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 "Delete Reaction",
                 MenuAction::DeleteReaction(id.clone()),
             );
+            item(
+                ui,
+                "Adjust Reaction (Make Nice)",
+                MenuAction::MakeNice(id.clone()),
+            );
         }
-        Target::Empty => ui.close(),
+        Target::Handle(_) | Target::Empty => ui.close(),
     }
     chosen
 }
@@ -300,7 +306,7 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
         return CursorIcon::Crosshair;
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
-        Some(Target::Species(_) | Target::Junction(_)) => CursorIcon::Grab,
+        Some(Target::Species(_) | Target::Junction(_) | Target::Handle(_)) => CursorIcon::Grab,
         Some(Target::Leg(_)) => CursorIcon::PointingHand,
         _ => CursorIcon::Default,
     }

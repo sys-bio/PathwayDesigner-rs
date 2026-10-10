@@ -1,13 +1,13 @@
-//! The drawing passes (S §5.2), for Straight and Linear reactions.
+//! The drawing passes (S §5.2), for Straight, Linear and Bézier reactions.
 //!
-//! Bézier reactions are drawn as Straight until milestone R5 adds the Bézier
-//! pass. The passes skip work the current options don't need, and never draw
+//! The passes skip work the current options don't need, and never draw
 //! anything that depends on the selection when drawing for output (S §11.6).
 
+use crate::bezier::{Ctrl, cut_leg, leg_curve};
 use crate::geometry::{
     Pt, filled_arrowhead, normalize, pt, rect_boundary_intersect, world_to_screen,
 };
-use crate::model::{Model, Reaction, ReactionMode, Rgba, SpeciesNode, VisualStyle};
+use crate::model::{Model, Reaction, ReactionMode, Rgba, Role, SpeciesNode, VisualStyle};
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
 
@@ -71,6 +71,11 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     for reaction in model.reactions() {
         d.junction(reaction, r);
     }
+    if !opts.for_output {
+        for reaction in model.selected_reactions() {
+            d.bezier_handles(reaction, r);
+        }
+    }
 }
 
 /// The world-space rectangle that output draws: every species rectangle and
@@ -98,12 +103,12 @@ pub fn content_bounds(model: &Model) -> (Pt, Pt) {
     (min - m, max + m)
 }
 
-/// How a reaction is actually drawn: Linear only applies to UniUni reactions
-/// (S §5.5), and Bézier is drawn as Straight until R5.
+/// How a reaction is actually drawn: Linear only applies to UniUni reactions,
+/// and is drawn as Straight otherwise (S §5.5).
 pub fn effective_mode(r: &Reaction) -> ReactionMode {
     match r.mode {
-        ReactionMode::Linear if r.is_uni_uni() => ReactionMode::Linear,
-        _ => ReactionMode::Straight,
+        ReactionMode::Linear if !r.is_uni_uni() => ReactionMode::Straight,
+        mode => mode,
     }
 }
 
@@ -202,6 +207,32 @@ impl Drawer<'_> {
             return;
         }
 
+        if effective_mode(r) == ReactionMode::Bezier {
+            for (role, list) in [(Role::Reactant, &r.reactants), (Role::Product, &r.products)] {
+                for (index, p) in list.iter().enumerate() {
+                    let Some(node) = self.visible(&p.species) else {
+                        continue;
+                    };
+                    let Some(curve) = leg_curve(self.model, r, role, index) else {
+                        continue;
+                    };
+                    let leg = cut_leg(&curve, node, role);
+                    let c = leg.curve;
+                    out.cubic(
+                        self.to_screen(c.p0),
+                        self.to_screen(c.p1),
+                        self.to_screen(c.p2),
+                        self.to_screen(c.p3),
+                        stroke,
+                    );
+                    if let Some((tip, dir)) = leg.arrow {
+                        self.arrowhead(tip, dir, stroke.color, out);
+                    }
+                }
+            }
+            return;
+        }
+
         let j = r.junction;
         for p in &r.reactants {
             if let Some(node) = self.visible(&p.species) {
@@ -221,6 +252,60 @@ impl Drawer<'_> {
     fn arrowhead(&self, tip: Pt, dir: Pt, color: Rgba, out: &mut dyn Renderer) {
         let tri = filled_arrowhead(tip, dir, ARROW_LENGTH, ARROW_HALF_BASE);
         out.polygon(&tri.map(|p| self.to_screen(p)), color);
+    }
+
+    // ----- Pass 7: Bézier handles (S §5.6.4) --------------------------------
+
+    /// Every leg of a selected Bézier reaction shows its two handles, each
+    /// joined to its anchor by a dashed grey line: the species centre for the
+    /// outer handle, the junction for the inner one. A smooth junction's inner
+    /// handles are outlined in teal.
+    fn bezier_handles(&self, r: &Reaction, out: &mut dyn Renderer) {
+        if effective_mode(r) != ReactionMode::Bezier {
+            return;
+        }
+        let guide = Stroke {
+            width: self.len(1.0),
+            color: HANDLE_GUIDE,
+            dash: self.dash(HANDLE_GUIDE_DASH),
+            round_cap: false,
+        };
+        for (role, list) in [(Role::Reactant, &r.reactants), (Role::Product, &r.products)] {
+            for (index, p) in list.iter().enumerate() {
+                if self.visible(&p.species).is_none() {
+                    continue;
+                }
+                let Some(curve) = leg_curve(self.model, r, role, index) else {
+                    continue;
+                };
+                let (species_end, junction_end) = if role == Role::Reactant {
+                    (curve.p0, curve.p3)
+                } else {
+                    (curve.p3, curve.p0)
+                };
+                for ctrl in [Ctrl::One, Ctrl::Two] {
+                    let at = if ctrl == Ctrl::One {
+                        curve.p1
+                    } else {
+                        curve.p2
+                    };
+                    let inner = ctrl == Ctrl::inner(role);
+                    let anchor = if inner { junction_end } else { species_end };
+                    out.polyline(&[self.to_screen(anchor), self.to_screen(at)], guide);
+                    let border = if inner && r.junction_smooth {
+                        Stroke::solid(self.len(1.5), HANDLE_SMOOTH_INNER)
+                    } else {
+                        Stroke::solid(self.len(1.0), HANDLE_BORDER)
+                    };
+                    out.circle(
+                        self.to_screen(at),
+                        self.len(HANDLE_RADIUS),
+                        Some(HANDLE_FILL),
+                        Some(border),
+                    );
+                }
+            }
+        }
     }
 
     // ----- Pass 3: modifier arcs (S §5.7) -----------------------------------

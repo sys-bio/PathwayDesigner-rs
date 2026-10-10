@@ -951,10 +951,10 @@ app doesn't have to be usable until D1 (§15.1).
 | **R1** | M1 Model and file format | `model`, the serde file structs, v1/v2/v3 reading, the colour codec, the D-8 fix. All `Models/*.json` round-trip |
 | **R2** | M2 Drawing | The `Renderer` trait, `EguiRenderer`, `SvgRenderer`, all drawing passes for Straight and Linear reactions, zoom and pan with input mapping (§6.1). The image comparison tests start here |
 | **R3** | M3 Selection and dragging | `ViewEvent`, the state machine, hit testing, rubber band, dragging, delete and its cascade, the undo framework (§7.1), keyboard shortcuts (§6.1) |
-| **R4** | M4 Creating and editing | Tools, adding reactions and the feedback while picking species, the rename modal (§6.2), aliases, context menu, New |
+| **R4** | M4 Creating and editing | Tools, adding reactions and the feedback while picking species, the rename modal (§6.2), aliases, context menu, New. Also the hover tooltip, brought forward from R7 so rate laws can be checked before the inspector exists |
 | **R5** | M5 Bézier curves | Automatic handles, clipping, handles and their drags, smooth junctions, Make Nice, mode commands, outlines for dashed rounded rectangles (§5.2) |
 | **R6** | M6 Layout tools | Align and distribute, `LayoutRun` in steps with animation and Cancel (§7.2), the Deckard pass, locking, the D-11 fix |
-| **R7** | M7 Rate laws and styling | `expr` with the full grammar (D-20), modifier sync, the inspector applying changes on focus loss (§11.2), the colour picker, tooltips |
+| **R7** | M7 Rate laws and styling | `expr` with the full grammar (D-20), modifier sync, the inspector applying changes on focus loss (§11.2), the colour picker |
 | **R8** | M8 Antimony | The `antimony` parser and export, the Antimony panel with error markers, the transform passes (§8.4), preferences storage (§10.3) |
 | **R9** | M9 SBML | Export with Layout, MathML, the python-libsbml CI check. **Also SBML import with Layout import (F-1)**, which comes almost free because the reader shares the writer's structures |
 | **R10** | M10 Graphics output | SVG, PNG via resvg, vector PDF via svg2pdf, printing in the browser (§9) |

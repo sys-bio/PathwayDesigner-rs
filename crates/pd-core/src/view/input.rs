@@ -3,8 +3,9 @@
 //! The app turns egui input into these, using only `pd-core` types, so the
 //! interaction state machine can be tested without a window.
 
+use crate::bezier::Ctrl;
 use crate::geometry::Pt;
-use crate::model::Id;
+use crate::model::{Id, Role};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Button {
@@ -125,9 +126,20 @@ impl Tool {
     };
 }
 
+/// One Bézier handle: which reaction, which leg, which of its two handles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HandleId {
+    pub reaction: Id,
+    pub role: Role,
+    pub index: usize,
+    pub ctrl: Ctrl,
+}
+
 /// What is under a point (S §6.2).
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target {
+    /// A handle of a selected Bézier reaction.
+    Handle(HandleId),
     Junction(Id),
     Species(Id),
     Leg(Id),

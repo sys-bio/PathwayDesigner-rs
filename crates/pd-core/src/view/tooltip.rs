@@ -38,6 +38,7 @@ impl DiagramView {
                     format_value(primary.initial_value)
                 ))
             }
+            Target::Handle(h) => self.tooltip_text(&Target::Leg(h.reaction.clone())),
             Target::Junction(id) | Target::Leg(id) => {
                 let r = self.model.find_reaction(id)?;
                 Some(if r.kinetic_law.trim().is_empty() {

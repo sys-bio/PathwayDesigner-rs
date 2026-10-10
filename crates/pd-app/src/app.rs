@@ -152,6 +152,9 @@ impl PathwayApp {
             MenuAction::DeleteReaction(id) => {
                 self.view.delete_reaction(&id);
             }
+            MenuAction::MakeNice(id) => {
+                self.view.make_nice_reactions(&[id]);
+            }
         }
     }
 
@@ -256,6 +259,62 @@ impl PathwayApp {
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
                 ui.checkbox(&mut self.view.show_null_species, "Show null species");
             });
+        });
+    }
+
+    /// The top toolbar's reaction commands (S §13.2, §7.4). Each applies to
+    /// the selected reactions and is greyed out when it can't do anything.
+    fn toolbar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let any = self.view.model().selected_reactions().next().is_some();
+            let uni_uni = self.view.selection_has_uni_uni();
+            let bezier = self.view.selection_has_bezier();
+            let button = |ui: &mut egui::Ui, enabled: bool, label: &str, tip: &str| {
+                ui.add_enabled(enabled, egui::Button::new(label))
+                    .on_hover_text(tip)
+                    .on_disabled_hover_text(tip)
+                    .clicked()
+            };
+            if button(
+                ui,
+                uni_uni,
+                "Linear",
+                "Toggle Linear: one straight line for a UniUni reaction",
+            ) {
+                self.view.toggle_linear();
+            }
+            if button(
+                ui,
+                any,
+                "Set Bézier",
+                "Draw the selected reactions as curves",
+            ) {
+                self.view.set_bezier();
+            }
+            if button(
+                ui,
+                any,
+                "Set Straight",
+                "Draw the selected reactions with straight legs",
+            ) {
+                self.view.set_straight();
+            }
+            if button(
+                ui,
+                bezier,
+                "Smooth junction",
+                "Toggle a smooth junction: legs pass through it in line",
+            ) {
+                self.view.toggle_smooth();
+            }
+            if button(
+                ui,
+                any,
+                "Make Nice",
+                "Centre the junction and reset the curves",
+            ) {
+                self.view.make_nice();
+            }
         });
     }
 
@@ -406,6 +465,7 @@ impl eframe::App for PathwayApp {
         let ctx = ui.ctx().clone();
         self.shortcuts(&ctx);
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+        egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
         egui::Panel::left("tools")
             .resizable(false)

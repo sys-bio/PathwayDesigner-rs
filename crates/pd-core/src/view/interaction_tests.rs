@@ -349,7 +349,8 @@ fn stored_handles_follow_their_end() {
 
     // Move A and B: the junction moves, so every handle follows.
     v.select_all();
-    drag(&mut v, (0.0, 0.0), (0.0, 5.0), Modifiers::NONE);
+    // Press away from the handles: R4 is selected and Bézier, so they can be hit.
+    drag(&mut v, (30.0, 10.0), (30.0, 15.0), Modifiers::NONE);
     let r = v.model().find_reaction("R4").unwrap();
     for p in r.reactants.iter().chain(&r.products) {
         assert_eq!((p.ctrl1, p.ctrl2), (pt(1.0, 6.0), pt(2.0, 7.0)));
