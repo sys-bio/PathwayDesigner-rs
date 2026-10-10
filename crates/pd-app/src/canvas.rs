@@ -6,7 +6,7 @@ use pd_core::geometry::{Pt, pt};
 use pd_core::render::constants::{TOOLTIP_DELAY_MS, ZOOM_STEP};
 use pd_core::render::{SRect, spt};
 use pd_core::view::{
-    Button, DiagramView, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse,
+    Arrange, Button, DiagramView, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse,
 };
 
 use crate::renderer::EguiRenderer;
@@ -42,6 +42,7 @@ pub enum MenuAction {
     ToggleLock,
     DeleteReaction(String),
     MakeNice(String),
+    Arrange(Arrange),
 }
 
 /// What happened on the canvas this frame.
@@ -204,6 +205,18 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 item(ui, "Rename", MenuAction::Rename(id.clone()));
                 item(ui, "Delete Species", MenuAction::DeleteSpecies(id.clone()));
             }
+            ui.menu_button("Alignment", |ui| {
+                for (i, cmd) in Arrange::ALL.into_iter().enumerate() {
+                    if i == 6 {
+                        ui.separator();
+                    }
+                    if view.can_arrange(cmd) {
+                        item(ui, cmd.label(), MenuAction::Arrange(cmd));
+                    } else {
+                        ui.add_enabled(false, egui::Button::new(cmd.label()));
+                    }
+                }
+            });
             ui.separator();
             let lock = if view.lock_would_lock() {
                 "Lock"

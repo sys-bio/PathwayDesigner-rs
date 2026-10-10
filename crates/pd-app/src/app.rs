@@ -8,8 +8,9 @@
 use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
 use pd_core::geometry::pt;
 use pd_core::json::from_json;
+use pd_core::layout::LayoutParams;
 use pd_core::model::Model;
-use pd_core::view::{DiagramView, Request, Tool, ViewEvent};
+use pd_core::view::{Arrange, DiagramView, Request, Tool, ViewEvent};
 
 use crate::canvas::{self, CanvasState, MenuAction};
 use crate::fonts;
@@ -78,6 +79,21 @@ pub struct PathwayApp {
     warnings: Vec<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
     fit_pending: bool,
+    /// The Deckard and Randomize options for auto-layout (S §13.2).
+    layout_params: LayoutParams,
+    /// Layout iterations per frame, adjusted to take about 8 ms (SPEC-Rust §7.2).
+    layout_iterations: u32,
+}
+
+/// Aim for this much layout work per frame.
+const LAYOUT_FRAME_BUDGET_MS: f64 = 8.0;
+const LAYOUT_START_ITERATIONS: u32 = 5;
+
+/// A seed from the clock, for anything random (SPEC-Rust §7.2).
+fn clock_seed() -> u64 {
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos() as u64)
 }
 
 impl PathwayApp {
@@ -91,6 +107,8 @@ impl PathwayApp {
             title: "Untitled".to_owned(),
             warnings: Vec::new(),
             fit_pending: false,
+            layout_params: LayoutParams::default(),
+            layout_iterations: LAYOUT_START_ITERATIONS,
         };
         if let Some((name, text)) = SAMPLES.iter().find(|(n, _)| *n == START_SAMPLE) {
             app.open(name, text);
@@ -155,6 +173,9 @@ impl PathwayApp {
             MenuAction::MakeNice(id) => {
                 self.view.make_nice_reactions(&[id]);
             }
+            MenuAction::Arrange(cmd) => {
+                self.view.arrange(cmd);
+            }
         }
     }
 
@@ -162,6 +183,13 @@ impl PathwayApp {
     /// dialog is open, so those get their own keys first (SPEC-Rust §6.1).
     fn shortcuts(&mut self, ctx: &egui::Context) {
         if ctx.egui_wants_keyboard_input() || self.dialog.is_some() {
+            return;
+        }
+        // While a layout runs, only Esc does anything: it cancels the layout.
+        if self.view.is_laying_out() {
+            if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+                self.view.cancel_layout();
+            }
             return;
         }
         // Redo before Undo: Cmd+Shift+Z would also match Cmd+Z.
@@ -231,6 +259,23 @@ impl PathwayApp {
                     self.view.select_all();
                     ui.close();
                 }
+            });
+            // Align and distribute, also in the context menu (SPEC-Rust §6.3).
+            ui.menu_button("Arrange", |ui| {
+                for (i, cmd) in Arrange::ALL.into_iter().enumerate() {
+                    if i == 6 {
+                        ui.separator();
+                    }
+                    let tip = format!("Needs {} or more selected species", cmd.minimum());
+                    if ui
+                        .add_enabled(self.view.can_arrange(cmd), egui::Button::new(cmd.label()))
+                        .on_disabled_hover_text(tip)
+                        .clicked()
+                    {
+                        self.view.arrange(cmd);
+                        ui.close();
+                    }
+                }
                 ui.separator();
                 let has_species = self.view.model().selected_species().next().is_some();
                 let lock = if self.view.lock_would_lock() {
@@ -240,6 +285,7 @@ impl PathwayApp {
                 };
                 if ui
                     .add_enabled(has_species, egui::Button::new(lock))
+                    .on_hover_text("Locked nodes are not moved by dragging, alignment or layout")
                     .clicked()
                 {
                     self.view.toggle_lock();
@@ -315,7 +361,67 @@ impl PathwayApp {
             ) {
                 self.view.make_nice();
             }
+            ui.separator();
+            self.layout_controls(ui);
+            ui.separator();
+            if button(
+                ui,
+                true,
+                "Random network",
+                "Replace the diagram with a random 10-species, 12-reaction network (a test tool)",
+            ) {
+                self.view.random_network(clock_seed());
+                self.title = "Random network".to_owned();
+                self.fit_pending = true;
+            }
         });
+    }
+
+    /// Auto-layout and its options, or the layout's progress and Cancel
+    /// while it runs.
+    fn layout_controls(&mut self, ui: &mut egui::Ui) {
+        if let Some(p) = self.view.layout_progress() {
+            ui.add(
+                egui::ProgressBar::new(p.done as f32 / p.total.max(1) as f32)
+                    .desired_width(160.0)
+                    .text(format!("Layout {}/{}", p.done, p.total)),
+            );
+            if ui
+                .button("Cancel")
+                .on_hover_text("Stop and put everything back (Esc)")
+                .clicked()
+            {
+                self.view.cancel_layout();
+            }
+            return;
+        }
+        if ui
+            .button("Auto-layout")
+            .on_hover_text("Force-directed layout; locked nodes stay where they are")
+            .clicked()
+        {
+            self.layout_iterations = LAYOUT_START_ITERATIONS;
+            self.view.start_layout(self.layout_params, clock_seed());
+        }
+        ui.checkbox(&mut self.layout_params.deckard, "Deckard")
+            .on_hover_text("Afterwards, shape the Bézier curves with the Deckard & Bergmann pass");
+        ui.checkbox(&mut self.layout_params.randomize, "Randomize")
+            .on_hover_text("Scatter the unlocked species at random before the layout");
+    }
+
+    /// Runs this frame's share of the layout: as many iterations as take
+    /// about 8 ms, adjusting the count by at most ×2 a frame.
+    fn run_layout(&mut self, ctx: &egui::Context) {
+        if !self.view.is_laying_out() {
+            return;
+        }
+        let start = web_time::Instant::now();
+        self.view.layout_step(self.layout_iterations);
+        let ms = start.elapsed().as_secs_f64() * 1000.0;
+        let factor = (LAYOUT_FRAME_BUDGET_MS / ms.max(0.01)).clamp(0.5, 2.0);
+        self.layout_iterations =
+            ((f64::from(self.layout_iterations) * factor).round() as u32).max(1);
+        ctx.request_repaint();
     }
 
     /// The left tool palette (S §13.2). The current tool is highlighted.
@@ -464,12 +570,14 @@ impl eframe::App for PathwayApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.shortcuts(&ctx);
+        self.run_layout(&ctx);
+        let busy = self.view.is_laying_out();
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
         egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
-        egui::Panel::left("tools")
-            .resizable(false)
-            .show(ui, |ui| self.tool_palette(ui));
+        egui::Panel::left("tools").resizable(false).show(ui, |ui| {
+            ui.add_enabled_ui(!busy, |ui| self.tool_palette(ui))
+        });
         let mut output = None;
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)

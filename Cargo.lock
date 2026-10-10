@@ -2247,6 +2247,7 @@ dependencies = [
  "log",
  "pd-core",
  "wasm-bindgen-futures",
+ "web-time",
 ]
 
 [[package]]

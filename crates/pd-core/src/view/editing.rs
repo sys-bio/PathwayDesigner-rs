@@ -64,7 +64,7 @@ impl DiagramView {
     }
 
     /// Records a change made since `before` as one undo step.
-    fn record(&mut self, desc: &'static str, before: Model) -> ViewResponse {
+    pub(super) fn record(&mut self, desc: &'static str, before: Model) -> ViewResponse {
         self.undo.push(Command::Snapshot {
             desc,
             before: Box::new(before),

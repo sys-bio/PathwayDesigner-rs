@@ -6,6 +6,7 @@
 //! turns egui input into [`ViewEvent`]s and gives `draw` a renderer. Every
 //! change to the model goes through the view, so every change is undoable.
 
+mod arrange;
 #[cfg(test)]
 mod bezier_tests;
 mod editing;
@@ -25,6 +26,7 @@ use crate::render::draw::{DrawOptions, content_bounds, draw_model};
 use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::undo::{Command, CtrlState, UndoHistory};
 
+pub use arrange::Arrange;
 pub use hit::hit_test;
 pub use input::{Button, HandleId, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
 
@@ -52,6 +54,8 @@ pub struct DiagramView {
     pending: Pending,
     /// Where the pointer is, in screen coordinates, while it is over the canvas.
     hover: Option<Pt>,
+    /// An auto-layout in progress.
+    layout: Option<arrange::LayoutState>,
 }
 
 /// The reaction being built with an add-reaction tool (S §6.5).
@@ -157,6 +161,7 @@ impl DiagramView {
             tool: Tool::Select,
             pending: Pending::default(),
             hover: None,
+            layout: None,
         }
     }
 
@@ -171,6 +176,7 @@ impl DiagramView {
         self.undo.clear();
         self.gesture = Gesture::Idle;
         self.pending = Pending::default();
+        self.layout = None;
     }
 
     // ----- Zoom and scroll --------------------------------------------------
@@ -315,6 +321,14 @@ impl DiagramView {
     /// Handles one input event (S §6). Every change to the selection is
     /// reported in the response (S §6.3).
     pub fn handle(&mut self, event: &ViewEvent) -> ViewResponse {
+        // While a layout runs the drawing is moving: only Esc does anything,
+        // and it cancels the layout.
+        if self.layout.is_some() {
+            return match event {
+                ViewEvent::Cancel => self.cancel_layout(),
+                _ => ViewResponse::default(),
+            };
+        }
         let before = self.selection();
         let mut response = match *event {
             ViewEvent::PointerDown {
@@ -817,7 +831,7 @@ impl DiagramView {
     /// Deletes the selected species, with the cascade of S §3.7, then any
     /// selected reactions that are left. One undo step (S §7.2).
     pub fn delete_selection(&mut self) -> ViewResponse {
-        if self.is_busy() || !self.has_selection() {
+        if self.is_busy() || self.layout.is_some() || !self.has_selection() {
             return ViewResponse::default();
         }
         let before = self.model.clone();
@@ -871,6 +885,7 @@ impl DiagramView {
     }
 
     fn undo_or_redo(&mut self, undo: bool) -> ViewResponse {
+        self.cancel_layout();
         self.cancel_gesture();
         let done = if undo {
             self.undo.undo(&mut self.model)
