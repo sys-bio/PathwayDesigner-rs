@@ -487,6 +487,39 @@ changes) uses the same pattern.
 from S §7.5. They appear in the context menu, and SHOULD also appear in an
 **Arrange** menu so they can be found without right-clicking.
 
+### 6.4 Browser default actions
+
+In the browser, a key or pointer event reaches egui *and* the page, and eframe
+cancels the browser's default action for only a few shortcuts (Ctrl/Cmd+S, O, P
+and comma, and Space). Anything else egui uses as a shortcut also does what the
+browser would do with it. The page must leave the browser nothing harmful to do.
+
+**The bug this caused (fixed 2026-10-10).** Ctrl/Cmd+A selected everything in
+the diagram, and the browser also ran its own Select All, which selected the
+canvas. Clicking the canvas doesn't clear a page selection. The next press on a
+spot inside that selection, followed by a move, started the browser's native
+drag-and-drop. During one, the page gets no `mousemove` and no `mouseup`, so:
+- the species stayed where it was while the button was held;
+- egui never saw the release, so after the button was let go the species jumped
+  to the pointer and followed it, as if still dragged;
+- the next click gave egui its release and ended the drag.
+
+Which species failed depended on where the browser's selection lay. That made it
+look as though it depended on a species' colour or on Bézier reactions.
+
+**The rule (in `index.html`):**
+- nothing on the page is selectable: `user-select: none` on `html`, `body` and
+  the canvas, and `-webkit-user-drag: none` on the canvas;
+- the browser's `dragstart` is cancelled on the whole document.
+
+This doesn't affect dragging inside the app, which egui does from raw pointer
+events. egui's text fields still work, because they use eframe's own `<input>`.
+Files dropped onto the page from outside are unaffected too: `dragstart` only
+fires for drags that start inside the page.
+
+When adding a shortcut, check what the browser does with it by default. If that
+default is harmful, cancel it, or make sure the page gives it nothing to act on.
+
 ---
 
 ## 7. Undo, redo and layout
@@ -848,7 +881,15 @@ reference's guard against editing the model by mistake while filling in controls
 | `view` | The interaction state machine, tested without a window using made-up `ViewEvent`s, against every rule in S §6.2–§6.5 |
 | Rendering | Compare images: `SvgRenderer` → resvg → PNG, against stored images for `Models/*.json` |
 | UI | `egui_kittest` for interface tests that run without a window (menus, inspector applying on focus loss, modal dialogs) |
-| Web | Build with trunk and run a short Playwright test against a local server serving the **sub-path** (§14.2): load, open a sample file, draw, save (download) |
+| Web | Build with trunk and run a short Playwright test against a local server serving the **sub-path** (§14.2): load, open a sample file, draw, save (download). Include Ctrl/Cmd+A, a click on empty canvas, then a drag (§6.4) |
+
+**Native tests can't see the browser.** `pd-app`'s whole-app test drives the
+real app through egui with made-up input (New, add species, Ctrl+A, clear,
+drag). It guards the wiring from egui through the canvas to the view, but the
+Select All bug of §6.4 passed it, because the cause was the browser's default
+action. When a bug shows only in the browser, get the exact steps from the
+person who saw it before building native reproductions, and suspect what the
+browser itself does with the input.
 
 The random network generator (S §7.7) uses a seed in tests.
 
