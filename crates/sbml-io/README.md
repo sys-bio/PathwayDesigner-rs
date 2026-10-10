@@ -3,8 +3,8 @@
 Read and write [SBML](https://sbml.org) as plain Rust data. Pure Rust, so it
 also works in WebAssembly.
 
-> **Status: design.** This README records the design agreed before
-> implementation. Nothing below is implemented yet.
+> **Status: implemented, not yet published.** Lives in the PathwayDesigner
+> workspace for now; it will move to its own repository when published.
 
 ## Scope
 
@@ -33,6 +33,7 @@ also works in WebAssembly.
   survive a read and a write unchanged.
 
 Not in scope, at least at first:
+- SBML Level 1;
 - converting between levels and versions;
 - checking units;
 - the full set of libSBML's consistency rules;
@@ -65,11 +66,12 @@ pub struct Document {
     /// XML from other packages stays valid.
     pub namespaces: Vec<(Option<String>, String)>,
     pub model: Option<Model>,
-    pub extra: Extra,
+    pub meta: Meta,   // <sbml> may carry notes, annotations and package attributes
 }
 
 pub struct Model {
-    pub id: Option<String>, pub name: Option<String>, pub meta: Meta,
+    pub id: Option<String>, pub name: Option<String>,
+    // substanceUnits, timeUnits, … conversionFactor: Option<String>
     pub function_definitions: Vec<FunctionDefinition>,
     pub unit_definitions: Vec<UnitDefinition>,
     pub compartment_types: Vec<CompartmentType>,   // Level 2 only
@@ -83,14 +85,15 @@ pub struct Model {
     pub reactions: Vec<Reaction>,
     pub events: Vec<Event>,
     pub layouts: Vec<Layout>,                      // the Layout package
+    pub meta: Meta,
 }
 
 /// What any element may carry.
 pub struct Meta {
     pub metaid: Option<String>,
     pub sbo_term: Option<String>,
-    pub notes: Option<String>,       // raw XML
-    pub annotation: Option<String>,  // raw XML
+    pub notes: Option<String>,       // the content of <notes>, raw XML
+    pub annotation: Option<String>,  // the content of <annotation>, raw XML
     pub extra: Extra,
 }
 
@@ -101,17 +104,21 @@ pub struct Extra {
 }
 
 pub enum Rule {
-    Assignment { variable: String, math: Math, meta: Meta },
-    Rate { variable: String, math: Math, meta: Meta },
-    Algebraic { math: Math, meta: Meta },
+    Assignment { variable: String, math: Option<Math>, meta: Meta },
+    Rate { variable: String, math: Option<Math>, meta: Meta },
+    Algebraic { math: Option<Math>, meta: Meta },
 }
 
 pub enum Math {
-    Number(Number), Ident(String), Symbol(Symbol), Constant(Constant),
-    Apply(Op, Vec<Math>), Call(String, Vec<Math>),
+    Number { value: Number, units: Option<String> },
+    Ident(String), Symbol(Symbol), Constant(Constant),
+    Apply(Op, Vec<Math>), Call(String, Vec<Math>), CallSymbol(Symbol, Vec<Math>),
+    Root { degree: Option<Box<Math>>, arg: Box<Math> },
+    Log { base: Option<Box<Math>>, arg: Box<Math> },
     Piecewise { pieces: Vec<(Math, Math)>, otherwise: Option<Box<Math>> },
     Lambda { args: Vec<String>, body: Box<Math> },
-    // …
+    Semantics { math: Box<Math>, annotations: Vec<String> },
+    Raw(String),   // MathML outside the subset, kept as written
 }
 
 pub enum Segment {
@@ -129,7 +136,35 @@ pub enum Segment {
 - **References between elements are id strings.** `validate` checks that they
   resolve.
 - **A document is written at its own level and version.** The writer leaves out
-  what is `None`, and writes kept XML back where it was found.
+  what is `None`, and writes kept XML back into the element it was found in.
+- **Values are typed.** Numbers are `f64`, booleans `bool`. A number is
+  written back the way SBML writers usually write it (`1`, `0.5`, `1e-20`,
+  `INF`), not always as it was typed: `1.0` comes back as `1`.
+
+**Where the implementation settled details the design left open:**
+- Every `math` is an `Option<Math>`, because Level 3 Version 2 makes math
+  optional.
+- `Document` has a `meta` rather than only an `extra`: `<sbml>` itself may
+  carry notes, annotations and package attributes such as `fbc:required`.
+- Kept child elements are written after the children `sbml-io` knows, not at
+  their exact original position. libSBML reads them either way.
+- What can't be kept is reported as a warning: attributes on `listOf…`
+  elements, and unknown elements inside them. Points, dimensions, bounding
+  boxes and curves don't keep unknown XML.
+- A raw piece of XML declares any namespace it inherited from an element
+  below `<sbml>`, so that it stays valid wherever it is written.
+
+## Testing
+
+- Unit tests: `cargo test -p sbml-io`. The Layout files in `tests/data` are
+  written by python-libsbml (`tests/scripts/make_layout_fixtures.py`).
+- Against libSBML: `examples/roundtrip.rs` reads and writes back every file in
+  a folder, and `tests/scripts/libsbml_compare.py` has python-libsbml compare
+  each rewrite with its original. CI runs this on every Level 2 and Level 3
+  model of the [SBML Test Suite](https://github.com/sbmlteam/sbml-test-suite)
+  (9,350 files in release 3.5.0): libSBML finds every rewrite identical to its
+  original, including the parts from other packages that `sbml-io` keeps as
+  raw XML.
 
 ## Licence
 

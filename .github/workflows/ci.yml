@@ -1,5 +1,6 @@
 # CI and deployment (SPEC-Rust §14.5).
-# Every push: format, lints, licences, native tests, wasm32 check.
+# Every push: format, lints, licences, native tests, wasm32 check; and
+# sbml-io checked against python-libsbml.
 # On main: build the web app with Trunk and publish it to GitHub Pages.
 # One-time setup on GitHub: Settings → Pages → Source: "GitHub Actions".
 name: CI
@@ -49,6 +50,46 @@ jobs:
       # Native tests keep the desktop version possible (SPEC-Rust §14.5).
       - name: Tests
         run: cargo test --workspace
+
+  # sbml-io against python-libsbml: every Level 2 and Level 3 model of the SBML
+  # Test Suite, and the Layout files in crates/sbml-io/tests/data, are read and
+  # written back by sbml-io; libsbml must find each rewrite identical to the
+  # original, and no less valid.
+  sbml:
+    runs-on: ubuntu-latest
+    env:
+      SBML_TEST_SUITE: "3.5.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install python-libsbml
+        run: pip install python-libsbml
+
+      - name: Fetch the SBML Test Suite (Level 1 is out of scope)
+        run: |
+          curl -sSL -o semantic.zip \
+            "https://github.com/sbmlteam/sbml-test-suite/releases/download/${SBML_TEST_SUITE}/semantic_tests_v${SBML_TEST_SUITE}.zip"
+          unzip -q semantic.zip -d suite
+          find suite -name '*-l1v*.xml' -delete
+
+      - name: Round trip the Test Suite
+        run: |
+          cargo run -q -p sbml-io --release --example roundtrip -- suite rewritten > roundtrip.txt || { grep -v '^$' roundtrip.txt | tail -40; exit 1; }
+          tail -1 roundtrip.txt
+          python crates/sbml-io/tests/scripts/libsbml_compare.py suite rewritten
+
+      - name: Round trip the Layout files
+        run: |
+          cargo run -q -p sbml-io --release --example roundtrip -- crates/sbml-io/tests/data rewritten-layout
+          python crates/sbml-io/tests/scripts/libsbml_compare.py crates/sbml-io/tests/data rewritten-layout
 
   pages:
     needs: check
