@@ -902,6 +902,56 @@ impl DiagramView {
         self.undo.can_undo()
     }
 
+    /// True if the document has changed since it was last saved or loaded
+    /// (SPEC-Rust §10.1). Selecting, zooming and scrolling don't count.
+    pub fn is_modified(&self) -> bool {
+        self.undo.is_modified() || self.layout.is_some()
+    }
+
+    /// Notes that the document has just been saved.
+    pub fn mark_saved(&mut self) {
+        self.undo.mark_saved();
+    }
+
+    /// Notes that the document has unsaved changes, though the history is
+    /// empty: after recovering an autosave.
+    pub fn mark_unsaved(&mut self) {
+        self.undo.mark_unsaved();
+    }
+
+    /// Selects one species or reaction, from a list rather than the canvas
+    /// (the model tree, SPEC-Rust §11.3). With `add`, it is toggled in or out
+    /// of the selection instead.
+    pub fn select_item(&mut self, item: &Target, add: bool) -> ViewResponse {
+        let before = self.selection();
+        if !add {
+            self.model.clear_selection();
+        }
+        match item {
+            Target::Species(id) => {
+                if let Some(s) = self.model.find_species_mut(id) {
+                    s.selected = !(add && s.selected);
+                }
+            }
+            Target::Junction(id) | Target::Leg(id) => {
+                if let Some(r) = self.model.find_reaction_mut(id) {
+                    r.selected = !(add && r.selected);
+                }
+            }
+            Target::Handle(_) | Target::Empty => {}
+        }
+        ViewResponse {
+            repaint: true,
+            selection_changed: self.selection() != before,
+            ..ViewResponse::default()
+        }
+    }
+
+    /// Scrolls so the world point `at` is at `screen_centre`.
+    pub fn centre_on(&mut self, at: Pt, screen_centre: Pt) {
+        self.scroll = screen_centre - at * self.zoom;
+    }
+
     pub fn can_redo(&self) -> bool {
         self.undo.can_redo()
     }

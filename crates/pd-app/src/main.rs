@@ -3,12 +3,18 @@
 
 mod antimony_panel;
 mod app;
+mod autosave;
 mod canvas;
+mod document;
+mod files;
 mod fonts;
 mod inspector;
 mod prefs;
 mod renderer;
 mod samples;
+mod tree;
+#[cfg(target_arch = "wasm32")]
+mod web;
 
 use app::PathwayApp;
 
@@ -45,13 +51,18 @@ fn main() {
             .dyn_into::<eframe::web_sys::HtmlCanvasElement>()
             .expect("'the_canvas_id' is not a <canvas>");
 
-        let result = eframe::WebRunner::new()
+        let runner = eframe::WebRunner::new();
+        let result = runner
+            .clone()
             .start(
                 canvas,
                 eframe::WebOptions::default(),
                 Box::new(|cc| Ok(Box::new(PathwayApp::new(cc)))),
             )
             .await;
+
+        web::install_unload_warning();
+        watch_for_crash(runner);
 
         // Replace the "Loading…" message with the app, or with an error.
         if let Some(loading) = document.get_element_by_id("loading_text") {
@@ -63,4 +74,24 @@ fn main() {
             }
         }
     });
+}
+
+/// If the app panics, replaces the page with a message and a way to get the
+/// autosaved diagram back (SPEC-Rust §14.4).
+#[cfg(target_arch = "wasm32")]
+fn watch_for_crash(runner: eframe::WebRunner) {
+    use eframe::wasm_bindgen::{JsCast as _, closure::Closure};
+    let check = Closure::<dyn FnMut()>::new(move || {
+        if let Some(summary) = runner.panic_summary() {
+            web::show_crash_page(&summary.message());
+            runner.destroy();
+        }
+    });
+    if let Some(w) = eframe::web_sys::window() {
+        let _ = w.set_interval_with_callback_and_timeout_and_arguments_0(
+            check.as_ref().unchecked_ref(),
+            1000,
+        );
+    }
+    check.forget();
 }

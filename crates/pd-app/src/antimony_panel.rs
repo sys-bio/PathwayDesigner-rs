@@ -73,6 +73,12 @@ impl AntimonyPanel {
         }
     }
 
+    /// Puts `text` in the panel and imports it, as when a file is opened.
+    pub fn load(&mut self, text: &str, view: &mut DiagramView, opts: &ImportOptions) -> bool {
+        self.text = text.to_owned();
+        self.import(text, view, opts)
+    }
+
     /// Imports the last imported text again, with new options (when the
     /// catalytic preference changes). Returns true if it did.
     pub fn reimport(&mut self, view: &mut DiagramView, opts: &ImportOptions) -> bool {

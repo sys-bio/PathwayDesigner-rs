@@ -448,3 +448,31 @@ fn twenty_steps_undo_and_redo() {
     }
     assert_eq!(v.model(), &full);
 }
+
+// ----- Model tree (SPEC-Rust §11.3) -----------------------------------------
+
+#[test]
+fn selecting_from_a_list() {
+    let mut v = four_species();
+    let r = v.select_item(&Target::Species("S2".into()), false);
+    assert!(r.selection_changed);
+    assert_eq!(v.selection().0, ["S2"]);
+    v.select_item(&Target::Species("S3".into()), true);
+    assert_eq!(v.selection().0, ["S2", "S3"]);
+    // Adding again takes it out.
+    v.select_item(&Target::Species("S2".into()), true);
+    assert_eq!(v.selection().0, ["S3"]);
+    v.centre_on(pt(300.0, 0.0), pt(500.0, 400.0));
+    assert_eq!(v.world_to_screen(pt(300.0, 0.0)), pt(500.0, 400.0));
+}
+
+#[test]
+fn a_recovered_document_counts_as_unsaved() {
+    let mut v = four_species();
+    v.set_model(v.model().clone());
+    assert!(!v.is_modified());
+    v.mark_unsaved();
+    assert!(v.is_modified());
+    v.mark_saved();
+    assert!(!v.is_modified());
+}

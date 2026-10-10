@@ -126,11 +126,37 @@ impl Command {
     }
 }
 
-/// The undo and redo stacks.
-#[derive(Clone, Debug, Default)]
+/// The undo and redo stacks, and where the document was last saved.
+///
+/// Every command gets a number when it is recorded. The *position* of the
+/// history is the number of the last command not undone, so each state of the
+/// document has its own position. The document is unchanged when the position
+/// is where it was at the last save or load (SPEC-Rust §10.1), so undoing back
+/// to a save makes it unchanged again.
+#[derive(Clone, Debug)]
 pub struct UndoHistory {
-    undo: VecDeque<Command>,
-    redo: Vec<Command>,
+    undo: VecDeque<(u64, Command)>,
+    redo: Vec<(u64, Command)>,
+    /// The number the next command gets.
+    next: u64,
+    /// The position with nothing left to undo: the number of the last command
+    /// dropped off the front of a full history, or of the last clear.
+    base: u64,
+    /// The position at the last save or load, or `None` if that state can no
+    /// longer be reached (it was undone, then replaced by a new command).
+    saved: Option<u64>,
+}
+
+impl Default for UndoHistory {
+    fn default() -> Self {
+        Self {
+            undo: VecDeque::new(),
+            redo: Vec::new(),
+            next: 1,
+            base: 0,
+            saved: Some(0),
+        }
+    }
 }
 
 impl UndoHistory {
@@ -138,14 +164,41 @@ impl UndoHistory {
         Self::default()
     }
 
+    fn position(&self) -> u64 {
+        self.undo.back().map_or(self.base, |(n, _)| *n)
+    }
+
+    /// True if the document differs from when it was last saved or loaded.
+    pub fn is_modified(&self) -> bool {
+        self.saved != Some(self.position())
+    }
+
+    /// Notes that the document has just been saved.
+    pub fn mark_saved(&mut self) {
+        self.saved = Some(self.position());
+    }
+
+    /// Notes that the document has never been saved in its current state (a
+    /// recovered autosave, say).
+    pub fn mark_unsaved(&mut self) {
+        self.saved = None;
+    }
+
     /// Records a command that has already been applied to the model. Clears
     /// the redo stack; drops the oldest entry when the history is full.
     pub fn push(&mut self, cmd: Command) {
-        self.redo.clear();
-        if self.undo.len() == UNDO_DEPTH {
-            self.undo.pop_front();
+        // A saved state waiting to be redone can't be reached any more.
+        if self.redo.iter().any(|(n, _)| Some(*n) == self.saved) {
+            self.saved = None;
         }
-        self.undo.push_back(cmd);
+        self.redo.clear();
+        if self.undo.len() == UNDO_DEPTH
+            && let Some((n, _)) = self.undo.pop_front()
+        {
+            self.base = n;
+        }
+        self.undo.push_back((self.next, cmd));
+        self.next += 1;
     }
 
     pub fn can_undo(&self) -> bool {
@@ -158,35 +211,39 @@ impl UndoHistory {
 
     /// What Undo would undo, for the Edit menu.
     pub fn undo_description(&self) -> Option<&'static str> {
-        self.undo.back().map(Command::description)
+        self.undo.back().map(|(_, c)| c.description())
     }
 
     pub fn redo_description(&self) -> Option<&'static str> {
-        self.redo.last().map(Command::description)
+        self.redo.last().map(|(_, c)| c.description())
     }
 
     /// Undoes the last command. The caller clears the selection and cancels
     /// any drag (S §9.1). Returns what was undone.
     pub fn undo(&mut self, model: &mut Model) -> Option<&'static str> {
-        let cmd = self.undo.pop_back()?;
+        let (n, cmd) = self.undo.pop_back()?;
         cmd.apply(model, true);
         let desc = cmd.description();
-        self.redo.push(cmd);
+        self.redo.push((n, cmd));
         Some(desc)
     }
 
     pub fn redo(&mut self, model: &mut Model) -> Option<&'static str> {
-        let cmd = self.redo.pop()?;
+        let (n, cmd) = self.redo.pop()?;
         cmd.apply(model, false);
         let desc = cmd.description();
-        self.undo.push_back(cmd);
+        self.undo.push_back((n, cmd));
         Some(desc)
     }
 
-    /// Forgets everything, as Open and New do (S §9.1).
+    /// Forgets everything, as Open and New do (S §9.1). The document is then
+    /// unchanged.
     pub fn clear(&mut self) {
         self.undo.clear();
         self.redo.clear();
+        self.base = self.next;
+        self.next += 1;
+        self.saved = Some(self.base);
     }
 
     pub fn len(&self) -> usize {
@@ -355,8 +412,76 @@ mod tests {
         }
         assert!(!h.can_undo());
         assert!(
-            matches!(h.redo.last(), Some(Command::MoveJunction { reaction, .. }) if reaction == "R50")
+            matches!(h.redo.last(), Some((_, Command::MoveJunction { reaction, .. })) if reaction == "R50")
         );
+    }
+
+    fn step(x: f64) -> Command {
+        Command::MoveJunction {
+            reaction: "R2".into(),
+            from: Pt::ZERO,
+            to: pt(x, 0.0),
+        }
+    }
+
+    #[test]
+    fn modified_follows_the_position_in_the_history() {
+        let mut m = model();
+        let mut h = UndoHistory::new();
+        assert!(!h.is_modified(), "a new history is unchanged");
+        h.push(step(1.0));
+        assert!(h.is_modified());
+        h.undo(&mut m);
+        assert!(!h.is_modified(), "undoing back to the load");
+        h.redo(&mut m);
+        h.mark_saved();
+        assert!(!h.is_modified());
+        h.push(step(2.0));
+        assert!(h.is_modified());
+        h.undo(&mut m);
+        assert!(!h.is_modified(), "undoing back to the save");
+        h.undo(&mut m);
+        assert!(h.is_modified());
+        h.redo(&mut m);
+        assert!(!h.is_modified(), "redoing back to the save");
+    }
+
+    #[test]
+    fn a_saved_state_replaced_by_a_new_command_is_gone() {
+        let mut m = model();
+        let mut h = UndoHistory::new();
+        h.push(step(1.0));
+        h.mark_saved();
+        h.undo(&mut m);
+        // A new command replaces the saved state's branch.
+        h.push(step(2.0));
+        assert!(h.is_modified());
+        h.undo(&mut m);
+        assert!(h.is_modified(), "back at the load, but it was saved since");
+    }
+
+    #[test]
+    fn a_full_history_doesnt_look_unchanged_when_undone_completely() {
+        let mut m = model();
+        let mut h = UndoHistory::new();
+        for i in 0..UNDO_DEPTH + 5 {
+            h.push(step(i as f64));
+        }
+        while h.can_undo() {
+            h.undo(&mut m);
+        }
+        assert!(
+            h.is_modified(),
+            "five steps fell off: this isn't the loaded state"
+        );
+    }
+
+    #[test]
+    fn clear_makes_the_document_unchanged() {
+        let mut h = UndoHistory::new();
+        h.push(step(1.0));
+        h.clear();
+        assert!(!h.is_modified());
     }
 
     #[test]

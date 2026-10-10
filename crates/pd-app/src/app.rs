@@ -1,19 +1,19 @@
 //! The app shell: menu bar, tool palette, canvas, status bar and dialogs
 //! (S §13).
 //!
-//! It opens the built-in sample models, and lets the user add species and
-//! reactions, select, drag, rename, delete and undo. Panels and file access
-//! arrive in later milestones.
+//! Opening and saving, unsaved changes and autosave are in `document.rs`.
 
 use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
+use pd_core::geometry::Pt;
 use pd_core::geometry::pt;
-use pd_core::json::from_json;
 use pd_core::layout::LayoutParams;
-use pd_core::model::Model;
 use pd_core::view::{Arrange, DiagramView, Request, Tool, ViewEvent};
 
 use crate::antimony_panel::{AntimonyPanel, PanelAction};
+use crate::autosave::{self, Autosave};
 use crate::canvas::{self, CanvasState, MenuAction};
+use crate::document::{Action, Document};
+use crate::files::{Files, Filter, Purpose};
 use crate::fonts;
 use crate::inspector::Inspector;
 use crate::prefs::Preferences;
@@ -29,6 +29,14 @@ const REDO: KeyboardShortcut =
 /// Ctrl+Y, also accepted for Redo (S §9.1).
 const REDO_Y: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Y);
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
+const NEW: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
+const OPEN: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
+const SAVE_AS: KeyboardShortcut =
+    KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::S);
+const SAVE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
+
+/// Where the project lives, for the About box.
+const HOME_PAGE: &str = "https://github.com/sys-bio/PathwayDesigner-rs";
 
 /// The tool palette, in the order of S §13.2, with tooltips.
 const TOOLS: [(Tool, &str, &str); 6] = [
@@ -61,7 +69,7 @@ const TOOLS: [(Tool, &str, &str); 6] = [
 ];
 
 /// The dialog on screen, if any (SPEC-Rust §6.2).
-enum Dialog {
+pub(crate) enum Dialog {
     /// Asks for a new id for a species.
     Rename {
         id: String,
@@ -69,25 +77,39 @@ enum Dialog {
         error: Option<String>,
         focus: bool,
     },
-    /// Confirms New.
-    ConfirmNew,
+    /// Unsaved changes: save them before `Action`? (S §13.1)
+    ConfirmDiscard(Action),
+    /// Changes were lost last time: get them back?
+    Recover(Autosave),
+    About,
     /// The preferences being edited (S §12).
     Preferences(Preferences),
 }
 
 pub struct PathwayApp {
-    view: DiagramView,
+    pub(crate) ctx: egui::Context,
+    pub(crate) view: DiagramView,
     canvas: CanvasState,
     inspector: Inspector,
-    antimony: AntimonyPanel,
+    pub(crate) antimony: AntimonyPanel,
     prefs: Preferences,
-    dialog: Option<Dialog>,
-    /// Name of what is shown, for the status bar.
-    title: String,
-    /// Warnings from the last load, shown in the status bar.
-    warnings: Vec<String>,
+    pub(crate) dialog: Option<Dialog>,
+    pub(crate) files: Files,
+    pub(crate) doc: Document,
+    /// What to do once a Save requested by the unsaved-changes prompt is done.
+    pub(crate) after_save: Option<Action>,
+    /// The user chose to quit without saving: let the window close.
+    pub(crate) allow_close: bool,
+    pub(crate) last_title: String,
+    /// Problems from the last operation, shown in the status bar.
+    pub(crate) warnings: Vec<String>,
+    /// What the last operation did, shown in the status bar.
+    pub(crate) notice: Option<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
-    fit_pending: bool,
+    pub(crate) fit_pending: bool,
+    /// The canvas's centre on screen last frame, for centring things.
+    canvas_centre: Pt,
+    tree: crate::tree::TreeState,
     /// The Deckard and Randomize options for auto-layout (S §13.2).
     layout_params: LayoutParams,
     /// Layout iterations per frame, adjusted to take about 8 ms (SPEC-Rust §7.2).
@@ -110,45 +132,39 @@ impl PathwayApp {
         fonts::install(&cc.egui_ctx);
         cc.egui_ctx.set_visuals(egui::Visuals::light());
         let mut app = Self {
+            ctx: cc.egui_ctx.clone(),
             view: DiagramView::default(),
             canvas: CanvasState::default(),
             inspector: Inspector::default(),
             antimony: AntimonyPanel::default(),
             prefs: Preferences::load(cc.storage),
             dialog: None,
-            title: "Untitled".to_owned(),
+            files: Files::default(),
+            doc: Document::default(),
+            after_save: None,
+            allow_close: false,
+            last_title: String::new(),
             warnings: Vec::new(),
+            notice: None,
             fit_pending: false,
+            canvas_centre: Pt::ZERO,
+            tree: crate::tree::TreeState::default(),
             layout_params: LayoutParams::default(),
             layout_iterations: LAYOUT_START_ITERATIONS,
         };
         // Saved preferences apply from the start (fixes D-2).
         app.view.show_null_species = app.prefs.show_null_species;
-        if let Some((name, text)) = SAMPLES.iter().find(|(n, _)| *n == START_SAMPLE) {
-            app.open(name, text);
+        app.perform(Action::OpenSample(START_SAMPLE));
+        app.notice = None;
+        // Changes lost last time (a closed tab, a crash): offer them back.
+        let lost = cc
+            .storage
+            .and_then(|s| s.get_string(autosave::KEY))
+            .and_then(|t| Autosave::decode(&t));
+        if let Some(a) = lost {
+            app.dialog = Some(Dialog::Recover(a));
         }
         app
-    }
-
-    fn open(&mut self, name: &str, text: &str) {
-        match from_json(text) {
-            Ok(loaded) => {
-                self.view.set_model(loaded.model);
-                self.title = name.to_owned();
-                self.warnings = loaded.warnings;
-                self.fit_pending = true;
-            }
-            Err(e) => self.warnings = vec![format!("{name} could not be opened: {e}")],
-        }
-    }
-
-    /// New: an empty diagram, with the undo history cleared (S §7.7).
-    fn new_document(&mut self) {
-        self.view.set_model(Model::new());
-        self.view.set_tool(Tool::Select);
-        self.title = "Untitled".to_owned();
-        self.warnings.clear();
-        self.fit_pending = true;
     }
 
     fn ask_rename(&mut self, id: &str) {
@@ -206,7 +222,20 @@ impl PathwayApp {
             }
             return;
         }
-        // Redo before Undo: Cmd+Shift+Z would also match Cmd+Z.
+        // Save As before Save, Redo before Undo: with Shift they would also
+        // match the shorter shortcut.
+        if ctx.input_mut(|i| i.consume_shortcut(&SAVE_AS)) {
+            self.save(true);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&SAVE)) {
+            self.save(false);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&NEW)) {
+            self.request(Action::New);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&OPEN)) {
+            self.request(Action::Open);
+        }
         if ctx.input_mut(|i| i.consume_shortcut(&REDO) || i.consume_shortcut(&REDO_Y)) {
             self.view.redo();
         }
@@ -231,22 +260,63 @@ impl PathwayApp {
         let ctx = ui.ctx().clone();
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("New").clicked() {
-                    self.dialog = Some(Dialog::ConfirmNew);
+                let item = |ui: &mut egui::Ui, label: &str, shortcut: Option<&KeyboardShortcut>| {
+                    let mut b = egui::Button::new(label);
+                    if let Some(s) = shortcut {
+                        b = b.shortcut_text(ctx.format_shortcut(s));
+                    }
+                    ui.add(b).clicked()
+                };
+                if item(ui, "New", Some(&NEW)) {
+                    self.request(Action::New);
                     ui.close();
                 }
-                if ui.button("Preferences…").clicked() {
-                    self.dialog = Some(Dialog::Preferences(self.prefs));
+                if item(ui, "Open…", Some(&OPEN)) {
+                    self.request(Action::Open);
                     ui.close();
                 }
                 ui.menu_button("Open sample", |ui| {
-                    for (name, text) in SAMPLES {
+                    for (name, _) in SAMPLES {
                         if ui.button(*name).clicked() {
-                            self.open(name, text);
+                            self.request(Action::OpenSample(name));
                             ui.close();
                         }
                     }
                 });
+                if item(ui, "Save", Some(&SAVE)) {
+                    self.save(false);
+                    ui.close();
+                }
+                if item(ui, "Save As…", Some(&SAVE_AS)) {
+                    self.save(true);
+                    ui.close();
+                }
+                ui.separator();
+                if item(ui, "Import Antimony…", None) {
+                    self.files
+                        .open(&self.ctx, Purpose::ImportAntimony, Filter::Antimony);
+                    ui.close();
+                }
+                if item(ui, "Export Antimony…", None) {
+                    self.export_antimony();
+                    ui.close();
+                }
+                ui.separator();
+                ui.add_enabled(false, egui::Button::new("Save to SBML…"))
+                    .on_disabled_hover_text("Arrives with SBML support (milestone R9)");
+                ui.separator();
+                if item(ui, "Preferences…", None) {
+                    self.dialog = Some(Dialog::Preferences(self.prefs));
+                    ui.close();
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    ui.separator();
+                    if item(ui, "Quit", None) {
+                        self.request(Action::Quit);
+                        ui.close();
+                    }
+                }
             });
             ui.menu_button("Edit", |ui| {
                 let label = |verb: &str, what: Option<&str>| match what {
@@ -322,6 +392,12 @@ impl PathwayApp {
                 ui.separator();
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
             });
+            ui.menu_button("Help", |ui| {
+                if ui.button("About PathwayDesigner").clicked() {
+                    self.dialog = Some(Dialog::About);
+                    ui.close();
+                }
+            });
         });
     }
 
@@ -388,7 +464,6 @@ impl PathwayApp {
                 "Replace the diagram with a random 10-species, 12-reaction network (a test tool)",
             ) {
                 self.view.random_network(clock_seed());
-                self.title = "Random network".to_owned();
                 self.fit_pending = true;
             }
         });
@@ -460,15 +535,24 @@ impl PathwayApp {
             egui::Checkbox::new(&mut self.view.default_smooth, "Smooth junction"),
         )
         .on_hover_text("New Bézier reactions get a smooth junction");
+        ui.separator();
+        egui::ScrollArea::vertical().id_salt("tree").show(ui, |ui| {
+            crate::tree::show(ui, &mut self.view, &mut self.tree, self.canvas_centre)
+        });
     }
 
     fn status_bar(&self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let m = self.view.model();
             let (species, reactions) = self.view.selection();
+            let mark = if self.view.is_modified() {
+                " (unsaved)"
+            } else {
+                ""
+            };
             let mut text = format!(
-                "{} · {} species · {} reactions · {:.0}%",
-                self.title,
+                "{}{mark} · {} species · {} reactions · {:.0}%",
+                self.doc.name,
                 m.species().len(),
                 m.reactions().len(),
                 self.view.zoom() * 100.0
@@ -481,6 +565,23 @@ impl PathwayApp {
                 ));
             }
             ui.label(text);
+            #[cfg(target_arch = "wasm32")]
+            {
+                ui.separator();
+                ui.label(crate::files::Files::save_mode());
+            }
+            if let Some(n) = &self.notice {
+                ui.separator();
+                ui.label(n);
+            }
+            // Compartments are kept but not drawn (S §13.5).
+            if self.view.model().has_non_default_compartments() {
+                ui.separator();
+                ui.colored_label(
+                    egui::Color32::from_rgb(0xA0, 0x50, 0x00),
+                    "This model has compartments; they aren't drawn yet",
+                );
+            }
             if let Some(hint) = self.tool_hint() {
                 ui.separator();
                 ui.label(hint);
@@ -598,22 +699,69 @@ impl PathwayApp {
                     }
                 }
             }
-            Dialog::ConfirmNew => {
-                let mut confirmed = false;
-                let modal = egui::Modal::new(egui::Id::new("confirm-new")).show(ctx, |ui| {
-                    ui.heading("New diagram");
-                    ui.label("Discard the current diagram? This can't be undone.");
+            Dialog::ConfirmDiscard(action) => {
+                let (mut save, mut discard) = (false, false);
+                let name = self.doc.name.clone();
+                let modal = egui::Modal::new(egui::Id::new("confirm-discard")).show(ctx, |ui| {
+                    ui.heading(format!("Save changes to {name}?"));
+                    ui.label("Your changes will be lost if you don't save them.");
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        confirmed = ui.button("Discard").clicked()
-                            || ui.input(|i| i.key_pressed(Key::Enter));
+                        save = ui.button("Save").clicked();
+                        discard = ui.button("Don't Save").clicked();
                         close |= ui.button("Cancel").clicked();
                     });
                 });
-                close |= modal.should_close() || confirmed;
-                if confirmed {
-                    self.new_document();
+                close |= modal.should_close() || save || discard;
+                let action = action.clone();
+                if save {
+                    self.after_save = Some(action);
+                    self.save(false);
+                } else if discard {
+                    self.perform(action);
                 }
+            }
+            Dialog::Recover(a) => {
+                let (mut recover, mut discard) = (false, false);
+                let (name, age) = (a.name.clone(), a.age(autosave::now()));
+                let modal = egui::Modal::new(egui::Id::new("recover")).show(ctx, |ui| {
+                    ui.heading("Recover unsaved changes?");
+                    ui.label(format!(
+                        "{name} had unsaved changes when PathwayDesigner last closed ({age})."
+                    ));
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        recover = ui.button("Recover").clicked();
+                        discard = ui.button("Discard").clicked();
+                    });
+                });
+                let a = a.clone();
+                close |= modal.should_close() || recover || discard;
+                if recover {
+                    self.recover(&a);
+                }
+            }
+            Dialog::About => {
+                let modal = egui::Modal::new(egui::Id::new("about")).show(ctx, |ui| {
+                    ui.heading("PathwayDesigner");
+                    ui.label(format!(
+                        "Version {} · built {}",
+                        env!("CARGO_PKG_VERSION"),
+                        env!("PD_BUILD_DATE")
+                    ));
+                    ui.label("A drawing tool for biochemical reaction networks.");
+                    ui.hyperlink_to("Source code and documentation", HOME_PAGE);
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new(
+                            "MIT licence. Labels use Noto Sans, under the SIL Open Font Licence.",
+                        )
+                        .small(),
+                    );
+                    ui.add_space(4.0);
+                    close |= ui.button("Close").clicked();
+                });
+                close |= modal.should_close();
             }
         }
         if close {
@@ -624,7 +772,7 @@ impl PathwayApp {
 
 impl PathwayApp {
     /// How Antimony is imported, from the preferences.
-    fn import_options(&self) -> ImportOptions {
+    pub(crate) fn import_options(&self) -> ImportOptions {
         ImportOptions {
             convert_catalytic: self.prefs.convert_catalytic,
             seed: clock_seed(),
@@ -635,10 +783,18 @@ impl PathwayApp {
 impl eframe::App for PathwayApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.prefs.save(storage);
+        self.autosave(storage);
+    }
+
+    fn auto_save_interval(&self) -> std::time::Duration {
+        autosave::INTERVAL
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        self.handle_files();
+        self.check_close();
+        self.update_title();
         self.shortcuts(&ctx);
         self.run_layout(&ctx);
         let busy = self.view.is_laying_out();
@@ -666,8 +822,8 @@ impl eframe::App for PathwayApp {
             });
         match antimony_action {
             Some(PanelAction::Imported) => {
-                self.title = "Antimony".to_owned();
                 self.warnings.clear();
+                self.notice = Some("Imported Antimony".to_owned());
                 self.fit_pending = true;
             }
             Some(PanelAction::LayOut) => {
@@ -692,6 +848,7 @@ impl eframe::App for PathwayApp {
                 output = Some(canvas::show(ui, &mut self.view, &mut self.canvas));
             });
         if let Some(out) = output {
+            self.canvas_centre = out.centre;
             if let Some(Request::Rename(id)) = &out.view.request {
                 self.ask_rename(id);
             }
