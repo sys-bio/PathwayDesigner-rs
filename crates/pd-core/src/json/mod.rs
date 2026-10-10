@@ -1,0 +1,936 @@
+//! The native JSON file format (S §11.1, SPEC-Rust §4).
+//!
+//! The file is a contract shared with the Delphi app, so it is described by
+//! its own structs here, separate from the model types. Renaming a model field
+//! can never change the file. Reading accepts versions 1–3 (and newer files, as
+//! far as possible); writing always produces version 3 with the keys in the
+//! order the Delphi app writes them.
+
+pub mod colour;
+
+use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::geometry::pt;
+use crate::model::{
+    AssignmentRule, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, Model, Parameter,
+    Participant, Reaction, ReactionMode, Rgba, SpeciesNode, VisualStyle,
+};
+
+/// The version this code writes, and the newest it fully understands.
+pub const FORMAT_VERSION: u32 = 3;
+
+/// The result of reading a file.
+#[derive(Clone, Debug)]
+pub struct Loaded {
+    pub model: Model,
+    /// The file's `version` (1 if it had none).
+    pub version: u32,
+    /// Things that were skipped or repaired, for the user to see. Never fatal.
+    pub warnings: Vec<String>,
+}
+
+impl Loaded {
+    /// True if the file comes from a newer version of the app. Saving it here
+    /// would lose whatever this version doesn't understand, so the app makes
+    /// Save behave as Save As (SPEC-Rust §4).
+    pub fn is_newer_than_supported(&self) -> bool {
+        self.version > FORMAT_VERSION
+    }
+}
+
+/// A file that could not be read at all.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JsonError {
+    /// 1-based line and column, or 0 when the position is unknown.
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+}
+
+impl std::fmt::Display for JsonError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.line > 0 {
+            write!(
+                f,
+                "line {}, column {}: {}",
+                self.line, self.column, self.message
+            )
+        } else {
+            f.write_str(&self.message)
+        }
+    }
+}
+
+impl std::error::Error for JsonError {}
+
+impl From<serde_json::Error> for JsonError {
+    fn from(e: serde_json::Error) -> Self {
+        JsonError {
+            line: e.line(),
+            column: e.column(),
+            message: e.to_string(),
+        }
+    }
+}
+
+/// Reads a native JSON document (S §11.1, load procedure). A byte-order mark
+/// at the start is ignored.
+pub fn from_json(text: &str) -> Result<Loaded, JsonError> {
+    let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
+    let file: FileModel = serde_json::from_str(text)?;
+    Ok(file.into_model())
+}
+
+/// Writes `model` as a version 3 document: UTF-8, 2-space indentation, keys in
+/// the Delphi app's order, colours as upper-case `#RRGGBBAA`. Selection is not
+/// saved.
+pub fn to_json(model: &Model) -> String {
+    let file = FileModel::from_model(model);
+    let mut text = serde_json::to_string_pretty(&file).expect("the file structs always serialise");
+    text.push('\n');
+    text
+}
+
+// ----- File structs ----------------------------------------------------------
+//
+// Field order is key order in the written file. `default`s say what a missing
+// key means; `skip_serializing_if` leaves keys out where the Delphi app does.
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileModel {
+    #[serde(default, deserialize_with = "lenient_u32_opt")]
+    version: Option<u32>,
+    #[serde(default)]
+    model_name: String,
+    #[serde(default)]
+    compartments: Vec<FileCompartment>,
+    #[serde(default)]
+    parameters: Vec<FileExpression>,
+    #[serde(default)]
+    assignment_rules: Vec<FileExpression>,
+    #[serde(default)]
+    species: Vec<FileSpecies>,
+    #[serde(default)]
+    reactions: Vec<FileReaction>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileCompartment {
+    id: String,
+    #[serde(default = "one")]
+    size: f64,
+    #[serde(default = "three", deserialize_with = "lenient_u32")]
+    dimensions: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style: Option<FileStyle>,
+}
+
+/// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileExpression {
+    variable: String,
+    #[serde(default)]
+    expression: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileSpecies {
+    id: String,
+    #[serde(default)]
+    x: f64,
+    #[serde(default)]
+    y: f64,
+    #[serde(default = "default_width")]
+    w: f64,
+    #[serde(default = "default_height")]
+    h: f64,
+    #[serde(default)]
+    initial_value: f64,
+    #[serde(default)]
+    is_boundary: bool,
+    #[serde(default)]
+    is_constant: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    compartment: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    alias_of: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    is_null_node: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    locked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style: Option<FileStyle>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileReaction {
+    id: String,
+    #[serde(default)]
+    jx: f64,
+    #[serde(default)]
+    jy: f64,
+    #[serde(default)]
+    kinetic_law: String,
+    #[serde(default)]
+    is_reversible: bool,
+    #[serde(default)]
+    is_linear: bool,
+    #[serde(default)]
+    is_bezier: bool,
+    #[serde(default)]
+    is_junction_smooth: bool,
+    #[serde(default)]
+    reactants: Vec<FileParticipant>,
+    #[serde(default)]
+    products: Vec<FileParticipant>,
+    /// Always written, even when empty, as the current Delphi writer does.
+    #[serde(default)]
+    modifiers: Vec<FileParticipant>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style: Option<FileStyle>,
+}
+
+/// Version 1 lists participants as bare species ids; later versions use objects.
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum FileParticipant {
+    Id(String),
+    Full(FileParticipantObject),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileParticipantObject {
+    id: String,
+    /// Left out for modifiers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stoichiometry: Option<f64>,
+    /// The handles, written only when `ctrlSet` is true.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ctrl1x: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ctrl1y: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ctrl2x: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ctrl2y: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ctrl_set: Option<bool>,
+}
+
+/// A style object. Missing keys mean 0 (use the default), or true for
+/// `junctionVisible` (S §11.1). Written with all nine keys, as the Delphi app
+/// does.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileStyle {
+    #[serde(default, with = "colour")]
+    fill_color: Rgba,
+    #[serde(default, with = "colour")]
+    border_color: Rgba,
+    #[serde(default, with = "colour")]
+    label_color: Rgba,
+    #[serde(default)]
+    border_width: f64,
+    #[serde(default, with = "colour")]
+    line_color: Rgba,
+    #[serde(default)]
+    line_width: f64,
+    #[serde(default)]
+    font_size: f64,
+    #[serde(default, with = "colour")]
+    junction_color: Rgba,
+    #[serde(default = "yes")]
+    junction_visible: bool,
+}
+
+fn one() -> f64 {
+    1.0
+}
+fn three() -> u32 {
+    3
+}
+fn yes() -> bool {
+    true
+}
+fn default_width() -> f64 {
+    DEFAULT_SPECIES_WIDTH
+}
+fn default_height() -> f64 {
+    DEFAULT_SPECIES_HEIGHT
+}
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// A whole number written either as `3` or `3.0`.
+fn lenient_u32<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    let v = f64::deserialize(d)?;
+    if v.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&v) {
+        Ok(v as u32)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "expected a whole number, found {v}"
+        )))
+    }
+}
+
+fn lenient_u32_opt<'de, D: Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Error> {
+    lenient_u32(d).map(Some)
+}
+
+// ----- File → model ----------------------------------------------------------
+
+impl FileModel {
+    fn into_model(self) -> Loaded {
+        let mut warnings = Vec::new();
+        let version = self.version.unwrap_or(1);
+        if version > FORMAT_VERSION {
+            warnings.push(format!(
+                "This file was made by a newer version of PathwayDesigner (format {version}). \
+                 Saving it here will lose features this version doesn't support."
+            ));
+        }
+
+        let mut model = Model::new();
+        model.model_name = self.model_name;
+        model.compartments = self
+            .compartments
+            .into_iter()
+            .map(|c| Compartment {
+                id: c.id,
+                size: c.size,
+                dimensions: c.dimensions,
+                style: style_from_file(c.style),
+            })
+            .collect();
+        model.parameters = self
+            .parameters
+            .into_iter()
+            .map(|p| Parameter {
+                variable: p.variable,
+                expression: p.expression,
+            })
+            .collect();
+        model.assignment_rules = self
+            .assignment_rules
+            .into_iter()
+            .map(|r| AssignmentRule {
+                variable: r.variable,
+                expression: r.expression,
+            })
+            .collect();
+
+        // All species first; aliases are resolved in a second pass, so an
+        // alias may come before its primary in the file.
+        for s in self.species {
+            let node = SpeciesNode {
+                id: s.id,
+                center: pt(s.x, s.y),
+                width: s.w,
+                height: s.h,
+                initial_value: s.initial_value,
+                is_boundary: s.is_boundary,
+                is_constant: s.is_constant,
+                compartment: s.compartment,
+                alias_of: s.alias_of,
+                is_null_node: s.is_null_node,
+                locked: s.locked,
+                selected: false,
+                style: style_from_file(s.style),
+            };
+            if let Err(dup) = model.push_species(node) {
+                warnings.push(format!("A second species with id `{}` was skipped.", dup.0));
+            }
+        }
+        resolve_aliases(&mut model, &mut warnings);
+
+        for r in self.reactions {
+            let mode = if r.is_bezier {
+                ReactionMode::Bezier
+            } else if r.is_linear {
+                ReactionMode::Linear
+            } else {
+                ReactionMode::Straight
+            };
+            let mut reaction = Reaction::new(r.id, pt(r.jx, r.jy));
+            reaction.kinetic_law = r.kinetic_law;
+            reaction.is_reversible = r.is_reversible;
+            reaction.mode = mode;
+            reaction.junction_smooth = r.is_junction_smooth;
+            reaction.style = style_from_file(r.style);
+            for (list, out) in [
+                (r.reactants, &mut reaction.reactants),
+                (r.products, &mut reaction.products),
+                (r.modifiers, &mut reaction.modifiers),
+            ] {
+                for p in list {
+                    let p = participant_from_file(p);
+                    if model.find_species(&p.species).is_some() {
+                        out.push(p);
+                    } else {
+                        warnings.push(format!(
+                            "Reaction `{}` refers to a species `{}` that isn't in the file; that \
+                             entry was skipped.",
+                            reaction.id, p.species
+                        ));
+                    }
+                }
+            }
+            if let Err(dup) = model.push_reaction(reaction) {
+                warnings.push(format!(
+                    "A second reaction with id `{}` was skipped.",
+                    dup.0
+                ));
+            }
+        }
+
+        model.recompute_id_counter();
+        Loaded {
+            model,
+            version,
+            warnings,
+        }
+    }
+}
+
+/// Makes every `alias_of` point at an existing primary (S §3.2). An alias of
+/// an alias is pointed at the primary; an alias of a missing species, or of
+/// itself, becomes a primary.
+fn resolve_aliases(model: &mut Model, warnings: &mut Vec<String>) {
+    let fixes: Vec<(String, Option<String>)> = model
+        .species()
+        .iter()
+        .filter_map(|s| {
+            let target = s.alias_of.as_deref()?;
+            let resolved = follow_alias(model, &s.id, target);
+            if resolved.as_deref() == Some(target) {
+                return None;
+            }
+            match &resolved {
+                Some(p) => warnings.push(format!(
+                    "Alias `{}` pointed at another alias; it now points at the primary `{p}`.",
+                    s.id
+                )),
+                None => warnings.push(format!(
+                    "Alias `{}` pointed at `{target}`, which isn't a species in the file; it is \
+                     now a species of its own.",
+                    s.id
+                )),
+            }
+            Some((s.id.clone(), resolved))
+        })
+        .collect();
+    for (id, alias_of) in fixes {
+        if let Some(node) = model.find_species_mut(&id) {
+            node.alias_of = alias_of;
+        }
+    }
+}
+
+/// Follows a chain of aliases from `target` to a primary. `None` if the chain
+/// ends at a missing species or loops back on itself.
+fn follow_alias<'a>(model: &'a Model, start: &'a str, mut target: &'a str) -> Option<String> {
+    let mut seen = vec![start];
+    loop {
+        if seen.contains(&target) {
+            return None;
+        }
+        let node = model.find_species(target)?;
+        match node.alias_of.as_deref() {
+            None => return Some(node.id.clone()),
+            Some(next) => {
+                seen.push(target);
+                target = next;
+            }
+        }
+    }
+}
+
+fn participant_from_file(p: FileParticipant) -> Participant {
+    match p {
+        FileParticipant::Id(id) => Participant::new(id, 1.0),
+        FileParticipant::Full(o) => {
+            let ctrl_pts_set = o.ctrl_set.unwrap_or(false);
+            Participant {
+                species: o.id,
+                stoichiometry: o.stoichiometry.unwrap_or(1.0),
+                ctrl1: if ctrl_pts_set {
+                    pt(o.ctrl1x.unwrap_or(0.0), o.ctrl1y.unwrap_or(0.0))
+                } else {
+                    pt(0.0, 0.0)
+                },
+                ctrl2: if ctrl_pts_set {
+                    pt(o.ctrl2x.unwrap_or(0.0), o.ctrl2y.unwrap_or(0.0))
+                } else {
+                    pt(0.0, 0.0)
+                },
+                ctrl_pts_set,
+            }
+        }
+    }
+}
+
+/// Any style object makes the style custom, as in the Delphi app; the
+/// per-field sentinels still apply (S §3.6).
+fn style_from_file(s: Option<FileStyle>) -> VisualStyle {
+    match s {
+        None => VisualStyle::default(),
+        Some(s) => VisualStyle {
+            has_custom_style: true,
+            fill_color: s.fill_color,
+            border_color: s.border_color,
+            label_color: s.label_color,
+            border_width: s.border_width,
+            line_color: s.line_color,
+            line_width: s.line_width,
+            font_size: s.font_size,
+            junction_color: s.junction_color,
+            junction_visible: s.junction_visible,
+        },
+    }
+}
+
+// ----- Model → file ----------------------------------------------------------
+
+impl FileModel {
+    fn from_model(m: &Model) -> Self {
+        FileModel {
+            version: Some(FORMAT_VERSION),
+            model_name: m.model_name.clone(),
+            compartments: m
+                .compartments
+                .iter()
+                .map(|c| FileCompartment {
+                    id: c.id.clone(),
+                    size: c.size,
+                    dimensions: c.dimensions,
+                    style: custom_style_to_file(&c.style),
+                })
+                .collect(),
+            parameters: m
+                .parameters
+                .iter()
+                .map(|p| FileExpression {
+                    variable: p.variable.clone(),
+                    expression: p.expression.clone(),
+                })
+                .collect(),
+            assignment_rules: m
+                .assignment_rules
+                .iter()
+                .map(|r| FileExpression {
+                    variable: r.variable.clone(),
+                    expression: r.expression.clone(),
+                })
+                .collect(),
+            species: m
+                .species()
+                .iter()
+                .map(|s| FileSpecies {
+                    id: s.id.clone(),
+                    x: s.center.x,
+                    y: s.center.y,
+                    w: s.width,
+                    h: s.height,
+                    initial_value: s.initial_value,
+                    is_boundary: s.is_boundary,
+                    is_constant: s.is_constant,
+                    compartment: s.compartment.clone(),
+                    alias_of: s.alias_of.clone(),
+                    is_null_node: s.is_null_node,
+                    locked: s.locked,
+                    style: custom_style_to_file(&s.style),
+                })
+                .collect(),
+            reactions: m.reactions().iter().map(reaction_to_file).collect(),
+        }
+    }
+}
+
+fn reaction_to_file(r: &Reaction) -> FileReaction {
+    let participants = |list: &[Participant]| {
+        list.iter()
+            .map(|p| {
+                let (c1, c2) = (p.ctrl1, p.ctrl2);
+                let set = p.ctrl_pts_set;
+                FileParticipant::Full(FileParticipantObject {
+                    id: p.species.clone(),
+                    stoichiometry: Some(p.stoichiometry),
+                    ctrl1x: set.then_some(c1.x),
+                    ctrl1y: set.then_some(c1.y),
+                    ctrl2x: set.then_some(c2.x),
+                    ctrl2y: set.then_some(c2.y),
+                    ctrl_set: set.then_some(true),
+                })
+            })
+            .collect()
+    };
+    // Fix D-8: a hidden junction is saved even without a custom style, as a
+    // style object whose other fields are all "use the default".
+    let style = if r.style.has_custom_style {
+        Some(style_to_file(&r.style))
+    } else if !r.style.junction_visible {
+        Some(style_to_file(&VisualStyle {
+            junction_visible: false,
+            ..VisualStyle::default()
+        }))
+    } else {
+        None
+    };
+    FileReaction {
+        id: r.id.clone(),
+        jx: r.junction.x,
+        jy: r.junction.y,
+        kinetic_law: r.kinetic_law.clone(),
+        is_reversible: r.is_reversible,
+        is_linear: r.mode == ReactionMode::Linear,
+        is_bezier: r.mode == ReactionMode::Bezier,
+        is_junction_smooth: r.junction_smooth,
+        reactants: participants(&r.reactants),
+        products: participants(&r.products),
+        // Modifiers are written with their id only.
+        modifiers: r
+            .modifiers
+            .iter()
+            .map(|p| {
+                FileParticipant::Full(FileParticipantObject {
+                    id: p.species.clone(),
+                    stoichiometry: None,
+                    ctrl1x: None,
+                    ctrl1y: None,
+                    ctrl2x: None,
+                    ctrl2y: None,
+                    ctrl_set: None,
+                })
+            })
+            .collect(),
+        style,
+    }
+}
+
+fn custom_style_to_file(s: &VisualStyle) -> Option<FileStyle> {
+    s.has_custom_style.then(|| style_to_file(s))
+}
+
+fn style_to_file(s: &VisualStyle) -> FileStyle {
+    FileStyle {
+        fill_color: s.fill_color,
+        border_color: s.border_color,
+        label_color: s.label_color,
+        border_width: s.border_width,
+        line_color: s.line_color,
+        line_width: s.line_width,
+        font_size: s.font_size,
+        junction_color: s.junction_color,
+        junction_visible: s.junction_visible,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::Pt;
+
+    #[test]
+    fn version_1_participants_are_bare_ids() {
+        let text = r#"{
+            "modelName": "v1",
+            "species": [
+                { "id": "A", "x": 10, "y": 20, "w": 80, "h": 36 },
+                { "id": "B", "x": 200, "y": 20, "w": 80, "h": 36 }
+            ],
+            "reactions": [
+                { "id": "R1", "jx": 100, "jy": 20, "kineticLaw": "k*A",
+                  "reactants": ["A"], "products": ["B"] }
+            ]
+        }"#;
+        let loaded = from_json(text).unwrap();
+        assert_eq!(loaded.version, 1, "no version key means version 1");
+        assert!(loaded.warnings.is_empty());
+        let m = &loaded.model;
+        let r = m.find_reaction("R1").unwrap();
+        assert_eq!(r.reactants, vec![Participant::new("A", 1.0)]);
+        assert_eq!(r.products, vec![Participant::new("B", 1.0)]);
+        assert!(r.modifiers.is_empty());
+        assert_eq!(m.find_species("A").unwrap().center, pt(10.0, 20.0));
+    }
+
+    #[test]
+    fn version_2_participants_have_stoichiometry() {
+        let text = r#"{
+            "version": 2,
+            "modelName": "v2",
+            "compartments": [ { "id": "cell", "size": 2.5, "dimensions": 3 } ],
+            "parameters": [ { "variable": "k1", "expression": "0.1" } ],
+            "assignmentRules": [ { "variable": "T", "expression": "A + B" } ],
+            "species": [
+                { "id": "A", "x": 0, "y": 0, "w": 80, "h": 36, "initialValue": 5,
+                  "isBoundary": true, "isConstant": false, "compartment": "cell" },
+                { "id": "B", "x": 1, "y": 1, "w": 80, "h": 36 }
+            ],
+            "reactions": [
+                { "id": "R1", "jx": 0, "jy": 0, "kineticLaw": "k1*A", "isReversible": true,
+                  "isLinear": true, "isBezier": false, "isJunctionSmooth": false,
+                  "reactants": [ { "id": "A", "stoichiometry": 2 } ],
+                  "products": [ { "id": "B", "stoichiometry": 1 } ] }
+            ]
+        }"#;
+        let m = from_json(text).unwrap().model;
+        assert_eq!(m.compartments[0].size, 2.5);
+        assert_eq!(m.parameters[0].expression, "0.1");
+        assert_eq!(m.assignment_rules[0].variable, "T");
+        let a = m.find_species("A").unwrap();
+        assert_eq!(a.initial_value, 5.0);
+        assert!(a.is_boundary);
+        assert_eq!(a.compartment, "cell");
+        let r = m.find_reaction("R1").unwrap();
+        assert_eq!(r.reactants[0].stoichiometry, 2.0);
+        assert_eq!(r.mode, ReactionMode::Linear);
+        assert!(r.is_reversible);
+    }
+
+    #[test]
+    fn styles_with_legacy_integer_and_short_hex_colours() {
+        let text = r##"{
+            "version": 3,
+            "species": [
+                { "id": "A", "x": 0, "y": 0, "w": 80, "h": 36,
+                  "style": { "fillColor": -2572328, "borderColor": "4A7FCB", "borderWidth": 2 } }
+            ]
+        }"##;
+        let style = from_json(text).unwrap().model.species()[0].style;
+        assert!(style.has_custom_style);
+        assert_eq!(style.fill_color, Rgba([0xD8, 0xBF, 0xD8, 0xFF]));
+        assert_eq!(style.border_color, Rgba([0x4A, 0x7F, 0xCB, 0xFF]));
+        assert_eq!(style.border_width, 2.0);
+        // Missing keys mean "use the default".
+        assert_eq!(style.label_color, Rgba::DEFAULT);
+        assert!(style.junction_visible);
+    }
+
+    #[test]
+    fn byte_order_mark_is_accepted() {
+        let loaded = from_json("\u{FEFF}{\"version\": 3}").unwrap();
+        assert_eq!(loaded.version, 3);
+    }
+
+    #[test]
+    fn bezier_wins_if_both_flags_are_set() {
+        let text = r#"{ "version": 3, "reactions": [
+            { "id": "R1", "isLinear": true, "isBezier": true } ] }"#;
+        let m = from_json(text).unwrap().model;
+        assert_eq!(m.reactions()[0].mode, ReactionMode::Bezier);
+        let saved: serde_json::Value = serde_json::from_str(&to_json(&m)).unwrap();
+        assert_eq!(saved["reactions"][0]["isLinear"], false);
+        assert_eq!(saved["reactions"][0]["isBezier"], true);
+    }
+
+    #[test]
+    fn aliases_are_resolved_after_all_species_are_read() {
+        let text = r#"{ "version": 3, "species": [
+            { "id": "S2", "aliasOf": "S1" },
+            { "id": "S3", "aliasOf": "S2" },
+            { "id": "S1" },
+            { "id": "S4", "aliasOf": "nobody" }
+        ] }"#;
+        let loaded = from_json(text).unwrap();
+        let m = &loaded.model;
+        assert_eq!(
+            m.find_species("S2").unwrap().alias_of.as_deref(),
+            Some("S1")
+        );
+        // An alias of an alias points at the primary.
+        assert_eq!(
+            m.find_species("S3").unwrap().alias_of.as_deref(),
+            Some("S1")
+        );
+        // An alias of a missing species becomes a species of its own.
+        assert_eq!(m.find_species("S4").unwrap().alias_of, None);
+        assert_eq!(loaded.warnings.len(), 2);
+    }
+
+    #[test]
+    fn participants_of_missing_species_are_skipped() {
+        let text = r#"{ "version": 3, "species": [ { "id": "A" } ], "reactions": [
+            { "id": "R1", "reactants": [ { "id": "A" } ], "products": [ { "id": "Z" } ],
+              "modifiers": [ { "id": "Y" } ] } ] }"#;
+        let loaded = from_json(text).unwrap();
+        let r = loaded.model.find_reaction("R1").unwrap();
+        assert_eq!(r.reactants.len(), 1);
+        assert!(r.products.is_empty());
+        assert!(r.modifiers.is_empty());
+        assert_eq!(loaded.warnings.len(), 2);
+    }
+
+    #[test]
+    fn duplicate_ids_are_skipped_with_a_warning() {
+        let text =
+            r#"{ "version": 3, "species": [ { "id": "A", "x": 1 }, { "id": "A", "x": 2 } ] }"#;
+        let loaded = from_json(text).unwrap();
+        assert_eq!(loaded.model.species().len(), 1);
+        assert_eq!(loaded.model.species()[0].center.x, 1.0);
+        assert_eq!(loaded.warnings.len(), 1);
+    }
+
+    #[test]
+    fn id_counter_is_recomputed_on_load() {
+        let text = r#"{ "version": 3, "species": [ { "id": "S7" } ],
+            "reactions": [ { "id": "R12" } ] }"#;
+        assert_eq!(from_json(text).unwrap().model.next_id(), 13);
+    }
+
+    #[test]
+    fn newer_versions_load_with_a_warning() {
+        let text = r#"{ "version": 4, "species": [ { "id": "A", "shape": "ellipse" } ] }"#;
+        let loaded = from_json(text).unwrap();
+        assert!(loaded.is_newer_than_supported());
+        assert_eq!(loaded.model.species().len(), 1);
+        assert_eq!(loaded.warnings.len(), 1);
+    }
+
+    #[test]
+    fn broken_json_reports_where() {
+        let err = from_json("{\n  \"version\": 3,\n  \"species\": [ { \"id\": } ]\n}").unwrap_err();
+        assert_eq!(err.line, 3);
+        assert!(err.column > 0);
+    }
+
+    #[test]
+    fn writer_uses_the_delphi_layout() {
+        let mut m = Model::new();
+        m.model_name = "demo".into();
+        m.compartments.push(Compartment::new("defaultCompartment"));
+        let a = m.add_species(Pt::ZERO, 80.0, 36.0);
+        let b = m.add_species(pt(200.0, 0.0), 80.0, 36.0);
+        let e = m.add_species(pt(100.0, -100.0), 80.0, 36.0);
+        let r = m.add_reaction(pt(100.0, 0.0));
+        {
+            let r = m.find_reaction_mut(&r).unwrap();
+            r.reactants.push(Participant::new(&a, 1.0));
+            let mut p = Participant::new(&b, 2.0);
+            p.ctrl_pts_set = true;
+            p.ctrl1 = pt(1.5, 2.5);
+            p.ctrl2 = pt(3.5, 4.5);
+            r.products.push(p);
+            r.modifiers.push(Participant::new(&e, 1.0));
+            r.mode = ReactionMode::Bezier;
+        }
+        let s = m.find_species_mut(&a).unwrap();
+        s.style.has_custom_style = true;
+        s.style.fill_color = Rgba([0xFF, 0xE0, 0xB2, 0xFF]);
+        s.selected = true;
+
+        let text = to_json(&m);
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["version"], 3);
+        assert!(text.starts_with("{\n  \"version\": 3,\n  \"modelName\": \"demo\","));
+        assert_eq!(v["compartments"][0]["dimensions"], 3);
+
+        let s0 = &v["species"][0];
+        let keys: Vec<&str> = s0.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(
+            keys,
+            [
+                "id",
+                "x",
+                "y",
+                "w",
+                "h",
+                "initialValue",
+                "isBoundary",
+                "isConstant",
+                "style"
+            ]
+        );
+        assert_eq!(s0["style"]["fillColor"], "#FFE0B2FF");
+        assert_eq!(s0["style"]["labelColor"], "#00000000");
+        assert_eq!(s0["style"].as_object().unwrap().len(), 9);
+        assert!(v["species"][1].get("style").is_none());
+        assert!(
+            text.find("\"selected\"").is_none(),
+            "selection is not saved"
+        );
+
+        let r0 = &v["reactions"][0];
+        // Automatic handles are never saved.
+        assert!(r0["reactants"][0].get("ctrl1x").is_none());
+        assert!(r0["reactants"][0].get("ctrlSet").is_none());
+        let p = &r0["products"][0];
+        assert_eq!(
+            (
+                p["ctrl1x"].as_f64(),
+                p["ctrl2y"].as_f64(),
+                p["ctrlSet"].as_bool()
+            ),
+            (Some(1.5), Some(4.5), Some(true))
+        );
+        assert_eq!(p["stoichiometry"], 2.0);
+        // Modifiers have only an id.
+        assert_eq!(r0["modifiers"][0].as_object().unwrap().len(), 1);
+        assert!(r0.get("style").is_none());
+    }
+
+    #[test]
+    fn empty_modifier_lists_are_written() {
+        let mut m = Model::new();
+        m.add_reaction(Pt::ZERO);
+        let v: serde_json::Value = serde_json::from_str(&to_json(&m)).unwrap();
+        assert_eq!(v["reactions"][0]["modifiers"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn hidden_junction_is_saved_without_a_custom_style() {
+        // D-8: junctionVisible = false must survive a save even when the
+        // reaction has no other custom style.
+        let mut m = Model::new();
+        let r = m.add_reaction(Pt::ZERO);
+        m.find_reaction_mut(&r).unwrap().style.junction_visible = false;
+        let text = to_json(&m);
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let style = &v["reactions"][0]["style"];
+        assert_eq!(style["junctionVisible"], false);
+        assert_eq!(style["lineColor"], "#00000000");
+        assert_eq!(style["lineWidth"], 0.0);
+        let back = from_json(&text).unwrap().model;
+        assert!(!back.reactions()[0].style.junction_visible);
+    }
+
+    #[test]
+    fn locked_and_null_nodes_are_saved_only_when_true() {
+        let mut m = Model::new();
+        let a = m.add_species(Pt::ZERO, 80.0, 36.0);
+        let b = m.add_species(Pt::ZERO, 28.0, 28.0);
+        m.find_species_mut(&a).unwrap().locked = true;
+        m.find_species_mut(&b).unwrap().is_null_node = true;
+        let v: serde_json::Value = serde_json::from_str(&to_json(&m)).unwrap();
+        assert_eq!(v["species"][0]["locked"], true);
+        assert!(v["species"][0].get("isNullNode").is_none());
+        assert_eq!(v["species"][1]["isNullNode"], true);
+        assert!(v["species"][1].get("locked").is_none());
+        let back = from_json(&to_json(&m)).unwrap().model;
+        assert!(back.find_species(&a).unwrap().locked);
+        assert!(back.find_species(&b).unwrap().is_null_node);
+    }
+
+    #[test]
+    fn save_and_reload_gives_the_same_model() {
+        let mut m = Model::new();
+        m.model_name = "round trip".into();
+        let a = m.add_species(pt(0.1, 0.2), 80.0, 36.0);
+        let b = m.add_alias(&a, pt(1.0 / 3.0, 2.0 / 3.0)).unwrap();
+        let r = m.add_reaction(pt(516.666625976562, 261.333343505859));
+        let rr = m.find_reaction_mut(&r).unwrap();
+        rr.reactants.push(Participant::new(&a, 1.5));
+        rr.products.push(Participant::new(&b, 1.0));
+        rr.kinetic_law = "k1*S1".into();
+        let loaded = from_json(&to_json(&m)).unwrap();
+        assert!(loaded.warnings.is_empty());
+        assert_eq!(loaded.model, m);
+    }
+}

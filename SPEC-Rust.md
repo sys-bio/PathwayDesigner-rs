@@ -250,8 +250,16 @@ matches the reference and avoids copying the network on every drag frame.
   types. The file format is a contract, and it must not change because someone
   renamed a field in the model.
 - **Colours:** read `#RRGGBBAA` or `#RRGGBB` with or without the `#`, and the old
-  signed-integer `0xAARRGGBB` form (S §11.1). Always write 8 hex digits with a `#`.
-  Lower case matches the Delphi writer.
+  signed-integer `0xAARRGGBB` form (S §11.1). The integer form is not limited to
+  old files: `Models/model9.json` says version 3 and still uses it. Always write 8
+  hex digits with a `#`, in **upper case**, as the Delphi writer does
+  (`#FFE0B2FF`).
+- **What the Delphi writer does, and the Rust writer copies:** keys in the order of
+  S §11.1; style objects with all nine keys, `junctionVisible` included; a
+  `modifiers` array on every reaction, even when it is empty. The `locked` flag is
+  written as `"locked": true`, and only when true. Neither S §11.1 nor any sample
+  file shows its key, so this is our choice; check it against the Delphi source
+  if that becomes available.
 - **Versions:** read 1, 2 and 3 (and later versions as they are added, §4.2). A
   missing `version` means 1. Until v4 exists, always write 3 and never write a key
   the Delphi app doesn't know. Settings that only matter to the app (last

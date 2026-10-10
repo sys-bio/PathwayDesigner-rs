@@ -9,3 +9,8 @@ license.workspace = true
 [dependencies]
 harfrust.workspace = true
 skrifa.workspace = true
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip parses every number exactly, so a load and save gives back
+# the same digits (SPEC-Rust §4.1). preserve_order keeps key order in
+# serde_json::Value, which the tests use to check the written layout.
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }

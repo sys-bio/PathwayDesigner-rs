@@ -6,4 +6,6 @@
 //! (SPEC-Rust §2).
 
 pub mod geometry;
+pub mod json;
+pub mod model;
 pub mod text;

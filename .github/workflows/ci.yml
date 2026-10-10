@@ -9,6 +9,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push to a branch cancels that branch's older runs, checks included, so
+# only the newest commit ever deploys. (Cancelling only the Pages jobs would
+# let an older commit whose checks finished late overwrite a newer one.)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TRUNK_VERSION: v0.21.14
   CARGO_TERM_COLOR: always
@@ -51,9 +58,6 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    concurrency:
-      group: pages
-      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
