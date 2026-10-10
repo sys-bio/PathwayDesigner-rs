@@ -46,7 +46,14 @@ const ERROR: Color32 = Color32::from_rgb(0xCC, 0x33, 0x00);
 const SWATCH: Vec2 = Vec2::new(28.0, 18.0);
 
 impl Inspector {
-    pub fn show(&mut self, ui: &mut egui::Ui, view: &mut DiagramView) {
+    /// Shows the Species group, then `between` (the Antimony panel), then
+    /// the Reaction group (S §13.3).
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        view: &mut DiagramView,
+        between: impl FnOnce(&mut egui::Ui, &mut DiagramView),
+    ) {
         let (species, reactions) = view.selection();
         let one_species = (species.len() == 1).then(|| species[0].clone());
         let one_reaction = (reactions.len() == 1).then(|| reactions[0].clone());
@@ -117,6 +124,9 @@ impl Inspector {
                 });
         });
 
+        ui.add_space(8.0);
+        ui.separator();
+        between(ui, view);
         ui.add_space(8.0);
         ui.separator();
         ui.heading("Reaction");

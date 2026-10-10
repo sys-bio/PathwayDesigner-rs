@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/pd-core", "crates/pd-export", "crates/pd-app"]
+members = ["crates/pd-antimony", "crates/pd-core", "crates/pd-export", "crates/pd-app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -8,6 +8,7 @@ edition = "2024"
 license = "MIT"
 
 [workspace.dependencies]
+pd-antimony = { path = "crates/pd-antimony" }
 pd-core = { path = "crates/pd-core" }
 pd-export = { path = "crates/pd-export" }
 # eframe's defaults minus `default_fonts`: the app uses only the bundled font
@@ -15,6 +16,8 @@ pd-export = { path = "crates/pd-export" }
 eframe = { version = "0.36", default-features = false, features = [
     "accesskit",
     "links",
+    # Preferences saved between sessions (localStorage on the web, S §12).
+    "persistence",
     "wayland",
     "web_screen_reader",
     "wgpu",

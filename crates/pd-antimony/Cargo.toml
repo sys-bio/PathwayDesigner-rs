@@ -1,0 +1,11 @@
+[package]
+name = "pd-antimony"
+description = "A small Antimony reader and writer for PathwayDesigner, behind a narrow interface so a complete Antimony crate can replace it"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# No dependencies, and nothing about PathwayDesigner: it turns Antimony text
+# into a plain description of a model and back. pd-core::antimony maps that
+# description onto the diagram.
+[dependencies]

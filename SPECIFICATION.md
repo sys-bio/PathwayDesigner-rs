@@ -1050,7 +1050,10 @@ synonym for `->`.
    - Put the junction at `(CentR + CentP)/2`.
    - **Catalytic conversion** (when the preference is on, §12): any species that
      appears on **both** sides with **equal** stoichiometry is removed from both
-     sides. So `A -> A + B; k*A` becomes `-> B; k*A`.
+     sides and becomes a **modifier**. So `A -> A + B; k*A` becomes `-> B; k*A`
+     with `A` as a modifier, and so does `A -> A + B` with no rate law. (The
+     reference only makes `A` a modifier through the rate law, so without one `A`
+     ends up connected to nothing.)
    - **Modifiers:** every species identifier in the rate law that is not a
      participant becomes a modifier. If it has no node yet, create one. After
      conversion, this is how `A` above becomes a modifier.

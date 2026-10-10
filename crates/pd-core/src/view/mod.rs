@@ -16,6 +16,7 @@ pub mod hit;
 pub mod input;
 #[cfg(test)]
 mod interaction_tests;
+mod interchange;
 mod properties;
 mod tooltip;
 

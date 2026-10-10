@@ -64,13 +64,17 @@ PathwayDesigner/                (the repository root is the Cargo workspace, §1
       expr/                     S §8.3 — lexer, parser, syntax tree, list of identifiers
       undo/                     S §9 — commands and history
       layout/                   S §10 — force-directed layout (run in steps) and the Deckard handle pass
-      antimony/                 S §11.2, §11.3 — parser, import mapping, export
+      antimony                  S §11.2, §11.3 — the bridge: maps pd-antimony's description
+                                onto the model (import) and back (export)
       sbml/                     S §11.5 — L3V1 core + Layout writer, MathML; reader (F-1)
       text/                     text width from the bundled font (§5.4)
       view/                     view state, hit testing, the interaction state machine,
                                 editing commands (S §5–§7)
       render/                   the Renderer trait and the drawing passes (S §5.2),
                                 plus SvgRenderer (§9)
+    pd-antimony/                Antimony text ⇄ a plain description of a model. No other
+                                dependencies and nothing about PathwayDesigner, so a complete
+                                Antimony crate can replace it (§8.2)
     pd-export/                  turns SVG into PNG (resvg) and PDF (svg2pdf). No egui. Builds for wasm32 too
     pd-app/                     eframe/egui shell: menus, toolbars, inspector, panels,
                                 dialogs, EguiRenderer, platform adapters (§10)
@@ -598,7 +602,22 @@ This is more code than using libSBML and libAntimony. It was chosen because:
 - Modifier sync (S §8.4) runs **immediately, as a normal function call**. Because no
   external library is involved, there is nothing to load and nothing to wait for.
 
-### 8.2 Antimony (`pd-core::antimony`)
+### 8.2 Antimony (`pd-antimony` and `pd-core::antimony`)
+
+**Two parts, so the reader can be replaced.** The plan is to move to a crate that
+supports all of Antimony. To make that a contained change:
+
+- **`pd-antimony`** is a crate of its own with no dependencies. It reads Antimony
+  text into a plain `Description` (compartments, species, reactions, assignments,
+  rules, with expressions kept as written text and their offsets) and writes a
+  `Description` back as text. It knows nothing about PathwayDesigner.
+- **`pd-core::antimony`** is the bridge. It turns a `Description` into a `Model`
+  and back, and holds everything specific to PathwayDesigner: case resolution,
+  implied parameters, the catalytic rewrite, modifiers from the rate law, null
+  nodes, random placement, and parsing expressions with `pd-core::expr`.
+
+To use a complete Antimony crate, remove `pd-antimony` and change the bridge to
+read the new crate's output. The panel, the view and the tests don't change.
 
 **Import.** The rules are S §11.2, implemented completely:
 

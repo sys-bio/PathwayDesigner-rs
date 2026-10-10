@@ -12,10 +12,13 @@ use pd_core::layout::LayoutParams;
 use pd_core::model::Model;
 use pd_core::view::{Arrange, DiagramView, Request, Tool, ViewEvent};
 
+use crate::antimony_panel::{AntimonyPanel, PanelAction};
 use crate::canvas::{self, CanvasState, MenuAction};
 use crate::fonts;
 use crate::inspector::Inspector;
+use crate::prefs::Preferences;
 use crate::samples::SAMPLES;
+use pd_core::antimony::ImportOptions;
 
 /// The sample shown at start-up.
 const START_SAMPLE: &str = "model9";
@@ -68,12 +71,16 @@ enum Dialog {
     },
     /// Confirms New.
     ConfirmNew,
+    /// The preferences being edited (S §12).
+    Preferences(Preferences),
 }
 
 pub struct PathwayApp {
     view: DiagramView,
     canvas: CanvasState,
     inspector: Inspector,
+    antimony: AntimonyPanel,
+    prefs: Preferences,
     dialog: Option<Dialog>,
     /// Name of what is shown, for the status bar.
     title: String,
@@ -106,6 +113,8 @@ impl PathwayApp {
             view: DiagramView::default(),
             canvas: CanvasState::default(),
             inspector: Inspector::default(),
+            antimony: AntimonyPanel::default(),
+            prefs: Preferences::load(cc.storage),
             dialog: None,
             title: "Untitled".to_owned(),
             warnings: Vec::new(),
@@ -113,6 +122,8 @@ impl PathwayApp {
             layout_params: LayoutParams::default(),
             layout_iterations: LAYOUT_START_ITERATIONS,
         };
+        // Saved preferences apply from the start (fixes D-2).
+        app.view.show_null_species = app.prefs.show_null_species;
         if let Some((name, text)) = SAMPLES.iter().find(|(n, _)| *n == START_SAMPLE) {
             app.open(name, text);
         }
@@ -224,6 +235,10 @@ impl PathwayApp {
                     self.dialog = Some(Dialog::ConfirmNew);
                     ui.close();
                 }
+                if ui.button("Preferences…").clicked() {
+                    self.dialog = Some(Dialog::Preferences(self.prefs));
+                    ui.close();
+                }
                 ui.menu_button("Open sample", |ui| {
                     for (name, text) in SAMPLES {
                         if ui.button(*name).clicked() {
@@ -306,7 +321,6 @@ impl PathwayApp {
                 }
                 ui.separator();
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
-                ui.checkbox(&mut self.view.show_null_species, "Show null species");
             });
         });
     }
@@ -545,6 +559,45 @@ impl PathwayApp {
                     }
                 }
             }
+            Dialog::Preferences(draft) => {
+                let mut ok = false;
+                let catalytic_changed = draft.convert_catalytic != self.prefs.convert_catalytic;
+                let will_reimport = catalytic_changed && self.antimony.last_import().is_some();
+                let modal = egui::Modal::new(egui::Id::new("preferences")).show(ctx, |ui| {
+                    ui.heading("Preferences");
+                    ui.add_space(4.0);
+                    ui.checkbox(&mut draft.convert_catalytic, "Convert catalytic reactions")
+                        .on_hover_text(
+                            "On Antimony import, A -> A + B becomes -> B with A as a modifier",
+                        );
+                    ui.checkbox(&mut draft.show_null_species, "Show null species")
+                        .on_hover_text("Draw the null nodes of reactions with an empty side");
+                    if will_reimport {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(0xA0, 0x50, 0x00),
+                            "The last Antimony text will be imported again with the new setting. \
+                             Changes made since that import will be lost (Undo brings them back).",
+                        );
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ok = ui.button("OK").clicked();
+                        close |= ui.button("Cancel").clicked();
+                    });
+                });
+                close |= modal.should_close() || ok;
+                if ok {
+                    let draft = *draft;
+                    self.prefs = draft;
+                    self.view.show_null_species = draft.show_null_species;
+                    if will_reimport {
+                        let opts = self.import_options();
+                        if self.antimony.reimport(&mut self.view, &opts) {
+                            self.fit_pending = true;
+                        }
+                    }
+                }
+            }
             Dialog::ConfirmNew => {
                 let mut confirmed = false;
                 let modal = egui::Modal::new(egui::Id::new("confirm-new")).show(ctx, |ui| {
@@ -569,7 +622,21 @@ impl PathwayApp {
     }
 }
 
+impl PathwayApp {
+    /// How Antimony is imported, from the preferences.
+    fn import_options(&self) -> ImportOptions {
+        ImportOptions {
+            convert_catalytic: self.prefs.convert_catalytic,
+            seed: clock_seed(),
+        }
+    }
+}
+
 impl eframe::App for PathwayApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        self.prefs.save(storage);
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.shortcuts(&ctx);
@@ -581,14 +648,34 @@ impl eframe::App for PathwayApp {
         egui::Panel::left("tools").resizable(false).show(ui, |ui| {
             ui.add_enabled_ui(!busy, |ui| self.tool_palette(ui))
         });
+        let opts = self.import_options();
+        let mut antimony_action = None;
         egui::Panel::right("inspector")
             .resizable(true)
-            .default_size(260.0)
+            .default_size(280.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.add_enabled_ui(!busy, |ui| self.inspector.show(ui, &mut self.view));
+                    ui.add_enabled_ui(!busy, |ui| {
+                        let antimony = &mut self.antimony;
+                        self.inspector.show(ui, &mut self.view, |ui, view| {
+                            ui.heading("Antimony");
+                            antimony_action = antimony.show(ui, view, &opts);
+                        });
+                    });
                 });
             });
+        match antimony_action {
+            Some(PanelAction::Imported) => {
+                self.title = "Antimony".to_owned();
+                self.warnings.clear();
+                self.fit_pending = true;
+            }
+            Some(PanelAction::LayOut) => {
+                self.layout_iterations = LAYOUT_START_ITERATIONS;
+                self.view.start_layout(self.layout_params, clock_seed());
+            }
+            None => {}
+        }
         let mut output = None;
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
