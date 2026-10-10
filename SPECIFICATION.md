@@ -504,8 +504,10 @@ the mouse-down point. In addition:
   (§7.4.4).
 - Positions MUST be computed as *original position + current delta*, never by adding
   small increments, so rounding errors don't build up.
-- Locked nodes MAY be excluded from manual dragging. The reference does not exclude
-  them.
+- **Locked nodes MUST NOT move.** A locked species stays where it is even when it is
+  selected with others; the rest of the selection moves around it. It does not count
+  as "moved" for the junction and handle rules above. (The reference lets locked
+  nodes be dragged.)
 
 **Junction.** The junction follows the cursor. If the reaction has a smooth junction,
 every **stored** inner handle moves by the same delta, which keeps the inner handles
@@ -682,6 +684,10 @@ below is the box around all selected species.
 | Align Top / Middle / Bottom | the same, on the y-axis |
 | Distribute Horizontally | sort by centre x, keep the first and last fixed, space the centres evenly between them |
 | Distribute Vertically | the same, on the y-axis |
+
+**Locked species do not move.** They still count towards the bounding box, so other
+nodes can be aligned to a locked one. When distributing, locked nodes keep their
+places and the others are spaced as usual.
 
 The changes are then passed on to the reactions:
 
@@ -886,7 +892,7 @@ back at its starting position. Then write the positions back to the model.
 
 **Options** (two checkboxes next to the toolbar button):
 
-- **Randomize:** before the layout, put every species at a random position in
+- **Randomize:** before the layout, put every unlocked species at a random position in
   [100, 500)², put each junction at the centroid of its participants, and reset every
   participant to automatic handles.
 - **Deckard:** after the layout, run the Bézier handle pass (§10.2). Then
@@ -1271,8 +1277,11 @@ Which items appear depends on what was right-clicked:
 The *Alignment ▸* submenu contains Align Top / Middle / Bottom, Align Left / Center
 / Right, and Distribute Horizontally / Vertically.
 
-A **Lock/Unlock** item SHOULD toggle `locked` on the selected species, and locked
-nodes SHOULD look different. The reference shows this item but it does nothing.
+A **Lock/Unlock** item MUST toggle `locked` on the selected species, and locked
+nodes MUST look different. Locking pins a node in place: no drag, alignment or
+layout moves it (§6.4, §7.5, §10.1), which lets the user auto-layout part of a
+network while the rest stays fixed. The reference shows this item but it does
+nothing.
 
 ### 13.5 Status bar
 

@@ -2,7 +2,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod canvas;
 mod fonts;
+mod renderer;
+mod samples;
 
 use app::PathwayApp;
 

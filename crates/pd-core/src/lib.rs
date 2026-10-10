@@ -8,4 +8,6 @@
 pub mod geometry;
 pub mod json;
 pub mod model;
+pub mod render;
 pub mod text;
+pub mod view;

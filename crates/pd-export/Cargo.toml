@@ -6,3 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+pd-core.workspace = true
+# Without default features: no system fonts, text shaping or raster images.
+# Labels reach resvg as outlines (SPEC-Rust §9), so it never needs a font.
+resvg = { version = "0.48.1", default-features = false }
