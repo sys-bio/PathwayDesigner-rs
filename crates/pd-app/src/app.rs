@@ -859,3 +859,138 @@ impl eframe::App for PathwayApp {
         self.dialogs(&ctx);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! The whole app driven through egui with made-up input: the wiring
+    //! between panels, canvas and view. Browser behaviour is out of reach
+    //! here (the Select All drag bug lived there; see index.html).
+
+    use super::*;
+    use eframe::App as _;
+    use eframe::egui::{Event, PointerButton, Pos2, RawInput, Rect, Vec2};
+
+    struct Harness {
+        app: PathwayApp,
+        frame: eframe::Frame,
+        time: f64,
+    }
+
+    impl Harness {
+        fn new() -> Self {
+            let cc = eframe::CreationContext::_new_kittest(egui::Context::default());
+            let mut h = Harness {
+                app: PathwayApp::new(&cc),
+                frame: eframe::Frame::_new_kittest(),
+                time: 0.0,
+            };
+            h.run(vec![]);
+            h
+        }
+
+        /// One frame with these events.
+        fn run(&mut self, events: Vec<Event>) {
+            self.time += 0.05;
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(1400.0, 900.0))),
+                time: Some(self.time),
+                events,
+                ..Default::default()
+            };
+            let ctx = self.app.ctx.clone();
+            let (app, frame) = (&mut self.app, &mut self.frame);
+            let mut out = ctx.run_ui(input, |ui| app.ui(ui, frame));
+            out.textures_delta.clear();
+        }
+
+        fn pointer(&mut self, pos: Pos2, pressed: Option<bool>) {
+            self.run(vec![match pressed {
+                None => Event::PointerMoved(pos),
+                Some(pressed) => Event::PointerButton {
+                    pos,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: Modifiers::NONE,
+                },
+            }]);
+        }
+
+        fn click(&mut self, pos: Pos2) {
+            self.pointer(pos, None);
+            self.pointer(pos, Some(true));
+            self.pointer(pos, Some(false));
+        }
+
+        fn key(&mut self, key: Key, modifiers: Modifiers) {
+            for pressed in [true, false] {
+                self.run(vec![Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed,
+                    repeat: false,
+                    modifiers,
+                }]);
+            }
+        }
+
+        fn centre(&self, id: &str) -> Pt {
+            self.app.view.model().find_species(id).unwrap().center
+        }
+
+        fn on_screen(&self, id: &str) -> Pos2 {
+            let p = self.app.view.world_to_screen(self.centre(id));
+            Pos2::new(p.x as f32, p.y as f32)
+        }
+    }
+
+    #[test]
+    fn species_follow_the_pointer_only_while_dragged() {
+        let mut h = Harness::new();
+        h.app.perform(Action::New);
+        h.run(vec![]);
+        h.app.view.set_tool(Tool::AddSpecies);
+        for (x, y) in [
+            (300.0, 300.0),
+            (500.0, 300.0),
+            (300.0, 500.0),
+            (500.0, 500.0),
+        ] {
+            h.click(Pos2::new(x, y));
+        }
+        h.key(Key::Escape, Modifiers::NONE);
+        assert_eq!(h.app.view.tool(), Tool::Select);
+        // Select everything, then click empty canvas to clear it.
+        h.key(Key::A, Modifiers::COMMAND);
+        assert_eq!(h.app.view.selection().0.len(), 4);
+        h.click(Pos2::new(800.0, 700.0));
+        assert!(h.app.view.selection().0.is_empty());
+
+        let zoom = h.app.view.zoom();
+        for id in ["S1", "S2", "S3", "S4"] {
+            let (start, at) = (h.centre(id), h.on_screen(id));
+            let step = Vec2::new(30.0, 20.0);
+            h.pointer(at, None);
+            h.pointer(at, Some(true));
+            h.pointer(at + step / 2.0, None);
+            h.pointer(at + step, None);
+            let moved = h.centre(id) - start;
+            assert!(
+                (moved.x * zoom - 30.0).abs() < 1e-6,
+                "{id} moved {moved:?} while dragged"
+            );
+            assert!(
+                (moved.y * zoom - 20.0).abs() < 1e-6,
+                "{id} moved {moved:?} while dragged"
+            );
+            h.pointer(at + step, Some(false));
+            assert!(!h.app.view.is_busy(), "{id}: the drag ended on release");
+            // After the release it stays where it was dropped.
+            h.pointer(at + step * 2.0, None);
+            assert_eq!(
+                h.centre(id) - start,
+                moved,
+                "{id} followed the pointer after release"
+            );
+        }
+    }
+}

@@ -19,10 +19,22 @@
             height: 100%;
             overflow: hidden;
             background: #F8F9FA;
+            /* Ctrl/Cmd+A selects everything in the diagram, but the browser
+               also runs its own Select All. Had it selected the canvas, a
+               press on the canvas would start the browser's drag-and-drop,
+               which swallows the mouse moves and the release: a species
+               would stay put while dragged, then follow the pointer after
+               the button was let go. Nothing on the page is selectable;
+               egui's text fields use eframe's own <input> and still work. */
+            -webkit-user-select: none;
+            user-select: none;
         }
         /* egui sizes itself to fill this canvas. */
         #the_canvas_id {
             display: block;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-user-drag: none;
             width: 100%;
             height: 100%;
         }
@@ -35,6 +47,11 @@
             font: 18px sans-serif;
         }
     </style>
+    <script>
+        // The browser's own drag-and-drop must never start over the app
+        // (see user-select above): egui handles every drag itself.
+        document.addEventListener("dragstart", (e) => e.preventDefault());
+    </script>
 </head>
 <body>
     <canvas id="the_canvas_id"></canvas>
