@@ -389,19 +389,19 @@ impl Drawer<'_> {
 
 /// The point where a line from `node`'s centre towards `toward` crosses its
 /// border (rounded corners ignored, S §5.5).
-fn border(node: &SpeciesNode, toward: Pt) -> Pt {
+pub fn border(node: &SpeciesNode, toward: Pt) -> Pt {
     rect_boundary_intersect(node.center, node.width / 2.0, node.height / 2.0, toward)
 }
 
 /// Where a reactant leg starts: the reactant gap outside the border, on the
 /// way to `toward`.
-fn leg_start(node: &SpeciesNode, toward: Pt) -> Pt {
+pub fn leg_start(node: &SpeciesNode, toward: Pt) -> Pt {
     border(node, toward) + normalize(toward - node.center) * REACTANT_GAP
 }
 
 /// Where a product line ends and where its arrowhead's tip goes: the product
 /// line gap and the tip inset short of `node`'s border, coming from `from`.
-fn leg_end(node: &SpeciesNode, from: Pt) -> (Pt, Pt) {
+pub fn leg_end(node: &SpeciesNode, from: Pt) -> (Pt, Pt) {
     let b = border(node, from);
     let back = normalize(from - node.center);
     (b + back * PRODUCT_LINE_GAP, b + back * ARROW_TIP_INSET)

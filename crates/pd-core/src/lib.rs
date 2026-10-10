@@ -10,4 +10,5 @@ pub mod json;
 pub mod model;
 pub mod render;
 pub mod text;
+pub mod undo;
 pub mod view;
