@@ -1,0 +1,32 @@
+[workspace]
+resolver = "3"
+members = ["crates/pd-core", "crates/pd-export", "crates/pd-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+pd-core = { path = "crates/pd-core" }
+pd-export = { path = "crates/pd-export" }
+# eframe's defaults minus `default_fonts`: the app uses only the bundled font
+# (SPEC-Rust §5.4), and egui's own fonts include one under the Ubuntu Font Licence.
+eframe = { version = "0.36", default-features = false, features = [
+    "accesskit",
+    "links",
+    "wayland",
+    "web_screen_reader",
+    "wgpu",
+    "x11",
+] }
+# Text shaping and font metrics. These are the versions egui 0.36 uses, so the
+# app ships one copy of each and pd-core measures text exactly the way egui
+# lays it out (SPEC-Rust §5.4).
+harfrust = "0.12"
+skrifa = "0.44"
+log = "0.4"
+
+[profile.release]
+lto = true
+codegen-units = 1

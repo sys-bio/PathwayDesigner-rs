@@ -1,0 +1,3 @@
+[build]
+target = "crates/pd-app/index.html"
+dist = "dist"

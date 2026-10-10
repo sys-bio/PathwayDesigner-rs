@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>PathwayDesigner</title>
+
+    <!-- Trunk builds the pd-app crate to wasm and injects the loader script. It
+         prefixes every path with `--public-url`, the one place the base path is
+         set (SPEC-Rust §14.2). On Windows, build from PowerShell, or from Git Bash
+         with MSYS_NO_PATHCONV=1, or Git Bash turns /PathwayDesigner/ into a
+         C:/Program Files/Git/... path. -->
+    <link data-trunk rel="rust" data-bin="pathway-designer" data-wasm-opt="2" />
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #F8F9FA;
+        }
+        /* egui sizes itself to fill this canvas. */
+        #the_canvas_id {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #loading_text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #444444;
+            font: 18px sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="the_canvas_id"></canvas>
+    <p id="loading_text">Loading PathwayDesigner…</p>
+</body>
+</html>

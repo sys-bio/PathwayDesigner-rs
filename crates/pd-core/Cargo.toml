@@ -1,0 +1,11 @@
+[package]
+name = "pd-core"
+description = "PathwayDesigner core: geometry, model, file formats, layout and drawing, with no UI or platform code"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# No egui, no I/O, no platform crates (SPEC-Rust §2, rule 1).
+[dependencies]
+harfrust.workspace = true
+skrifa.workspace = true
