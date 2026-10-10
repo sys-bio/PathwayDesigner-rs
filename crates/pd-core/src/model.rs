@@ -571,6 +571,23 @@ impl Model {
         deleted_reactions
     }
 
+    /// Removes a null node and its legs, but keeps the reactions: a null node
+    /// only draws an empty side, so the reaction is still `-> B` without it.
+    /// Returns false if `id` is not a null node.
+    pub fn remove_null_node(&mut self, id: &str) -> bool {
+        if !self.find_species(id).is_some_and(|s| s.is_null_node) {
+            return false;
+        }
+        for r in &mut self.reactions {
+            for list in [&mut r.reactants, &mut r.products, &mut r.modifiers] {
+                list.retain(|p| p.species != id);
+            }
+        }
+        self.species.retain(|s| s.id != id);
+        self.rebuild_indexes();
+        true
+    }
+
     /// Deletes a reaction. Returns false if there was none with that id.
     pub fn delete_reaction(&mut self, id: &str) -> bool {
         let Some(&i) = self.reaction_index.get(id) else {
@@ -847,6 +864,24 @@ mod tests {
         assert!(m.find_species("S1").is_some());
         assert!(m.find_species(&alias).is_none());
         assert_eq!(m.reactions().len(), 1);
+    }
+
+    #[test]
+    fn removing_a_null_node_keeps_its_reaction() {
+        let mut m = small_model();
+        let mut null = SpeciesNode::new("_source_R2", pt(-100.0, 0.0));
+        null.is_null_node = true;
+        m.push_species(null).unwrap();
+        m.find_reaction_mut("R2")
+            .unwrap()
+            .reactants
+            .push(Participant::new("_source_R2", 1.0));
+        assert!(!m.remove_null_node("S1"), "only null nodes");
+        assert!(m.remove_null_node("_source_R2"));
+        assert!(m.find_species("_source_R2").is_none());
+        let r = m.find_reaction("R2").unwrap();
+        assert_eq!(r.reactants.len(), 1);
+        assert_eq!(r.reactants[0].species, "S1");
     }
 
     #[test]

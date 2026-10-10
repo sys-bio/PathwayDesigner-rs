@@ -49,6 +49,12 @@ pub enum ViewEvent {
         pos: Pt,
         button: Button,
     },
+    /// A double click (left button), after its two clicks were handled.
+    DoubleClick {
+        pos: Pt,
+    },
+    /// The pointer left the canvas.
+    PointerLeft,
     /// Esc: cancel the current gesture or mode and clear the selection.
     Cancel,
     /// The window lost focus: a drag in progress is cancelled.
@@ -64,6 +70,17 @@ pub struct ViewResponse {
     pub selection_changed: bool,
     /// The model changed: an undo step was recorded.
     pub model_changed: bool,
+    /// Something the app must do for the view, such as asking for a name.
+    pub request: Option<Request>,
+}
+
+/// Requests that need the app: dialogs and menus (SPEC-Rust §6.2).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Request {
+    /// Ask for a new id for this species, then call `DiagramView::rename`.
+    Rename(Id),
+    /// Show the context menu for what was right-clicked (S §13.4).
+    ContextMenu(Target),
 }
 
 impl ViewResponse {
@@ -72,7 +89,40 @@ impl ViewResponse {
         self.repaint |= other.repaint;
         self.selection_changed |= other.selection_changed;
         self.model_changed |= other.model_changed;
+        if other.request.is_some() {
+            self.request = other.request;
+        }
     }
+}
+
+/// The current tool (S §6.1, §13.2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Tool {
+    #[default]
+    Select,
+    /// Each click adds a species.
+    AddSpecies,
+    /// Pick this many reactants, then this many products.
+    AddReaction { reactants: usize, products: usize },
+}
+
+impl Tool {
+    pub const UNI_UNI: Tool = Tool::AddReaction {
+        reactants: 1,
+        products: 1,
+    };
+    pub const BI_UNI: Tool = Tool::AddReaction {
+        reactants: 2,
+        products: 1,
+    };
+    pub const UNI_BI: Tool = Tool::AddReaction {
+        reactants: 1,
+        products: 2,
+    };
+    pub const BI_BI: Tool = Tool::AddReaction {
+        reactants: 2,
+        products: 2,
+    };
 }
 
 /// What is under a point (S §6.2).

@@ -45,6 +45,9 @@ impl Default for DrawOptions {
 /// zoom they would only be smudges.
 const MIN_LABEL_SIZE_PX: f64 = 2.0;
 
+/// Distance of the padlock's centre from a locked node's top-right corner.
+const LOCK_INSET: f64 = 9.0;
+
 /// Draws the whole model.
 pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     let d = Drawer { model, opts };
@@ -306,6 +309,35 @@ impl Drawer<'_> {
                 color,
             );
         }
+        if node.locked && !self.opts.for_output {
+            self.padlock(node, out);
+        }
+    }
+
+    /// A small padlock in a locked node's top-right corner (S §13.4: locked
+    /// nodes look different). An editing aid, so it is not drawn for output.
+    fn padlock(&self, node: &SpeciesNode, out: &mut dyn Renderer) {
+        let c = node.center
+            + pt(
+                node.width / 2.0 - LOCK_INSET,
+                -node.height / 2.0 + LOCK_INSET,
+            );
+        let body = SRect {
+            min: self.to_screen(c + pt(-3.5, -0.5)),
+            max: self.to_screen(c + pt(3.5, 5.0)),
+        };
+        out.round_rect(body, self.len(1.0), Some(NULL_BORDER), None);
+        // The shackle: a half circle over the body, with short sides.
+        let arc: Vec<SPt> = (0..=8)
+            .map(|i| {
+                let a = std::f64::consts::PI * (1.0 + f64::from(i) / 8.0);
+                self.to_screen(c + pt(2.3 * a.cos(), -2.5 + 2.3 * a.sin()))
+            })
+            .collect();
+        let mut shackle = vec![self.to_screen(c + pt(-2.3, -0.5))];
+        shackle.extend(arc);
+        shackle.push(self.to_screen(c + pt(2.3, -0.5)));
+        out.polyline(&shackle, Stroke::solid(self.len(1.3), NULL_BORDER));
     }
 
     fn null_node(&self, node: &SpeciesNode, out: &mut dyn Renderer) {
@@ -777,6 +809,27 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, Call::Circle(_, r, _, _) if (*r - 4.0).abs() < 1e-5))
         );
+    }
+
+    #[test]
+    fn locked_nodes_show_a_padlock_on_screen_only() {
+        let mut m = uni_uni();
+        let plain = draw(&m, &DrawOptions::default()).len();
+        m.find_species_mut("S1").unwrap().locked = true;
+        let calls = draw(&m, &DrawOptions::default());
+        // A body and a shackle, after the node's label.
+        assert_eq!(calls.len(), plain + 2);
+        let label = calls
+            .iter()
+            .position(|c| matches!(c, Call::Text(_, s, _, _) if s == "S1"))
+            .unwrap();
+        assert!(matches!(calls[label + 1], Call::RoundRect(_, Some(f), None) if f == NULL_BORDER));
+        assert!(matches!(&calls[label + 2], Call::Polyline(_, s) if s.color == NULL_BORDER));
+        let output = DrawOptions {
+            for_output: true,
+            ..DrawOptions::default()
+        };
+        assert_eq!(draw(&m, &output).len(), plain);
     }
 
     #[test]

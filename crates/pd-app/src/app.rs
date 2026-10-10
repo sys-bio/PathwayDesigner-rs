@@ -1,15 +1,17 @@
-//! The app shell: menu bar, canvas and status bar (S §13).
+//! The app shell: menu bar, tool palette, canvas, status bar and dialogs
+//! (S §13).
 //!
-//! It opens the built-in sample models and lets the user select, drag, delete
-//! and undo. Panels, tools and file access arrive in later milestones.
+//! It opens the built-in sample models, and lets the user add species and
+//! reactions, select, drag, rename, delete and undo. Panels and file access
+//! arrive in later milestones.
 
 use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
 use pd_core::geometry::pt;
 use pd_core::json::from_json;
 use pd_core::model::Model;
-use pd_core::view::{DiagramView, ViewEvent};
+use pd_core::view::{DiagramView, Request, Tool, ViewEvent};
 
-use crate::canvas::{self, CanvasState};
+use crate::canvas::{self, CanvasState, MenuAction};
 use crate::fonts;
 use crate::samples::SAMPLES;
 
@@ -23,9 +25,53 @@ const REDO: KeyboardShortcut =
 const REDO_Y: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Y);
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
 
+/// The tool palette, in the order of S §13.2, with tooltips.
+const TOOLS: [(Tool, &str, &str); 6] = [
+    (Tool::Select, "Select", "Select, move and edit (Esc)"),
+    (
+        Tool::AddSpecies,
+        "Species",
+        "Add species: click on the canvas",
+    ),
+    (
+        Tool::BI_BI,
+        "A+B -> C+D",
+        "Add a BiBi reaction: pick 2 reactants, then 2 products",
+    ),
+    (
+        Tool::UNI_BI,
+        "A -> B+C",
+        "Add a UniBi reaction: pick 1 reactant, then 2 products",
+    ),
+    (
+        Tool::BI_UNI,
+        "A+B -> C",
+        "Add a BiUni reaction: pick 2 reactants, then 1 product",
+    ),
+    (
+        Tool::UNI_UNI,
+        "A -> B",
+        "Add a UniUni reaction: pick 1 reactant, then 1 product",
+    ),
+];
+
+/// The dialog on screen, if any (SPEC-Rust §6.2).
+enum Dialog {
+    /// Asks for a new id for a species.
+    Rename {
+        id: String,
+        text: String,
+        error: Option<String>,
+        focus: bool,
+    },
+    /// Confirms New.
+    ConfirmNew,
+}
+
 pub struct PathwayApp {
     view: DiagramView,
     canvas: CanvasState,
+    dialog: Option<Dialog>,
     /// Name of what is shown, for the status bar.
     title: String,
     /// Warnings from the last load, shown in the status bar.
@@ -41,6 +87,7 @@ impl PathwayApp {
         let mut app = Self {
             view: DiagramView::default(),
             canvas: CanvasState::default(),
+            dialog: None,
             title: "Untitled".to_owned(),
             warnings: Vec::new(),
             fit_pending: false,
@@ -63,10 +110,55 @@ impl PathwayApp {
         }
     }
 
-    /// Diagram shortcuts apply only while no text field is being edited, so a
-    /// text field gets its own editing keys first (SPEC-Rust §6.1).
+    /// New: an empty diagram, with the undo history cleared (S §7.7).
+    fn new_document(&mut self) {
+        self.view.set_model(Model::new());
+        self.view.set_tool(Tool::Select);
+        self.title = "Untitled".to_owned();
+        self.warnings.clear();
+        self.fit_pending = true;
+    }
+
+    fn ask_rename(&mut self, id: &str) {
+        if let Some(text) = self.view.rename_initial(id) {
+            self.dialog = Some(Dialog::Rename {
+                id: id.to_owned(),
+                text,
+                error: None,
+                focus: true,
+            });
+        }
+    }
+
+    /// Carries out a context-menu command.
+    fn act(&mut self, action: MenuAction, canvas_centre: pd_core::geometry::Pt) {
+        match action {
+            MenuAction::CreateAlias(id) => {
+                self.view.create_alias(&id);
+            }
+            MenuAction::Rename(id) => self.ask_rename(&id),
+            MenuAction::GoToPrimary(id) => {
+                self.view.go_to_primary(&id, canvas_centre);
+            }
+            MenuAction::DeleteSpecies(id) => {
+                self.view.delete_species(&id);
+            }
+            MenuAction::RemoveNullNode(id) => {
+                self.view.remove_null_node(&id);
+            }
+            MenuAction::ToggleLock => {
+                self.view.toggle_lock();
+            }
+            MenuAction::DeleteReaction(id) => {
+                self.view.delete_reaction(&id);
+            }
+        }
+    }
+
+    /// Diagram shortcuts apply only while no text field is being edited and no
+    /// dialog is open, so those get their own keys first (SPEC-Rust §6.1).
     fn shortcuts(&mut self, ctx: &egui::Context) {
-        if ctx.egui_wants_keyboard_input() {
+        if ctx.egui_wants_keyboard_input() || self.dialog.is_some() {
             return;
         }
         // Redo before Undo: Cmd+Shift+Z would also match Cmd+Z.
@@ -95,9 +187,7 @@ impl PathwayApp {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("New").clicked() {
-                    self.view.set_model(Model::new());
-                    self.title = "Untitled".to_owned();
-                    self.warnings.clear();
+                    self.dialog = Some(Dialog::ConfirmNew);
                     ui.close();
                 }
                 ui.menu_button("Open sample", |ui| {
@@ -138,6 +228,20 @@ impl PathwayApp {
                     self.view.select_all();
                     ui.close();
                 }
+                ui.separator();
+                let has_species = self.view.model().selected_species().next().is_some();
+                let lock = if self.view.lock_would_lock() {
+                    "Lock"
+                } else {
+                    "Unlock"
+                };
+                if ui
+                    .add_enabled(has_species, egui::Button::new(lock))
+                    .clicked()
+                {
+                    self.view.toggle_lock();
+                    ui.close();
+                }
             });
             ui.menu_button("View", |ui| {
                 if ui.button("Zoom to fit").clicked() {
@@ -153,6 +257,27 @@ impl PathwayApp {
                 ui.checkbox(&mut self.view.show_null_species, "Show null species");
             });
         });
+    }
+
+    /// The left tool palette (S §13.2). The current tool is highlighted.
+    fn tool_palette(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(4.0);
+        for (tool, label, tip) in TOOLS {
+            let selected = self.view.tool() == tool;
+            let button = egui::Button::selectable(selected, label).min_size(egui::vec2(96.0, 0.0));
+            if ui.add(button).on_hover_text(tip).clicked() {
+                self.view.set_tool(tool);
+            }
+        }
+        ui.separator();
+        ui.label("New reactions:");
+        ui.checkbox(&mut self.view.default_bezier, "Bézier")
+            .on_hover_text("New reactions are drawn as curves");
+        ui.add_enabled(
+            self.view.default_bezier,
+            egui::Checkbox::new(&mut self.view.default_smooth, "Smooth junction"),
+        )
+        .on_hover_text("New Bézier reactions get a smooth junction");
     }
 
     fn status_bar(&self, ui: &mut egui::Ui) {
@@ -174,6 +299,10 @@ impl PathwayApp {
                 ));
             }
             ui.label(text);
+            if let Some(hint) = self.tool_hint() {
+                ui.separator();
+                ui.label(hint);
+            }
             if let Some(w) = self.warnings.first() {
                 ui.separator();
                 let more = self.warnings.len() - 1;
@@ -186,6 +315,90 @@ impl PathwayApp {
             }
         });
     }
+
+    /// What the current tool expects next.
+    fn tool_hint(&self) -> Option<String> {
+        match self.view.tool() {
+            Tool::Select => None,
+            Tool::AddSpecies => Some("Click to add a species · Esc to stop".to_owned()),
+            Tool::AddReaction {
+                reactants,
+                products,
+            } => {
+                let (r, p) = self.view.picked();
+                Some(
+                    if r < reactants {
+                        format!("Pick reactant {} of {reactants}", r + 1)
+                    } else {
+                        format!("Pick product {} of {products}", p + 1)
+                    } + " · click empty canvas to cancel",
+                )
+            }
+        }
+    }
+
+    fn dialogs(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = &mut self.dialog else {
+            return;
+        };
+        let mut close = false;
+        match dialog {
+            Dialog::Rename {
+                id,
+                text,
+                error,
+                focus,
+            } => {
+                let mut submit = false;
+                let modal = egui::Modal::new(egui::Id::new("rename")).show(ctx, |ui| {
+                    ui.heading("Rename species");
+                    ui.add_space(4.0);
+                    let edit = ui.add(egui::TextEdit::singleline(text).desired_width(240.0));
+                    if std::mem::take(focus) {
+                        edit.request_focus();
+                    }
+                    if edit.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                        submit = true;
+                    }
+                    if let Some(e) = error {
+                        ui.colored_label(egui::Color32::from_rgb(0xCC, 0x33, 0x00), e.as_str());
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        submit |= ui.button("OK").clicked();
+                        close |= ui.button("Cancel").clicked();
+                    });
+                });
+                close |= modal.should_close();
+                if submit {
+                    match self.view.rename(id, text.trim()) {
+                        Ok(_) => close = true,
+                        Err(e) => *error = Some(format!("Can't rename: {e}.")),
+                    }
+                }
+            }
+            Dialog::ConfirmNew => {
+                let mut confirmed = false;
+                let modal = egui::Modal::new(egui::Id::new("confirm-new")).show(ctx, |ui| {
+                    ui.heading("New diagram");
+                    ui.label("Discard the current diagram? This can't be undone.");
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        confirmed = ui.button("Discard").clicked()
+                            || ui.input(|i| i.key_pressed(Key::Enter));
+                        close |= ui.button("Cancel").clicked();
+                    });
+                });
+                close |= modal.should_close() || confirmed;
+                if confirmed {
+                    self.new_document();
+                }
+            }
+        }
+        if close {
+            self.dialog = None;
+        }
+    }
 }
 
 impl eframe::App for PathwayApp {
@@ -194,6 +407,10 @@ impl eframe::App for PathwayApp {
         self.shortcuts(&ctx);
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
+        egui::Panel::left("tools")
+            .resizable(false)
+            .show(ui, |ui| self.tool_palette(ui));
+        let mut output = None;
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| {
@@ -206,7 +423,16 @@ impl eframe::App for PathwayApp {
                     );
                     self.fit_pending = false;
                 }
-                canvas::show(ui, &mut self.view, &mut self.canvas);
+                output = Some(canvas::show(ui, &mut self.view, &mut self.canvas));
             });
+        if let Some(out) = output {
+            if let Some(Request::Rename(id)) = &out.view.request {
+                self.ask_rename(id);
+            }
+            if let Some(action) = out.action {
+                self.act(action, out.centre);
+            }
+        }
+        self.dialogs(&ctx);
     }
 }

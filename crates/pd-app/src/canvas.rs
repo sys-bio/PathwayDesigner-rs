@@ -3,9 +3,11 @@
 
 use eframe::egui::{self, CursorIcon, Event, Key, MouseWheelUnit, PointerButton, Sense, Vec2};
 use pd_core::geometry::{Pt, pt};
-use pd_core::render::constants::ZOOM_STEP;
+use pd_core::render::constants::{TOOLTIP_DELAY_MS, ZOOM_STEP};
 use pd_core::render::{SRect, spt};
-use pd_core::view::{Button, DiagramView, Modifiers, Target, ViewEvent, ViewResponse};
+use pd_core::view::{
+    Button, DiagramView, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse,
+};
 
 use crate::renderer::EguiRenderer;
 
@@ -14,16 +16,45 @@ const POINTS_PER_NOTCH: f32 = 100.0;
 /// Points to pan per wheel line (native mouse wheels report lines).
 const POINTS_PER_LINE: f32 = 40.0;
 
-/// Canvas state the view doesn't own: panning is the app's business.
+/// Canvas state the view doesn't own: panning and menus are the app's business.
 #[derive(Default)]
 pub struct CanvasState {
     /// A one-finger touch drag that started on empty canvas pans (SPEC-Rust §6.1).
     touch_pan: bool,
+    /// What the open context menu is for.
+    menu_target: Option<Target>,
+    /// Where the pointer was last seen over the canvas, and since when
+    /// (egui time, seconds) it has been still there.
+    still_at: Option<(egui::Pos2, f64)>,
+    /// What the tooltip on show is about.
+    tooltip: Option<Target>,
+}
+
+/// A command chosen from the context menu (S §13.4). The app carries it out,
+/// because some need a dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MenuAction {
+    CreateAlias(String),
+    Rename(String),
+    GoToPrimary(String),
+    DeleteSpecies(String),
+    RemoveNullNode(String),
+    ToggleLock,
+    DeleteReaction(String),
+}
+
+/// What happened on the canvas this frame.
+#[derive(Default)]
+pub struct CanvasOutput {
+    pub view: ViewResponse,
+    pub action: Option<MenuAction>,
+    /// The canvas's centre on screen, for centring things in it.
+    pub centre: Pt,
 }
 
 /// Shows the canvas filling the available space, feeds input to the view and
-/// draws it. Returns what the view reported.
-pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut CanvasState) -> ViewResponse {
+/// draws it.
+pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut CanvasState) -> CanvasOutput {
     let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
     let rect = response.rect;
     let mut result = ViewResponse::default();
@@ -45,10 +76,11 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut CanvasState) 
 
     if !space {
         let accepts_press = response.hovered() && !multi_touch;
+        let accepts_move = response.hovered();
         let events = ui.input(|i| i.events.clone());
         let touching = events.iter().any(|e| matches!(e, Event::Touch { .. }));
         for event in events {
-            if let Some(ev) = to_view_event(&event, view, accepts_press) {
+            if let Some(ev) = to_view_event(&event, view, accepts_press, accepts_move) {
                 // A touch on empty canvas pans instead of starting a rubber band.
                 if touching && is_press(&ev) && is_empty_at(view, &ev) {
                     state.touch_pan = true;
@@ -60,23 +92,146 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut CanvasState) 
                 state.touch_pan = false;
             }
         }
+        if response.double_clicked_by(PointerButton::Primary)
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            result.merge(view.handle(&ViewEvent::DoubleClick {
+                pos: to_pt(pos.to_vec2()),
+            }));
+        }
+        if !ui.rect_contains_pointer(rect) && !view.is_busy() {
+            view.handle(&ViewEvent::PointerLeft);
+        }
+    }
+    if let Some(Request::ContextMenu(target)) = &result.request {
+        state.menu_target = Some(target.clone());
     }
 
-    response.on_hover_cursor(cursor(view, hover, space));
+    let mut action = None;
+    let response = response.on_hover_cursor(cursor(view, hover, space));
+    response.context_menu(|ui| match &state.menu_target {
+        Some(target) => action = context_menu(ui, view, target),
+        None => ui.close(),
+    });
 
     let painter = painter.with_clip_rect(rect);
     let area = SRect {
         min: spt(rect.min.x, rect.min.y),
         max: spt(rect.max.x, rect.max.y),
     };
-    view.draw(&mut EguiRenderer::new(&painter), area);
-    result
+    let mut renderer = EguiRenderer::new(&painter);
+    view.draw(&mut renderer, area);
+    update_tooltip(ui, view, state, rect);
+    if let (Some(target), Some(p)) = (&state.tooltip, hover)
+        && let Some(text) = view.tooltip_text(target)
+    {
+        view.draw_tooltip(&mut renderer, &text, to_pt(p.to_vec2()), area);
+    }
+    CanvasOutput {
+        view: result,
+        action,
+        centre: to_pt(rect.center().to_vec2()),
+    }
+}
+
+/// Shows the tooltip once the pointer has been still for 600 ms over a
+/// species, junction or leg; hides it when the pointer moves to another item
+/// or leaves the canvas, or while dragging (S §6.6).
+fn update_tooltip(ui: &egui::Ui, view: &DiagramView, state: &mut CanvasState, rect: egui::Rect) {
+    let (now, pos) = ui.input(|i| (i.time, i.pointer.hover_pos()));
+    let over = pos.filter(|p| rect.contains(*p) && ui.rect_contains_pointer(rect));
+    let Some(pos) = over.filter(|_| !view.is_busy()) else {
+        state.tooltip = None;
+        state.still_at = None;
+        return;
+    };
+    let target = view.target_at(to_pt(pos.to_vec2()));
+    if state.tooltip.as_ref().is_some_and(|t| *t != target) {
+        state.tooltip = None;
+    }
+    let since = match state.still_at {
+        Some((p, since)) if p == pos => since,
+        _ => {
+            state.still_at = Some((pos, now));
+            now
+        }
+    };
+    if state.tooltip.is_none() && target != Target::Empty {
+        let delay = TOOLTIP_DELAY_MS as f64 / 1000.0;
+        let waited = now - since;
+        if waited >= delay {
+            state.tooltip = Some(target);
+        } else {
+            // Nothing else may cause a repaint while the pointer is still.
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_secs_f64(delay - waited));
+        }
+    }
+}
+
+/// The items for what was right-clicked (S §13.4). Returns the one chosen.
+fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Option<MenuAction> {
+    let mut chosen = None;
+    let mut item = |ui: &mut egui::Ui, label: &str, action: MenuAction| {
+        if ui.button(label).clicked() {
+            chosen = Some(action);
+            ui.close();
+        }
+    };
+    match target {
+        Target::Species(id) => {
+            let Some(node) = view.model().find_species(id) else {
+                ui.close();
+                return None;
+            };
+            if node.is_null_node {
+                item(
+                    ui,
+                    "Remove Null Node",
+                    MenuAction::RemoveNullNode(id.clone()),
+                );
+            } else if node.is_alias() {
+                item(
+                    ui,
+                    "Rename (renames the primary)",
+                    MenuAction::Rename(id.clone()),
+                );
+                item(ui, "Go to Primary", MenuAction::GoToPrimary(id.clone()));
+                item(ui, "Delete Alias", MenuAction::DeleteSpecies(id.clone()));
+            } else {
+                item(ui, "Create Alias", MenuAction::CreateAlias(id.clone()));
+                item(ui, "Rename", MenuAction::Rename(id.clone()));
+                item(ui, "Delete Species", MenuAction::DeleteSpecies(id.clone()));
+            }
+            ui.separator();
+            let lock = if view.lock_would_lock() {
+                "Lock"
+            } else {
+                "Unlock"
+            };
+            item(ui, lock, MenuAction::ToggleLock);
+        }
+        Target::Junction(id) | Target::Leg(id) => {
+            item(
+                ui,
+                "Delete Reaction",
+                MenuAction::DeleteReaction(id.clone()),
+            );
+        }
+        Target::Empty => ui.close(),
+    }
+    chosen
 }
 
 /// The view event for an egui event, if it is one the view cares about.
 /// Presses only count over the canvas; moves and releases are passed on
 /// while a gesture is in progress, even outside it.
-fn to_view_event(event: &Event, view: &DiagramView, accepts_press: bool) -> Option<ViewEvent> {
+fn to_view_event(
+    event: &Event,
+    view: &DiagramView,
+    accepts_press: bool,
+    accepts_move: bool,
+) -> Option<ViewEvent> {
     match *event {
         Event::PointerButton {
             pos,
@@ -106,9 +261,11 @@ fn to_view_event(event: &Event, view: &DiagramView, accepts_press: bool) -> Opti
                     .then_some(ViewEvent::PointerUp { pos, button })
             }
         }
-        Event::PointerMoved(pos) if view.is_busy() => Some(ViewEvent::PointerMove {
-            pos: to_pt(pos.to_vec2()),
-        }),
+        Event::PointerMoved(pos) if view.is_busy() || accepts_move => {
+            Some(ViewEvent::PointerMove {
+                pos: to_pt(pos.to_vec2()),
+            })
+        }
         Event::WindowFocused(false) => Some(ViewEvent::FocusLost),
         _ => None,
     }
@@ -138,6 +295,9 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
     }
     if space {
         return CursorIcon::Grab;
+    }
+    if view.tool() != Tool::Select {
+        return CursorIcon::Crosshair;
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
         Some(Target::Species(_) | Target::Junction(_)) => CursorIcon::Grab,

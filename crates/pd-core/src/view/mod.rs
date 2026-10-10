@@ -6,10 +6,14 @@
 //! turns egui input into [`ViewEvent`]s and gives `draw` a renderer. Every
 //! change to the model goes through the view, so every change is undoable.
 
+mod editing;
+#[cfg(test)]
+mod editing_tests;
 pub mod hit;
 pub mod input;
 #[cfg(test)]
 mod interaction_tests;
+mod tooltip;
 
 use crate::geometry::{Pt, pt, screen_to_world, world_to_screen};
 use crate::model::{Id, Model, ReactionMode, Role};
@@ -19,7 +23,7 @@ use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::undo::{Command, UndoHistory};
 
 pub use hit::hit_test;
-pub use input::{Button, Modifiers, Target, ViewEvent, ViewResponse};
+pub use input::{Button, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
 
 /// The rubber band's fill: its colour at 20 % (S §5.9).
 const RUBBER_BAND_FILL_ALPHA: u8 = 51;
@@ -34,8 +38,24 @@ pub struct DiagramView {
     pub show_alias_indicator: bool,
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
+    /// New reactions are Bézier (S §6.5). The reference starts with it on.
+    pub default_bezier: bool,
+    /// New Bézier reactions get a smooth junction (S §6.5). On at start.
+    pub default_smooth: bool,
     undo: UndoHistory,
     gesture: Gesture,
+    tool: Tool,
+    /// Species picked so far with an add-reaction tool.
+    pending: Pending,
+    /// Where the pointer is, in screen coordinates, while it is over the canvas.
+    hover: Option<Pt>,
+}
+
+/// The reaction being built with an add-reaction tool (S §6.5).
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Pending {
+    reactants: Vec<Id>,
+    products: Vec<Id>,
 }
 
 /// The gesture in progress (S §6.1).
@@ -108,8 +128,13 @@ impl DiagramView {
             scroll: Pt::ZERO,
             show_alias_indicator: true,
             show_null_species: true,
+            default_bezier: true,
+            default_smooth: true,
             undo: UndoHistory::new(),
             gesture: Gesture::Idle,
+            tool: Tool::Select,
+            pending: Pending::default(),
+            hover: None,
         }
     }
 
@@ -123,6 +148,7 @@ impl DiagramView {
         self.model = model;
         self.undo.clear();
         self.gesture = Gesture::Idle;
+        self.pending = Pending::default();
     }
 
     // ----- Zoom and scroll --------------------------------------------------
@@ -192,6 +218,7 @@ impl DiagramView {
             show_null_species: self.show_null_species,
         };
         draw_model(&self.model, &opts, r);
+        self.draw_overlays(r);
         if let Gesture::RubberBand { start, current } = &self.gesture {
             let (min, max) = corners(*start, *current);
             let mut fill = RUBBER_BAND;
@@ -257,6 +284,7 @@ impl DiagramView {
             repaint: true,
             selection_changed: self.selection() != before,
             model_changed: false,
+            request: None,
         }
     }
 
@@ -272,7 +300,26 @@ impl DiagramView {
                 button: Button::Primary,
                 modifiers,
             } => self.pointer_down(pos, modifiers),
-            ViewEvent::PointerMove { pos } => self.pointer_move(pos),
+            ViewEvent::PointerDown {
+                pos,
+                button: Button::Secondary,
+                modifiers,
+            } => self.context_click(pos, modifiers),
+            ViewEvent::PointerMove { pos } => {
+                self.hover = Some(pos);
+                let mut r = self.pointer_move(pos);
+                // The add-reaction guide line follows the pointer.
+                r.repaint |= matches!(self.tool, Tool::AddReaction { .. });
+                r
+            }
+            ViewEvent::PointerLeft => {
+                self.hover = None;
+                ViewResponse {
+                    repaint: true,
+                    ..ViewResponse::default()
+                }
+            }
+            ViewEvent::DoubleClick { pos } => self.double_click(pos),
             ViewEvent::PointerUp {
                 pos,
                 button: Button::Primary,
@@ -283,6 +330,7 @@ impl DiagramView {
             }
             ViewEvent::Cancel => {
                 let mut r = self.cancel_gesture();
+                self.set_tool(Tool::Select);
                 self.model.clear_selection();
                 r.repaint = true;
                 r
@@ -300,6 +348,11 @@ impl DiagramView {
     fn pointer_down(&mut self, pos: Pt, modifiers: Modifiers) -> ViewResponse {
         if self.is_busy() {
             return ViewResponse::default();
+        }
+        match self.tool {
+            Tool::Select => {}
+            Tool::AddSpecies => return self.add_species_at(pos),
+            Tool::AddReaction { .. } => return self.pick_for_reaction(pos),
         }
         let world = self.screen_to_world(pos);
         match self.target_at(pos) {
@@ -424,6 +477,7 @@ impl DiagramView {
             repaint: true,
             selection_changed: false,
             model_changed,
+            request: None,
         }
     }
 
@@ -632,6 +686,7 @@ impl DiagramView {
             repaint: true,
             selection_changed: true,
             model_changed: true,
+            request: None,
         }
     }
 
@@ -679,6 +734,7 @@ impl DiagramView {
             repaint: true,
             selection_changed: true,
             model_changed: true,
+            request: None,
         }
     }
 }
