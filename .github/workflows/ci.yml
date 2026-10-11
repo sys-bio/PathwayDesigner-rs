@@ -1,7 +1,7 @@
 # CI and deployment (SPEC-Rust §14.5).
 # Every push: format, lints, licences, native tests, wasm32 check; and
 # sbml-io checked against python-libsbml; PDF output checked with pypdfium2;
-# the production build checked in headless Chromium.
+# the production build checked in headless Chromium; the desktop app on macOS.
 # On main: build the web app with Trunk and publish it to GitHub Pages.
 # One-time setup on GitHub: Settings → Pages → Source: "GitHub Actions".
 name: CI
@@ -55,6 +55,26 @@ jobs:
       # Native tests keep the desktop version possible (SPEC-Rust §14.5).
       - name: Tests
         run: cargo test --workspace
+
+  # The desktop app on macOS (SPEC-Rust §15.1): the menu bar code only builds
+  # there, so lint and test it on a Mac runner too.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust with clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy (warnings are errors)
+        run: cargo clippy -p pd-app --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test -p pd-app
 
   # sbml-io against python-libsbml: every Level 2 and Level 3 model of the SBML
   # Test Suite, and the Layout files in crates/sbml-io/tests/data, are read and

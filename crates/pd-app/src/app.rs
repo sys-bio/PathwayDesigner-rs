@@ -121,6 +121,9 @@ pub struct PathwayApp {
     /// Recently used files (desktop).
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) recent: crate::recent::Recent,
+    /// The macOS menu bar, with About, Settings and Quit.
+    #[cfg(target_os = "macos")]
+    mac_menu: Option<crate::macos_menu::MacMenu>,
     /// What the last operation did, shown in the status bar.
     pub(crate) notice: Option<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
@@ -170,6 +173,8 @@ impl PathwayApp {
             export_settings: crate::export::ExportSettings::default(),
             #[cfg(not(target_arch = "wasm32"))]
             recent: crate::recent::Recent::load(cc.storage),
+            #[cfg(target_os = "macos")]
+            mac_menu: crate::macos_menu::MacMenu::install(&cc.egui_ctx),
             notice: None,
             fit_pending: false,
             fit: None,
@@ -263,6 +268,21 @@ impl PathwayApp {
                 }
             });
         });
+    }
+
+    /// Carries out what was chosen from the macOS menu bar.
+    #[cfg(target_os = "macos")]
+    fn mac_menu_commands(&mut self) {
+        use crate::macos_menu::MenuCommand;
+        let Some(command) = self.mac_menu.as_ref().and_then(|m| m.poll()) else {
+            return;
+        };
+        match command {
+            MenuCommand::About => self.dialog = Some(Dialog::About),
+            MenuCommand::Preferences => self.dialog = Some(Dialog::Preferences(self.prefs)),
+            // Asks about unsaved changes first, as closing the window does.
+            MenuCommand::Quit => self.request(Action::Quit),
+        }
     }
 
     /// Starts an auto-layout with the toolbar's settings.
@@ -461,12 +481,16 @@ impl PathwayApp {
                     self.ask_export(crate::export::ExportKind::Print);
                     ui.close();
                 }
-                ui.separator();
-                if item(ui, "Preferences…", None) {
-                    self.dialog = Some(Dialog::Preferences(self.prefs));
-                    ui.close();
+                // On macOS these are in the application menu (macos_menu.rs).
+                #[cfg(not(target_os = "macos"))]
+                {
+                    ui.separator();
+                    if item(ui, "Preferences…", None) {
+                        self.dialog = Some(Dialog::Preferences(self.prefs));
+                        ui.close();
+                    }
                 }
-                #[cfg(not(target_arch = "wasm32"))]
+                #[cfg(not(any(target_arch = "wasm32", target_os = "macos")))]
                 {
                     ui.separator();
                     if item(ui, "Quit", None) {
@@ -557,6 +581,8 @@ impl PathwayApp {
                 ui.separator();
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
             });
+            // On macOS, About is in the application menu (macos_menu.rs).
+            #[cfg(not(target_os = "macos"))]
             ui.menu_button("Help", |ui| {
                 if ui.button("About PathwayDesigner").clicked() {
                     self.dialog = Some(Dialog::About);
@@ -974,6 +1000,8 @@ impl eframe::App for PathwayApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        #[cfg(target_os = "macos")]
+        self.mac_menu_commands();
         self.handle_files();
         self.check_close();
         self.update_title();

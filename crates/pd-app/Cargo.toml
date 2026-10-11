@@ -23,6 +23,10 @@ rfd = "0.17"
 # Print on the desktop: open the PDF with the system viewer (SPEC-Rust §9).
 open = "5"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# The macOS menu bar: the application menu and a Window menu (SPEC-Rust §15.1).
+muda = { version = "0.20", default-features = false }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
 wasm-bindgen = "0.2"

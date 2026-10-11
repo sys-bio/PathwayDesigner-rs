@@ -1174,12 +1174,19 @@ been compiled and tested natively since R0, it is mostly platform work:
   changes up to the last autosave are offered back at the next start, and a
   crash dialog says so); preferences in eframe's storage file in the app's data
   folder; printing through the system PDF viewer (R10); Cmd shortcuts on macOS
-  (`Modifiers::COMMAND`); the window icon; packaging (§14.1).
+  (`Modifiers::COMMAND`); the window icon; packaging (§14.1); the **macOS menu
+  bar** (`crates/pd-app/src/macos_menu.rs`, with the `muda` crate): the
+  application menu (About PathwayDesigner, Settings… Cmd+,, Services, Hide, Hide
+  Others, Show All, Quit PathwayDesigner Cmd+Q) and a Window menu (Minimize, Zoom,
+  Full Screen). Quit is the app's own item, so it asks about unsaved changes as
+  closing the window does (the system's Quit ends the app at once). There is no
+  native Edit menu: its key equivalents would take Cmd+C, Cmd+V, Cmd+Z and Cmd+A
+  from egui. On macOS the in-window menus leave out Preferences, Quit and the Help
+  menu, which the application menu has. CI lints and tests the app on a Mac
+  runner (job `macos`).
 - *Decided against:* signing and notarisation (the packages are unsigned).
-- *Not yet:* the macOS application menu: egui draws its menus inside the window, so About,
-  Preferences and Quit stay in the window's Help and File menus (winit's
-  default macOS menu gives Cmd+Q, which asks about unsaved changes like closing
-  the window); the acceptance checks below on macOS and Linux.
+- *Not yet:* the acceptance checks below on macOS and Linux (the macOS menu
+  bar has only been built in CI, not tried on a Mac).
 - **Acceptance:**
   - the S §17.4 checklist passes in the desktop build on all three operating systems;
   - the desktop budgets in §5.6 are met;

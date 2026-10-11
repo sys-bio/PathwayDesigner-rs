@@ -10,6 +10,8 @@ mod export;
 mod files;
 mod fonts;
 mod inspector;
+#[cfg(target_os = "macos")]
+mod macos_menu;
 mod prefs;
 #[cfg(not(target_arch = "wasm32"))]
 mod recent;
