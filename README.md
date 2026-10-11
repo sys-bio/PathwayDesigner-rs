@@ -51,6 +51,22 @@ Delphi version does, and some more (see [Status](#status)).
   the tab was closed or the app crashed.
 - Says when a new version has been published.
 
+## Host it yourself
+
+The `gh-pages` branch of this repository is the finished website. Copy its files
+into any folder of your web server and open `index.html`, as with
+[MakeSBML](https://github.com/sys-bio/makesbml): there is nothing to build or
+install. Download it with Code ▸ Download ZIP (with the `gh-pages` branch
+selected), or
+
+```
+git clone --branch gh-pages --depth 1 https://github.com/sys-bio/PathwayDesigner-rs.git pathwaydesigner
+```
+
+Each [release](https://github.com/sys-bio/PathwayDesigner-rs/releases) also has the
+same files as `PathwayDesigner-web-<version>.zip`, next to the desktop installers
+for Windows, macOS and Linux.
+
 ## Getting started
 
 Pick a tool on the left: **Species** adds a species where you click, and the
@@ -113,7 +129,7 @@ You need [Rust](https://rustup.rs/), the `wasm32-unknown-unknown` target
 cargo test --workspace                # the tests
 cargo run -p pd-app                   # a desktop window
 trunk serve                           # the browser version, at http://127.0.0.1:8080/
-trunk build --release --public-url /PathwayDesigner-rs/   # the web release
+trunk build --release --public-url ./   # the web release, into dist/
 ```
 
 On Windows, run Trunk from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`,
@@ -146,7 +162,8 @@ tests; then
   and checked in headless Chromium: it starts, works offline, and shows the
   new-version notice.
 
-Pushes to `main` that pass are published to GitHub Pages.
+Pushes to `main` that pass are published to GitHub Pages, and the built website
+is written to the `gh-pages` branch.
 
 ## Status
 

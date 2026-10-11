@@ -73,3 +73,42 @@ jobs:
         with:
           draft: true
           files: dist-packages/*
+
+  # The web app as a zip, to put on any web server (SPEC-Rust §14.2).
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust with the WebAssembly target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Trunk (prebuilt)
+        run: |
+          curl -sSL "https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C /usr/local/bin trunk
+
+      - name: Build and zip
+        run: |
+          trunk build --release --public-url ./
+          VERSION="${GITHUB_REF_NAME}"
+          (cd dist && zip -qr "../PathwayDesigner-web-${VERSION}.zip" .)
+          ls -la PathwayDesigner-web-*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: PathwayDesigner-web-*.zip
+
+      - name: Attach to a draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: PathwayDesigner-web-*.zip

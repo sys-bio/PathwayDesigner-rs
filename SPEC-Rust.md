@@ -1044,12 +1044,23 @@ above of signed installers and a notarised macOS app.
 
 ### 14.2 Web: GitHub Pages and its base path
 
-- **Build:** `trunk build --release --public-url /<repo>/`.
+- **Build:** `trunk build --release --public-url ./`: relative paths, so the same
+  files work at `https://<user>.github.io/<repo>/` and from any folder of any other
+  server.
+- **Copying the site:** CI writes the built files, with a readme
+  (`crates/pd-app/web/README.md`), to the **`gh-pages` branch** after every
+  successful push to `main`, as one commit that replaces the last, so old builds
+  don't pile up in the repository. Anyone can copy that branch to their own server
+  and open `index.html`, as with MakeSBML; nothing needs building. Each release
+  also carries the same files as `PathwayDesigner-web-<version>.zip`. (Until
+  2026-10-11 the site was only uploaded to Pages from CI, so the built files
+  existed nowhere anyone could copy them.)
 - **Base path:** a project's Pages site is served from `https://<user>.github.io/<repo>/`,
-  not from the domain root. Set the base path **once**, through `--public-url`, and
-  never write an absolute path to an app file anywhere. Always test the production
-  build **served from a sub-path** on your own machine. Serving it from `/` hides
-  exactly the bugs that leave the page blank on Pages.
+  not from the domain root. With `--public-url ./` every path is relative, so there
+  is no base path to set. Never write an absolute path to an app file anywhere.
+  Always test the production build **served from a sub-path** on your own machine
+  (`web_smoke.py` does): serving it from `/` hides exactly the bugs that leave the
+  page blank on Pages.
 - **What GitHub Pages provides:** HTTPS (needed for the File System Access API and
   service workers) and automatic compression of the `.wasm` file.
 - **What it doesn't provide:**
