@@ -38,6 +38,9 @@ pub use properties::{ColourField, sync_modifiers};
 /// The rubber band's fill: its colour at 20 % (S §5.9).
 const RUBBER_BAND_FILL_ALPHA: u8 = 51;
 
+/// The selected species and reactions, by id.
+pub type Selection = (Vec<Id>, Vec<Id>);
+
 #[derive(Clone, Debug)]
 pub struct DiagramView {
     model: Model,
@@ -61,6 +64,9 @@ pub struct DiagramView {
     hover: Option<Pt>,
     /// An auto-layout in progress.
     layout: Option<arrange::LayoutState>,
+    /// The undo history's version and the selection after the last keyboard
+    /// nudge, so the next one can join its undo step.
+    nudged: Option<(u64, Selection)>,
 }
 
 /// The reaction being built with an add-reaction tool (S §6.5).
@@ -170,6 +176,7 @@ impl DiagramView {
             pending: Pending::default(),
             hover: None,
             layout: None,
+            nudged: None,
         }
     }
 
@@ -288,13 +295,18 @@ impl DiagramView {
         !matches!(self.gesture, Gesture::Idle)
     }
 
+    /// True while a Bézier handle is being dragged.
+    pub fn is_dragging_handle(&self) -> bool {
+        matches!(self.gesture, Gesture::Handle(_))
+    }
+
     pub fn has_selection(&self) -> bool {
         self.model.selected_species().next().is_some()
             || self.model.selected_reactions().next().is_some()
     }
 
     /// The selected species and reaction ids, in model order.
-    pub fn selection(&self) -> (Vec<Id>, Vec<Id>) {
+    pub fn selection(&self) -> Selection {
         (
             self.model
                 .selected_species()
@@ -309,12 +321,27 @@ impl DiagramView {
 
     /// Selects every species and reaction (Ctrl/Cmd + A).
     pub fn select_all(&mut self) -> ViewResponse {
+        self.select_only(true, true)
+    }
+
+    /// Selects every species, and no reaction.
+    pub fn select_all_species(&mut self) -> ViewResponse {
+        self.select_only(true, false)
+    }
+
+    /// Selects every reaction, and no species.
+    pub fn select_all_reactions(&mut self) -> ViewResponse {
+        self.select_only(false, true)
+    }
+
+    /// Makes the selection every species, every reaction, or both.
+    fn select_only(&mut self, species: bool, reactions: bool) -> ViewResponse {
         let before = self.selection();
         for s in self.model.species_mut() {
-            s.selected = true;
+            s.selected = species;
         }
         for r in self.model.reactions_mut() {
-            r.selected = true;
+            r.selected = reactions;
         }
         ViewResponse {
             repaint: true,

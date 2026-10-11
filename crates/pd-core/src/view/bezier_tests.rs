@@ -77,6 +77,30 @@ fn handles_are_hidden_and_not_hit_unless_the_reaction_is_selected() {
 }
 
 #[test]
+fn a_handle_drag_says_so() {
+    let mut v = view();
+    assert!(!v.is_dragging_handle());
+    v.handle(&ViewEvent::PointerDown {
+        pos: pt(70.0, 0.0),
+        button: Button::Primary,
+        modifiers: Modifiers::NONE,
+    });
+    assert!(v.is_dragging_handle());
+    v.handle(&ViewEvent::PointerUp {
+        pos: pt(70.0, 0.0),
+        button: Button::Primary,
+    });
+    assert!(!v.is_dragging_handle());
+    // Dragging a node isn't dragging a handle.
+    v.handle(&ViewEvent::PointerDown {
+        pos: pt(400.0, 200.0),
+        button: Button::Primary,
+        modifiers: Modifiers::NONE,
+    });
+    assert!(v.is_busy() && !v.is_dragging_handle());
+}
+
+#[test]
 fn esc_during_a_handle_drag_puts_it_back() {
     let mut v = view();
     v.handle(&ViewEvent::PointerDown {

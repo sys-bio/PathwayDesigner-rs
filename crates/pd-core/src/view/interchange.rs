@@ -2,6 +2,7 @@
 
 use super::DiagramView;
 use crate::antimony::{self, Diagnostic, ImportOptions};
+use crate::sbml;
 use crate::view::ViewResponse;
 
 impl DiagramView {
@@ -25,6 +26,29 @@ impl DiagramView {
     /// The diagram as Antimony text (S §11.3).
     pub fn export_antimony(&self) -> String {
         antimony::export(&self.model)
+    }
+
+    /// Replaces the diagram with the model in SBML `xml`, as one undo step
+    /// (SPEC-Rust §8.3). Returns what the import reports, or the errors, in
+    /// which case the diagram is left exactly as it was.
+    pub fn import_sbml(
+        &mut self,
+        xml: &str,
+        opts: &ImportOptions,
+    ) -> Result<(ViewResponse, sbml::Imported), Vec<sbml::Diagnostic>> {
+        let mut imported = sbml::import(xml, opts)?;
+        self.cancel_layout();
+        self.cancel_gesture();
+        let model = std::mem::take(&mut imported.model);
+        let before = std::mem::replace(&mut self.model, model);
+        let mut r = self.record("Import SBML", before);
+        r.selection_changed = true;
+        Ok((r, imported))
+    }
+
+    /// The diagram as SBML with its layout (S §11.5).
+    pub fn export_sbml(&self) -> sbml::Exported {
+        sbml::export(&self.model)
     }
 }
 
@@ -54,6 +78,28 @@ mod tests {
         v.undo();
         assert_eq!(v.model().species().len(), 1);
         assert_eq!(v.model().species()[0].id, "S1");
+    }
+
+    #[test]
+    fn sbml_import_is_one_undo_step() {
+        let mut v = DiagramView::default();
+        v.import_antimony(
+            "A -> B; k*A
+k = 0.1",
+            &OPTS,
+        )
+        .unwrap();
+        let xml = v.export_sbml().xml;
+        v.import_antimony("X -> Y; 1", &OPTS).unwrap();
+        let (r, imported) = v.import_sbml(&xml, &OPTS).unwrap();
+        assert!(r.model_changed && imported.had_layout && imported.warnings.is_empty());
+        assert!(v.model().find_species("A").is_some());
+        assert_eq!(v.undo_description(), Some("Import SBML"));
+        v.undo();
+        assert!(v.model().find_species("X").is_some());
+        // A bad file changes nothing.
+        assert!(v.import_sbml("<sbml", &OPTS).is_err());
+        assert!(v.model().find_species("X").is_some());
     }
 
     #[test]

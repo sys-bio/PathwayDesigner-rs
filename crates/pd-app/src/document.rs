@@ -135,9 +135,21 @@ impl PathwayApp {
                 }
             }
             FileKind::Sbml => {
-                self.warnings = vec![format!(
-                    "{name} is SBML. Reading SBML arrives with milestone R9."
-                )];
+                if let Some(had_layout) = self.import_sbml(name, text) {
+                    // Opening starts a new document: no undo back into the old one.
+                    let model = self.view.model().clone();
+                    self.view.set_model(model);
+                    self.view.mark_unsaved();
+                    self.doc = Document {
+                        name: with_extension(name, "json"),
+                        ..Document::default()
+                    };
+                    self.notice = Some(format!("Opened {name}"));
+                    // Without a layout every species is at random: lay it out.
+                    if !had_layout {
+                        self.start_layout();
+                    }
+                }
             }
         }
     }
@@ -161,6 +173,47 @@ impl PathwayApp {
         let text = self.view.export_antimony();
         self.files
             .save(&self.ctx, Purpose::ExportAntimony, name, text, None, true);
+    }
+
+    /// Replaces the diagram with the model in SBML `text`, as one undo step.
+    /// Returns whether the file had a layout, or `None`, with the diagram
+    /// unchanged, if it can't be read.
+    fn import_sbml(&mut self, name: &str, text: &str) -> Option<bool> {
+        let opts = self.import_options();
+        match self.view.import_sbml(text, &opts) {
+            Ok((_, imported)) => {
+                self.warnings = imported.warnings;
+                self.fit_pending = true;
+                Some(imported.had_layout)
+            }
+            Err(errors) => {
+                let first = errors.first().map(|e| e.to_string()).unwrap_or_default();
+                self.warnings = vec![format!(
+                    "{name} couldn't be read as SBML ({first}). The diagram wasn't changed."
+                )];
+                None
+            }
+        }
+    }
+
+    /// Writes the diagram as SBML. Problems and notes about the file are
+    /// shown once it is written.
+    pub(crate) fn export_sbml(&mut self) {
+        let name = with_extension(&self.doc.name, "xml");
+        let exported = self.view.export_sbml();
+        self.export_messages = exported
+            .problems
+            .into_iter()
+            .chain(exported.notes)
+            .collect();
+        self.files.save(
+            &self.ctx,
+            Purpose::ExportSbml,
+            name,
+            exported.xml,
+            None,
+            true,
+        );
     }
 
     /// Handles finished file operations and dropped files.
@@ -190,6 +243,19 @@ impl PathwayApp {
                 }
             }
             FileEvent::Opened {
+                purpose: Purpose::ImportSbml,
+                name,
+                text,
+                ..
+            } => {
+                if let Some(had_layout) = self.import_sbml(&name, &text) {
+                    self.notice = Some(format!("Imported {name}"));
+                    if !had_layout {
+                        self.start_layout();
+                    }
+                }
+            }
+            FileEvent::Opened {
                 purpose: Purpose::Drop,
                 name,
                 text,
@@ -204,6 +270,14 @@ impl PathwayApp {
                 ..
             } => {
                 self.notice = Some(format!("Exported {name}"));
+            }
+            FileEvent::Saved {
+                purpose: Purpose::ExportSbml,
+                name,
+                ..
+            } => {
+                self.notice = Some(format!("Exported {name}"));
+                self.warnings = std::mem::take(&mut self.export_messages);
             }
             FileEvent::Saved { name, target, .. } => {
                 self.view.mark_saved();
@@ -221,7 +295,10 @@ impl PathwayApp {
                 self.warnings = vec![message];
                 self.after_save = None;
             }
-            FileEvent::Cancelled => self.after_save = None,
+            FileEvent::Cancelled => {
+                self.after_save = None;
+                self.export_messages.clear();
+            }
         }
     }
 

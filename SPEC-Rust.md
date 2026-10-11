@@ -451,6 +451,7 @@ are all S §6 exactly. This section only covers how they map onto egui.
 | Hover tooltip after 600 ms (S §6.6) | Record when the pointer last moved. When it has been still for 600 ms over an item, show the tooltip and request a repaint. |
 | Esc cancels a drag or mode | Also cancel when the window loses focus in the middle of a drag (`InputState::focused` becomes false). This replaces the "pointer cancelled" event a browser would send. |
 | Touch | One finger pans when the touch didn't start on an item. Two fingers pinch-zoom. A tap selects. |
+| Cursor | An open hand over a species or junction, and a closed hand while dragging one. A pointing hand over a leg. A **crosshair** over a Bézier handle and while dragging it: a hand would cover the small handle. A crosshair in the add tools, and an open hand while Space is held. |
 
 **Keyboard shortcuts.** Use `Context::input_mut(|i| i.consume_shortcut(..))` so a
 text field that has the keyboard focus gets its normal editing keys first.
@@ -462,11 +463,22 @@ field is being edited:
 | Delete / Backspace | Delete the selection |
 | Esc | Cancel |
 | Cmd+A | Select all |
+| Arrow keys | Nudge the selection 1 unit; with Shift, 10 units |
 | Cmd+Z | Undo |
 | Cmd+Shift+Z, Ctrl+Y | Redo |
 | Cmd+S / Cmd+Shift+S | Save / Save As |
 | Cmd+O | Open |
 | Cmd+N | New |
+
+**Nudging** (added at the user's request; the reference has none). The arrow
+keys move the selected species and the junctions of the selected reactions, as a
+drag by the same amount would: locked species stay, a junction follows when all
+its species move, and stored handles follow their end. A run of nudges with the
+same selection is **one undo step**: the history's last snapshot is amended
+(`UndoHistory::amend_last`) instead of a step being added per key press. Any
+other change, an undo, or a different selection starts a new step. While a
+widget has the keyboard focus (a text field, or a row of the model tree, which
+uses ↑/↓ itself), the arrow keys are that widget's.
 
 ### 6.2 Dialogs inside an immediate-mode GUI
 
@@ -708,7 +720,7 @@ replace `sbml-io` behind the same bridge.
 **Import** (S §16.2 F-1), of Level 2 and Level 3 files:
 - **Core:** compartments, parameters, species (using `initialConcentration`, or
   `initialAmount` if it is missing or 0), reactions with stoichiometry and modifiers,
-  rate laws via `from_mathml` and `to_infix`, and assignment rules.
+  rate laws through `pd-core::sbml::math` and `to_infix`, and assignment rules.
 - **Layout, when the file has it:**
   - species-glyph boxes give the position and size;
   - the reaction glyph gives the junction;
@@ -722,19 +734,72 @@ replace `sbml-io` behind the same bridge.
 - **Afterwards:** null nodes for empty sides, and the catalytic rewrite only when the
   preference asks for it.
 
+**Details settled by the implementation (R9).**
+- **Round trip.** Every `Models/*.json` exports and imports back with the same
+  biochemistry and the same drawing: node boxes, alias ids, junctions and every
+  leg's curve. The one loss: SBML has no Linear mode, so a Linear reaction comes
+  back as Straight, in the same place.
+- **Species references get ids** (`sr_<rid>_sub_<sid>`, `…_prod_…`, `…_mod_…`,
+  made unique), and each species-reference glyph names its reference. Import
+  matches a glyph to its participant by that id. Without one it uses the glyph's
+  role and species, as in files from the Delphi app.
+- **Null nodes keep their place.** A null node is not a species (D-9), but it gets
+  a species glyph that names no species, and its leg's glyph points at that. On
+  import, such a glyph places the null node and gives its leg's handles.
+- **Curves drawn the other way round.** The handles are taken as stored, unless a
+  curve runs opposite to this app's convention: from the junction to the species
+  for a reactant, or from the species to the junction for a product. Other tools
+  may write curves that way (the Layout test files in `crates/sbml-io/tests/data`
+  do), and taking those as stored would cross the handles, so they are swapped
+  to match.
+- **A reaction glyph without a bounding box** (libSBML leaves it out when there
+  is a curve) puts the junction at the middle of its curve.
+- **An all-zero bounding box means no position.** libSBML writes position (0, 0)
+  and size 0 × 0 for a glyph that was never given one. Such a species glyph
+  doesn't place its species, and such a reaction glyph gives no junction: the
+  junction then goes halfway between the reaction's species. A layout in which
+  no species glyph has a position counts as no layout, so the model is laid out
+  automatically.
+- **Local parameters** become model parameters. A name already taken becomes
+  `<reaction>_<name>`, and the rate law is rewritten to match.
+- **What a diagram can't hold** gives a warning: function definitions, events,
+  rate and algebraic rules, constraints, and initial assignments to anything but
+  parameters. MathML the expression language can't say (`infinity`, `notanumber`,
+  MathML outside SBML's subset) leaves that expression out, with a warning. `pi`,
+  `true`, `false` and Avogadro become numbers, `exponentiale` becomes `exp(1)`,
+  `log` with another base becomes `ln(x)/ln(b)`, and `piecewise`, `delay` and
+  `rateOf` become calls of those names.
+- **Export of `max` and `min`.** These exist in MathML only from Level 3
+  Version 2. In the Level 3 Version 1 export they are written as nested
+  `piecewise`.
+- **Names used but never defined.** If an expression uses a name the model
+  doesn't define, the export declares it as a parameter with value 0, as
+  Antimony import does (S §11.2), and says so. Without this the file would be
+  invalid.
+- **A file with no layout** is laid out automatically when it is opened or
+  imported. Every species would otherwise be at a random place. A file whose
+  layout leaves some species out says how many were placed at random.
+- **Menus.** File ▸ *Import SBML…* replaces the diagram as one undo step, like
+  *Import Antimony…*. *Open…* also opens SBML, as a new document. *Save to
+  SBML…* writes Level 3 Version 1 with the layout. Problems and notes about the
+  file are shown in the status bar once it is written.
+
 **Checking.** Without libSBML there is no complete SBML validator in the app.
 Instead:
 1. `pd-core::sbml` checks the structure (ids exist and are unique, references
    resolve) and shows any problems when the file is written;
-2. CI checks every exported test file with **python-libsbml**'s
-   `checkConsistency()`. That is a development-only dependency and is never shipped
-   (§12).
+2. CI exports every `Models/*.json` and checks it with **python-libsbml**'s
+   `checkConsistency()` (`crates/pd-core/examples/export_sbml.rs`,
+   `tests/scripts/check_sbml.py`). All pass with no errors; the warnings are
+   about units, which these models don't declare. python-libsbml is a
+   development-only dependency and is never shipped (§12).
 
 ### 8.4 Behaviour specific to PathwayDesigner
 
-The catalytic rewrite and adding null nodes are separate passes over the model,
-applied after any import, Antimony or SBML. They are not hidden inside one parser.
-Each can therefore be tested on its own, and both behave the same for both formats.
+The catalytic rewrite, modifiers from the rate law, and adding null nodes are
+separate passes (`pd-core::passes`), applied to each reaction after any import,
+Antimony or SBML. They are not hidden inside one parser. Each can therefore be
+tested on its own, and they behave the same for both formats.
 
 ### 8.5 Licences
 

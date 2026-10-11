@@ -515,3 +515,21 @@ fn other_buttons_are_left_to_the_app() {
     assert_eq!(r, ViewResponse::default());
     assert!(!v.is_busy());
 }
+
+#[test]
+fn select_all_species_or_all_reactions() {
+    let mut v = view();
+    v.select_all_species();
+    assert_eq!(v.selection().0.len(), 3);
+    assert!(v.selection().1.is_empty());
+    v.select_all_reactions();
+    assert!(
+        v.selection().0.is_empty(),
+        "the species are no longer selected"
+    );
+    assert_eq!(v.selection().1.len(), 2);
+    let r = v.select_all_reactions();
+    assert!(!r.selection_changed);
+    v.select_all();
+    assert_eq!((v.selection().0.len(), v.selection().1.len()), (3, 2));
+}

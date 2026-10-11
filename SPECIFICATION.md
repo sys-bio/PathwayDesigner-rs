@@ -672,9 +672,13 @@ For each target reaction:
 
 ### 7.5 Align and distribute
 
-These commands work on the selected species. Alignment needs at least 2.
-Distribution needs at least 3. Otherwise the command does nothing. The bounding box
-below is the box around all selected species.
+These commands work on the selected species and on the junctions of the selected
+reactions. Alignment needs at least 2 such items. Distribution needs at least 3.
+Otherwise the command does nothing. A species counts as its rectangle and a junction
+as a point. The bounding box below is the box around all of them. A Linear
+reaction's junction is left out, because it stays on its line. (The reference aligns
+species only. Junctions were added at the user's request; to align only species,
+select only species, for example with Edit ▸ *Select All Species*.)
 
 | Command | New position |
 |---|---|
@@ -698,6 +702,8 @@ The changes are then passed on to the reactions:
   - Smooth reactions have their handles recomputed.
 - **If only some participants moved:** the junction stays where it is, and the moved
   participants of a Bézier reaction are reset to automatic handles.
+- **A selected junction** then goes to its own new position, moving as a junction
+  drag does (a smooth junction's inner handles go with it).
 
 ### 7.6 View toggles (not undoable, not persisted)
 
@@ -1238,8 +1244,8 @@ file name when a file is open).
 
 | Menu | Items |
 |---|---|
-| **File** | New · Open… · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Save to SBML… · *(separator)* · Export ▸ {PNG…, PDF…} · Print · Quit |
-| **Edit** | Undo · Redo · *(separator)* · Select All · *(separator)* · Preferences… |
+| **File** | New · Open… · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {PNG…, PDF…} · Print · Quit |
+| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Preferences… |
 | **Help** | About (shows the version and build date) |
 
 File dialogs: Open and Save use `*.json`. Antimony uses `*.ant` and `*.txt`. SBML

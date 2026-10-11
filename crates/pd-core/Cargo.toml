@@ -8,6 +8,7 @@ license.workspace = true
 # No egui, no I/O, no platform crates (SPEC-Rust §2, rule 1).
 [dependencies]
 pd-antimony.workspace = true
+sbml-io.workspace = true
 harfrust.workspace = true
 skrifa.workspace = true
 serde = { version = "1", features = ["derive"] }

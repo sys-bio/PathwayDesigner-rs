@@ -205,18 +205,7 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 item(ui, "Rename", MenuAction::Rename(id.clone()));
                 item(ui, "Delete Species", MenuAction::DeleteSpecies(id.clone()));
             }
-            ui.menu_button("Alignment", |ui| {
-                for (i, cmd) in Arrange::ALL.into_iter().enumerate() {
-                    if i == 6 {
-                        ui.separator();
-                    }
-                    if view.can_arrange(cmd) {
-                        item(ui, cmd.label(), MenuAction::Arrange(cmd));
-                    } else {
-                        ui.add_enabled(false, egui::Button::new(cmd.label()));
-                    }
-                }
-            });
+            alignment(ui, view, &mut item);
             ui.separator();
             let lock = if view.lock_would_lock() {
                 "Lock"
@@ -236,10 +225,32 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 "Adjust Reaction (Make Nice)",
                 MenuAction::MakeNice(id.clone()),
             );
+            alignment(ui, view, &mut item);
         }
         Target::Handle(_) | Target::Empty => ui.close(),
     }
     chosen
+}
+
+/// The Alignment submenu: the align and distribute commands for the
+/// selected species and junctions (S §7.5).
+fn alignment(
+    ui: &mut egui::Ui,
+    view: &DiagramView,
+    item: &mut impl FnMut(&mut egui::Ui, &str, MenuAction),
+) {
+    ui.menu_button("Alignment", |ui| {
+        for (i, cmd) in Arrange::ALL.into_iter().enumerate() {
+            if i == 6 {
+                ui.separator();
+            }
+            if view.can_arrange(cmd) {
+                item(ui, cmd.label(), MenuAction::Arrange(cmd));
+            } else {
+                ui.add_enabled(false, egui::Button::new(cmd.label()));
+            }
+        }
+    });
 }
 
 /// The view event for an egui event, if it is one the view cares about.
@@ -307,8 +318,13 @@ fn is_empty_at(view: &DiagramView, ev: &ViewEvent) -> bool {
     }
 }
 
-/// A hand over things that can be dragged, a closed hand while dragging.
+/// A hand over things that can be dragged, a closed hand while dragging. A
+/// Bézier handle is small, so over one, and while dragging it, the cursor is
+/// a crosshair, which leaves the handle in view.
 fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorIcon {
+    if view.is_dragging_handle() {
+        return CursorIcon::Crosshair;
+    }
     if view.is_busy() {
         return CursorIcon::Grabbing;
     }
@@ -319,7 +335,8 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
         return CursorIcon::Crosshair;
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
-        Some(Target::Species(_) | Target::Junction(_) | Target::Handle(_)) => CursorIcon::Grab,
+        Some(Target::Handle(_)) => CursorIcon::Crosshair,
+        Some(Target::Species(_) | Target::Junction(_)) => CursorIcon::Grab,
         Some(Target::Leg(_)) => CursorIcon::PointingHand,
         _ => CursorIcon::Default,
     }
@@ -371,4 +388,55 @@ fn handle_wheel_and_pinch(ui: &egui::Ui, view: &mut DiagramView, anchor: Pt, pag
 
 fn to_pt(v: Vec2) -> Pt {
     pt(f64::from(v.x), f64::from(v.y))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pd_core::model::{Model, Participant, ReactionMode};
+    use pd_core::view::{Button, Modifiers};
+
+    /// A at (0,0) → B at (400,0), Bézier and selected, so its handles show;
+    /// the outer handle of A's leg is at (70,0). Screen = world.
+    fn view() -> DiagramView {
+        let mut m = Model::new();
+        let a = m.add_species(pt(0.0, 0.0), 80.0, 36.0);
+        let b = m.add_species(pt(400.0, 0.0), 80.0, 36.0);
+        let r = m.add_reaction(pt(200.0, 0.0));
+        let r = m.find_reaction_mut(&r).unwrap();
+        r.reactants.push(Participant::new(a, 1.0));
+        r.products.push(Participant::new(b, 1.0));
+        r.mode = ReactionMode::Bezier;
+        r.selected = true;
+        DiagramView::new(m)
+    }
+
+    fn at(x: f32, y: f32) -> Option<egui::Pos2> {
+        Some(egui::Pos2::new(x, y))
+    }
+
+    #[test]
+    fn the_cursor_leaves_handles_in_view() {
+        let mut v = view();
+        assert_eq!(cursor(&v, at(70.0, 0.0), false), CursorIcon::Crosshair);
+        assert_eq!(cursor(&v, at(0.0, 0.0), false), CursorIcon::Grab);
+        assert_eq!(cursor(&v, at(600.0, 300.0), false), CursorIcon::Default);
+        // Dragging a handle keeps the crosshair; dragging a node closes the hand.
+        v.handle(&ViewEvent::PointerDown {
+            pos: pt(70.0, 0.0),
+            button: Button::Primary,
+            modifiers: Modifiers::NONE,
+        });
+        assert_eq!(cursor(&v, at(70.0, 0.0), false), CursorIcon::Crosshair);
+        v.handle(&ViewEvent::PointerUp {
+            pos: pt(70.0, 0.0),
+            button: Button::Primary,
+        });
+        v.handle(&ViewEvent::PointerDown {
+            pos: pt(400.0, 0.0),
+            button: Button::Primary,
+            modifiers: Modifiers::NONE,
+        });
+        assert_eq!(cursor(&v, at(400.0, 0.0), false), CursorIcon::Grabbing);
+    }
 }

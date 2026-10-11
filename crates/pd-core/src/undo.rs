@@ -201,6 +201,31 @@ impl UndoHistory {
         self.next += 1;
     }
 
+    /// Where the history is: changes with every push, undo, redo and amend,
+    /// so a caller can tell whether anything happened since it last looked.
+    pub fn version(&self) -> u64 {
+        self.position()
+    }
+
+    /// Replaces the end state of the last command, a snapshot, with `after`,
+    /// so a run of small steps undoes as one (keyboard nudges). The amended
+    /// state is a new one: it gets a new position, so a save of the old end
+    /// state no longer counts as unchanged. Returns false, changing nothing,
+    /// if the last command isn't a snapshot or there is something to redo.
+    pub fn amend_last(&mut self, after: Model) -> bool {
+        if !self.redo.is_empty() {
+            return false;
+        }
+        let next = self.next;
+        let Some((n, Command::Snapshot { after: last, .. })) = self.undo.back_mut() else {
+            return false;
+        };
+        **last = after;
+        *n = next;
+        self.next += 1;
+        true
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
@@ -310,6 +335,36 @@ mod tests {
         assert_eq!(m.next_id(), before.next_id());
         h.redo(&mut m);
         assert_eq!(m, after);
+    }
+
+    #[test]
+    fn amending_the_last_snapshot() {
+        let mut m = model();
+        let first = m.clone();
+        let mut h = UndoHistory::new();
+        m.find_species_mut("S1").unwrap().center = pt(1.0, 0.0);
+        h.push(Command::Snapshot {
+            desc: "Nudge",
+            before: Box::new(first.clone()),
+            after: Box::new(m.clone()),
+        });
+        h.mark_saved();
+        let v = h.version();
+        m.find_species_mut("S1").unwrap().center = pt(2.0, 0.0);
+        assert!(h.amend_last(m.clone()));
+        // A new state: no longer the saved one.
+        assert_ne!(h.version(), v);
+        assert!(h.is_modified());
+        // One step undoes both, and redo brings back the amended state.
+        assert_eq!(h.len(), 1);
+        h.undo(&mut m);
+        assert_eq!(m, first);
+        assert!(
+            !h.amend_last(m.clone()),
+            "nothing to amend with a redo pending"
+        );
+        h.redo(&mut m);
+        assert_eq!(m.find_species("S1").unwrap().center, pt(2.0, 0.0));
     }
 
     #[test]

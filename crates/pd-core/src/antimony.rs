@@ -19,14 +19,13 @@ use crate::expr;
 use crate::geometry::{Pt, pt};
 use crate::layout::Rng;
 use crate::model::{
-    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, NULL_NODE_SIZE, Parameter,
-    Participant, ReactionMode, SpeciesNode,
+    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, Parameter, Participant, ReactionMode,
+    SpeciesNode,
 };
+use crate::passes;
 
 /// New species go at random in [0, 600)² (S §11.2).
 const PLACEMENT: f64 = 600.0;
-/// Null nodes go this far left (source) or right (sink) of the junction.
-const NULL_OFFSET: f64 = 70.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ImportOptions {
@@ -378,8 +377,8 @@ impl Builder<'_> {
         &mut self,
         model: &mut Model,
         id: &str,
-        mut reactants: Side,
-        mut products: Side,
+        reactants: Side,
+        products: Side,
         law: Option<expr::Ast>,
         opts: &ImportOptions,
     ) {
@@ -397,22 +396,6 @@ impl Builder<'_> {
             (None, None) => pt(PLACEMENT / 2.0, PLACEMENT / 2.0),
         };
 
-        // Catalytic conversion: a species on both sides with the same total
-        // stoichiometry comes off both, and becomes a modifier (S §11.2).
-        let mut catalysts: Vec<String> = Vec::new();
-        if opts.convert_catalytic {
-            let total = |list: &[(String, f64)], s: &str| -> f64 {
-                list.iter().filter(|(x, _)| x == s).map(|(_, n)| n).sum()
-            };
-            for (s, _) in &reactants {
-                if total(&reactants, s) == total(&products, s) && !catalysts.contains(s) {
-                    catalysts.push(s.clone());
-                }
-            }
-            reactants.retain(|(s, _)| !catalysts.contains(s));
-            products.retain(|(s, _)| !catalysts.contains(s));
-        }
-
         let mut r = crate::model::Reaction::new(id, junction);
         r.mode = ReactionMode::Straight;
         r.reactants = reactants
@@ -423,51 +406,14 @@ impl Builder<'_> {
             .iter()
             .map(|(s, n)| Participant::new(s.as_str(), *n))
             .collect();
-        // A species taken off by the catalytic rewrite is the catalyst: a
-        // modifier, whether or not the rate law names it.
-        r.modifiers = catalysts
-            .iter()
-            .map(|s| Participant::new(s.as_str(), 1.0))
-            .collect();
+        if opts.convert_catalytic {
+            passes::catalytic_rewrite(&mut r);
+        }
         if let Some(ast) = &law {
             r.kinetic_law = expr::to_infix(ast);
-            // Every species named in the law that isn't a participant is a modifier.
-            for name in expr::identifiers(ast) {
-                let is_species = model.find_species(name).is_some();
-                let participant = r
-                    .reactants
-                    .iter()
-                    .chain(&r.products)
-                    .any(|p| p.species == name);
-                let already = r.modifiers.iter().any(|p| p.species == name);
-                if is_species && !participant && !already {
-                    r.modifiers.push(Participant::new(name, 1.0));
-                }
-            }
+            passes::modifiers_from_law(model, &mut r, ast);
         }
-
-        // Null nodes for an empty side.
-        for (empty, prefix, dx) in [
-            (r.reactants.is_empty(), "_source_", -NULL_OFFSET),
-            (r.products.is_empty(), "_sink_", NULL_OFFSET),
-        ] {
-            if !empty {
-                continue;
-            }
-            let null_id = format!("{prefix}{id}");
-            let mut node = SpeciesNode::new(null_id.clone(), junction + pt(dx, 0.0));
-            node.is_null_node = true;
-            node.width = NULL_NODE_SIZE;
-            node.height = NULL_NODE_SIZE;
-            if model.push_species(node).is_ok() {
-                let p = Participant::new(null_id.as_str(), 1.0);
-                if prefix == "_source_" {
-                    r.reactants.push(p);
-                } else {
-                    r.products.push(p);
-                }
-            }
-        }
+        passes::add_null_nodes(model, &mut r, None, None);
         model.push_reaction(r).expect("checked unique above");
     }
 }

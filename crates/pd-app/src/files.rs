@@ -53,6 +53,7 @@ pub enum Filter {
     Any,
     Json,
     Antimony,
+    Sbml,
 }
 
 impl Filter {
@@ -69,6 +70,7 @@ impl Filter {
             ],
             Filter::Json => &[("PathwayDesigner diagram", &["json"])],
             Filter::Antimony => &[("Antimony", &["ant", "txt"])],
+            Filter::Sbml => &[("SBML", &["xml", "sbml"])],
         }
     }
 }
@@ -94,6 +96,10 @@ pub enum Purpose {
     Save,
     /// Write Antimony.
     ExportAntimony,
+    /// Import SBML into the current diagram.
+    ImportSbml,
+    /// Write SBML.
+    ExportSbml,
     /// A file dropped on the window: open it, after the unsaved-changes prompt.
     Drop,
 }
@@ -232,6 +238,7 @@ impl Files {
         let ctx = ctx.clone();
         let filter = match purpose {
             Purpose::ExportAntimony => Filter::Antimony,
+            Purpose::ExportSbml => Filter::Sbml,
             _ => Filter::Json,
         };
         spawn(async move {

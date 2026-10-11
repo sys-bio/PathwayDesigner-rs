@@ -166,7 +166,7 @@ pub enum ReactionMode {
 }
 
 /// Which list of a reaction a participant is in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
     Reactant,
     Product,

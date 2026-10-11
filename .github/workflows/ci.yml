@@ -91,6 +91,13 @@ jobs:
           cargo run -q -p sbml-io --release --example roundtrip -- crates/sbml-io/tests/data rewritten-layout
           python crates/sbml-io/tests/scripts/libsbml_compare.py crates/sbml-io/tests/data rewritten-layout
 
+      # SPEC-Rust §8.3: every Models/*.json exported as SBML passes libsbml's
+      # checkConsistency() with no errors.
+      - name: Export the models as SBML and check them
+        run: |
+          cargo run -q -p pd-core --release --example export_sbml -- exported
+          python crates/pd-core/tests/scripts/check_sbml.py exported
+
   pages:
     needs: check
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

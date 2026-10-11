@@ -7,7 +7,7 @@ use crate::generate;
 use crate::geometry::{Pt, pt};
 use crate::layout::{LayoutParams, LayoutRun, Progress};
 use crate::model::{Id, Model, ReactionMode, Role};
-use crate::render::draw::{linear_junction_t, linear_line};
+use crate::render::draw::{effective_mode, linear_junction_t, linear_line};
 use crate::view::ViewResponse;
 
 /// A layout in progress, and the model before it started.
@@ -15,6 +15,26 @@ use crate::view::ViewResponse;
 pub(super) struct LayoutState {
     run: LayoutRun,
     before: Box<Model>,
+}
+
+/// The undo step a run of keyboard nudges makes.
+const NUDGE: &str = "Nudge";
+
+/// Something align and distribute move: a species by its box, or a
+/// junction as a point.
+#[derive(Clone, Debug)]
+struct Item {
+    what: ItemKind,
+    center: Pt,
+    hw: f64,
+    hh: f64,
+    locked: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum ItemKind {
+    Species(Id),
+    Junction(Id),
 }
 
 /// The eight align and distribute commands (S §7.5).
@@ -55,7 +75,7 @@ impl Arrange {
         }
     }
 
-    /// How many selected species the command needs.
+    /// How many selected species and junctions the command needs.
     pub fn minimum(self) -> usize {
         match self {
             Arrange::DistributeHorizontally | Arrange::DistributeVertically => 3,
@@ -213,71 +233,87 @@ impl DiagramView {
 
     // ----- Align and distribute (S §7.5) ------------------------------------
 
-    /// True if `cmd` can do anything with the current selection.
-    pub fn can_arrange(&self, cmd: Arrange) -> bool {
-        self.model.selected_species().count() >= cmd.minimum()
+    /// What align and distribute act on: the selected species, by their
+    /// boxes, and the junctions of the selected reactions, as points. A
+    /// Linear reaction's junction is left out: it stays on its line.
+    fn arrange_items(&self) -> Vec<Item> {
+        let species = self.model.selected_species().map(|s| Item {
+            what: ItemKind::Species(s.id.clone()),
+            center: s.center,
+            hw: s.width / 2.0,
+            hh: s.height / 2.0,
+            locked: s.locked,
+        });
+        let junctions = self
+            .model
+            .selected_reactions()
+            .filter(|r| effective_mode(r) != ReactionMode::Linear)
+            .map(|r| Item {
+                what: ItemKind::Junction(r.id.clone()),
+                center: r.junction,
+                hw: 0.0,
+                hh: 0.0,
+                locked: false,
+            });
+        species.chain(junctions).collect()
     }
 
-    /// Aligns or distributes the selected species. Locked species don't move,
-    /// but still count towards the bounding box, so others can be aligned to
-    /// a locked one; when distributing they keep their places. Junctions and
-    /// handles follow (see [`DiagramView::moved_species`]). One undo step.
+    /// True if `cmd` can do anything with the current selection.
+    pub fn can_arrange(&self, cmd: Arrange) -> bool {
+        self.arrange_items().len() >= cmd.minimum()
+    }
+
+    /// Aligns or distributes the selected species and junctions. Locked
+    /// species don't move, but still count towards the bounding box, so others
+    /// can be aligned to a locked one; when distributing they keep their
+    /// places. Junctions and handles follow moved species (see
+    /// [`DiagramView::moved_species`]); a selected junction then goes to its
+    /// own place. One undo step.
     pub fn arrange(&mut self, cmd: Arrange) -> ViewResponse {
         if self.layout.is_some() || !matches!(self.gesture, Gesture::Idle) || !self.can_arrange(cmd)
         {
             return ViewResponse::default();
         }
-        let sel: Vec<(Id, Pt, f64, f64, bool)> = self
-            .model
-            .selected_species()
-            .map(|s| {
-                (
-                    s.id.clone(),
-                    s.center,
-                    s.width / 2.0,
-                    s.height / 2.0,
-                    s.locked,
-                )
-            })
-            .collect();
+        let sel = self.arrange_items();
         let left = sel
             .iter()
-            .map(|s| s.1.x - s.2)
+            .map(|s| s.center.x - s.hw)
             .fold(f64::INFINITY, f64::min);
         let right = sel
             .iter()
-            .map(|s| s.1.x + s.2)
+            .map(|s| s.center.x + s.hw)
             .fold(f64::NEG_INFINITY, f64::max);
         let top = sel
             .iter()
-            .map(|s| s.1.y - s.3)
+            .map(|s| s.center.y - s.hh)
             .fold(f64::INFINITY, f64::min);
         let bottom = sel
             .iter()
-            .map(|s| s.1.y + s.3)
+            .map(|s| s.center.y + s.hh)
             .fold(f64::NEG_INFINITY, f64::max);
 
-        let mut targets: Vec<(Id, Pt)> = Vec::new();
+        let mut targets: Vec<(ItemKind, Pt)> = Vec::new();
         match cmd {
             Arrange::DistributeHorizontally | Arrange::DistributeVertically => {
                 let horizontal = cmd == Arrange::DistributeHorizontally;
                 let key = |p: Pt| if horizontal { p.x } else { p.y };
                 let mut order = sel.clone();
-                order.sort_by(|a, b| key(a.1).total_cmp(&key(b.1)));
-                let (first, last) = (key(order[0].1), key(order[order.len() - 1].1));
+                order.sort_by(|a, b| key(a.center).total_cmp(&key(b.center)));
+                let (first, last) = (key(order[0].center), key(order[order.len() - 1].center));
                 let n = order.len() - 1;
                 for (i, s) in order.iter().enumerate().skip(1).take(n - 1) {
                     let v = first + (last - first) * i as f64 / n as f64;
                     let at = if horizontal {
-                        pt(v, s.1.y)
+                        pt(v, s.center.y)
                     } else {
-                        pt(s.1.x, v)
+                        pt(s.center.x, v)
                     };
-                    targets.push((s.0.clone(), at));
+                    targets.push((s.what.clone(), at));
                 }
             }
             _ => {
-                for (id, c, hw, hh, _) in &sel {
+                for s in &sel {
+                    let (c, hw, hh) = (s.center, s.hw, s.hh);
                     let at = match cmd {
                         Arrange::Left => pt(left + hw, c.y),
                         Arrange::Center => pt((left + right) / 2.0, c.y),
@@ -286,36 +322,61 @@ impl DiagramView {
                         Arrange::Middle => pt(c.x, (top + bottom) / 2.0),
                         _ => pt(c.x, bottom - hh),
                     };
-                    targets.push((id.clone(), at));
+                    targets.push((s.what.clone(), at));
                 }
             }
         }
 
         let before = self.model.clone();
-        // Where each Linear junction is along its line, to keep it there.
-        let linear: Vec<(Id, f64)> = self
-            .model
+        let linear = self.linear_positions();
+        let locked: Vec<&ItemKind> = sel.iter().filter(|s| s.locked).map(|s| &s.what).collect();
+        let mut moved = Vec::new();
+        for (what, at) in &targets {
+            let ItemKind::Species(id) = what else {
+                continue;
+            };
+            if locked.contains(&what) {
+                continue;
+            }
+            let Some(s) = self.model.find_species_mut(id) else {
+                continue;
+            };
+            if s.center == *at {
+                continue;
+            }
+            moved.push((id.clone(), *at - s.center));
+            s.center = *at;
+        }
+        self.moved_species(&moved);
+        self.keep_linear(&linear, &moved);
+        for (what, at) in targets {
+            if let ItemKind::Junction(id) = what
+                && let Some(j) = self.model.find_reaction(&id).map(|r| r.junction)
+                && j != at
+            {
+                self.shift_junction(&id, at - j);
+            }
+        }
+        if self.model == before {
+            return ViewResponse::default();
+        }
+        self.record(cmd.label(), before)
+    }
+
+    /// Where each Linear junction is along its line, to keep it there.
+    fn linear_positions(&self) -> Vec<(Id, f64)> {
+        self.model
             .reactions()
             .iter()
             .filter_map(|r| linear_junction_t(&self.model, r).map(|t| (r.id.clone(), t)))
-            .collect();
-        let mut moved = Vec::new();
-        for (id, at) in targets {
-            let Some(s) = self.model.find_species_mut(&id) else {
-                continue;
-            };
-            if s.locked || s.center == at {
-                continue;
-            }
-            moved.push((id, at - s.center));
-            s.center = at;
-        }
-        if moved.is_empty() {
-            return ViewResponse::default();
-        }
-        self.moved_species(&moved);
+            .collect()
+    }
+
+    /// Puts each Linear junction back at its place along its line, if one of
+    /// its ends moved.
+    fn keep_linear(&mut self, linear: &[(Id, f64)], moved: &[(Id, Pt)]) {
         for (id, t) in linear {
-            let ends_moved = self.model.find_reaction(&id).is_some_and(|r| {
+            let ends_moved = self.model.find_reaction(id).is_some_and(|r| {
                 r.reactants
                     .iter()
                     .chain(&r.products)
@@ -323,16 +384,66 @@ impl DiagramView {
             });
             let line = self
                 .model
-                .find_reaction(&id)
+                .find_reaction(id)
                 .and_then(|r| linear_line(&self.model, r));
             if let (true, Some((a, b))) = (ends_moved, line) {
                 self.model
-                    .find_reaction_mut(&id)
+                    .find_reaction_mut(id)
                     .expect("found above")
-                    .junction = a + (b - a) * t;
+                    .junction = a + (b - a) * *t;
             }
         }
-        self.record(cmd.label(), before)
+    }
+
+    /// Moves a junction as dragging it would: a smooth junction's inner
+    /// handles go with it.
+    fn shift_junction(&mut self, id: &str, delta: Pt) {
+        let mut drag = self.begin_junction_drag(Pt::ZERO, id.to_owned());
+        drag.delta = delta;
+        self.apply_junction_drag(&drag);
+    }
+
+    // ----- Keyboard nudge ----------------------------------------------------
+
+    /// Moves the selected species and the junctions of the selected reactions
+    /// by `delta` (world units), as dragging them would: locked species stay,
+    /// a junction follows when all its species move, stored handles follow
+    /// their end. While the selection stays the same and nothing else
+    /// happens, further nudges add to the same undo step.
+    pub fn nudge(&mut self, delta: Pt) -> ViewResponse {
+        if self.layout.is_some() || self.is_busy() || delta == Pt::ZERO {
+            return ViewResponse::default();
+        }
+        let selection = self.selection();
+        if selection.0.is_empty() && selection.1.is_empty() {
+            return ViewResponse::default();
+        }
+        let before = self.model.clone();
+        let mut drag = self.begin_node_drag(Pt::ZERO);
+        drag.delta = delta;
+        self.apply_node_drag(&drag);
+        for id in &selection.1 {
+            let followed = drag.junctions.iter().any(|(j, _)| j == id);
+            if !followed {
+                self.shift_junction(id, delta);
+            }
+        }
+        if self.model == before {
+            return ViewResponse::default();
+        }
+        let same_run = self.nudged.as_ref() == Some(&(self.undo.version(), selection.clone()))
+            && self.undo.undo_description() == Some(NUDGE);
+        let response = if same_run && self.undo.amend_last(self.model.clone()) {
+            ViewResponse {
+                repaint: true,
+                model_changed: true,
+                ..ViewResponse::default()
+            }
+        } else {
+            self.record(NUDGE, before)
+        };
+        self.nudged = Some((self.undo.version(), selection));
+        response
     }
 
     /// Passes species movements on to the reactions (S §7.5):
@@ -404,8 +515,17 @@ mod tests {
         r.reactants.push(Participant::new(a, 1.0));
         r.products.push(Participant::new(b, 1.0));
         let mut v = DiagramView::new(m);
-        v.select_all();
+        select_species(&mut v);
         v
+    }
+
+    /// Selects every species and no reaction, so junctions aren't aligned.
+    fn select_species(v: &mut DiagramView) {
+        let ids: Vec<Id> = v.model().species().iter().map(|s| s.id.clone()).collect();
+        v.handle(&ViewEvent::Cancel);
+        for id in ids {
+            v.select_item(&crate::view::Target::Species(id), true);
+        }
     }
 
     fn at(v: &DiagramView, id: &str) -> Pt {
@@ -422,7 +542,7 @@ mod tests {
         assert_eq!(at(&v, "S3"), pt(0.0, -30.0));
         assert_eq!(v.undo_description(), Some("Align Left"));
         v.undo();
-        v.select_all();
+        select_species(&mut v);
         v.arrange(Arrange::Right);
         // Right edges at 360.
         assert_eq!(at(&v, "S1"), pt(320.0, 0.0));
@@ -445,7 +565,7 @@ mod tests {
         );
         v.undo();
         v.undo();
-        v.select_all();
+        select_species(&mut v);
         v.arrange(Arrange::Middle);
         assert!(v.model().species().iter().all(|s| s.center.y == 5.0));
     }
@@ -486,7 +606,7 @@ mod tests {
         let mut m = v.model().clone();
         m.find_species_mut("S2").unwrap().locked = true;
         v.set_model(m);
-        v.select_all();
+        select_species(&mut v);
         v.arrange(Arrange::Right);
         // S2 sets the right edge (360) and stays; the others line up on it.
         assert_eq!(at(&v, "S2"), pt(300.0, 40.0));
@@ -510,7 +630,7 @@ mod tests {
         let mut m = v.model().clone();
         m.find_reaction_mut("R4").unwrap().mode = ReactionMode::Linear;
         v.set_model(m);
-        v.select_all();
+        select_species(&mut v);
         let before = {
             let m = v.model();
             linear_junction_t(m, m.find_reaction("R4").unwrap()).unwrap()
@@ -531,13 +651,161 @@ mod tests {
             p.ctrl_pts_set = true;
         }
         v.set_model(m);
-        v.select_all();
+        select_species(&mut v);
         // Align Left moves S2 only (S1 is already at the left edge).
         v.arrange(Arrange::Left);
         let r = v.model().find_reaction("R4").unwrap();
         assert_eq!(r.junction, pt(150.0, 20.0), "junction stays");
         assert!(r.reactants[0].ctrl_pts_set, "S1 didn't move");
         assert!(!r.products[0].ctrl_pts_set, "S2 moved: automatic again");
+    }
+
+    /// The test view plus R5: S1 → S3 with its junction at (50,-80).
+    fn two_reactions() -> DiagramView {
+        let mut m = view().model().clone();
+        let r = m.add_reaction(pt(50.0, -80.0));
+        let r = m.find_reaction_mut(&r).unwrap();
+        r.reactants.push(Participant::new("S1", 1.0));
+        r.products.push(Participant::new("S3", 1.0));
+        DiagramView::new(m)
+    }
+
+    fn junction(v: &DiagramView, id: &str) -> Pt {
+        v.model().find_reaction(id).unwrap().junction
+    }
+
+    fn select(v: &mut DiagramView, items: &[crate::view::Target]) {
+        v.handle(&ViewEvent::Cancel);
+        for t in items {
+            v.select_item(t, true);
+        }
+    }
+
+    #[test]
+    fn junctions_align_too() {
+        use crate::view::Target;
+        let mut v = two_reactions();
+        // Two junctions alone are enough to align.
+        select(
+            &mut v,
+            &[Target::Leg("R4".into()), Target::Leg("R5".into())],
+        );
+        assert!(v.can_arrange(Arrange::Middle));
+        assert!(!v.can_arrange(Arrange::DistributeHorizontally));
+        v.arrange(Arrange::Middle);
+        assert_eq!(junction(&v, "R4"), pt(150.0, -30.0));
+        assert_eq!(junction(&v, "R5"), pt(50.0, -30.0));
+        assert_eq!(at(&v, "S1"), pt(0.0, 0.0), "species weren't selected");
+        assert_eq!(v.undo_description(), Some("Align Middle"));
+
+        // With a species: a junction is a point, a species its box.
+        let mut v = two_reactions();
+        select(
+            &mut v,
+            &[Target::Species("S2".into()), Target::Leg("R5".into())],
+        );
+        v.arrange(Arrange::Left);
+        // The box's left edge is the junction's x, 50; S2 is 120 wide.
+        assert_eq!(junction(&v, "R5"), pt(50.0, -80.0));
+        assert_eq!(at(&v, "S2"), pt(110.0, 40.0));
+
+        // Distribute: S1 (0), R5's junction (50), S2 (300) → the junction to 150.
+        let mut v = two_reactions();
+        select(
+            &mut v,
+            &[
+                Target::Species("S1".into()),
+                Target::Leg("R5".into()),
+                Target::Species("S2".into()),
+            ],
+        );
+        v.arrange(Arrange::DistributeHorizontally);
+        assert_eq!(junction(&v, "R5"), pt(150.0, -80.0));
+    }
+
+    #[test]
+    fn a_linear_junction_stays_on_its_line() {
+        use crate::view::Target;
+        let mut v = two_reactions();
+        let mut m = v.model().clone();
+        m.find_reaction_mut("R4").unwrap().mode = ReactionMode::Linear;
+        v.set_model(m);
+        select(
+            &mut v,
+            &[Target::Leg("R4".into()), Target::Leg("R5".into())],
+        );
+        // R4's junction doesn't count, so one junction isn't enough.
+        assert!(!v.can_arrange(Arrange::Middle));
+    }
+
+    #[test]
+    fn nudging_moves_the_selection_like_a_drag() {
+        use crate::view::Target;
+        let mut v = two_reactions();
+        // S3 and R4's junction (R4's species, S1 and S2, aren't selected).
+        select(
+            &mut v,
+            &[Target::Species("S3".into()), Target::Leg("R4".into())],
+        );
+        v.nudge(pt(1.0, 0.0));
+        assert_eq!(at(&v, "S3"), pt(101.0, -30.0));
+        assert_eq!(junction(&v, "R4"), pt(151.0, 20.0));
+        assert_eq!(at(&v, "S1"), pt(0.0, 0.0));
+        // R5's junction stays: only one of its species moved.
+        assert_eq!(junction(&v, "R5"), pt(50.0, -80.0));
+
+        // A run of nudges is one undo step…
+        v.nudge(pt(0.0, 10.0));
+        v.nudge(pt(0.0, 10.0));
+        assert_eq!(at(&v, "S3"), pt(101.0, -10.0));
+        assert_eq!(v.undo_description(), Some("Nudge"));
+        v.undo();
+        assert_eq!(at(&v, "S3"), pt(100.0, -30.0));
+        assert_eq!(junction(&v, "R4"), pt(150.0, 20.0));
+        assert!(!v.can_undo());
+
+        // …until the selection changes.
+        select(&mut v, &[Target::Species("S3".into())]);
+        v.nudge(pt(1.0, 0.0));
+        select(&mut v, &[Target::Species("S1".into())]);
+        v.nudge(pt(1.0, 0.0));
+        v.undo();
+        assert_eq!(at(&v, "S1"), pt(0.0, 0.0));
+        assert_eq!(
+            at(&v, "S3"),
+            pt(101.0, -30.0),
+            "the first run is its own step"
+        );
+    }
+
+    #[test]
+    fn nudging_keeps_stored_handles_and_locked_species() {
+        use crate::view::Target;
+        let mut v = two_reactions();
+        let mut m = v.model().clone();
+        let r = m.find_reaction_mut("R4").unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.reactants[0].ctrl1 = pt(30.0, -20.0);
+        r.reactants[0].ctrl2 = pt(120.0, 20.0);
+        r.reactants[0].ctrl_pts_set = true;
+        m.find_species_mut("S3").unwrap().locked = true;
+        v.set_model(m);
+        select(
+            &mut v,
+            &[Target::Species("S1".into()), Target::Species("S3".into())],
+        );
+        v.nudge(pt(10.0, 0.0));
+        let p = &v.model().find_reaction("R4").unwrap().reactants[0];
+        // The species-side handle goes with S1; the other stays, still stored.
+        assert!(p.ctrl_pts_set);
+        assert_eq!((p.ctrl1, p.ctrl2), (pt(40.0, -20.0), pt(120.0, 20.0)));
+        assert_eq!(at(&v, "S3"), pt(100.0, -30.0), "locked");
+
+        // Nothing selected: nothing happens.
+        v.handle(&ViewEvent::Cancel);
+        let before = v.model().clone();
+        assert!(!v.nudge(pt(1.0, 0.0)).model_changed);
+        assert_eq!(v.model(), &before);
     }
 
     #[test]

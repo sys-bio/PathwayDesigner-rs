@@ -29,6 +29,9 @@ const REDO: KeyboardShortcut =
 /// Ctrl+Y, also accepted for Redo (S §9.1).
 const REDO_Y: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Y);
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
+/// How far an arrow key nudges the selection, in diagram units; with Shift.
+const NUDGE_STEP: f64 = 1.0;
+const NUDGE_STEP_SHIFT: f64 = 10.0;
 const NEW: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
 const OPEN: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
 const SAVE_AS: KeyboardShortcut =
@@ -103,6 +106,8 @@ pub struct PathwayApp {
     pub(crate) last_title: String,
     /// Problems from the last operation, shown in the status bar.
     pub(crate) warnings: Vec<String>,
+    /// Problems and notes about an SBML file being saved, shown once it is.
+    pub(crate) export_messages: Vec<String>,
     /// What the last operation did, shown in the status bar.
     pub(crate) notice: Option<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
@@ -145,6 +150,7 @@ impl PathwayApp {
             allow_close: false,
             last_title: String::new(),
             warnings: Vec::new(),
+            export_messages: Vec::new(),
             notice: None,
             fit_pending: false,
             canvas_centre: Pt::ZERO,
@@ -165,6 +171,12 @@ impl PathwayApp {
             app.dialog = Some(Dialog::Recover(a));
         }
         app
+    }
+
+    /// Starts an auto-layout with the toolbar's settings.
+    pub(crate) fn start_layout(&mut self) {
+        self.layout_iterations = LAYOUT_START_ITERATIONS;
+        self.view.start_layout(self.layout_params, clock_seed());
     }
 
     fn ask_rename(&mut self, id: &str) {
@@ -254,6 +266,31 @@ impl PathwayApp {
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             self.view.handle(&ViewEvent::Cancel);
         }
+        // Arrow keys nudge the selection. (A focused widget, such as a row of
+        // the model tree, keeps them: shortcuts don't run while one has focus.)
+        {
+            let delta = ctx.input_mut(|i| {
+                let mut d = Pt::ZERO;
+                for (key, dir) in [
+                    (Key::ArrowLeft, pt(-1.0, 0.0)),
+                    (Key::ArrowRight, pt(1.0, 0.0)),
+                    (Key::ArrowUp, pt(0.0, -1.0)),
+                    (Key::ArrowDown, pt(0.0, 1.0)),
+                ] {
+                    // Shift first: a plain pattern also matches the key with Shift.
+                    while i.consume_key(Modifiers::SHIFT, key) {
+                        d += dir * NUDGE_STEP_SHIFT;
+                    }
+                    while i.consume_key(Modifiers::NONE, key) {
+                        d += dir * NUDGE_STEP;
+                    }
+                }
+                d
+            });
+            if delta != Pt::ZERO {
+                self.view.nudge(delta);
+            }
+        }
     }
 
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
@@ -302,8 +339,15 @@ impl PathwayApp {
                     ui.close();
                 }
                 ui.separator();
-                ui.add_enabled(false, egui::Button::new("Save to SBML…"))
-                    .on_disabled_hover_text("Arrives with SBML support (milestone R9)");
+                if item(ui, "Import SBML…", None) {
+                    self.files
+                        .open(&self.ctx, Purpose::ImportSbml, Filter::Sbml);
+                    ui.close();
+                }
+                if item(ui, "Save to SBML…", None) {
+                    self.export_sbml();
+                    ui.close();
+                }
                 ui.separator();
                 if item(ui, "Preferences…", None) {
                     self.dialog = Some(Dialog::Preferences(self.prefs));
@@ -345,6 +389,14 @@ impl PathwayApp {
                     egui::Button::new("Select All").shortcut_text(ctx.format_shortcut(&SELECT_ALL));
                 if ui.add(all).clicked() {
                     self.view.select_all();
+                    ui.close();
+                }
+                if ui.button("Select All Species").clicked() {
+                    self.view.select_all_species();
+                    ui.close();
+                }
+                if ui.button("Select All Reactions").clicked() {
+                    self.view.select_all_reactions();
                     ui.close();
                 }
             });
@@ -492,8 +544,7 @@ impl PathwayApp {
             .on_hover_text("Force-directed layout; locked nodes stay where they are")
             .clicked()
         {
-            self.layout_iterations = LAYOUT_START_ITERATIONS;
-            self.view.start_layout(self.layout_params, clock_seed());
+            self.start_layout();
         }
         ui.checkbox(&mut self.layout_params.deckard, "Deckard")
             .on_hover_text("Afterwards, shape the Bézier curves with the Deckard & Bergmann pass");
@@ -826,10 +877,7 @@ impl eframe::App for PathwayApp {
                 self.notice = Some("Imported Antimony".to_owned());
                 self.fit_pending = true;
             }
-            Some(PanelAction::LayOut) => {
-                self.layout_iterations = LAYOUT_START_ITERATIONS;
-                self.view.start_layout(self.layout_params, clock_seed());
-            }
+            Some(PanelAction::LayOut) => self.start_layout(),
             None => {}
         }
         let mut output = None;
@@ -874,15 +922,19 @@ mod tests {
         app: PathwayApp,
         frame: eframe::Frame,
         time: f64,
+        /// The last accessibility tree, to find widgets by their label.
+        access: Option<egui::accesskit::TreeUpdate>,
     }
 
     impl Harness {
         fn new() -> Self {
             let cc = eframe::CreationContext::_new_kittest(egui::Context::default());
+            cc.egui_ctx.enable_accesskit();
             let mut h = Harness {
                 app: PathwayApp::new(&cc),
                 frame: eframe::Frame::_new_kittest(),
                 time: 0.0,
+                access: None,
             };
             h.run(vec![]);
             h
@@ -901,6 +953,21 @@ mod tests {
             let (app, frame) = (&mut self.app, &mut self.frame);
             let mut out = ctx.run_ui(input, |ui| app.ui(ui, frame));
             out.textures_delta.clear();
+            self.access = out.platform_output.accesskit_update.take();
+        }
+
+        /// The centre of the widget labelled `label`, from the accessibility
+        /// tree.
+        fn widget(&self, label: &str) -> Pos2 {
+            let tree = self.access.as_ref().expect("accesskit is on");
+            let node = tree
+                .nodes
+                .iter()
+                .map(|(_, n)| n)
+                .find(|n| n.label() == Some(label))
+                .unwrap_or_else(|| panic!("no widget labelled {label:?}"));
+            let b = node.bounds().expect("laid out");
+            Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
         }
 
         fn pointer(&mut self, pos: Pos2, pressed: Option<bool>) {
@@ -941,6 +1008,86 @@ mod tests {
             let p = self.app.view.world_to_screen(self.centre(id));
             Pos2::new(p.x as f32, p.y as f32)
         }
+    }
+
+    #[test]
+    fn opening_sbml() {
+        let mut h = Harness::new();
+        let start = h.app.view.model().clone();
+        let xml = h.app.view.export_sbml().xml;
+        h.app.perform(Action::OpenText {
+            name: "pathway.xml".into(),
+            text: xml,
+            target: None,
+        });
+        h.run(vec![]);
+        // A new document, with the file's layout.
+        assert_eq!(h.app.doc.name, "pathway.json");
+        assert!(h.app.view.is_modified());
+        assert!(!h.app.view.can_undo());
+        assert!(!h.app.view.is_laying_out());
+        for s in start.species() {
+            let t = h.app.view.model().find_species(&s.id).unwrap();
+            assert!(s.center.distance(t.center) < 1e-6, "{}", s.id);
+        }
+
+        // Without a layout, it is laid out at once.
+        let core_only = r#"<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+          <model><listOfCompartments><compartment id="c" constant="true"/></listOfCompartments>
+          <listOfSpecies>
+            <species id="A" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+            <species id="B" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+          </listOfSpecies>
+          <listOfReactions><reaction id="J" reversible="false">
+            <listOfReactants><speciesReference species="A" constant="true"/></listOfReactants>
+            <listOfProducts><speciesReference species="B" constant="true"/></listOfProducts>
+          </reaction></listOfReactions></model></sbml>"#;
+        h.app.perform(Action::OpenText {
+            name: "core.xml".into(),
+            text: core_only.into(),
+            target: None,
+        });
+        assert!(h.app.view.is_laying_out());
+
+        // A file that isn't SBML leaves the diagram alone.
+        let before = h.app.view.model().species().len();
+        h.app.perform(Action::OpenText {
+            name: "broken.xml".into(),
+            text: "<sbml".into(),
+            target: None,
+        });
+        assert_eq!(h.app.view.model().species().len(), before);
+        assert!(h.app.warnings[0].contains("couldn't be read as SBML"));
+    }
+
+    #[test]
+    fn arrow_keys_nudge_the_selection() {
+        let mut h = Harness::new();
+        h.app.perform(Action::New);
+        h.run(vec![]);
+        h.app.view.set_tool(Tool::AddSpecies);
+        h.click(Pos2::new(400.0, 400.0));
+        h.key(Key::Escape, Modifiers::NONE);
+        // Long enough after the last click not to make a double-click, which
+        // would open Rename.
+        h.time += 1.0;
+        h.click(h.on_screen("S1"));
+        assert!(h.app.dialog.is_none());
+        let start = h.centre("S1");
+        h.key(Key::ArrowRight, Modifiers::NONE);
+        h.key(Key::ArrowDown, Modifiers::SHIFT);
+        assert_eq!(h.centre("S1") - start, pt(1.0, 10.0));
+        // One undo step for the run.
+        h.app.view.undo();
+        assert_eq!(h.centre("S1"), start);
+        // With a row of the model tree focused, the keys are the tree's.
+        h.time += 1.0;
+        h.click(h.widget("S1"));
+        assert!(h.app.ctx.memory(|m| m.focused().is_some()));
+        assert_eq!(h.app.view.selection().0, ["S1"]);
+        let at = h.centre("S1");
+        h.key(Key::ArrowRight, Modifiers::NONE);
+        assert_eq!(h.centre("S1"), at);
     }
 
     #[test]
