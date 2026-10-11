@@ -28,6 +28,12 @@ const REDO: KeyboardShortcut =
     KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::Z);
 /// Ctrl+Y, also accepted for Redo (S §9.1).
 const REDO_Y: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Y);
+/// The licences of everything the app is built from (SPEC-Rust §8.5). The web
+/// app ships the file next to itself; the desktop app links to the published one.
+#[cfg(target_arch = "wasm32")]
+const THIRD_PARTY_PAGE: &str = "THIRD-PARTY.html";
+#[cfg(not(target_arch = "wasm32"))]
+const THIRD_PARTY_PAGE: &str = "https://sys-bio.github.io/PathwayDesigner-rs/THIRD-PARTY.html";
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
 /// How far an arrow key nudges the selection, in diagram units; with Shift.
 const NUDGE_STEP: f64 = 1.0;
@@ -116,6 +122,9 @@ pub struct PathwayApp {
     pub(crate) notice: Option<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
     pub(crate) fit_pending: bool,
+    /// The canvas the last zoom to fit was for, while the fit is kept up to
+    /// date with the canvas's size (until the user does anything).
+    fit: Option<egui::Rect>,
     /// The canvas's centre on screen last frame, for centring things.
     canvas_centre: Pt,
     tree: crate::tree::TreeState,
@@ -158,6 +167,7 @@ impl PathwayApp {
             export_settings: crate::export::ExportSettings::default(),
             notice: None,
             fit_pending: false,
+            fit: None,
             canvas_centre: Pt::ZERO,
             tree: crate::tree::TreeState::default(),
             layout_params: LayoutParams::default(),
@@ -176,6 +186,46 @@ impl PathwayApp {
             app.dialog = Some(Dialog::Recover(a));
         }
         app
+    }
+
+    /// Zooms to fit when asked to (at startup, and after opening or
+    /// importing). The canvas may not have its final size yet: in a browser
+    /// tab it can get it well after the first frames. So until the user does
+    /// anything (presses a button, scrolls, zooms, types), the fit is done
+    /// again whenever the canvas changes size.
+    fn fit_to_canvas(&mut self, ui: &egui::Ui) {
+        let rect = ui.available_rect_before_wrap();
+        if std::mem::take(&mut self.fit_pending) {
+            self.fit = Some(egui::Rect::NOTHING);
+        }
+        let Some(fitted) = self.fit else {
+            return;
+        };
+        let touched = ui.input(|i| {
+            i.events.iter().any(|e| {
+                matches!(
+                    e,
+                    egui::Event::PointerButton { pressed: true, .. }
+                        | egui::Event::MouseWheel { .. }
+                        | egui::Event::Zoom(_)
+                        | egui::Event::Key { pressed: true, .. }
+                        | egui::Event::Text(_)
+                        | egui::Event::Touch { .. }
+                )
+            })
+        });
+        if touched {
+            self.fit = None;
+            return;
+        }
+        if rect != fitted && rect.width() > 0.0 && rect.height() > 0.0 {
+            self.view.zoom_to_fit(
+                pt(f64::from(rect.min.x), f64::from(rect.min.y)),
+                f64::from(rect.width()),
+                f64::from(rect.height()),
+            );
+            self.fit = Some(rect);
+        }
     }
 
     /// Starts an auto-layout with the toolbar's settings.
@@ -835,6 +885,13 @@ impl PathwayApp {
                     ));
                     ui.label("A drawing tool for biochemical reaction networks.");
                     ui.hyperlink_to("Source code and documentation", HOME_PAGE);
+                    ui.add(
+                        egui::Hyperlink::from_label_and_url(
+                            "Third-party licences",
+                            THIRD_PARTY_PAGE,
+                        )
+                        .open_in_new_tab(true),
+                    );
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new(
@@ -917,15 +974,7 @@ impl eframe::App for PathwayApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| {
-                if self.fit_pending {
-                    let r = ui.available_rect_before_wrap();
-                    self.view.zoom_to_fit(
-                        pt(f64::from(r.min.x), f64::from(r.min.y)),
-                        f64::from(r.width()),
-                        f64::from(r.height()),
-                    );
-                    self.fit_pending = false;
-                }
+                self.fit_to_canvas(ui);
                 output = Some(canvas::show(ui, &mut self.view, &mut self.canvas));
             });
         if let Some(out) = output {
@@ -957,6 +1006,8 @@ mod tests {
         time: f64,
         /// The last accessibility tree, to find widgets by their label.
         access: Option<egui::accesskit::TreeUpdate>,
+        /// The window's size.
+        size: Vec2,
     }
 
     impl Harness {
@@ -968,6 +1019,7 @@ mod tests {
                 frame: eframe::Frame::_new_kittest(),
                 time: 0.0,
                 access: None,
+                size: egui::vec2(1400.0, 900.0),
             };
             h.run(vec![]);
             h
@@ -977,7 +1029,7 @@ mod tests {
         fn run(&mut self, events: Vec<Event>) {
             self.time += 0.05;
             let input = RawInput {
-                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(1400.0, 900.0))),
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
                 time: Some(self.time),
                 events,
                 ..Default::default()
@@ -1121,6 +1173,35 @@ mod tests {
         let at = h.centre("S1");
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(h.centre("S1"), at);
+    }
+
+    #[test]
+    fn the_startup_fit_follows_the_canvas_until_touched() {
+        let cc = eframe::CreationContext::_new_kittest(egui::Context::default());
+        let mut h = Harness {
+            app: PathwayApp::new(&cc),
+            frame: eframe::Frame::_new_kittest(),
+            time: 0.0,
+            access: None,
+            size: egui::vec2(1400.0, 900.0),
+        };
+        // The first frames see a small canvas, as a new browser tab can.
+        h.size = egui::vec2(300.0, 150.0);
+        h.run(vec![]);
+        let small = h.app.view.zoom();
+        h.size = egui::vec2(1400.0, 900.0);
+        h.run(vec![]);
+        let big = h.app.view.zoom();
+        assert!(
+            big > small * 2.0,
+            "fitted again for the real canvas: {small} -> {big}"
+        );
+        // Once the user has done something, a resize leaves the view alone.
+        h.pointer(Pos2::new(700.0, 850.0), Some(true));
+        h.pointer(Pos2::new(700.0, 850.0), Some(false));
+        h.size = egui::vec2(1000.0, 700.0);
+        h.run(vec![]);
+        assert_eq!(h.app.view.zoom(), big);
     }
 
     #[test]

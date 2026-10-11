@@ -1,6 +1,7 @@
 # CI and deployment (SPEC-Rust §14.5).
 # Every push: format, lints, licences, native tests, wasm32 check; and
-# sbml-io checked against python-libsbml; PDF output checked with pypdfium2.
+# sbml-io checked against python-libsbml; PDF output checked with pypdfium2;
+# the production build checked in headless Chromium.
 # On main: build the web app with Trunk and publish it to GitHub Pages.
 # One-time setup on GitHub: Settings → Pages → Source: "GitHub Actions".
 name: CI
@@ -46,6 +47,10 @@ jobs:
 
       - name: Licences and advisories
         uses: EmbarkStudios/cargo-deny-action@v2
+
+      # The licences page the app ships must match the dependencies (§8.5).
+      - name: THIRD-PARTY.html is up to date
+        run: python3 scripts/third_party.py --check
 
       # Native tests keep the desktop version possible (SPEC-Rust §14.5).
       - name: Tests
@@ -122,8 +127,42 @@ jobs:
           cargo run -q -p pd-export --release --example export_models -- exported
           python crates/pd-export/tests/scripts/compare_pdf.py exported
 
+  # The production build in a real browser (SPEC-Rust §12, §14.2): served from
+  # the sub-path, it starts without errors, the service worker takes over and
+  # the app starts offline, and the new-version banner works.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust with the WebAssembly target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Trunk (prebuilt)
+        run: |
+          curl -sSL "https://github.com/trunk-rs/trunk/releases/download/${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz"             | tar -xz -C /usr/local/bin trunk
+
+      - name: Build for the sub-path
+        run: trunk build --release --public-url /PathwayDesigner/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright with Chromium
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Browser checks
+        run: python crates/pd-app/tests/web_smoke.py dist
+
   pages:
-    needs: check
+    needs: [check, web]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

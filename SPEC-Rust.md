@@ -806,7 +806,13 @@ tested on its own, and they behave the same for both formats.
 Every dependency MUST be under a licence compatible with the project's MIT licence
 (MIT, Apache-2.0, BSD, Zlib, or OFL for the font). Check this in CI with
 `cargo deny check licenses`. The About box and a `THIRD-PARTY` file list the
-dependencies and their licences. These can be generated with `cargo about`.
+dependencies and their licences. `scripts/third_party.py` generates
+`THIRD-PARTY.html` from `cargo metadata`: pd-app's run-time dependencies for the
+browser and the desktop, each crate's own licence files (identical texts listed
+once), standard texts with authors and repository for crates that ship no licence
+file, and the Noto Sans licence. The web app ships the page next to itself and the
+About box links to it. CI fails if it is out of date (`--check`). (`cargo about`
+was the plan; a small script needs no tool to install.)
 
 ---
 
@@ -962,7 +968,7 @@ reference's guard against editing the model by mistake while filling in controls
 | `view` | The interaction state machine, tested without a window using made-up `ViewEvent`s, against every rule in S §6.2–§6.5 |
 | Rendering | Compare images: `SvgRenderer` → resvg → PNG, against stored images for `Models/*.json` |
 | UI | `egui_kittest` for interface tests that run without a window (menus, inspector applying on focus loss, modal dialogs) |
-| Web | Build with trunk and run a short Playwright test against a local server serving the **sub-path** (§14.2): load, open a sample file, draw, save (download). Include Ctrl/Cmd+A, a click on empty canvas, then a drag (§6.4) |
+| Web | `crates/pd-app/tests/web_smoke.py` (CI job `web`; Pages deploys only if it passes): the production build served from the **sub-path** (§14.2) in headless Chromium, which draws the app through WebGL. Checks that it starts without errors, the service worker takes over, it starts again with the network off, the new-version banner appears for a newer published build, and the licences page is there. **Still to add:** open a sample, draw, save (download), and Ctrl/Cmd+A, a click on empty canvas, then a drag (§6.4) |
 
 **Native tests can't see the browser.** `pd-app`'s whole-app test drives the
 real app through egui with made-up input (New, add species, Ctrl+A, clear,
@@ -1040,11 +1046,24 @@ running natively in CI (§14.5). The rest of this section applies from D1.
     in a link goes in the `#` part of the URL.
   - Limits: about 1 GB per repository, 100 MB per file, and about 100 GB of transfer a
     month.
-- **Offline use:** a service worker (as in the eframe template) caches the app shell
-  and the `.wasm` file. It is registered relative to the base path. The cache name
-  includes the build hash, and old caches are deleted. The page offers a **"new
-  version available — reload"** message, because Pages' own caching headers can't be
-  changed.
+- **Offline use:** a service worker (`crates/pd-app/sw.js`) caches the app. It is
+  registered relative to the base path, so its scope is the base path. Trunk names
+  the `.js` and `.wasm` files after a hash of their contents, so a file with a hashed
+  name never changes and is served from the cache once fetched. The page itself is
+  fetched from the network first, so a reload always gets the newest version when
+  online, and the cached one offline. Each fresh page prunes the cached hashed files
+  it no longer uses. (This replaces the plan of a cache named after the build: the
+  service worker never needs to know the build.)
+- **Zoom to fit at startup:** a browser tab can give the canvas its final size well
+  after the first frames, so a fit done once came out tiny, in the top left corner.
+  After a zoom to fit (startup, Open, import), the fit is done again whenever the
+  canvas changes size, until the user first presses a button, scrolls, zooms or
+  types.
+- **"New version available":** the page compares the build it runs (the hash in its
+  `pathway-designer-<hash>.js`) with the one the published page names: 10 seconds
+  after loading, every 30 minutes, and when the tab comes back into view. If they
+  differ, a banner offers **Reload**. Pages' own caching headers can't be changed,
+  so the page has to ask.
 
 ### 14.3 Size
 
@@ -1114,7 +1133,7 @@ app doesn't have to be usable until D1 (§15.1).
 | **R9** | M9 SBML | Export with Layout, MathML, the python-libsbml CI check. **Also SBML import with Layout import (F-1)**, which comes almost free because the reader shares the writer's structures |
 | **R10** | M10 Graphics output | SVG, PNG via resvg, vector PDF, printing in the browser (§9) |
 | **R11** | M11 Documents and polish | Web file adapters (§10.1), unsaved-change tracking and prompts, autosave and recovery (§10.2), panic handling in the browser (§14.4), AccessKit, the model tree panel |
-| **R12** | M12 Web release | The Pages deployment and service worker (§14.2), the `THIRD-PARTY` file, and the S §17.4 checklist passing in the browser |
+| **R12** | M12 Web release | The Pages deployment and service worker (§14.2), the `THIRD-PARTY` file, and the S §17.4 checklist passing in the browser (`docs/release-checklist.md`) |
 
 ### 15.1 D1 — Desktop release (later)
 
