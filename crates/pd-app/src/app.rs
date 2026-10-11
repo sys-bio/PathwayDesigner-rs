@@ -121,9 +121,10 @@ pub struct PathwayApp {
     /// Recently used files (desktop).
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) recent: crate::recent::Recent,
-    /// The macOS menu bar, with About, Settings and Quit.
+    /// The macOS menu bar, with About, Settings and Quit. Made in `main`,
+    /// because macOS menus must be made on the main thread.
     #[cfg(target_os = "macos")]
-    mac_menu: Option<crate::macos_menu::MacMenu>,
+    pub(crate) mac_menu: Option<crate::macos_menu::MacMenu>,
     /// What the last operation did, shown in the status bar.
     pub(crate) notice: Option<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
@@ -174,7 +175,7 @@ impl PathwayApp {
             #[cfg(not(target_arch = "wasm32"))]
             recent: crate::recent::Recent::load(cc.storage),
             #[cfg(target_os = "macos")]
-            mac_menu: crate::macos_menu::MacMenu::install(&cc.egui_ctx),
+            mac_menu: None,
             notice: None,
             fit_pending: false,
             fit: None,

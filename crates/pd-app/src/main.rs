@@ -46,6 +46,11 @@ fn main() -> eframe::Result {
         options,
         Box::new(move |cc| {
             let mut app = PathwayApp::new(cc);
+            // macOS menus must be made on the main thread, which this is.
+            #[cfg(target_os = "macos")]
+            {
+                app.mac_menu = macos_menu::MacMenu::install(&cc.egui_ctx);
+            }
             if let Some(path) = file {
                 app.open_path(&path);
             }
