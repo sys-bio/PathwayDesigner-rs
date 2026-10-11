@@ -8,6 +8,7 @@
 
 pub mod constants;
 pub mod draw;
+pub mod pdf;
 pub mod svg;
 
 use crate::model::Rgba;

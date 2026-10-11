@@ -13,7 +13,7 @@
 | Language and UI | **Rust**, with **egui** through **eframe** | One code base can build a browser app (WebAssembly) and a native desktop app (Windows, macOS, Linux). |
 | Delivery order | **Browser first, desktop later** | Milestones R0–R12 deliver the browser version. A separate milestone D1 (§15.1) delivers the desktop version from the same code. Until then, the code is kept desktop-ready: CI builds it natively on every push (§14.5). |
 | Antimony and SBML | **Pure Rust**: our own Antimony parser and SBML reader/writer | The same code runs on desktop and in the browser. No C++ toolchain, no FFI and no JavaScript libraries. In exchange, we write and maintain the parsers ourselves (§8). |
-| Graphics export | One SVG writer. **resvg** turns it into PNG and **svg2pdf** turns it into PDF | Vector PDF and SVG on every platform, all in pure Rust (§9). |
+| Graphics export | One drawing pass with an SVG writer and a PDF writer. **resvg** turns the SVG into PNG | Vector PDF and SVG on every platform, all in pure Rust (§9). |
 | File format | **Fully compatible with native JSON v3** (S §11.1), including reading v1 and v2. **From v4 onwards the Rust app owns the format** | The Delphi app is frozen and will not move past v3. Any v3 file opens in either app. New features that need new keys go into v4, which only the Rust app reads (§4.2). |
 | Back end | **None**, on any target | No accounts or server. In the browser, no user data leaves the page. |
 | Web hosting | **GitHub Pages** from this repository, built with **trunk** | Static files only, served from a fixed sub-path, with no custom HTTP headers (§14). |
@@ -75,7 +75,7 @@ PathwayDesigner/                (the repository root is the Cargo workspace, §1
     pd-antimony/                Antimony text ⇄ a plain description of a model. No other
                                 dependencies and nothing about PathwayDesigner, so a complete
                                 Antimony crate can replace it (§8.2)
-    pd-export/                  turns SVG into PNG (resvg) and PDF (svg2pdf). No egui. Builds for wasm32 too
+    pd-export/                  graphics output: SVG to PNG (resvg), and pd-core's SVG and PDF. No egui. Builds for wasm32 too
     pd-app/                     eframe/egui shell: menus, toolbars, inspector, panels,
                                 dialogs, EguiRenderer, platform adapters (§10)
   assets/fonts/                 the one bundled UI and diagram font (§5.4)
@@ -816,10 +816,26 @@ dependencies and their licences. These can be generated with `cargo about`.
 |---|---|
 | **SVG** | `SvgRenderer` draws the content bounds (S §11.6) without anything that depends on the current selection or mouse position (D-21), and writes every label as **outlines** (glyph paths), so the file looks the same in any viewer or editor, on any machine, whether or not the font is installed. Do not refer to the font by name. The reference has no SVG export, so this is new. |
 | **PNG** | SVG → `usvg` → `resvg` → `tiny-skia`, scaled to the chosen DPI (default 150, so a scale of 150/96) |
-| **PDF** | SVG → `svg2pdf`, giving a vector PDF. Page size A4 or Letter, portrait or landscape, with the drawing scaled to fit and centred (S §11.6) |
-| **Print** | No portable printing API exists in Rust. **Desktop (D1):** write the PDF to a temporary file and open it with the system viewer (the `open` crate), and print from there. **Web:** open the PDF in a new tab (the browser's PDF viewer prints), or call `window.print()` on a page that shows only the drawing |
+| **PDF** | `PdfRenderer` (`pd-core::render::pdf`) draws through the same `Renderer` calls as the screen and the SVG, labels as glyph outlines, and writes the PDF itself: one page, paths, fills, strokes and transparency, no fonts. Page Letter (the default) or A4, portrait or landscape, with the drawing scaled to fit inside a half-inch margin and centred (S §11.6); or **Drawing size**, a page exactly the drawing at 96 world units to the inch, for putting into papers |
+| **Print** | No portable printing API exists in Rust. *Print…* asks for the page as for PDF, then opens the PDF where it can be printed. **Web:** in a new tab, where the browser's PDF viewer prints; if the browser blocks the tab, a message suggests allowing pop-ups or using *Export ▸ PDF…*. **Desktop:** written to a temporary file and opened with the system viewer (the `open` crate) |
 
 All of these build for wasm32. On the web the result is offered as a download (§10.1).
+
+**Why not svg2pdf (R10).** svg2pdf was the plan, but its current release (0.13) is
+built on an older usvg (0.45) than the resvg the PNG path uses (0.48), so both
+would be compiled into the web app. The drawing needs only six primitives
+(rounded rectangle, circle, polyline, cubic, polygon, outlined text), so a direct
+PDF writer is about 300 lines with no dependencies, and it shares the drawing
+code with the screen and the SVG.
+
+**Checking the PDF.** Unit tests check the file's structure (the
+cross-reference table, stream lengths, page sizes, fitting). CI writes every
+`Models/*.json` as PDF and PNG (`crates/pd-export/examples/export_models.rs`), and
+`crates/pd-export/tests/scripts/compare_pdf.py` opens each PDF with pypdf and has
+**pypdfium2** (the PDF engine of Chrome) draw it: after a one-pixel blur, which
+evens out the engines' different anti-aliasing, it must match resvg's PNG to
+within 48 levels out of 255. All models match to within 24; leaving out the
+labels makes every model fail (119 or more).
 
 ---
 
@@ -1096,7 +1112,7 @@ app doesn't have to be usable until D1 (§15.1).
 | **R7** | M7 Rate laws and styling | `expr` with the full grammar (D-20), modifier sync, the inspector applying changes on focus loss (§11.2), the colour picker |
 | **R8** | M8 Antimony | The `antimony` parser and export, the Antimony panel with error markers, the transform passes (§8.4), preferences storage (§10.3) |
 | **R9** | M9 SBML | Export with Layout, MathML, the python-libsbml CI check. **Also SBML import with Layout import (F-1)**, which comes almost free because the reader shares the writer's structures |
-| **R10** | M10 Graphics output | SVG, PNG via resvg, vector PDF via svg2pdf, printing in the browser (§9) |
+| **R10** | M10 Graphics output | SVG, PNG via resvg, vector PDF, printing in the browser (§9) |
 | **R11** | M11 Documents and polish | Web file adapters (§10.1), unsaved-change tracking and prompts, autosave and recovery (§10.2), panic handling in the browser (§14.4), AccessKit, the model tree panel |
 | **R12** | M12 Web release | The Pages deployment and service worker (§14.2), the `THIRD-PARTY` file, and the S §17.4 checklist passing in the browser |
 

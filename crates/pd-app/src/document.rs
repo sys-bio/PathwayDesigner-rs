@@ -162,7 +162,7 @@ impl PathwayApp {
             &self.ctx,
             Purpose::Save,
             name,
-            json,
+            json.into_bytes(),
             self.doc.target.clone(),
             ask || self.doc.save_as_only,
         );
@@ -171,8 +171,14 @@ impl PathwayApp {
     pub(crate) fn export_antimony(&mut self) {
         let name = with_extension(&self.doc.name, "ant");
         let text = self.view.export_antimony();
-        self.files
-            .save(&self.ctx, Purpose::ExportAntimony, name, text, None, true);
+        self.files.save(
+            &self.ctx,
+            Purpose::ExportAntimony,
+            name,
+            text.into_bytes(),
+            None,
+            true,
+        );
     }
 
     /// Replaces the diagram with the model in SBML `text`, as one undo step.
@@ -210,7 +216,7 @@ impl PathwayApp {
             &self.ctx,
             Purpose::ExportSbml,
             name,
-            exported.xml,
+            exported.xml.into_bytes(),
             None,
             true,
         );
@@ -265,7 +271,11 @@ impl PathwayApp {
                 name, text, target, ..
             } => self.open_text(&name, &text, target),
             FileEvent::Saved {
-                purpose: Purpose::ExportAntimony,
+                purpose:
+                    Purpose::ExportAntimony
+                    | Purpose::ExportSvg
+                    | Purpose::ExportPng
+                    | Purpose::ExportPdf,
                 name,
                 ..
             } => {

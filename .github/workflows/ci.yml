@@ -1,6 +1,6 @@
 # CI and deployment (SPEC-Rust §14.5).
 # Every push: format, lints, licences, native tests, wasm32 check; and
-# sbml-io checked against python-libsbml.
+# sbml-io checked against python-libsbml; PDF output checked with pypdfium2.
 # On main: build the web app with Trunk and publish it to GitHub Pages.
 # One-time setup on GitHub: Settings → Pages → Source: "GitHub Actions".
 name: CI
@@ -97,6 +97,30 @@ jobs:
         run: |
           cargo run -q -p pd-core --release --example export_sbml -- exported
           python crates/pd-core/tests/scripts/check_sbml.py exported
+
+  # SPEC-Rust §9: every Models/*.json as PDF opens in pypdf with the right
+  # page, and pypdfium2 (Chrome's PDF engine) draws it the same as resvg
+  # draws the PNG.
+  graphics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the PDF tools
+        run: pip install pypdf pypdfium2 pillow numpy
+
+      - name: Export the models and compare PDF with PNG
+        run: |
+          cargo run -q -p pd-export --release --example export_models -- exported
+          python crates/pd-export/tests/scripts/compare_pdf.py exported
 
   pages:
     needs: check

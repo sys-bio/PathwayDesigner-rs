@@ -1202,7 +1202,7 @@ and restores them afterwards.
 | Output | Behaviour |
 |---|---|
 | **PNG** | Scale = DPI/96, default 150 DPI. The image size is the content bounds times the scale. |
-| **PDF** | Vector output on one page, US Letter portrait by default. A4 and landscape SHOULD be offered. The content is scaled to fit the page and centred. |
+| **PDF** | Vector output on one page, US Letter portrait by default. A4 and landscape SHOULD be offered. The content is scaled to fit the page and centred. The Rust version also offers **Drawing size**, a page exactly the size of the drawing. |
 | **Print** | The content is scaled to fit the printer page and centred. A print dialog SHOULD be shown (the reference prints straight to the default printer). |
 
 The drawing used for output MUST be identical to the screen drawing, minus
@@ -1244,7 +1244,7 @@ file name when a file is open).
 
 | Menu | Items |
 |---|---|
-| **File** | New · Open… · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {PNG…, PDF…} · Print · Quit |
+| **File** | New · Open… · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
 | **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Preferences… |
 | **Help** | About (shows the version and build date) |
 

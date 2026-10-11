@@ -64,11 +64,7 @@ fn picker_types(filters: &[(&str, &[&str])]) -> Result<Array, String> {
             .iter()
             .map(|e| JsValue::from_str(&format!(".{e}")))
             .collect();
-        let mime = if exts.contains(&"json") {
-            "application/json"
-        } else {
-            "text/plain"
-        };
+        let mime = mime_type(exts[0]);
         let accept = Object::new();
         Reflect::set(&accept, &mime.into(), &list).map_err(describe)?;
         let kind = Object::new();
@@ -122,21 +118,39 @@ pub async fn pick_save_file(
     }
 }
 
+/// The media type of a file with extension `ext`.
+fn mime_type(ext: &str) -> &'static str {
+    match ext {
+        "json" => "application/json",
+        "png" => "image/png",
+        "pdf" => "application/pdf",
+        "svg" => "image/svg+xml",
+        "xml" | "sbml" => "application/xml",
+        _ => "text/plain",
+    }
+}
+
+/// `contents` as a Blob of the type a file called `name` holds.
+fn blob(name: &str, contents: &[u8]) -> Result<web_sys::Blob, String> {
+    let parts = Array::of1(&js_sys::Uint8Array::from(contents));
+    let options = web_sys::BlobPropertyBag::new();
+    let ext = name.rsplit_once('.').map_or("", |(_, e)| e);
+    options.set_type(mime_type(&ext.to_ascii_lowercase()));
+    web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &options).map_err(describe)
+}
+
 /// Writes `contents` to a picked file, replacing what was there.
-pub async fn write_file(handle: &FileHandle, contents: &str) -> Result<(), String> {
+pub async fn write_file(handle: &FileHandle, contents: &[u8]) -> Result<(), String> {
     let writable = call_async(&handle.0, "createWritable", &[]).await?;
-    call_async(&writable, "write", &[contents.into()]).await?;
+    let data = js_sys::Uint8Array::from(contents);
+    call_async(&writable, "write", &[data.into()]).await?;
     call_async(&writable, "close", &[]).await?;
     Ok(())
 }
 
 /// Offers `contents` as a download called `name`.
-pub fn download(name: &str, contents: &str) -> Result<(), String> {
-    let parts = Array::of1(&JsValue::from_str(contents));
-    let options = web_sys::BlobPropertyBag::new();
-    options.set_type("text/plain;charset=utf-8");
-    let blob =
-        web_sys::Blob::new_with_str_sequence_and_options(&parts, &options).map_err(describe)?;
+pub fn download(name: &str, contents: &[u8]) -> Result<(), String> {
+    let blob = blob(name, contents)?;
     let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(describe)?;
     let document = window().document().ok_or("no document")?;
     let a: web_sys::HtmlAnchorElement = document
@@ -149,6 +163,21 @@ pub fn download(name: &str, contents: &str) -> Result<(), String> {
     a.click();
     let _ = web_sys::Url::revoke_object_url(&url);
     Ok(())
+}
+
+/// Opens a PDF in a new tab, where the browser's viewer can print it
+/// (SPEC-Rust §9). The tab keeps the PDF's address, so it isn't revoked.
+pub fn open_pdf(pdf: &[u8]) -> Result<(), String> {
+    let blob = blob("print.pdf", pdf)?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(describe)?;
+    match window().open_with_url_and_target(&url, "_blank") {
+        Ok(Some(_)) => Ok(()),
+        _ => Err(
+            "The browser blocked the new tab for printing. Allow pop-ups for this \
+                  page, or use Export ▸ PDF… and print the file."
+                .to_owned(),
+        ),
+    }
 }
 
 pub fn set_title(title: &str) {
@@ -219,7 +248,7 @@ pub fn show_crash_page(message: &str) {
     if let (Some(text), Some(button)) = (saved, document.get_element_by_id("pd-recover")) {
         let json = crate::autosave::document_of(&text).unwrap_or(text);
         let click = Closure::<dyn Fn()>::new(move || {
-            let _ = download("recovered.json", &json);
+            let _ = download("recovered.json", json.as_bytes());
         });
         let _ = button.add_event_listener_with_callback("click", click.as_ref().unchecked_ref());
         click.forget();

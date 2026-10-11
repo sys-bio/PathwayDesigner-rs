@@ -87,6 +87,8 @@ pub(crate) enum Dialog {
     About,
     /// The preferences being edited (S §12).
     Preferences(Preferences),
+    /// Options for PNG, PDF or printing (S §11.6).
+    Export(crate::export::ExportKind, crate::export::ExportSettings),
 }
 
 pub struct PathwayApp {
@@ -108,6 +110,8 @@ pub struct PathwayApp {
     pub(crate) warnings: Vec<String>,
     /// Problems and notes about an SBML file being saved, shown once it is.
     pub(crate) export_messages: Vec<String>,
+    /// The graphics output options last used.
+    pub(crate) export_settings: crate::export::ExportSettings,
     /// What the last operation did, shown in the status bar.
     pub(crate) notice: Option<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
@@ -151,6 +155,7 @@ impl PathwayApp {
             last_title: String::new(),
             warnings: Vec::new(),
             export_messages: Vec::new(),
+            export_settings: crate::export::ExportSettings::default(),
             notice: None,
             fit_pending: false,
             canvas_centre: Pt::ZERO,
@@ -346,6 +351,25 @@ impl PathwayApp {
                 }
                 if item(ui, "Save to SBML…", None) {
                     self.export_sbml();
+                    ui.close();
+                }
+                ui.separator();
+                ui.menu_button("Export", |ui| {
+                    if ui.button("SVG…").clicked() {
+                        self.export_svg();
+                        ui.close();
+                    }
+                    if ui.button("PNG…").clicked() {
+                        self.ask_export(crate::export::ExportKind::Png);
+                        ui.close();
+                    }
+                    if ui.button("PDF…").clicked() {
+                        self.ask_export(crate::export::ExportKind::Pdf);
+                        ui.close();
+                    }
+                });
+                if item(ui, "Print…", None) {
+                    self.ask_export(crate::export::ExportKind::Print);
                     ui.close();
                 }
                 ui.separator();
@@ -790,6 +814,15 @@ impl PathwayApp {
                 close |= modal.should_close() || recover || discard;
                 if recover {
                     self.recover(&a);
+                }
+            }
+            Dialog::Export(kind, settings) => {
+                let kind = *kind;
+                let (done, go) = crate::export::dialog(ctx, kind, settings, self.view.model());
+                let settings = *settings;
+                close |= done;
+                if go {
+                    self.export(kind, settings);
                 }
             }
             Dialog::About => {

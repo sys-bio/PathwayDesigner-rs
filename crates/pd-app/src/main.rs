@@ -6,6 +6,7 @@ mod app;
 mod autosave;
 mod canvas;
 mod document;
+mod export;
 mod files;
 mod fonts;
 mod inspector;

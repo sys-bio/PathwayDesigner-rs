@@ -54,6 +54,9 @@ pub enum Filter {
     Json,
     Antimony,
     Sbml,
+    Svg,
+    Png,
+    Pdf,
 }
 
 impl Filter {
@@ -71,6 +74,9 @@ impl Filter {
             Filter::Json => &[("PathwayDesigner diagram", &["json"])],
             Filter::Antimony => &[("Antimony", &["ant", "txt"])],
             Filter::Sbml => &[("SBML", &["xml", "sbml"])],
+            Filter::Svg => &[("SVG image", &["svg"])],
+            Filter::Png => &[("PNG image", &["png"])],
+            Filter::Pdf => &[("PDF document", &["pdf"])],
         }
     }
 }
@@ -100,6 +106,10 @@ pub enum Purpose {
     ImportSbml,
     /// Write SBML.
     ExportSbml,
+    /// Write the drawing as SVG, PNG or PDF.
+    ExportSvg,
+    ExportPng,
+    ExportPdf,
     /// A file dropped on the window: open it, after the unsaved-changes prompt.
     Drop,
 }
@@ -218,7 +228,7 @@ impl Files {
         });
     }
 
-    /// Saves `contents` as `name`. With a `target` and `ask` false, writes
+    /// Saves `contents` (text or binary) as `name`. With a `target` and `ask` false, writes
     /// straight back to it; otherwise asks where (or downloads, in browsers
     /// without the File System Access API).
     pub fn save(
@@ -226,7 +236,7 @@ impl Files {
         ctx: &egui::Context,
         purpose: Purpose,
         name: String,
-        contents: String,
+        contents: Vec<u8>,
         target: Option<SaveTarget>,
         ask: bool,
     ) {
@@ -239,6 +249,9 @@ impl Files {
         let filter = match purpose {
             Purpose::ExportAntimony => Filter::Antimony,
             Purpose::ExportSbml => Filter::Sbml,
+            Purpose::ExportSvg => Filter::Svg,
+            Purpose::ExportPng => Filter::Png,
+            Purpose::ExportPdf => Filter::Pdf,
             _ => Filter::Json,
         };
         spawn(async move {
@@ -333,7 +346,7 @@ fn pollster_block_on<F: std::future::Future>(f: F) -> F::Output {
 async fn platform_save(
     purpose: Purpose,
     name: String,
-    contents: String,
+    contents: Vec<u8>,
     target: Option<SaveTarget>,
     ask: bool,
     filter: Filter,
@@ -367,7 +380,7 @@ async fn platform_save(
 async fn platform_save(
     purpose: Purpose,
     name: String,
-    contents: String,
+    contents: Vec<u8>,
     target: Option<SaveTarget>,
     ask: bool,
     filter: Filter,

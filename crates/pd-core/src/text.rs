@@ -80,16 +80,28 @@ fn shape(text: &str) -> GlyphBuffer {
     shaper.shape(buffer, harfrust::ShapeOptions::new())
 }
 
-/// One line of `text` at `size` as SVG path data (glyph outlines), with the left
-/// end of its baseline at (`x`, `baseline`) and y pointing down. Used where the
-/// text must look the same without the font installed: SVG export draws labels
-/// as outlines (SPEC-Rust §9). Shaped exactly as [`text_width`] measures it.
-pub fn text_path(text: &str, size: f64, x: f64, baseline: f64) -> String {
+/// Receives glyph outlines in drawing coordinates (y pointing down), from
+/// [`text_outline`]. SVG and PDF output each turn them into their own path
+/// syntax.
+pub trait PathSink {
+    fn move_to(&mut self, x: f64, y: f64);
+    fn line_to(&mut self, x: f64, y: f64);
+    fn quad_to(&mut self, cx: f64, cy: f64, x: f64, y: f64);
+    fn cubic_to(&mut self, c1x: f64, c1y: f64, c2x: f64, c2y: f64, x: f64, y: f64);
+    fn close(&mut self);
+}
+
+/// The glyph outlines of one line of `text` at `size`, with the left end of
+/// its baseline at (`x`, `baseline`) and y pointing down. Used where the text
+/// must look the same without the font installed: SVG and PDF output draw
+/// labels as outlines (SPEC-Rust §9). Shaped exactly as [`text_width`]
+/// measures it.
+pub fn text_outline(text: &str, size: f64, x: f64, baseline: f64, sink: &mut dyn PathSink) {
     let face = face();
     let k = units_to(size);
     let outlines = face.font.outline_glyphs();
-    let mut pen = SvgPen {
-        data: String::new(),
+    let mut pen = Placed {
+        sink,
         k,
         x0: 0.0,
         y0: baseline,
@@ -106,55 +118,100 @@ pub fn text_path(text: &str, size: f64, x: f64, baseline: f64) -> String {
         }
         pen_x += f64::from(pos.x_advance) * k;
     }
-    pen.data
 }
 
-/// Writes outline commands in font units as SVG path data, scaled by `k` and
-/// placed at (`x0`, `y0`) with y flipped.
-struct SvgPen {
-    data: String,
+/// One line of `text` as SVG path data: [`text_outline`] in SVG syntax.
+pub fn text_path(text: &str, size: f64, x: f64, baseline: f64) -> String {
+    let mut svg = SvgPath(String::new());
+    text_outline(text, size, x, baseline, &mut svg);
+    svg.0
+}
+
+/// Passes outline commands in font units on to a [`PathSink`], scaled by `k`
+/// and placed at (`x0`, `y0`) with y flipped.
+struct Placed<'a> {
+    sink: &'a mut dyn PathSink,
     k: f64,
     x0: f64,
     y0: f64,
 }
 
-impl SvgPen {
-    fn point(&mut self, x: f32, y: f32) {
-        let px = self.x0 + f64::from(x) * self.k;
-        let py = self.y0 - f64::from(y) * self.k;
-        let _ = write!(self.data, "{} {}", fmt_num(px), fmt_num(py));
+impl Placed<'_> {
+    fn at(&self, x: f32, y: f32) -> (f64, f64) {
+        (
+            self.x0 + f64::from(x) * self.k,
+            self.y0 - f64::from(y) * self.k,
+        )
     }
 }
 
-impl OutlinePen for SvgPen {
+impl OutlinePen for Placed<'_> {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.data.push('M');
-        self.point(x, y);
+        let (x, y) = self.at(x, y);
+        self.sink.move_to(x, y);
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.data.push('L');
-        self.point(x, y);
+        let (x, y) = self.at(x, y);
+        self.sink.line_to(x, y);
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.data.push('Q');
-        self.point(cx0, cy0);
-        self.data.push(' ');
-        self.point(x, y);
+        let (cx, cy) = self.at(cx0, cy0);
+        let (x, y) = self.at(x, y);
+        self.sink.quad_to(cx, cy, x, y);
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.data.push('C');
-        self.point(cx0, cy0);
-        self.data.push(' ');
-        self.point(cx1, cy1);
-        self.data.push(' ');
+        let (c1x, c1y) = self.at(cx0, cy0);
+        let (c2x, c2y) = self.at(cx1, cy1);
+        let (x, y) = self.at(x, y);
+        self.sink.cubic_to(c1x, c1y, c2x, c2y, x, y);
+    }
+
+    fn close(&mut self) {
+        self.sink.close();
+    }
+}
+
+/// SVG path data.
+struct SvgPath(String);
+
+impl SvgPath {
+    fn point(&mut self, x: f64, y: f64) {
+        let _ = write!(self.0, "{} {}", fmt_num(x), fmt_num(y));
+    }
+}
+
+impl PathSink for SvgPath {
+    fn move_to(&mut self, x: f64, y: f64) {
+        self.0.push('M');
+        self.point(x, y);
+    }
+
+    fn line_to(&mut self, x: f64, y: f64) {
+        self.0.push('L');
+        self.point(x, y);
+    }
+
+    fn quad_to(&mut self, cx: f64, cy: f64, x: f64, y: f64) {
+        self.0.push('Q');
+        self.point(cx, cy);
+        self.0.push(' ');
+        self.point(x, y);
+    }
+
+    fn cubic_to(&mut self, c1x: f64, c1y: f64, c2x: f64, c2y: f64, x: f64, y: f64) {
+        self.0.push('C');
+        self.point(c1x, c1y);
+        self.0.push(' ');
+        self.point(c2x, c2y);
+        self.0.push(' ');
         self.point(x, y);
     }
 
     fn close(&mut self) {
-        self.data.push('Z');
+        self.0.push('Z');
     }
 }
 

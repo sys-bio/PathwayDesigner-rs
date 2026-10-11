@@ -1,12 +1,13 @@
 //! PathwayDesigner graphics export (SPEC-Rust §9).
 //!
-//! Turns the SVG written by `pd-core`'s `SvgRenderer` into PNG through resvg.
-//! Vector PDF through svg2pdf follows in milestone R10. Pure Rust, no egui,
-//! builds for wasm32.
+//! Turns the SVG written by `pd-core`'s `SvgRenderer` into PNG through resvg,
+//! and offers `pd-core`'s vector PDF and SVG next to it, so the app finds all
+//! graphics output in one place. Pure Rust, no egui, builds for wasm32.
 
 use pd_core::model::Model;
 use pd_core::render::constants::PNG_DEFAULT_DPI;
-use pd_core::render::svg::model_to_svg;
+pub use pd_core::render::pdf::{PageSize, model_to_pdf};
+pub use pd_core::render::svg::model_to_svg;
 pub use resvg::tiny_skia::Pixmap;
 
 /// SVG user units per inch: CSS pixels.
