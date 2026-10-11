@@ -118,6 +118,9 @@ pub struct PathwayApp {
     pub(crate) export_messages: Vec<String>,
     /// The graphics output options last used.
     pub(crate) export_settings: crate::export::ExportSettings,
+    /// Recently used files (desktop).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) recent: crate::recent::Recent,
     /// What the last operation did, shown in the status bar.
     pub(crate) notice: Option<String>,
     /// Zoom to fit on the next frame, once the canvas size is known.
@@ -165,6 +168,8 @@ impl PathwayApp {
             warnings: Vec::new(),
             export_messages: Vec::new(),
             export_settings: crate::export::ExportSettings::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            recent: crate::recent::Recent::load(cc.storage),
             notice: None,
             fit_pending: false,
             fit: None,
@@ -226,6 +231,38 @@ impl PathwayApp {
             );
             self.fit = Some(rect);
         }
+    }
+
+    /// File ▸ Open Recent (desktop).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn recent_menu(&mut self, ui: &mut egui::Ui) {
+        ui.add_enabled_ui(!self.recent.files.is_empty(), |ui| {
+            ui.menu_button("Open Recent", |ui| {
+                let mut chosen = None;
+                for path in &self.recent.files {
+                    let name = path.file_name().map_or_else(
+                        || path.display().to_string(),
+                        |n| n.to_string_lossy().into_owned(),
+                    );
+                    if ui
+                        .button(name)
+                        .on_hover_text(path.display().to_string())
+                        .clicked()
+                    {
+                        chosen = Some(path.clone());
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                if ui.button("Clear the list").clicked() {
+                    self.recent.files.clear();
+                    ui.close();
+                }
+                if let Some(path) = chosen {
+                    self.request(Action::OpenPath(path));
+                }
+            });
+        });
     }
 
     /// Starts an auto-layout with the toolbar's settings.
@@ -367,6 +404,8 @@ impl PathwayApp {
                     self.request(Action::Open);
                     ui.close();
                 }
+                #[cfg(not(target_arch = "wasm32"))]
+                self.recent_menu(ui);
                 ui.menu_button("Open sample", |ui| {
                     for (name, _) in SAMPLES {
                         if ui.button(*name).clicked() {
@@ -925,6 +964,8 @@ impl eframe::App for PathwayApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.prefs.save(storage);
         self.autosave(storage);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.recent.save(storage);
     }
 
     fn auto_save_interval(&self) -> std::time::Duration {
@@ -1202,6 +1243,40 @@ mod tests {
         h.size = egui::vec2(1000.0, 700.0);
         h.run(vec![]);
         assert_eq!(h.app.view.zoom(), big);
+    }
+
+    #[test]
+    fn opening_files_by_path_and_the_recent_list() {
+        let mut h = Harness::new();
+        let dir = std::env::temp_dir().join(format!("pd-recent-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("first.json");
+        let b = dir.join("second.ant");
+        std::fs::write(&a, crate::samples::SAMPLES[0].1).unwrap();
+        std::fs::write(
+            &b,
+            "A -> B; k*A
+k = 0.1",
+        )
+        .unwrap();
+
+        h.app.open_path(&a);
+        assert_eq!(h.app.doc.name, "first.json");
+        h.app.open_path(&b);
+        assert_eq!(h.app.doc.name, "second.json");
+        assert_eq!(h.app.recent.files, [b.clone(), a.clone()]);
+
+        // Reopening from the list moves it to the top.
+        h.app.perform(Action::OpenPath(a.clone()));
+        assert_eq!(h.app.recent.files, [a.clone(), b.clone()]);
+
+        // A file that is gone gives a warning and leaves the list.
+        std::fs::remove_file(&b).unwrap();
+        h.app.perform(Action::OpenPath(b.clone()));
+        assert!(h.app.warnings[0].contains("couldn't be opened"));
+        assert_eq!(h.app.recent.files, std::slice::from_ref(&a));
+        assert_eq!(h.app.doc.name, "first.json", "the diagram is unchanged");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

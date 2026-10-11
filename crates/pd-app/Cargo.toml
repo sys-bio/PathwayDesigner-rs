@@ -42,3 +42,26 @@ web-sys = { version = "0.3", features = [
     "Url",
     "Window",
 ] }
+
+# Desktop packages (SPEC-Rust §14.1), made by cargo-packager:
+#   cargo packager --release -p pd-app --formats nsis   (Windows installer)
+#   cargo packager --release -p pd-app --formats app,dmg (macOS)
+#   cargo packager --release -p pd-app --formats deb,appimage (Linux)
+# CI builds them on each platform for a version tag (.github/workflows/release.yml).
+[package.metadata.packager]
+product-name = "PathwayDesigner"
+identifier = "org.sys-bio.pathwaydesigner"
+description = "A drawing tool for biochemical reaction networks"
+long-description = "Draw species and reactions, give them rate laws, lay the network out automatically, and exchange it as Antimony or SBML with layout."
+homepage = "https://github.com/sys-bio/PathwayDesigner-rs"
+authors = ["Herbert M. Sauro"]
+publisher = "sys-bio"
+copyright = "Copyright (c) 2026 Herbert M. Sauro"
+license-file = "../../LICENSE"
+category = "Education"
+before-packaging-command = "cargo build --release -p pd-app"
+binaries-dir = "../../target/release"
+out-dir = "../../target/packages"
+binaries = [{ path = "pathway-designer", main = true }]
+icons = ["../../assets/icon/icon-32.png", "../../assets/icon/icon-128.png", "../../assets/icon/icon-256.png", "../../assets/icon/icon-512.png", "../../assets/icon/icon.ico"]
+resources = ["../../THIRD-PARTY.html"]

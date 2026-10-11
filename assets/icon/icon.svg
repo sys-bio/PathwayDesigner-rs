@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- PathwayDesigner's icon: two species joined by a reaction, with its
+       junction, in the app's own colours. Rendered to PNG and ICO by
+       the make_icons example of pd-export. -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="#F8F9FA" stroke="#C8CDD2" stroke-width="8"/>
+  <!-- The reaction: from the top species, through the junction, to the bottom one. -->
+  <path d="M168 202 C 168 262, 256 240, 256 286 C 256 330, 344 300, 344 330"
+        fill="none" stroke="#444444" stroke-width="16" stroke-linecap="round"/>
+  <polygon points="344,374 312,322 376,322" fill="#444444"/>
+  <circle cx="256" cy="286" r="26" fill="#FF8800" stroke="#B35F00" stroke-width="6"/>
+  <!-- Species. -->
+  <rect x="72" y="92" width="192" height="104" rx="28" fill="#EEF6FF" stroke="#4A7FCB" stroke-width="12"/>
+  <rect x="248" y="380" width="192" height="104" rx="28" fill="#EEF6FF" stroke="#4A7FCB" stroke-width="12"/>
+</svg>

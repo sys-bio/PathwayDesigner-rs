@@ -47,6 +47,9 @@ pub enum Action {
         text: String,
         target: Option<SaveTarget>,
     },
+    /// A file from File ▸ Open Recent, or the command line (desktop).
+    #[cfg(not(target_arch = "wasm32"))]
+    OpenPath(std::path::PathBuf),
     Quit,
 }
 
@@ -83,7 +86,11 @@ impl PathwayApp {
                     self.open_text(&format!("{name}.json"), text, None);
                 }
             }
-            Action::OpenText { name, text, target } => self.open_text(&name, &text, target),
+            Action::OpenText { name, text, target } => {
+                self.open_text(&name, &text, target);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Action::OpenPath(path) => self.open_path(&path),
             Action::Quit => {
                 self.allow_close = true;
                 self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -91,10 +98,33 @@ impl PathwayApp {
         }
     }
 
+    /// Opens a file from its path, as a new document (desktop). A file that
+    /// can no longer be read is taken off the recent list.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn open_path(&mut self, path: &std::path::Path) {
+        let name = path.file_name().map_or_else(
+            || path.display().to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
+        match std::fs::read_to_string(path) {
+            Ok(text) => {
+                self.open_text(&name, &text, Some(SaveTarget::Path(path.to_path_buf())));
+            }
+            Err(e) => {
+                self.recent.remove(path);
+                self.warnings = vec![format!("{} couldn't be opened: {e}.", path.display())];
+            }
+        }
+    }
+
     /// Opens a file's text as the document, by its kind. A file that can't
-    /// be read leaves the current diagram as it was (M11).
-    pub(crate) fn open_text(&mut self, name: &str, text: &str, target: Option<SaveTarget>) {
-        match FileKind::of(name, text) {
+    /// be read leaves the current diagram as it was (M11). Returns whether it
+    /// opened. On the desktop, a file opened from its path goes on the recent
+    /// list.
+    pub(crate) fn open_text(&mut self, name: &str, text: &str, target: Option<SaveTarget>) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        let path = target.as_ref().map(|SaveTarget::Path(p)| p.clone());
+        let opened = match FileKind::of(name, text) {
             FileKind::Json => match from_json(text) {
                 Ok(loaded) => {
                     let newer = loaded.is_newer_than_supported();
@@ -107,11 +137,13 @@ impl PathwayApp {
                     self.warnings = loaded.warnings;
                     self.notice = Some(format!("Opened {name}"));
                     self.fit_pending = true;
+                    true
                 }
                 Err(e) => {
                     self.warnings = vec![format!(
                         "{name} couldn't be opened ({e}). The diagram wasn't changed."
                     )];
+                    false
                 }
             },
             FileKind::Antimony => {
@@ -128,10 +160,12 @@ impl PathwayApp {
                     self.warnings.clear();
                     self.notice = Some(format!("Opened {name}"));
                     self.fit_pending = true;
+                    true
                 } else {
                     self.warnings = vec![format!(
                         "{name} has errors, listed in the Antimony panel. The diagram wasn't changed."
                     )];
+                    false
                 }
             }
             FileKind::Sbml => {
@@ -149,9 +183,17 @@ impl PathwayApp {
                     if !had_layout {
                         self.start_layout();
                     }
+                    true
+                } else {
+                    false
                 }
             }
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        if let (true, Some(p)) = (opened, path) {
+            self.recent.add(&p);
         }
+        opened
     }
 
     /// Save, or Save As with `ask` (or always for a file from a newer version).
@@ -269,7 +311,9 @@ impl PathwayApp {
             } => self.request(Action::OpenText { name, text, target }),
             FileEvent::Opened {
                 name, text, target, ..
-            } => self.open_text(&name, &text, target),
+            } => {
+                self.open_text(&name, &text, target);
+            }
             FileEvent::Saved {
                 purpose:
                     Purpose::ExportAntimony
@@ -290,6 +334,10 @@ impl PathwayApp {
                 self.warnings = std::mem::take(&mut self.export_messages);
             }
             FileEvent::Saved { name, target, .. } => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(SaveTarget::Path(p)) = &target {
+                    self.recent.add(p);
+                }
                 self.view.mark_saved();
                 self.doc.name = name.clone();
                 if target.is_some() {

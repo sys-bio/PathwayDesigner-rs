@@ -119,6 +119,20 @@ trunk build --release --public-url /PathwayDesigner-rs/   # the web release
 On Windows, run Trunk from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`,
 or Git Bash turns the `--public-url` path into a Windows path.
 
+Desktop packages are made with [cargo-packager](https://github.com/crabnebula-dev/cargo-packager)
+(`cargo install cargo-packager --locked`):
+
+```
+cargo packager --release -p pd-app --formats nsis           # Windows installer
+cargo packager --release -p pd-app --formats app,dmg        # macOS
+cargo packager --release -p pd-app --formats deb,appimage   # Linux
+```
+
+The packages land in `target/packages/`. Pushing a version tag (`v0.1.0`, …) has
+CI build all of them and attach them to a draft GitHub release. They are not
+signed, so on first start Windows asks for *More info ▸ Run anyway*, and macOS for
+a right-click on the app and *Open*.
+
 Every push runs CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
 formatting, Clippy for the desktop and for WebAssembly, licence checks, and the
 tests; then

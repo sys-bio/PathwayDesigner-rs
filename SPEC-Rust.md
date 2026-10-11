@@ -1029,6 +1029,19 @@ running natively in CI (§14.5). The rest of this section applies from D1.
   WebGL fallback), with `glow` (OpenGL) as an option if some drivers have trouble.
 - Release binaries are built in CI on each platform's GitHub Actions runner.
 
+**As built (D1).** `cargo-packager` is configured in `crates/pd-app/Cargo.toml`
+(`[package.metadata.packager]`): product name, identifier
+`org.sys-bio.pathwaydesigner`, the icons in `assets/icon` (drawn as `icon.svg` and
+rendered to PNG and ICO by `cargo run -p pd-export --example make_icons`), the
+licence, and `THIRD-PARTY.html` as a resource. `.github/workflows/release.yml`
+builds the packages when a `v*` tag is pushed (or by hand from the Actions tab):
+an NSIS installer on Windows, a `.app` (zipped) and `.dmg` on macOS (Apple
+silicon), and a `.deb` and AppImage on Linux, attached to a **draft** release to
+check before publishing. The packages are **not signed**, by decision: Windows
+SmartScreen and macOS Gatekeeper warn on first start (Windows: *More info ▸ Run
+anyway*; macOS: right-click the app and choose *Open*). This replaces the plan
+above of signed installers and a notarised macOS app.
+
 ### 14.2 Web: GitHub Pages and its base path
 
 - **Build:** `trunk build --release --public-url /<repo>/`.
@@ -1149,8 +1162,24 @@ been compiled and tested natively since R0, it is mostly platform work:
 - **Printing:** through the system PDF viewer (§9).
 - **Desktop conventions:** on macOS, the standard app menu (About, Preferences and Quit
   in their usual places) and Cmd shortcuts.
-- **Packaging (§14.1):** signed installers or packages for Windows, macOS
-  (notarised) and Linux, built in CI on tags.
+- **Packaging (§14.1):** installers or packages for Windows, macOS and Linux,
+  built in CI on tags (unsigned, by decision).
+**Status of D1 (2026-10-10):**
+- *Done:* native file dialogs, Save to the remembered path, drag-and-drop with the
+  path (R11); a file named on the command line opens at startup (as when a file
+  is opened with the app); **File ▸ Open Recent** (eight files, kept in eframe's
+  storage, a missing file is taken off the list); the unsaved-changes prompt on
+  closing the window (R11); autosave recovery (R11: on the desktop eframe writes
+  its storage to disk at every autosave, every 10 seconds, so after a crash the
+  changes up to the last autosave are offered back at the next start, and a
+  crash dialog says so); preferences in eframe's storage file in the app's data
+  folder; printing through the system PDF viewer (R10); Cmd shortcuts on macOS
+  (`Modifiers::COMMAND`); the window icon; packaging (§14.1).
+- *Decided against:* signing and notarisation (the packages are unsigned).
+- *Not yet:* the macOS application menu: egui draws its menus inside the window, so About,
+  Preferences and Quit stay in the window's Help and File menus (winit's
+  default macOS menu gives Cmd+Q, which asks about unsaved changes like closing
+  the window); the acceptance checks below on macOS and Linux.
 - **Acceptance:**
   - the S §17.4 checklist passes in the desktop build on all three operating systems;
   - the desktop budgets in §5.6 are met;

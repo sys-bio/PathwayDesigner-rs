@@ -11,6 +11,8 @@ mod files;
 mod fonts;
 mod inspector;
 mod prefs;
+#[cfg(not(target_arch = "wasm32"))]
+mod recent;
 mod renderer;
 mod samples;
 mod tree;
@@ -19,21 +21,56 @@ mod web;
 
 use app::PathwayApp;
 
-/// Desktop entry point: open a native window. The desktop app proper comes in
-/// milestone D1; until then this keeps the native build compiling and runnable.
+/// Desktop entry point (SPEC-Rust §15.1): a native window. A file named on
+/// the command line (as when a file is opened with the app) is opened.
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
+    install_crash_dialog();
+    let file = std::env::args_os().nth(1).map(std::path::PathBuf::from);
+    let mut viewport = eframe::egui::ViewportBuilder::default()
+        .with_inner_size([1200.0, 800.0])
+        .with_title("PathwayDesigner");
+    if let Ok(icon) =
+        eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icon/icon-256.png"))
+    {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([1000.0, 700.0])
-            .with_title("PathwayDesigner"),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
         "PathwayDesigner",
         options,
-        Box::new(|cc| Ok(Box::new(PathwayApp::new(cc)))),
+        Box::new(move |cc| {
+            let mut app = PathwayApp::new(cc);
+            if let Some(path) = file {
+                app.open_path(&path);
+            }
+            Ok(Box::new(app))
+        }),
     )
+}
+
+/// If the app crashes, says so before it closes (SPEC-Rust §14.4). The
+/// autosave, written to disk every 10 seconds while there are unsaved
+/// changes, is offered back at the next start.
+#[cfg(not(target_arch = "wasm32"))]
+fn install_crash_dialog() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default(info);
+        let _ = rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Error)
+            .set_title("PathwayDesigner stopped")
+            .set_description(format!(
+                "PathwayDesigner hit an internal error and has to close.\n\n{info}\n\n\
+                 Unsaved changes up to the last autosave (at most 10 seconds before \
+                 this) will be offered back when you start it again."
+            ))
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+    }));
 }
 
 /// Web entry point: attach the app to the <canvas> in index.html.
