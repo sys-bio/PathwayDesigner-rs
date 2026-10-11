@@ -5,8 +5,8 @@ shape the reactions with straight lines or Bézier curves, give them rate laws,
 lay the network out automatically, and exchange it with the rest of the systems
 biology world as Antimony or SBML with layout.
 
-It is written in Rust with [egui](https://github.com/emilk/egui), and runs in the
-browser. A desktop version will follow from the same code.
+It is written in Rust with [egui](https://github.com/emilk/egui). The same code
+runs in the browser and as a desktop app for Windows, macOS and Linux.
 
 **Try it:** https://sys-bio.github.io/PathwayDesigner-rs/
 
@@ -14,6 +14,17 @@ browser. A desktop version will follow from the same code.
 
 This is a re-implementation of the Delphi PathwayDesigner. It does everything the
 Delphi version does, and some more (see [Status](#status)).
+
+## Get it
+
+- **In the browser:** open https://sys-bio.github.io/PathwayDesigner-rs/. Nothing
+  to install, and it keeps working offline once it has been opened.
+- **On the desktop:** download the installer for Windows, macOS or Linux from
+  [Releases](https://github.com/sys-bio/PathwayDesigner-rs/releases). The packages
+  are not signed, so the first time you start it, Windows asks you to choose
+  *More info ▸ Run anyway*, and on macOS you right-click the app and choose *Open*.
+- **On your own web server:** copy the website, a folder of plain files, as
+  described in [Host your own copy](#host-your-own-copy).
 
 ## Features
 
@@ -51,21 +62,12 @@ Delphi version does, and some more (see [Status](#status)).
   the tab was closed or the app crashed.
 - Says when a new version has been published.
 
-## Host it yourself
-
-The `gh-pages` branch of this repository is the finished website. Copy its files
-into any folder of your web server and open `index.html`, as with
-[MakeSBML](https://github.com/sys-bio/makesbml): there is nothing to build or
-install. Download it with Code ▸ Download ZIP (with the `gh-pages` branch
-selected), or
-
-```
-git clone --branch gh-pages --depth 1 https://github.com/sys-bio/PathwayDesigner-rs.git pathwaydesigner
-```
-
-Each [release](https://github.com/sys-bio/PathwayDesigner-rs/releases) also has the
-same files as `PathwayDesigner-web-<version>.zip`, next to the desktop installers
-for Windows, macOS and Linux.
+**On the desktop**
+- Opens files from the file manager, and keeps a list of recent files.
+- Autosaves every 10 seconds while there are unsaved changes, and offers them back
+  after a crash or a power cut.
+- On macOS, the usual application menu (About, Settings, Hide, Quit) and Window
+  menu, and Cmd for every shortcut.
 
 ## Getting started
 
@@ -160,16 +162,21 @@ tests; then
   PNG;
 - **web:** the release build is served from a sub-path, as GitHub Pages serves it,
   and checked in headless Chromium: it starts, works offline, and shows the
-  new-version notice.
+  new-version notice;
+- **macOS:** the desktop app is linted and tested on a Mac.
 
 Pushes to `main` that pass are published to GitHub Pages, and the built website
 is written to the `gh-pages` branch.
 
 ## Status
 
-The browser version is complete: milestones R0 to R12 of [SPEC-Rust.md](SPEC-Rust.md)
-are done. The desktop release (milestone D1) is next. The conformance checklist and
-its evidence are in [docs/release-checklist.md](docs/release-checklist.md).
+Version 0.1.0. All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
+browser version (R0 to R12) and the desktop version (D1). The conformance checklist
+and its evidence are in [docs/release-checklist.md](docs/release-checklist.md).
+
+Still to do: try the macOS and Linux packages on those systems, and run the
+checklist there. So far they have been built and tested in CI, and the Windows
+installer has been tried by hand.
 
 Beyond the Delphi version, this one adds SBML import, SVG export, a drawing-sized
 PDF page, the model tree, animated auto-layout, keyboard nudging, aligning
@@ -189,4 +196,54 @@ SPECIFICATION.md §15.
 MIT, see [LICENSE](LICENSE). The bundled Noto Sans font is under the SIL Open
 Font Licence ([assets/fonts/NotoSans-OFL.txt](assets/fonts/NotoSans-OFL.txt)).
 The licences of the open-source crates PathwayDesigner is built from are in
-[THIRD-PARTY.html](THIRD-PARTY.html), which the app also links to from Help ▸ About.
+[THIRD-PARTY.html](THIRD-PARTY.html), which the app also links to from its About box.
+
+## Host your own copy
+
+The web version is a folder of plain files: a page, the app compiled to
+WebAssembly, and a few small helpers. There is no server-side code and nothing to
+build, so hosting your own copy is a matter of copying that folder, as with
+[MakeSBML](https://github.com/sys-bio/makesbml).
+
+**1. Get the files.** Either:
+- download the `gh-pages` branch of this repository: on GitHub, switch the branch
+  menu to `gh-pages`, then choose Code ▸ Download ZIP; or clone it:
+  ```
+  git clone --branch gh-pages --depth 1 https://github.com/sys-bio/PathwayDesigner-rs.git pathwaydesigner
+  ```
+- or download `PathwayDesigner-web-<version>.zip` from
+  [Releases](https://github.com/sys-bio/PathwayDesigner-rs/releases).
+
+The `gh-pages` branch always has the latest version (CI writes it after every
+change); a release zip is a fixed version.
+
+**2. Copy them to your server.** Put the files in any folder of your website, for
+example `pathwaydesigner/`. Keep them together; the folder's name doesn't matter.
+The files are:
+
+| File | What it is |
+|---|---|
+| `index.html` | The page |
+| `pathway-designer-<hash>.js` and `pathway-designer-<hash>_bg.wasm` | The app (the `.wasm` file is about 10 MB) |
+| `sw.js` | Lets the app work offline |
+| `THIRD-PARTY.html` | The licences of the software it is built from |
+| `README.md` | These instructions |
+
+**3. Open it** at the folder's address, for example
+`https://mysite.org/pathwaydesigner/`.
+
+**What the server needs:**
+- to serve `.wasm` files with the type `application/wasm`. Almost every web server
+  does this already. If the page stays on "Loading PathwayDesigner…", this is the
+  first thing to check;
+- HTTPS, for working offline and for saving straight back to an opened file.
+  Over plain HTTP the app still works, without those two.
+
+**To try it on your own computer,** serve the folder with any local web server,
+for example `python -m http.server 8000` in the folder, then open
+http://localhost:8000/. Opening `index.html` directly from disk (a `file://`
+address) doesn't work, because browsers don't load WebAssembly that way.
+
+**To update** your copy, replace all the files with the new ones. The names of the
+`.js` and `.wasm` files change with each version, so delete the old ones. People
+who have the page open are told a new version is available.
