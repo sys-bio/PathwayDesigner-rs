@@ -1,0 +1,819 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1" level="3" version="1" layout:required="false">
+  <model id="BorisEJB" name="BorisEJB">
+    <listOfCompartments>
+      <compartment id="defaultCompartment" spatialDimensions="3" size="1" constant="true"/>
+      <compartment id="compartment" spatialDimensions="3" size="1" constant="true"/>
+    </listOfCompartments>
+    <listOfSpecies>
+      <species id="MKKK" compartment="compartment" initialConcentration="90" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="MKKK_P" compartment="compartment" initialConcentration="10" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="MKK" compartment="compartment" initialConcentration="280" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="MKK_P" compartment="compartment" initialConcentration="10" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="MKK_PP" compartment="compartment" initialConcentration="10" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="MAPK" compartment="compartment" initialConcentration="280" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="MAPK_P" compartment="compartment" initialConcentration="10" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="MAPK_PP" compartment="compartment" initialConcentration="10" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="J0_V1" value="2.5" constant="true"/>
+      <parameter id="J0_Ki" value="9" constant="true"/>
+      <parameter id="J0_n" value="1" constant="true"/>
+      <parameter id="J0_K1" value="10" constant="true"/>
+      <parameter id="J1_V2" value="0.25" constant="true"/>
+      <parameter id="J1_KK2" value="8" constant="true"/>
+      <parameter id="J2_k3" value="0.025" constant="true"/>
+      <parameter id="J2_KK3" value="15" constant="true"/>
+      <parameter id="J3_k4" value="0.025" constant="true"/>
+      <parameter id="J3_KK4" value="15" constant="true"/>
+      <parameter id="J4_V5" value="0.75" constant="true"/>
+      <parameter id="J4_KK5" value="15" constant="true"/>
+      <parameter id="J5_V6" value="0.75" constant="true"/>
+      <parameter id="J5_KK6" value="15" constant="true"/>
+      <parameter id="J6_k7" value="0.025" constant="true"/>
+      <parameter id="J6_KK7" value="15" constant="true"/>
+      <parameter id="J7_k8" value="0.025" constant="true"/>
+      <parameter id="J7_KK8" value="15" constant="true"/>
+      <parameter id="J8_V9" value="0.5" constant="true"/>
+      <parameter id="J8_KK9" value="15" constant="true"/>
+      <parameter id="J9_V10" value="0.5" constant="true"/>
+      <parameter id="J9_KK10" value="15" constant="true"/>
+    </listOfParameters>
+    <listOfReactions>
+      <reaction id="J0" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J0_sub_MKKK" species="MKKK" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J0_prod_MKKK_P" species="MKKK_P" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference id="sr_J0_mod_MAPK_PP" species="MAPK_PP"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> J0_V1 </ci>
+                <ci> MKKK </ci>
+              </apply>
+              <apply>
+                <times/>
+                <apply>
+                  <plus/>
+                  <cn type="integer"> 1 </cn>
+                  <apply>
+                    <power/>
+                    <apply>
+                      <divide/>
+                      <ci> MAPK_PP </ci>
+                      <ci> J0_Ki </ci>
+                    </apply>
+                    <ci> J0_n </ci>
+                  </apply>
+                </apply>
+                <apply>
+                  <plus/>
+                  <ci> J0_K1 </ci>
+                  <ci> MKKK </ci>
+                </apply>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J1" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J1_sub_MKKK_P" species="MKKK_P" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J1_prod_MKKK" species="MKKK" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> J1_V2 </ci>
+                <ci> MKKK_P </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J1_KK2 </ci>
+                <ci> MKKK_P </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J2" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J2_sub_MKK" species="MKK" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J2_prod_MKK_P" species="MKK_P" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference id="sr_J2_mod_MKKK_P" species="MKKK_P"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <apply>
+                  <times/>
+                  <ci> J2_k3 </ci>
+                  <ci> MKKK_P </ci>
+                </apply>
+                <ci> MKK </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J2_KK3 </ci>
+                <ci> MKK </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J3" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J3_sub_MKK_P" species="MKK_P" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J3_prod_MKK_PP" species="MKK_PP" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference id="sr_J3_mod_MKKK_P" species="MKKK_P"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <apply>
+                  <times/>
+                  <ci> J3_k4 </ci>
+                  <ci> MKKK_P </ci>
+                </apply>
+                <ci> MKK_P </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J3_KK4 </ci>
+                <ci> MKK_P </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J4" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J4_sub_MKK_PP" species="MKK_PP" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J4_prod_MKK_P" species="MKK_P" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> J4_V5 </ci>
+                <ci> MKK_PP </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J4_KK5 </ci>
+                <ci> MKK_PP </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J5" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J5_sub_MKK_P" species="MKK_P" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J5_prod_MKK" species="MKK" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> J5_V6 </ci>
+                <ci> MKK_P </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J5_KK6 </ci>
+                <ci> MKK_P </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J6" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J6_sub_MAPK" species="MAPK" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J6_prod_MAPK_P" species="MAPK_P" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference id="sr_J6_mod_MKK_PP" species="MKK_PP"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <apply>
+                  <times/>
+                  <ci> J6_k7 </ci>
+                  <ci> MKK_PP </ci>
+                </apply>
+                <ci> MAPK </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J6_KK7 </ci>
+                <ci> MAPK </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J7" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J7_sub_MAPK_P" species="MAPK_P" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J7_prod_MAPK_PP" species="MAPK_PP" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference id="sr_J7_mod_MKK_PP" species="MKK_PP"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <apply>
+                  <times/>
+                  <ci> J7_k8 </ci>
+                  <ci> MKK_PP </ci>
+                </apply>
+                <ci> MAPK_P </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J7_KK8 </ci>
+                <ci> MAPK_P </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J8" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J8_sub_MAPK_PP" species="MAPK_PP" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J8_prod_MAPK_P" species="MAPK_P" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> J8_V9 </ci>
+                <ci> MAPK_PP </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J8_KK9 </ci>
+                <ci> MAPK_PP </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J9" reversible="false" fast="false">
+        <listOfReactants>
+          <speciesReference id="sr_J9_sub_MAPK_P" species="MAPK_P" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference id="sr_J9_prod_MAPK" species="MAPK" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> J9_V10 </ci>
+                <ci> MAPK_P </ci>
+              </apply>
+              <apply>
+                <plus/>
+                <ci> J9_KK10 </ci>
+                <ci> MAPK_P </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+    <layout:listOfLayouts xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <layout:layout layout:id="layout1">
+        <layout:dimensions layout:width="627" layout:height="422"/>
+        <layout:listOfSpeciesGlyphs>
+          <layout:speciesGlyph layout:id="sg_MKKK" layout:species="MKKK">
+            <layout:boundingBox>
+              <layout:position layout:x="41" layout:y="74"/>
+              <layout:dimensions layout:width="43" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+          <layout:speciesGlyph layout:id="sg_MKKK_P" layout:species="MKKK_P">
+            <layout:boundingBox>
+              <layout:position layout:x="195" layout:y="76"/>
+              <layout:dimensions layout:width="55" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+          <layout:speciesGlyph layout:id="sg_MKK" layout:species="MKK">
+            <layout:boundingBox>
+              <layout:position layout:x="78" layout:y="197"/>
+              <layout:dimensions layout:width="36" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+          <layout:speciesGlyph layout:id="sg_MKK_P" layout:species="MKK_P">
+            <layout:boundingBox>
+              <layout:position layout:x="195" layout:y="197"/>
+              <layout:dimensions layout:width="48" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+          <layout:speciesGlyph layout:id="sg_MKK_PP" layout:species="MKK_PP">
+            <layout:boundingBox>
+              <layout:position layout:x="315" layout:y="199"/>
+              <layout:dimensions layout:width="54" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+          <layout:speciesGlyph layout:id="sg_MAPK" layout:species="MAPK">
+            <layout:boundingBox>
+              <layout:position layout:x="166" layout:y="318"/>
+              <layout:dimensions layout:width="43" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+          <layout:speciesGlyph layout:id="sg_MAPK_P" layout:species="MAPK_P">
+            <layout:boundingBox>
+              <layout:position layout:x="326" layout:y="318"/>
+              <layout:dimensions layout:width="55" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+          <layout:speciesGlyph layout:id="sg_MAPK_PP" layout:species="MAPK_PP">
+            <layout:boundingBox>
+              <layout:position layout:x="486" layout:y="312"/>
+              <layout:dimensions layout:width="61" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:speciesGlyph>
+        </layout:listOfSpeciesGlyphs>
+        <layout:listOfReactionGlyphs>
+          <layout:reactionGlyph layout:id="rg_J0" layout:reaction="J0">
+            <layout:boundingBox>
+              <layout:position layout:x="144.5" layout:y="66"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J0_sub_MKKK" layout:speciesGlyph="sg_MKKK" layout:speciesReference="sr_J0_sub_MKKK" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="84" layout:y="80.7560975609756"/>
+                      <layout:end layout:x="144.5" layout:y="66"/>
+                      <layout:basePoint1 layout:x="87.35" layout:y="80.75"/>
+                      <layout:basePoint2 layout:x="119.10346044801705" layout:y="65.68254325560021"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J0_prod_MKKK_P" layout:speciesGlyph="sg_MKKK_P" layout:speciesReference="sr_J0_prod_MKKK_P" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="144.5" layout:y="66"/>
+                      <layout:end layout:x="195" layout:y="80.24358974358974"/>
+                      <layout:basePoint1 layout:x="176.21069031129323" layout:y="66.39638362889117"/>
+                      <layout:basePoint2 layout:x="191.35" layout:y="82.05"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J0_mod_MAPK_PP" layout:speciesGlyph="sg_MAPK_PP" layout:speciesReference="sr_J0_mod_MAPK_PP" layout:role="modifier">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="LineSegment">
+                      <layout:start layout:x="499.19767441860466" layout:y="312"/>
+                      <layout:end layout:x="144.5" layout:y="66"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J1" layout:reaction="J1">
+            <layout:boundingBox>
+              <layout:position layout:x="144.5" layout:y="125"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J1_sub_MKKK_P" layout:speciesGlyph="sg_MKKK_P" layout:speciesReference="sr_J1_sub_MKKK_P" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="197.2027027027027" layout:y="100"/>
+                      <layout:end layout:x="144.5" layout:y="125"/>
+                      <layout:basePoint1 layout:x="195.2" layout:y="100.95"/>
+                      <layout:basePoint2 layout:x="174.7134054222335" layout:y="125.37766756777792"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J1_prod_MKKK" layout:speciesGlyph="sg_MKKK" layout:speciesReference="sr_J1_prod_MKKK" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="144.5" layout:y="125"/>
+                      <layout:end layout:x="84" layout:y="96.22560975609755"/>
+                      <layout:basePoint1 layout:x="112.72178875075674" layout:y="124.60277235938446"/>
+                      <layout:basePoint2 layout:x="91.2" layout:y="99.65"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J2" layout:reaction="J2">
+            <layout:boundingBox>
+              <layout:position layout:x="159.5" layout:y="184"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J2_sub_MKK" layout:speciesGlyph="sg_MKK" layout:speciesReference="sr_J2_sub_MKK" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="114" layout:y="201.91338582677164"/>
+                      <layout:end layout:x="159.5" layout:y="184"/>
+                      <layout:basePoint1 layout:x="117.525" layout:y="209"/>
+                      <layout:basePoint2 layout:x="137.975" layout:y="184"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J2_prod_MKK_P" layout:speciesGlyph="sg_MKK_P" layout:speciesReference="sr_J2_prod_MKK_P" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="159.5" layout:y="184"/>
+                      <layout:end layout:x="195" layout:y="198.91596638655463"/>
+                      <layout:basePoint1 layout:x="181.025" layout:y="184"/>
+                      <layout:basePoint2 layout:x="197.475" layout:y="209"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J2_mod_MKKK_P" layout:speciesGlyph="sg_MKKK_P" layout:speciesReference="sr_J2_mod_MKKK_P" layout:role="modifier">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="LineSegment">
+                      <layout:start layout:x="214.625" layout:y="100"/>
+                      <layout:end layout:x="159.5" layout:y="184"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J3" layout:reaction="J3">
+            <layout:boundingBox>
+              <layout:position layout:x="287" layout:y="192"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J3_sub_MKK_P" layout:speciesGlyph="sg_MKK_P" layout:speciesReference="sr_J3_sub_MKK_P" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="243" layout:y="203"/>
+                      <layout:end layout:x="287" layout:y="192"/>
+                      <layout:basePoint1 layout:x="240.35" layout:y="209.35"/>
+                      <layout:basePoint2 layout:x="265.6499535539491" layout:y="191.65284477323493"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J3_prod_MKK_PP" layout:speciesGlyph="sg_MKK_PP" layout:speciesReference="sr_J3_prod_MKK_PP" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="287" layout:y="192"/>
+                      <layout:end layout:x="315" layout:y="201.6727272727273"/>
+                      <layout:basePoint1 layout:x="308.6999539299439" layout:y="192.3528447793487"/>
+                      <layout:basePoint2 layout:x="320.3" layout:y="210.65"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J3_mod_MKKK_P" layout:speciesGlyph="sg_MKKK_P" layout:speciesReference="sr_J3_mod_MKKK_P" layout:role="modifier">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="LineSegment">
+                      <layout:start layout:x="229.94230769230768" layout:y="100"/>
+                      <layout:end layout:x="287" layout:y="192"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J4" layout:reaction="J4">
+            <layout:boundingBox>
+              <layout:position layout:x="282" layout:y="230"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J4_sub_MKK_PP" layout:speciesGlyph="sg_MKK_PP" layout:speciesReference="sr_J4_sub_MKK_PP" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="315" layout:y="219.55"/>
+                      <layout:end layout:x="282" layout:y="230"/>
+                      <layout:basePoint1 layout:x="321.35" layout:y="210.65"/>
+                      <layout:basePoint2 layout:x="302.3251417214463" layout:y="233.6651894907526"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J4_prod_MKK_P" layout:speciesGlyph="sg_MKK_P" layout:speciesReference="sr_J4_prod_MKK_P" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="282" layout:y="230"/>
+                      <layout:end layout:x="243" layout:y="217"/>
+                      <layout:basePoint1 layout:x="259.12619081704446" layout:y="225.87521473749982"/>
+                      <layout:basePoint2 layout:x="241.05" layout:y="216.35"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J5" layout:reaction="J5">
+            <layout:boundingBox>
+              <layout:position layout:x="163.5" layout:y="239"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J5_sub_MKK_P" layout:speciesGlyph="sg_MKK_P" layout:speciesReference="sr_J5_sub_MKK_P" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="196.8" layout:y="221"/>
+                      <layout:end layout:x="163.5" layout:y="239"/>
+                      <layout:basePoint1 layout:x="197.475" layout:y="209"/>
+                      <layout:basePoint2 layout:x="185.025" layout:y="239"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J5_prod_MKK" layout:speciesGlyph="sg_MKK" layout:speciesReference="sr_J5_prod_MKK" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="163.5" layout:y="239"/>
+                      <layout:end layout:x="114" layout:y="217"/>
+                      <layout:basePoint1 layout:x="141.975" layout:y="239"/>
+                      <layout:basePoint2 layout:x="117.525" layout:y="209"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J6" layout:reaction="J6">
+            <layout:boundingBox>
+              <layout:position layout:x="271.5" layout:y="306"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J6_sub_MAPK" layout:speciesGlyph="sg_MAPK" layout:speciesReference="sr_J6_sub_MAPK" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="209" layout:y="323.85714285714283"/>
+                      <layout:end layout:x="271.5" layout:y="306"/>
+                      <layout:basePoint1 layout:x="216.55" layout:y="330"/>
+                      <layout:basePoint2 layout:x="242.45" layout:y="306"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J6_prod_MAPK_P" layout:speciesGlyph="sg_MAPK_P" layout:speciesReference="sr_J6_prod_MAPK_P" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="271.5" layout:y="306"/>
+                      <layout:end layout:x="326" layout:y="321.9512195121951"/>
+                      <layout:basePoint1 layout:x="300.55" layout:y="306"/>
+                      <layout:basePoint2 layout:x="324.45" layout:y="330"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J6_mod_MKK_PP" layout:speciesGlyph="sg_MKK_PP" layout:speciesReference="sr_J6_mod_MKK_PP" layout:role="modifier">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="LineSegment">
+                      <layout:start layout:x="333.09473684210525" layout:y="223"/>
+                      <layout:end layout:x="271.5" layout:y="306"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J7" layout:reaction="J7">
+            <layout:boundingBox>
+              <layout:position layout:x="432" layout:y="305"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J7_sub_MAPK_P" layout:speciesGlyph="sg_MAPK_P" layout:speciesReference="sr_J7_sub_MAPK_P" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="381" layout:y="321.2420382165605"/>
+                      <layout:end layout:x="432" layout:y="305"/>
+                      <layout:basePoint1 layout:x="380.975" layout:y="321.25"/>
+                      <layout:basePoint2 layout:x="403.18484631536717" layout:y="306.0606805037288"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J7_prod_MAPK_PP" layout:speciesGlyph="sg_MAPK_PP" layout:speciesReference="sr_J7_prod_MAPK_PP" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="432" layout:y="305"/>
+                      <layout:end layout:x="486" layout:y="317.14201183431953"/>
+                      <layout:basePoint1 layout:x="462.2928990100206" layout:y="303.88492396282135"/>
+                      <layout:basePoint2 layout:x="486.925" layout:y="317.35"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J7_mod_MKK_PP" layout:speciesGlyph="sg_MKK_PP" layout:speciesReference="sr_J7_mod_MKK_PP" layout:role="modifier">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="LineSegment">
+                      <layout:start layout:x="353.48936170212767" layout:y="223"/>
+                      <layout:end layout:x="432" layout:y="305"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J8" layout:reaction="J8">
+            <layout:boundingBox>
+              <layout:position layout:x="434" layout:y="366"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J8_sub_MAPK_PP" layout:speciesGlyph="sg_MAPK_PP" layout:speciesReference="sr_J8_sub_MAPK_PP" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="492.92857142857144" layout:y="336"/>
+                      <layout:end layout:x="434" layout:y="366"/>
+                      <layout:basePoint1 layout:x="487.625" layout:y="338.7"/>
+                      <layout:basePoint2 layout:x="466.37954655012004" layout:y="364.80811485091584"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J8_prod_MAPK_P" layout:speciesGlyph="sg_MAPK_P" layout:speciesReference="sr_J8_prod_MAPK_P" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="434" layout:y="366"/>
+                      <layout:end layout:x="380.3333333333333" layout:y="342"/>
+                      <layout:basePoint1 layout:x="403.1568217121779" layout:y="367.1353317161161"/>
+                      <layout:basePoint2 layout:x="381.675" layout:y="342.6"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+          <layout:reactionGlyph layout:id="rg_J9" layout:reaction="J9">
+            <layout:boundingBox>
+              <layout:position layout:x="273.5" layout:y="374"/>
+              <layout:dimensions layout:width="0" layout:height="0"/>
+            </layout:boundingBox>
+            <layout:listOfSpeciesReferenceGlyphs>
+              <layout:speciesReferenceGlyph layout:id="srg_J9_sub_MAPK_P" layout:speciesGlyph="sg_MAPK_P" layout:speciesReference="sr_J9_sub_MAPK_P" layout:role="substrate">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="331.6818181818182" layout:y="342"/>
+                      <layout:end layout:x="273.5" layout:y="374"/>
+                      <layout:basePoint1 layout:x="325.5" layout:y="345.4"/>
+                      <layout:basePoint2 layout:x="305.4555941894373" layout:y="374"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+              <layout:speciesReferenceGlyph layout:id="srg_J9_prod_MAPK" layout:speciesGlyph="sg_MAPK" layout:speciesReference="sr_J9_prod_MAPK" layout:role="product">
+                <layout:curve>
+                  <layout:listOfCurveSegments>
+                    <layout:curveSegment xsi:type="CubicBezier">
+                      <layout:start layout:x="273.5" layout:y="374"/>
+                      <layout:end layout:x="209" layout:y="341"/>
+                      <layout:basePoint1 layout:x="239.6892029079467" layout:y="374"/>
+                      <layout:basePoint2 layout:x="217.6" layout:y="345.4"/>
+                    </layout:curveSegment>
+                  </layout:listOfCurveSegments>
+                </layout:curve>
+              </layout:speciesReferenceGlyph>
+            </layout:listOfSpeciesReferenceGlyphs>
+          </layout:reactionGlyph>
+        </layout:listOfReactionGlyphs>
+        <layout:listOfTextGlyphs>
+          <layout:textGlyph layout:id="tg_MKKK" layout:graphicalObject="sg_MKKK" layout:originOfText="MKKK">
+            <layout:boundingBox>
+              <layout:position layout:x="41" layout:y="74"/>
+              <layout:dimensions layout:width="43" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+          <layout:textGlyph layout:id="tg_MKKK_P" layout:graphicalObject="sg_MKKK_P" layout:originOfText="MKKK_P">
+            <layout:boundingBox>
+              <layout:position layout:x="195" layout:y="76"/>
+              <layout:dimensions layout:width="55" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+          <layout:textGlyph layout:id="tg_MKK" layout:graphicalObject="sg_MKK" layout:originOfText="MKK">
+            <layout:boundingBox>
+              <layout:position layout:x="78" layout:y="197"/>
+              <layout:dimensions layout:width="36" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+          <layout:textGlyph layout:id="tg_MKK_P" layout:graphicalObject="sg_MKK_P" layout:originOfText="MKK_P">
+            <layout:boundingBox>
+              <layout:position layout:x="195" layout:y="197"/>
+              <layout:dimensions layout:width="48" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+          <layout:textGlyph layout:id="tg_MKK_PP" layout:graphicalObject="sg_MKK_PP" layout:originOfText="MKK_PP">
+            <layout:boundingBox>
+              <layout:position layout:x="315" layout:y="199"/>
+              <layout:dimensions layout:width="54" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+          <layout:textGlyph layout:id="tg_MAPK" layout:graphicalObject="sg_MAPK" layout:originOfText="MAPK">
+            <layout:boundingBox>
+              <layout:position layout:x="166" layout:y="318"/>
+              <layout:dimensions layout:width="43" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+          <layout:textGlyph layout:id="tg_MAPK_P" layout:graphicalObject="sg_MAPK_P" layout:originOfText="MAPK_P">
+            <layout:boundingBox>
+              <layout:position layout:x="326" layout:y="318"/>
+              <layout:dimensions layout:width="55" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+          <layout:textGlyph layout:id="tg_MAPK_PP" layout:graphicalObject="sg_MAPK_PP" layout:originOfText="MAPK_PP">
+            <layout:boundingBox>
+              <layout:position layout:x="486" layout:y="312"/>
+              <layout:dimensions layout:width="61" layout:height="24"/>
+            </layout:boundingBox>
+          </layout:textGlyph>
+        </layout:listOfTextGlyphs>
+      </layout:layout>
+    </layout:listOfLayouts>
+  </model>
+</sbml>
