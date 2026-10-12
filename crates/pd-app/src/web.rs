@@ -254,3 +254,42 @@ pub fn show_crash_page(message: &str) {
         click.forget();
     }
 }
+
+// ----- Visitor counter ------------------------------------------------------
+
+thread_local! {
+    /// Where the counter box was last put, to touch the page only on a change.
+    static COUNTER_AT: Cell<Option<[i32; 4]>> = const { Cell::new(None) };
+}
+
+/// True if index.html shows the visitor counter: it does on the published
+/// site only, and marks the page with `data-counter` (SPEC-Rust §14.6).
+pub fn has_counter() -> bool {
+    window()
+        .document()
+        .and_then(|d| d.document_element())
+        .is_some_and(|e| e.has_attribute("data-counter"))
+}
+
+/// Puts the counter box over `rect` (egui points), which the left panel
+/// leaves empty for it.
+pub fn place_counter(rect: eframe::egui::Rect, zoom: f32) {
+    let r = rect * zoom;
+    let at = [r.left(), r.top(), r.width(), r.height()].map(|v| v.round() as i32);
+    if COUNTER_AT.get() == Some(at) {
+        return;
+    }
+    let Some(el) = window()
+        .document()
+        .and_then(|d| d.get_element_by_id("visitor_counter"))
+        .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+    else {
+        return;
+    };
+    let style = el.style();
+    for (key, v) in ["left", "top", "width", "height"].into_iter().zip(at) {
+        let _ = style.set_property(key, &format!("{v}px"));
+    }
+    let _ = style.set_property("display", "flex");
+    COUNTER_AT.set(Some(at));
+}
