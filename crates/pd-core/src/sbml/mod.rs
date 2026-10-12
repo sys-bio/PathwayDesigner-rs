@@ -10,6 +10,7 @@
 mod export;
 mod import;
 pub mod math;
+mod shape;
 
 pub use export::{Exported, export};
 pub use import::{Imported, import};

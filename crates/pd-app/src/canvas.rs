@@ -35,6 +35,7 @@ pub struct CanvasState {
 #[derive(Clone, Debug, PartialEq)]
 pub enum MenuAction {
     CreateAlias(String),
+    SplitIntoAliases(String),
     Rename(String),
     GoToPrimary(String),
     DeleteSpecies(String),
@@ -202,6 +203,19 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 item(ui, "Delete Alias", MenuAction::DeleteSpecies(id.clone()));
             } else {
                 item(ui, "Create Alias", MenuAction::CreateAlias(id.clone()));
+                if view.can_split_into_aliases(id) {
+                    item(
+                        ui,
+                        "Split into Aliases (one per reaction)",
+                        MenuAction::SplitIntoAliases(id.clone()),
+                    );
+                } else {
+                    ui.add_enabled(
+                        false,
+                        egui::Button::new("Split into Aliases (one per reaction)"),
+                    )
+                    .on_disabled_hover_text("Only for a species in two or more reactions");
+                }
                 item(ui, "Rename", MenuAction::Rename(id.clone()));
                 item(ui, "Delete Species", MenuAction::DeleteSpecies(id.clone()));
             }

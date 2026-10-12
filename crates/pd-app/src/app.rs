@@ -309,6 +309,9 @@ impl PathwayApp {
             MenuAction::CreateAlias(id) => {
                 self.view.create_alias(&id);
             }
+            MenuAction::SplitIntoAliases(id) => {
+                self.view.split_into_aliases(&id);
+            }
             MenuAction::Rename(id) => self.ask_rename(&id),
             MenuAction::GoToPrimary(id) => {
                 self.view.go_to_primary(&id, canvas_centre);
@@ -728,7 +731,7 @@ impl PathwayApp {
         .on_hover_text("New Bézier reactions get a smooth junction");
         ui.separator();
         egui::ScrollArea::vertical().id_salt("tree").show(ui, |ui| {
-            crate::tree::show(ui, &mut self.view, &mut self.tree, self.canvas_centre)
+            crate::tree::show(ui, &mut self.view, &mut self.tree)
         });
     }
 
@@ -1306,6 +1309,56 @@ k = 0.1",
         assert_eq!(h.app.recent.files, std::slice::from_ref(&a));
         assert_eq!(h.app.doc.name, "first.json", "the diagram is unchanged");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn importing_a_file_names_the_document_after_it() {
+        use crate::files::{FileEvent, Purpose};
+        let mut h = Harness::new();
+        // The document came from a file, so Save would write back to it.
+        assert_eq!(h.app.doc.name, "model9.json");
+        h.app.doc.target = Some(crate::files::SaveTarget::Path("model9.json".into()));
+        let xml = h.app.view.export_sbml().xml;
+        for (purpose, name, text) in [
+            (Purpose::ImportSbml, "glycolysis.xml", xml),
+            (
+                Purpose::ImportAntimony,
+                "feedback.ant",
+                "A -> B; k*A
+k = 0.1"
+                    .to_owned(),
+            ),
+        ] {
+            h.app.file_event(FileEvent::Opened {
+                purpose,
+                name: name.into(),
+                text,
+                target: None,
+            });
+            let json = crate::document::with_extension(name, "json");
+            assert_eq!(h.app.doc.name, json, "{purpose:?}");
+            // Save asks where, rather than writing over the previous file.
+            assert!(h.app.doc.target.is_none(), "{purpose:?}");
+            // Still one undo step.
+            assert!(h.app.view.can_undo());
+        }
+    }
+
+    #[test]
+    fn selecting_in_the_tree_leaves_the_diagram_where_it_is() {
+        let mut h = Harness::new();
+        h.run(vec![]);
+        let origin = h.app.view.world_to_screen(Pt::ZERO);
+        // Click a row, then step down the list with the arrow key.
+        h.click(h.widget("S5"));
+        assert_eq!(h.app.view.selection().0, ["S5"]);
+        h.key(Key::ArrowDown, Modifiers::NONE);
+        assert_eq!(h.app.view.selection().0, ["S6"]);
+        assert_eq!(
+            h.app.view.world_to_screen(Pt::ZERO),
+            origin,
+            "the diagram didn't move"
+        );
     }
 
     #[test]

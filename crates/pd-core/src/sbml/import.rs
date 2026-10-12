@@ -499,6 +499,16 @@ impl Builder {
             }
         }
 
+        // PathwayDesigner's own note: Linear, and smooth junctions.
+        if let Some(note) = glyph.and_then(|g| g.meta.annotation.as_deref()) {
+            let (linear, smooth) = super::shape::read(note);
+            if linear {
+                rx.mode = ReactionMode::Linear;
+            } else if smooth && rx.mode == ReactionMode::Bezier {
+                rx.junction_smooth = true;
+            }
+        }
+
         // The passes every import gets (SPEC-Rust §8.4).
         if opts.convert_catalytic {
             passes::catalytic_rewrite(&mut rx);

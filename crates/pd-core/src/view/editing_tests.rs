@@ -476,3 +476,107 @@ fn a_recovered_document_counts_as_unsaved() {
     v.mark_saved();
     assert!(!v.is_modified());
 }
+
+/// ADP at (0,0), drawn by four reactions: R1 ADP → B (junction (60,0), the
+/// nearest), R2 C → ADP (junction (0,300)), R3 D → E regulated by ADP
+/// (junction (400,400)), R4 ADP + F → G, Bézier with stored handles
+/// (junction (-300,0)).
+fn busy_adp() -> DiagramView {
+    let mut m = Model::new();
+    for (id, x, y) in [
+        ("ADP", 0.0, 0.0),
+        ("B", 120.0, 0.0),
+        ("C", 0.0, 400.0),
+        ("D", 400.0, 300.0),
+        ("E", 400.0, 500.0),
+        ("F", -300.0, 100.0),
+        ("G", -400.0, 0.0),
+    ] {
+        m.push_species(crate::model::SpeciesNode::new(id, pt(x, y)))
+            .unwrap();
+    }
+    let reaction = |m: &mut Model, id: &str, j: Pt, reactants: &[&str], products: &[&str]| {
+        let mut r = crate::model::Reaction::new(id, j);
+        r.reactants = reactants
+            .iter()
+            .map(|s| Participant::new(*s, 1.0))
+            .collect();
+        r.products = products.iter().map(|s| Participant::new(*s, 1.0)).collect();
+        m.push_reaction(r).unwrap();
+    };
+    reaction(&mut m, "R1", pt(60.0, 0.0), &["ADP"], &["B"]);
+    reaction(&mut m, "R2", pt(0.0, 300.0), &["C"], &["ADP"]);
+    reaction(&mut m, "R3", pt(400.0, 400.0), &["D"], &["E"]);
+    reaction(&mut m, "R4", pt(-300.0, 0.0), &["ADP", "F"], &["G"]);
+    let r3 = m.find_reaction_mut("R3").unwrap();
+    r3.modifiers.push(Participant::new("ADP", 1.0));
+    r3.kinetic_law = "k*D*ADP".into();
+    let r4 = m.find_reaction_mut("R4").unwrap();
+    r4.mode = ReactionMode::Bezier;
+    r4.reactants[0].ctrl_pts_set = true;
+    m.recompute_id_counter();
+    DiagramView::new(m)
+}
+
+#[test]
+fn split_into_aliases_gives_each_reaction_its_own_drawing() {
+    let mut v = busy_adp();
+    let biochemistry = v.export_antimony();
+    assert!(v.can_split_into_aliases("ADP"));
+    let r = v.split_into_aliases("ADP");
+    assert!(r.model_changed && r.selection_changed);
+    let m = v.model();
+
+    // R1, the nearest, stays with ADP; the others each get a new alias.
+    assert_eq!(m.find_reaction("R1").unwrap().reactants[0].species, "ADP");
+    let alias_of = |rid: &str, pick: &dyn Fn(&crate::model::Reaction) -> String| {
+        let id = pick(m.find_reaction(rid).unwrap());
+        let node = m.find_species(&id).unwrap();
+        assert_eq!(node.alias_of.as_deref(), Some("ADP"), "{rid}");
+        id
+    };
+    let a2 = alias_of("R2", &|r| r.products[0].species.clone());
+    let a3 = alias_of("R3", &|r| r.modifiers[0].species.clone());
+    let a4 = alias_of("R4", &|r| r.reactants[0].species.clone());
+    let mut all = vec![a2.clone(), a3.clone(), a4.clone()];
+    all.sort();
+    all.dedup();
+    assert_eq!(all.len(), 3, "one alias per reaction");
+    assert_eq!(m.aliases_of("ADP").count(), 3);
+
+    // Each alias sits between its junction and ADP, near the junction.
+    let at = |id: &str| m.find_species(id).unwrap().center;
+    assert_eq!(at(&a2), pt(0.0, 210.0));
+    assert!((at(&a4).x - -210.0).abs() < 1e-9 && at(&a4).y.abs() < 1e-9);
+    assert!(at(&a3).distance(pt(400.0, 400.0)) <= 90.0 + 1e-9);
+
+    // A moved Bézier leg goes back to automatic handles.
+    assert!(!m.find_reaction("R4").unwrap().reactants[0].ctrl_pts_set);
+    // The new aliases are selected.
+    let (sel, _) = v.selection();
+    assert_eq!(sel.len(), 3);
+    // The same species, so the same biochemistry.
+    assert_eq!(v.export_antimony(), biochemistry);
+    assert_eq!(v.undo_description(), Some("Split into Aliases"));
+
+    // One undo step puts it all back.
+    v.undo();
+    assert_eq!(v.model().aliases_of("ADP").count(), 0);
+    assert_eq!(
+        v.model().find_reaction("R2").unwrap().products[0].species,
+        "ADP"
+    );
+}
+
+#[test]
+fn split_into_aliases_needs_a_primary_in_two_reactions() {
+    let mut v = busy_adp();
+    // B is in one reaction only.
+    assert!(!v.can_split_into_aliases("B"));
+    assert!(!v.split_into_aliases("B").model_changed);
+    // After a split, ADP itself draws one reaction, and an alias can't be split.
+    v.split_into_aliases("ADP");
+    assert!(!v.can_split_into_aliases("ADP"));
+    let alias = v.model().aliases_of("ADP").next().unwrap().id.clone();
+    assert!(!v.can_split_into_aliases(&alias));
+}

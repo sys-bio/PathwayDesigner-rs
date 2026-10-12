@@ -9,6 +9,8 @@ license.workspace = true
 [dependencies]
 pd-antimony.workspace = true
 sbml-io.workspace = true
+# Reads PathwayDesigner's own note in SBML layout annotations (sbml/shape.rs).
+roxmltree = "0.21"
 harfrust.workspace = true
 skrifa.workspace = true
 serde = { version = "1", features = ["derive"] }

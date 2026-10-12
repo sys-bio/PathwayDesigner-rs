@@ -2363,6 +2363,7 @@ version = "0.1.0"
 dependencies = [
  "harfrust",
  "pd-antimony",
+ "roxmltree",
  "sbml-io",
  "serde",
  "serde_json",

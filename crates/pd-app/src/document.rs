@@ -272,7 +272,20 @@ impl PathwayApp {
         }
     }
 
-    fn file_event(&mut self, event: FileEvent) {
+    /// After the diagram was replaced by a file's model (Import Antimony or
+    /// Import SBML), the document takes that file's name, so the status bar
+    /// and the title show it, and Save asks where to save rather than writing
+    /// the imported model over the previous file. The import stays one undo
+    /// step.
+    fn imported_from(&mut self, name: &str) {
+        self.doc = Document {
+            name: with_extension(name, "json"),
+            ..Document::default()
+        };
+        self.notice = Some(format!("Imported {name}"));
+    }
+
+    pub(crate) fn file_event(&mut self, event: FileEvent) {
         match event {
             FileEvent::Opened {
                 purpose: Purpose::ImportAntimony,
@@ -282,7 +295,7 @@ impl PathwayApp {
             } => {
                 let opts = self.import_options();
                 if self.antimony.load(&text, &mut self.view, &opts) {
-                    self.notice = Some(format!("Imported {name}"));
+                    self.imported_from(&name);
                     self.warnings.clear();
                     self.fit_pending = true;
                 } else {
@@ -297,7 +310,7 @@ impl PathwayApp {
                 ..
             } => {
                 if let Some(had_layout) = self.import_sbml(&name, &text) {
-                    self.notice = Some(format!("Imported {name}"));
+                    self.imported_from(&name);
                     if !had_layout {
                         self.start_layout();
                     }

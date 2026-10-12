@@ -736,9 +736,17 @@ replace `sbml-io` behind the same bridge.
 
 **Details settled by the implementation (R9).**
 - **Round trip.** Every `Models/*.json` exports and imports back with the same
-  biochemistry and the same drawing: node boxes, alias ids, junctions and every
-  leg's curve. The one loss: SBML has no Linear mode, so a Linear reaction comes
-  back as Straight, in the same place.
+  biochemistry and the same drawing: node boxes, alias ids, junctions, every
+  leg's curve, and every reaction's mode and smooth junction.
+- **PathwayDesigner's note** (`crates/pd-core/src/sbml/shape.rs`). Layout records
+  only geometry, so it can't say that a reaction is Linear (one straight line, no
+  junction) or that a Bézier junction is smooth. The export adds a note to the
+  reaction glyph's annotation, only where it is needed:
+  `<pd:reaction xmlns:pd="https://github.com/sys-bio/PathwayDesigner-rs/ns/sbml-layout/1" mode="linear"/>`,
+  or `smoothJunction="true"`. The import reads it back; a file without it imports
+  as before. Other tools skip annotations they don't know, and libSBML's
+  `checkConsistency()` accepts the files. (Until 2026-10-12 Linear came back as
+  Straight, and smooth junctions as plain ones.)
 - **Species references get ids** (`sr_<rid>_sub_<sid>`, `…_prod_…`, `…_mod_…`,
   made unique), and each species-reference glyph names its reference. Import
   matches a glyph to its participant by that id. Without one it uses the glyph's
@@ -780,7 +788,10 @@ replace `sbml-io` behind the same bridge.
   imported. Every species would otherwise be at a random place. A file whose
   layout leaves some species out says how many were placed at random.
 - **Menus.** File ▸ *Import SBML…* replaces the diagram as one undo step, like
-  *Import Antimony…*. *Open…* also opens SBML, as a new document. *Save to
+  *Import Antimony…*. Both name the document after the imported file (`model.xml`
+  becomes `model.json`) and forget the previous file, so the status bar and title
+  show the new name and Save asks where to save, instead of writing the imported
+  model over the previous file. *Open…* also opens SBML, as a new document. *Save to
   SBML…* writes Level 3 Version 1 with the layout. Problems and notes about the
   file are shown in the status bar once it is written.
 
@@ -950,6 +961,9 @@ reference's guard against editing the model by mistake while filling in controls
 - The canvas can't be read by assistive tools. Add a **model tree panel**: species and
   reactions as a list that can be navigated with the keyboard, and whose selection is
   shared with the canvas. It also helps everyone find their way around large networks.
+  Selecting in the tree never moves the diagram: stepping through the list with
+  the arrow keys would otherwise scroll it at every step, and the selected item
+  would be hard to follow. (Earlier builds centred the clicked item.)
 - The default colours already meet WCAG AA contrast for labels (`#1A1A1A` on
   `#EEF6FF`). Check this again after any change to the colours.
 

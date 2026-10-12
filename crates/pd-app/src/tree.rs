@@ -3,15 +3,17 @@
 //! selection with the canvas.
 //!
 //! The usual list conventions:
-//! - **click** selects one item, and centres it on the canvas;
+//! - **click** selects one item;
 //! - **Ctrl/Cmd-click** adds it to the selection, or takes it out;
 //! - **Shift-click** selects everything from the last item clicked to this one;
 //! - **↑ / ↓** move through the list, selecting as they go (with Shift, the
 //!   selection grows instead).
+//!
+//! Selecting never moves the diagram: stepping through the list with the
+//! arrow keys would otherwise scroll it at every step, and the selected item
+//! would be hard to follow.
 
 use eframe::egui::{self, Key};
-use pd_core::geometry::Pt;
-use pd_core::render::draw::effective_junction;
 use pd_core::view::{DiagramView, Target};
 
 /// What the tree remembers between frames.
@@ -21,16 +23,15 @@ pub struct TreeState {
     anchor: Option<Target>,
 }
 
-/// One row: what it selects, where to centre on it, its label and tooltip.
+/// One row: what it selects, its label and tooltip.
 struct Row {
     target: Target,
-    at: Pt,
     label: String,
     tip: Option<String>,
     selected: bool,
 }
 
-pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState, canvas_centre: Pt) {
+pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState) {
     let m = view.model();
     let species: Vec<Row> = m
         .species()
@@ -38,7 +39,6 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState, ca
         .filter(|s| !s.is_null_node)
         .map(|s| Row {
             target: Target::Species(s.id.clone()),
-            at: s.center,
             label: if s.is_alias() {
                 format!("{} (alias)", s.primary_id())
             } else {
@@ -53,7 +53,6 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState, ca
         .iter()
         .map(|r| Row {
             target: Target::Leg(r.id.clone()),
-            at: effective_junction(m, r),
             label: r.id.clone(),
             tip: (!r.kinetic_law.trim().is_empty()).then(|| format!("{}: {}", r.id, r.kinetic_law)),
             selected: r.selected,
@@ -79,24 +78,19 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState, ca
             );
     }
 
-    if let Some((targets, add, centre)) = picked {
+    if let Some((targets, add)) = picked {
         for (i, t) in targets.iter().enumerate() {
             view.select_item(t, add || i > 0);
-        }
-        if let Some(at) = centre {
-            view.centre_on(at, canvas_centre);
         }
     }
 }
 
-/// Draws one list and handles clicks and arrow keys on it. Returns what to
-/// select (the first replaces the selection unless adding), whether to add,
-/// and where to centre.
-fn list(
-    ui: &mut egui::Ui,
-    rows: &[Row],
-    state: &mut TreeState,
-) -> Option<(Vec<Target>, bool, Option<Pt>)> {
+/// What to select (the first replaces the selection unless adding), and
+/// whether to add.
+type Pick = (Vec<Target>, bool);
+
+/// Draws one list and handles clicks and arrow keys on it.
+fn list(ui: &mut egui::Ui, rows: &[Row], state: &mut TreeState) -> Option<Pick> {
     let (shift, command) = ui.input(|i| (i.modifiers.shift, i.modifiers.command));
     let mut responses = Vec::with_capacity(rows.len());
     let mut result = None;
@@ -150,47 +144,37 @@ fn list(
                 range(rows, next, state)
             } else {
                 state.anchor = Some(rows[next].target.clone());
-                (vec![rows[next].target.clone()], false, Some(rows[next].at))
+                (vec![rows[next].target.clone()], false)
             });
         }
     }
     result
 }
 
-fn click(
-    rows: &[Row],
-    i: usize,
-    state: &mut TreeState,
-    shift: bool,
-    command: bool,
-) -> (Vec<Target>, bool, Option<Pt>) {
+fn click(rows: &[Row], i: usize, state: &mut TreeState, shift: bool, command: bool) -> Pick {
     let row = &rows[i];
     if shift {
         return range(rows, i, state);
     }
     state.anchor = Some(row.target.clone());
-    // Ctrl/Cmd toggles one item without moving the view.
-    if command {
-        (vec![row.target.clone()], true, None)
-    } else {
-        (vec![row.target.clone()], false, Some(row.at))
-    }
+    // Ctrl/Cmd toggles one item, adding to the selection.
+    (vec![row.target.clone()], command)
 }
 
 /// Everything from the anchor to row `i` in this list (from `i` alone if the
 /// anchor isn't in it). Replaces the selection.
-fn range(rows: &[Row], i: usize, state: &mut TreeState) -> (Vec<Target>, bool, Option<Pt>) {
+fn range(rows: &[Row], i: usize, state: &mut TreeState) -> Pick {
     let anchor = state
         .anchor
         .as_ref()
         .and_then(|a| rows.iter().position(|r| r.target == *a));
     let Some(a) = anchor else {
         state.anchor = Some(rows[i].target.clone());
-        return (vec![rows[i].target.clone()], false, Some(rows[i].at));
+        return (vec![rows[i].target.clone()], false);
     };
     let (lo, hi) = (a.min(i), a.max(i));
     let targets = rows[lo..=hi].iter().map(|r| r.target.clone()).collect();
-    (targets, false, None)
+    (targets, false)
 }
 
 #[cfg(test)]
@@ -201,7 +185,6 @@ mod tests {
         (0..n)
             .map(|i| Row {
                 target: Target::Species(format!("S{i}")),
-                at: Pt::ZERO,
                 label: String::new(),
                 tip: None,
                 selected: false,
@@ -222,16 +205,13 @@ mod tests {
     fn click_ctrl_click_and_shift_click() {
         let r = rows(6);
         let mut state = TreeState::default();
-        let (t, add, centre) = click(&r, 1, &mut state, false, false);
-        assert_eq!(
-            (ids(&t), add, centre.is_some()),
-            (vec!["S1".to_owned()], false, true)
-        );
-        // Ctrl/Cmd toggles one, adding, and doesn't move the view.
-        let (t, add, centre) = click(&r, 4, &mut state, false, true);
-        assert_eq!((ids(&t), add, centre), (vec!["S4".to_owned()], true, None));
+        let (t, add) = click(&r, 1, &mut state, false, false);
+        assert_eq!((ids(&t), add), (vec!["S1".to_owned()], false));
+        // Ctrl/Cmd toggles one, adding.
+        let (t, add) = click(&r, 4, &mut state, false, true);
+        assert_eq!((ids(&t), add), (vec!["S4".to_owned()], true));
         // Shift: from the anchor (now S4) to S2, replacing the selection.
-        let (t, add, _) = click(&r, 2, &mut state, true, false);
+        let (t, add) = click(&r, 2, &mut state, true, false);
         assert_eq!(
             (ids(&t), add),
             (
@@ -245,10 +225,10 @@ mod tests {
     fn shift_without_an_anchor_selects_one() {
         let r = rows(3);
         let mut state = TreeState::default();
-        let (t, _, _) = click(&r, 2, &mut state, true, false);
+        let (t, _) = click(&r, 2, &mut state, true, false);
         assert_eq!(ids(&t), ["S2"]);
         // That became the anchor.
-        let (t, _, _) = click(&r, 0, &mut state, true, false);
+        let (t, _) = click(&r, 0, &mut state, true, false);
         assert_eq!(ids(&t), ["S0", "S1", "S2"]);
     }
 }

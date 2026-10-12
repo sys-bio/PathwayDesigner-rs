@@ -432,6 +432,8 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             bounding_box: Some(sb::BoundingBox::new(j.x, j.y, 0.0, 0.0)),
             ..Default::default()
         };
+        // Linear, and smooth junctions, which the curves can't say.
+        g.meta.annotation = super::shape::note(r);
         for leg in legs.iter().filter(|l| l.reaction == r.id) {
             let p = &r.participants(leg.role)[leg.index];
             let Some(node) = model.find_species(&p.species) else {

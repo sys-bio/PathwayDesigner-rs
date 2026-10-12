@@ -136,20 +136,28 @@ fn differences(a: &Model, b: &Model) -> Vec<String> {
             );
         }
         check(
-            close(effective_junction(a, r), q.junction),
+            close(effective_junction(a, r), effective_junction(b, q)),
             format!(
                 "{}: junction {:?} vs {:?}",
                 r.id,
                 effective_junction(a, r),
-                q.junction
+                effective_junction(b, q)
             ),
         );
-        // A Bézier reaction keeps its curves exactly; other modes come back
-        // as Straight (SBML has no Linear).
+        // Every mode comes back, Linear and smooth junctions through
+        // PathwayDesigner's note in the glyph's annotation; a Bézier reaction
+        // keeps its curves exactly.
+        check(
+            r.mode == q.mode,
+            format!("{}: mode {:?} vs {:?}", r.id, r.mode, q.mode),
+        );
         let bezier = effective_mode(r) == ReactionMode::Bezier;
         check(
-            bezier == (q.mode == ReactionMode::Bezier),
-            format!("{}: mode {:?} vs {:?}", r.id, r.mode, q.mode),
+            !bezier || r.junction_smooth == q.junction_smooth,
+            format!(
+                "{}: smooth junction {} vs {}",
+                r.id, r.junction_smooth, q.junction_smooth
+            ),
         );
         if bezier {
             for role in [Role::Reactant, Role::Product] {
@@ -227,10 +235,11 @@ fn every_model_exports_and_imports_back() {
         for d in differences(&model, &back) {
             failures.push(format!("{name}: {d}"));
         }
-        // A second round trip changes nothing more.
-        let again = sbml::export(&back);
-        if again.xml != sbml::export(&sbml::import(&again.xml, &OPTS).unwrap().model).xml {
-            failures.push(format!("{name}: a second round trip changed the SBML"));
+        // A second round trip changes nothing more (within rounding: a Linear
+        // junction is projected onto its line again each time).
+        let again = sbml::import(&sbml::export(&back).xml, &OPTS).unwrap().model;
+        for d in differences(&back, &again) {
+            failures.push(format!("{name}: a second round trip changed {d}"));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));

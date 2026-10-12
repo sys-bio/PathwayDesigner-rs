@@ -13,10 +13,15 @@ use crate::render::constants::{
     GUIDE_LINE, LABEL_FONT_SIZE, LABEL_PADDING, NODE_CORNER_RADIUS, PENDING_PRODUCT,
     PENDING_REACTANT, PENDING_RING_OUTSET, PENDING_RING_WIDTH,
 };
+use crate::render::draw::effective_junction;
 use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::text::text_width;
 use crate::undo::Command;
 use crate::view::{Modifiers, Request, Target, Tool, ViewResponse};
+
+/// Split into Aliases puts each alias at most this far from its reaction's
+/// junction, towards the primary.
+const SPLIT_DISTANCE: f64 = 90.0;
 
 /// Halfway between a UniUni reaction's two species, or `None` for any other
 /// reaction.
@@ -442,6 +447,99 @@ impl DiagramView {
         self.model.clear_selection();
         self.set_species_selected(&alias, true);
         let mut r = self.record("Create Alias", before);
+        r.selection_changed = true;
+        r
+    }
+
+    /// The reactions that draw primary species `id` itself (not one of its
+    /// aliases), as a reactant, product or modifier, in model order.
+    pub fn reactions_drawing(&self, id: &str) -> Vec<String> {
+        self.model
+            .reactions()
+            .iter()
+            .filter(|r| {
+                r.reactants
+                    .iter()
+                    .chain(&r.products)
+                    .chain(&r.modifiers)
+                    .any(|p| p.species == id)
+            })
+            .map(|r| r.id.clone())
+            .collect()
+    }
+
+    /// True if Split into Aliases can do anything for `id`: a primary, not a
+    /// null node, drawn by two or more reactions.
+    pub fn can_split_into_aliases(&self, id: &str) -> bool {
+        self.model
+            .find_species(id)
+            .is_some_and(|s| !s.is_alias() && !s.is_null_node)
+            && self.reactions_drawing(id).len() >= 2
+    }
+
+    /// Split into Aliases: gives each reaction that draws primary `id` its
+    /// own drawing of the species. The primary keeps the reaction whose
+    /// junction is nearest; every other reaction gets a new alias, placed
+    /// between its junction and the primary, near the junction, so long lines
+    /// to a busy node become short ones. Lines moved to an alias go back to
+    /// automatic handles. The new aliases are selected. One undo step. The
+    /// biochemistry doesn't change: an alias is the same species.
+    pub fn split_into_aliases(&mut self, id: &str) -> ViewResponse {
+        if !self.can_split_into_aliases(id) {
+            return ViewResponse::default();
+        }
+        self.cancel_gesture();
+        let before = self.model.clone();
+        let centre = self.model.find_species(id).expect("checked above").center;
+        let mut reactions: Vec<(String, Pt)> = self
+            .reactions_drawing(id)
+            .into_iter()
+            .filter_map(|r| {
+                let r = self.model.find_reaction(&r)?;
+                Some((r.id.clone(), effective_junction(&self.model, r)))
+            })
+            .collect();
+        // The nearest reaction stays with the primary.
+        let nearest = reactions
+            .iter()
+            .enumerate()
+            .min_by(|a, b| a.1.1.distance(centre).total_cmp(&b.1.1.distance(centre)))
+            .map(|(i, _)| i)
+            .expect("two or more reactions");
+        reactions.remove(nearest);
+
+        self.model.clear_selection();
+        let mut smooth = Vec::new();
+        for (rid, junction) in reactions {
+            let away = centre - junction;
+            let len = away.length();
+            let at = if len < 1.0 {
+                centre + ALIAS_OFFSET
+            } else {
+                junction + away * (SPLIT_DISTANCE.min(len / 2.0) / len)
+            };
+            let Some(alias) = self.model.add_alias(id, at) else {
+                continue;
+            };
+            self.set_species_selected(&alias, true);
+            let r = self.model.find_reaction_mut(&rid).expect("listed above");
+            for p in r.reactants.iter_mut().chain(&mut r.products) {
+                if p.species == id {
+                    p.species = alias.clone();
+                    p.ctrl_pts_set = false;
+                }
+            }
+            for p in r.modifiers.iter_mut().filter(|p| p.species == id) {
+                p.species = alias.clone();
+            }
+            if r.mode == crate::model::ReactionMode::Bezier && r.junction_smooth {
+                smooth.push(rid);
+            }
+        }
+        for rid in smooth {
+            crate::bezier::apply_smooth_handles(&mut self.model, &rid);
+        }
+        let mut r = self.record("Split into Aliases", before);
         r.selection_changed = true;
         r
     }

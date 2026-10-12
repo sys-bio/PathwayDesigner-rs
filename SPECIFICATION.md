@@ -605,6 +605,17 @@ single item.
 - **Delete an alias**: removes the alias and any reaction that uses the alias as a
   reactant or product. The primary is not affected.
 - **Delete a primary**: also removes all of its aliases (§3.7).
+- **Split into Aliases** (context menu, a primary non-null species drawn by two or
+  more reactions; added in the Rust version, not in the reference): gives each
+  reaction that draws the species its own drawing of it, in one undo step. The
+  primary keeps the reaction whose junction is nearest to it. Every other reaction
+  (reactant, product or modifier) gets a new alias, placed on the line from its
+  junction towards the primary, at most 90 units from the junction (half way if
+  the primary is nearer than 180), so long lines to a busy node become short ones.
+  Lines already drawn to an alias stay with it. Reactant and product legs moved to
+  an alias go back to automatic handles, and smooth junctions are recomputed. The
+  new aliases are selected, so they can be dragged as a group. The biochemistry
+  does not change.
 
 ### 7.4 Reaction shape commands
 
@@ -1278,7 +1289,7 @@ Which items appear depends on what was right-clicked:
 
 | Target | Items |
 |---|---|
-| Primary species | Create Alias · Rename · Delete Species · Alignment ▸ … |
+| Primary species | Create Alias · Split into Aliases (one per reaction) · Rename · Delete Species · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
 | Alias | Rename (renames the primary) · Go to Primary · Delete Alias · Alignment ▸ … |
 | Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) |
