@@ -5,8 +5,13 @@
 //! every project page on a `github.io` site shares one `localStorage`. The
 //! saved values are applied when the app starts (fixes D-2).
 
+use pd_core::json::colour::{from_hex, to_hex};
+use pd_core::model::Rgba;
+use pd_core::render::constants::SELECTED_REACTION;
+
 const KEY_CATALYTIC: &str = "pathwayDesigner.convertCatalyticReactions";
 const KEY_NULL_SPECIES: &str = "pathwayDesigner.showNullSpecies";
+const KEY_SELECTED_REACTION: &str = "pathwayDesigner.selectedReactionColour";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preferences {
@@ -14,6 +19,8 @@ pub struct Preferences {
     pub convert_catalytic: bool,
     /// Draw null nodes and the legs that touch them.
     pub show_null_species: bool,
+    /// The colour a selected reaction is drawn in, to make it easy to see.
+    pub selected_reaction: Rgba,
 }
 
 impl Default for Preferences {
@@ -21,6 +28,7 @@ impl Default for Preferences {
         Self {
             convert_catalytic: true,
             show_null_species: true,
+            selected_reaction: SELECTED_REACTION,
         }
     }
 }
@@ -37,6 +45,12 @@ impl Preferences {
             };
             p.convert_catalytic = flag(KEY_CATALYTIC, p.convert_catalytic);
             p.show_null_species = flag(KEY_NULL_SPECIES, p.show_null_species);
+            if let Some(c) = s
+                .get_string(KEY_SELECTED_REACTION)
+                .and_then(|h| from_hex(&h))
+            {
+                p.selected_reaction = c;
+            }
         }
         p
     }
@@ -44,6 +58,7 @@ impl Preferences {
     pub fn save(&self, storage: &mut dyn eframe::Storage) {
         storage.set_string(KEY_CATALYTIC, self.convert_catalytic.to_string());
         storage.set_string(KEY_NULL_SPECIES, self.show_null_species.to_string());
+        storage.set_string(KEY_SELECTED_REACTION, to_hex(self.selected_reaction));
     }
 }
 
@@ -83,6 +98,7 @@ mod tests {
         let p = Preferences {
             convert_catalytic: false,
             show_null_species: false,
+            selected_reaction: Rgba([0xE0, 0x10, 0x80, 0xFF]),
         };
         p.save(&mut m);
         assert_eq!(m.0["pathwayDesigner.convertCatalyticReactions"], "false");

@@ -69,6 +69,9 @@ pub const ALIAS_BORDER: Rgba = hex(0x7A6FC8);
 pub const LABEL: Rgba = hex(0x1A1A1A);
 pub const REACTION_LINE: Rgba = hex(0x444444);
 pub const SELECTED_ACCENT: Rgba = hex(0x1144CC);
+/// The colour a selected reaction is drawn in, unless the preferences say
+/// otherwise: the selection accent, as for its modifier arcs.
+pub const SELECTED_REACTION: Rgba = SELECTED_ACCENT;
 pub const JUNCTION_FILL: Rgba = hex(0xFF8800);
 pub const JUNCTION_BORDER: Rgba = hex(0xA05000);
 pub const JUNCTION_BORDER_SELECTED: Rgba = hex(0x0033AA);

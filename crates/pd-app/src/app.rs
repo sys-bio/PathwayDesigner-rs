@@ -186,6 +186,7 @@ impl PathwayApp {
         };
         // Saved preferences apply from the start (fixes D-2).
         app.view.show_null_species = app.prefs.show_null_species;
+        app.view.selected_reaction_colour = app.prefs.selected_reaction;
         app.perform(Action::OpenSample(START_SAMPLE));
         app.notice = None;
         // Changes lost last time (a closed tab, a crash): offer them back.
@@ -867,6 +868,22 @@ impl PathwayApp {
                         );
                     ui.checkbox(&mut draft.show_null_species, "Show null species")
                         .on_hover_text("Draw the null nodes of reactions with an empty side");
+                    ui.horizontal(|ui| {
+                        let [r, g, b, a] = draft.selected_reaction.0;
+                        let mut colour = egui::Color32::from_rgba_unmultiplied(r, g, b, a);
+                        ui.label("Selected reaction colour");
+                        if ui
+                            .color_edit_button_srgba(&mut colour)
+                            .on_hover_text("The colour a selected reaction is drawn in")
+                            .changed()
+                        {
+                            draft.selected_reaction =
+                                pd_core::model::Rgba(colour.to_srgba_unmultiplied());
+                        }
+                        if ui.small_button("Reset").clicked() {
+                            draft.selected_reaction = pd_core::render::constants::SELECTED_REACTION;
+                        }
+                    });
                     if will_reimport {
                         ui.colored_label(
                             egui::Color32::from_rgb(0xA0, 0x50, 0x00),
@@ -885,6 +902,7 @@ impl PathwayApp {
                     let draft = *draft;
                     self.prefs = draft;
                     self.view.show_null_species = draft.show_null_species;
+                    self.view.selected_reaction_colour = draft.selected_reaction;
                     if will_reimport {
                         let opts = self.import_options();
                         if self.antimony.reimport(&mut self.view, &opts) {

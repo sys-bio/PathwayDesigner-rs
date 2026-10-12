@@ -327,7 +327,10 @@ reaction drawn as Straight.
 
 **Line style:** colour `#444444` and width 1.5 by default, with round caps. A custom
 `lineColor` or `lineWidth` overrides these. A **selected** reaction is drawn with
-**1.5 × its line width**. Its colour does not change.
+**1.5 × its line width**, in the **selected reaction colour**: `#1144CC` by default,
+set in Preferences (§12). Its arrowheads and modifier arcs take the same colour.
+(The reference keeps the line's own colour, which makes a selected reaction hard
+to see; changed at the user's request.)
 
 **Gaps and arrowheads (world units):**
 
@@ -410,7 +413,8 @@ For each modifier of a reaction:
   modifier node's border, on the side facing the junction. It ends at a filled dot of
   radius **4**, whose centre is **10** units from the junction in the direction of
   the modifier.
-- Colour teal `#007777`, or `#1144CC` while the reaction is selected.
+- Colour teal `#007777`, or the selected reaction colour (§12) while the reaction
+  is selected.
 - No arrowhead. The arc is drawn before the species so that its start is hidden
   under the modifier node.
 - If the modifier's centre is less than 1 unit from the junction, skip it.
@@ -1238,9 +1242,10 @@ OK and when the application exits.
 |---|---|---|
 | **Convert catalytic reactions** | true | During Antimony import, `A -> A + B` becomes `-> B` with `A` as a modifier (§11.2). If this setting changes and an Antimony source has been imported, that source is imported **again** so the change takes effect. (The user SHOULD be warned that this throws away edits made since the import.) |
 | **Show null species** | true | Draw null nodes and the legs that touch them (§5.4). |
+| **Selected reaction colour** | `#1144CC` | The colour a selected reaction's lines, arrowheads and modifier arcs are drawn in (§5.5), with a Reset button. Added in the Rust version. Never used in exports. |
 
-The preferences dialog is a modal window with one tab, holding two checkboxes and
-OK/Cancel buttons.
+The preferences dialog is a modal window with one tab, holding two checkboxes, the
+selected reaction colour and OK/Cancel buttons.
 
 The saved preference values MUST be applied when the application starts (§15, D-2).
 

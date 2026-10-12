@@ -51,6 +51,8 @@ pub struct DiagramView {
     pub show_alias_indicator: bool,
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
+    /// The colour a selected reaction is drawn in (a preference).
+    pub selected_reaction_colour: crate::model::Rgba,
     /// New reactions are Bézier (S §6.5). The reference starts with it on.
     pub default_bezier: bool,
     /// New Bézier reactions get a smooth junction (S §6.5). On at start.
@@ -168,6 +170,7 @@ impl DiagramView {
             scroll: Pt::ZERO,
             show_alias_indicator: true,
             show_null_species: true,
+            selected_reaction_colour: crate::render::constants::SELECTED_REACTION,
             default_bezier: true,
             default_smooth: true,
             undo: UndoHistory::new(),
@@ -259,6 +262,7 @@ impl DiagramView {
             for_output: false,
             show_alias_indicator: self.show_alias_indicator,
             show_null_species: self.show_null_species,
+            selected_reaction: self.selected_reaction_colour,
         };
         draw_model(&self.model, &opts, r);
         self.draw_overlays(r);

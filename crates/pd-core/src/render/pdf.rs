@@ -97,6 +97,7 @@ pub fn model_to_pdf(
         for_output: true,
         show_alias_indicator,
         show_null_species,
+        ..DrawOptions::default()
     };
     draw_model(model, &opts, &mut pdf);
     pdf.finish()

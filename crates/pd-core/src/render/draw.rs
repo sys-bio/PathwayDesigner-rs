@@ -26,6 +26,9 @@ pub struct DrawOptions {
     pub show_alias_indicator: bool,
     /// Draw null nodes and the legs that touch them (S §12). Default on.
     pub show_null_species: bool,
+    /// The colour of a selected reaction's lines, arrowheads and modifier
+    /// arcs (a preference; selection accent by default).
+    pub selected_reaction: Rgba,
 }
 
 impl Default for DrawOptions {
@@ -37,6 +40,7 @@ impl Default for DrawOptions {
             for_output: false,
             show_alias_indicator: true,
             show_null_species: true,
+            selected_reaction: SELECTED_REACTION,
         }
     }
 }
@@ -209,10 +213,11 @@ impl Drawer<'_> {
 
     fn line_stroke(&self, r: &Reaction) -> Stroke {
         let style = custom(&r.style);
-        let color = line_colour(r);
+        let mut color = line_colour(r);
         let mut width = pick_width(style.map(|s| s.line_width), DEFAULT_LINE_WIDTH);
         if self.selected(r.selected) {
             width *= SELECTED_LINE_FACTOR;
+            color = self.opts.selected_reaction;
         }
         Stroke {
             width: self.len(width),
@@ -347,7 +352,7 @@ impl Drawer<'_> {
         }
         let j = effective_junction(self.model, r);
         let color = if self.selected(r.selected) {
-            SELECTED_ACCENT
+            self.opts.selected_reaction
         } else {
             MODIFIER
         };
@@ -955,6 +960,42 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, Call::Circle(_, r, _, _) if (*r - 4.0).abs() < 1e-5))
         );
+    }
+
+    #[test]
+    fn a_selected_reaction_is_drawn_in_the_selection_colour() {
+        let mut m = uni_uni();
+        let colour = |calls: &[Call]| match &calls[0] {
+            Call::Polyline(_, s) => s.color,
+            _ => panic!(),
+        };
+        let plain = draw(&m, &DrawOptions::default());
+        assert_eq!(colour(&plain), REACTION_LINE);
+        m.find_reaction_mut("R3").unwrap().selected = true;
+        // The default selection colour, and one from the preferences.
+        assert_eq!(
+            colour(&draw(&m, &DrawOptions::default())),
+            SELECTED_REACTION
+        );
+        let pink = Rgba([0xE0, 0x10, 0x80, 0xFF]);
+        let chosen = DrawOptions {
+            selected_reaction: pink,
+            ..DrawOptions::default()
+        };
+        let calls = draw(&m, &chosen);
+        assert_eq!(colour(&calls), pink);
+        // The arrowhead too.
+        assert!(
+            calls
+                .iter()
+                .any(|c| matches!(c, Call::Polygon(_, f) if *f == pink))
+        );
+        // Never in output.
+        let output = DrawOptions {
+            for_output: true,
+            ..chosen
+        };
+        assert_eq!(colour(&draw(&m, &output)), REACTION_LINE);
     }
 
     #[test]

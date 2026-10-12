@@ -186,6 +186,7 @@ pub fn model_to_svg(
         for_output: true,
         show_alias_indicator,
         show_null_species,
+        ..DrawOptions::default()
     };
     draw_model(model, &opts, &mut svg);
     svg.finish()
