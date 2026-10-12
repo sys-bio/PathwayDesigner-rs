@@ -180,7 +180,15 @@ fn rubber_band_is_drawn_while_dragging() {
         ) {
         }
         fn polygon(&mut self, _: &[crate::render::SPt], _: Rgba) {}
-        fn text(&mut self, _: crate::render::SPt, _: &str, _: f32, _: Rgba) {}
+        fn text(
+            &mut self,
+            _: crate::render::SPt,
+            _: &str,
+            _: f32,
+            _: crate::model::TextFont,
+            _: Rgba,
+        ) {
+        }
     }
     let mut v = view();
     down(&mut v, 600.0, 600.0, Modifiers::NONE);

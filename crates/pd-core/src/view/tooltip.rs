@@ -47,7 +47,7 @@ impl DiagramView {
                     format!("{}: {}", r.id, r.kinetic_law)
                 })
             }
-            Target::Empty => None,
+            Target::Text(_) | Target::TextWrap(_) | Target::Empty => None,
         }
     }
 
@@ -79,7 +79,13 @@ impl DiagramView {
             Some(Stroke::solid(1.0, TOOLTIP_BORDER)),
         );
         let centre = spt((x + w / 2.0) as f32, (y + h / 2.0) as f32);
-        r.text(centre, text, TEXT_SIZE as f32, TOOLTIP_TEXT);
+        r.text(
+            centre,
+            text,
+            TEXT_SIZE as f32,
+            crate::model::TextFont::default(),
+            TOOLTIP_TEXT,
+        );
     }
 }
 
@@ -175,7 +181,7 @@ mod tests {
         fn polyline(&mut self, _: &[SPt], _: Stroke) {}
         fn cubic(&mut self, _: SPt, _: SPt, _: SPt, _: SPt, _: Stroke) {}
         fn polygon(&mut self, _: &[SPt], _: Rgba) {}
-        fn text(&mut self, _: SPt, s: &str, size: f32, color: Rgba) {
+        fn text(&mut self, _: SPt, s: &str, size: f32, _: crate::model::TextFont, color: Rgba) {
             self.text = Some((s.to_owned(), size, color));
         }
     }

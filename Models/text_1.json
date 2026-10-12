@@ -1,0 +1,88 @@
+{
+  "version": 4,
+  "modelName": "text_1",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "k3",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "S1",
+      "x": 100.0,
+      "y": 200.0,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S2",
+      "x": 320.0,
+      "y": 200.0,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false
+    }
+  ],
+  "reactions": [
+    {
+      "id": "R3",
+      "jx": 210.0,
+      "jy": 200.0,
+      "kineticLaw": "k3*S1",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    }
+  ],
+  "texts": [
+    {
+      "id": "T4",
+      "x": 60.0,
+      "y": 100.0,
+      "text": "A simple conversion",
+      "size": 22.0,
+      "typeface": "serif",
+      "bold": true
+    },
+    {
+      "id": "T5",
+      "x": 60.0,
+      "y": 260.0,
+      "text": "S1 is converted to S2 by a first-order reaction. This note wraps at 220 units.\nA second paragraph.",
+      "size": 14.0,
+      "align": "center",
+      "wrapWidth": 220.0
+    },
+    {
+      "id": "T6",
+      "x": 180.0,
+      "y": 160.0,
+      "text": "k3 = 0.1",
+      "size": 12.0,
+      "italic": true,
+      "color": "#CC3300FF"
+    }
+  ]
+}

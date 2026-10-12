@@ -6,10 +6,10 @@
 //! or Enter is pressed. A draft remembers which item it was typed for: if the
 //! selection changes first, it still goes to that item, not the new one.
 
-use eframe::egui::{self, Color32, RichText, Sense, Vec2};
+use eframe::egui::{self, Color32, RichText, Sense, Vec2, text::CCursor, text::CCursorRange};
 use pd_core::expr;
 use pd_core::json::colour::{from_hex, to_hex};
-use pd_core::model::Rgba;
+use pd_core::model::{Rgba, TextAlign, Typeface};
 use pd_core::render::constants::PICKER_SWATCHES;
 use pd_core::view::{ColourField, DiagramView};
 
@@ -22,6 +22,8 @@ enum Field {
     BorderWidth,
     LineWidth,
     KineticLaw,
+    TextSize,
+    TextWrap,
 }
 
 /// The text being typed into one field, and the item it is for.
@@ -38,6 +40,14 @@ pub struct Inspector {
     border_width: Draft,
     line_width: Draft,
     law: Draft,
+    text_size: Draft,
+    text_wrap: Draft,
+    /// The words of the one selected text, as shown or typed.
+    words: String,
+    /// The text `words` belongs to.
+    words_for: Option<String>,
+    /// Put the keyboard in the words field for this text (S §7.8).
+    edit_text: Option<String>,
     /// The colour picker's hex field.
     hex: String,
 }
@@ -45,9 +55,18 @@ pub struct Inspector {
 const ERROR: Color32 = Color32::from_rgb(0xCC, 0x33, 0x00);
 const SWATCH: Vec2 = Vec2::new(28.0, 18.0);
 
+/// The words field's egui id, to focus it.
+const WORDS_ID: &str = "text-words";
+
 impl Inspector {
+    /// Asks for the keyboard to go to the words field once `id` is the one
+    /// selected text, with its words selected so typing replaces them.
+    pub fn edit_text(&mut self, id: &str) {
+        self.edit_text = Some(id.to_owned());
+    }
+
     /// Shows the Species group, then `between` (the Antimony panel), then
-    /// the Reaction group (S §13.3).
+    /// the Reaction and Text groups (S §13.3).
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -57,6 +76,9 @@ impl Inspector {
         let (species, reactions) = view.selection();
         let one_species = (species.len() == 1).then(|| species[0].clone());
         let one_reaction = (reactions.len() == 1).then(|| reactions[0].clone());
+        let texts = view.selected_text_ids();
+        let one_text = (texts.len() == 1).then(|| texts[0].clone());
+        let first_text = texts.first().cloned();
 
         // Drafts typed for an item that is no longer the one shown go to that
         // item first (SPEC-Rust §11.2).
@@ -65,6 +87,8 @@ impl Inspector {
             (Field::BorderWidth, &one_species),
             (Field::LineWidth, &one_reaction),
             (Field::KineticLaw, &one_reaction),
+            (Field::TextSize, &first_text),
+            (Field::TextWrap, &one_text),
         ] {
             if self.draft(field).target != *target {
                 self.commit(field, view);
@@ -166,6 +190,144 @@ impl Inspector {
             ui.label("Rate law");
             self.law_field(ui, view, one_reaction.is_some());
         });
+
+        ui.add_space(8.0);
+        ui.separator();
+        ui.heading("Text");
+        ui.add_enabled_ui(!texts.is_empty(), |ui| {
+            self.words_field(ui, view, one_text.as_deref());
+            let m = view.model();
+            let selected: Vec<_> = texts.iter().filter_map(|id| m.find_text(id)).collect();
+            let face = selected
+                .first()
+                .map(|t| t.font.typeface)
+                .unwrap_or_default();
+            let all_bold = !selected.is_empty() && selected.iter().all(|t| t.font.bold);
+            let all_italic = !selected.is_empty() && selected.iter().all(|t| t.font.italic);
+            // Shown as chosen only if every selected text has it.
+            let align = selected
+                .first()
+                .map(|t| t.align)
+                .filter(|a| selected.iter().all(|t| t.align == *a));
+            egui::Grid::new("text")
+                .num_columns(2)
+                .spacing([8.0, 6.0])
+                .show(ui, |ui| {
+                    ui.label("Typeface");
+                    let mut chosen = None;
+                    egui::ComboBox::from_id_salt("typeface")
+                        .selected_text(typeface_name(face))
+                        .show_ui(ui, |ui| {
+                            for f in [Typeface::Sans, Typeface::Serif] {
+                                if ui.selectable_label(f == face, typeface_name(f)).clicked() {
+                                    chosen = Some(f);
+                                }
+                            }
+                        });
+                    if let Some(f) = chosen {
+                        view.set_text_typeface(f);
+                    }
+                    ui.end_row();
+
+                    ui.label("Size");
+                    self.number(ui, view, Field::TextSize, !texts.is_empty(), "");
+                    ui.end_row();
+
+                    ui.label("Style");
+                    ui.horizontal(|ui| {
+                        let mut bold = all_bold;
+                        if ui
+                            .checkbox(&mut bold, RichText::new("Bold").strong())
+                            .changed()
+                        {
+                            view.set_text_bold(bold);
+                        }
+                        let mut italic = all_italic;
+                        if ui
+                            .checkbox(&mut italic, RichText::new("Italic").italics())
+                            .changed()
+                        {
+                            view.set_text_italic(italic);
+                        }
+                    });
+                    ui.end_row();
+
+                    ui.label("Align");
+                    ui.horizontal(|ui| {
+                        for (a, name, tip) in [
+                            (TextAlign::Left, "Left", "Lines start at the left edge"),
+                            (TextAlign::Center, "Center", "Lines are centred"),
+                            (TextAlign::Right, "Right", "Lines end at the right edge"),
+                        ] {
+                            if ui
+                                .selectable_label(align == Some(a), name)
+                                .on_hover_text(tip)
+                                .clicked()
+                            {
+                                view.set_text_align(a);
+                            }
+                        }
+                    });
+                    ui.end_row();
+
+                    ui.label("Colour");
+                    self.swatch(ui, view, ColourField::Text);
+                    ui.end_row();
+
+                    ui.label("Wrap width");
+                    self.number(ui, view, Field::TextWrap, one_text.is_some(), "0 = no wrap")
+                        .on_hover_text("Or drag the small square on the text's right edge");
+                    ui.end_row();
+                });
+        });
+    }
+
+    /// The words of the one selected text, applied as they are typed (one
+    /// undo step for a run of typing). Enter starts a new line.
+    fn words_field(&mut self, ui: &mut egui::Ui, view: &mut DiagramView, one: Option<&str>) {
+        let id = egui::Id::new(WORDS_ID);
+        let focused = ui.memory(|m| m.has_focus(id));
+        // Another text selected: show its words, and stop typing into the old one.
+        if self.words_for.as_deref() != one {
+            self.words_for = one.map(str::to_owned);
+            if focused {
+                ui.memory_mut(|m| m.surrender_focus(id));
+            }
+        }
+        if !focused || self.words_for.as_deref() != one {
+            self.words = one
+                .and_then(|t| view.model().find_text(t))
+                .map(|t| t.text.clone())
+                .unwrap_or_default();
+        }
+        let r = ui.add_enabled(
+            one.is_some(),
+            egui::TextEdit::multiline(&mut self.words)
+                .id(id)
+                .desired_rows(3)
+                .desired_width(f32::INFINITY)
+                .hint_text(if one.is_some() {
+                    "Type the text here"
+                } else {
+                    "select one text"
+                }),
+        );
+        if r.changed()
+            && let Some(t) = one
+        {
+            view.set_text(t, &self.words);
+        }
+        if self.edit_text.is_some() && self.edit_text.as_deref() == one {
+            self.edit_text = None;
+            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+            let end = CCursor::new(self.words.chars().count());
+            state
+                .cursor
+                .set_char_range(Some(CCursorRange::two(CCursor::new(0), end)));
+            state.store(ui.ctx(), id);
+            r.request_focus();
+            r.scroll_to_me(Some(egui::Align::Center));
+        }
     }
 
     fn draft(&self, field: Field) -> &Draft {
@@ -174,6 +336,8 @@ impl Inspector {
             Field::BorderWidth => &self.border_width,
             Field::LineWidth => &self.line_width,
             Field::KineticLaw => &self.law,
+            Field::TextSize => &self.text_size,
+            Field::TextWrap => &self.text_wrap,
         }
     }
 
@@ -183,6 +347,8 @@ impl Inspector {
             Field::BorderWidth => &mut self.border_width,
             Field::LineWidth => &mut self.line_width,
             Field::KineticLaw => &mut self.law,
+            Field::TextSize => &mut self.text_size,
+            Field::TextWrap => &mut self.text_wrap,
         }
     }
 
@@ -202,6 +368,8 @@ impl Inspector {
                 .find_reaction(target)
                 .map(|r| r.style.line_width.to_string()),
             Field::KineticLaw => m.find_reaction(target).map(|r| r.kinetic_law.clone()),
+            Field::TextSize => m.find_text(target).map(|t| t.size.to_string()),
+            Field::TextWrap => m.find_text(target).map(|t| t.wrap_width.to_string()),
         }
         .unwrap_or_default()
     }
@@ -233,6 +401,13 @@ impl Inspector {
             (Field::KineticLaw, _) => {
                 view.set_kinetic_law(&target, &text);
             }
+            // The size goes to every selected text.
+            (Field::TextSize, Some(v)) => {
+                view.set_text_size(v);
+            }
+            (Field::TextWrap, Some(v)) => {
+                view.set_text_wrap(&target, v);
+            }
             _ => {}
         }
     }
@@ -256,7 +431,7 @@ impl Inspector {
         field: Field,
         enabled: bool,
         hint: &str,
-    ) {
+    ) -> egui::Response {
         self.refresh(field, view);
         let d = self.draft_mut(field);
         let valid = !d.dirty || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite);
@@ -271,6 +446,7 @@ impl Inspector {
         if r.lost_focus() {
             self.commit(field, view);
         }
+        r
     }
 
     /// The rate-law field: a parse error shows under it, but the law is
@@ -393,6 +569,13 @@ impl Inspector {
             }
         });
         chosen
+    }
+}
+
+fn typeface_name(f: Typeface) -> &'static str {
+    match f {
+        Typeface::Sans => "Sans (Noto Sans)",
+        Typeface::Serif => "Serif (Noto Serif)",
     }
 }
 

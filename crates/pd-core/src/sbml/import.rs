@@ -205,6 +205,31 @@ impl Builder {
         for r in &m.reactions {
             self.reaction(m, r, layout, &glyph_node, &nulls, opts);
         }
+        // Free text: a text glyph with words of its own and nothing it labels
+        // (S §7.8). Its look comes from PathwayDesigner's note, if it has one.
+        if let Some(l) = m.layouts.first() {
+            for g in &l.text_glyphs {
+                let (None, None, Some(words)) = (&g.graphical_object, &g.origin_of_text, &g.text)
+                else {
+                    continue;
+                };
+                let at = positioned(g.bounding_box.as_ref())
+                    .map_or(Pt::ZERO, |b| pt(b.position.x, b.position.y));
+                let id = self.model.add_text(at, words);
+                let look = g
+                    .meta
+                    .annotation
+                    .as_deref()
+                    .and_then(super::shape::read_text);
+                if let (Some(look), Some(t)) = (look, self.model.find_text_mut(&id)) {
+                    t.font = look.font;
+                    t.align = look.align;
+                    t.size = look.size;
+                    t.color = look.color;
+                    t.wrap_width = look.wrap_width;
+                }
+            }
+        }
         self.model.recompute_id_counter();
         (layout.is_some(), unplaced)
     }

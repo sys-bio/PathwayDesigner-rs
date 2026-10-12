@@ -19,6 +19,8 @@ pub mod input;
 mod interaction_tests;
 mod interchange;
 mod properties;
+#[cfg(test)]
+mod text_tests;
 mod tooltip;
 
 use crate::bezier::{Ctrl as HandleCtrl, apply_smooth_handles, store_auto_handles};
@@ -29,6 +31,7 @@ use crate::render::draw::{
     DrawOptions, Shown, content_bounds, draw_model, linear_junction_t, linear_line,
 };
 use crate::render::{Renderer, SRect, Stroke, spt};
+use crate::textbox::{MIN_WRAP_WIDTH, lay_out, text_box};
 use crate::undo::{Command, CtrlState, UndoHistory};
 
 pub use arrange::Arrange;
@@ -41,6 +44,9 @@ const RUBBER_BAND_FILL_ALPHA: u8 = 51;
 
 /// The selected species and reactions, by id.
 pub type Selection = (Vec<Id>, Vec<Id>);
+
+/// Everything selected, texts included, to tell when the selection changes.
+type SelectionState = (Selection, Vec<Id>);
 
 #[derive(Clone, Debug)]
 pub struct DiagramView {
@@ -71,7 +77,10 @@ pub struct DiagramView {
     layout: Option<arrange::LayoutState>,
     /// The undo history's version and the selection after the last keyboard
     /// nudge, so the next one can join its undo step.
-    nudged: Option<(u64, Selection)>,
+    nudged: Option<(u64, SelectionState)>,
+    /// The undo history's version after the last change to a text's words,
+    /// and which text: typing more joins that undo step (S §7.8).
+    text_edited: Option<(u64, Id)>,
 }
 
 /// The reaction being built with an add-reaction tool (S §6.5).
@@ -89,6 +98,7 @@ enum Gesture {
     Nodes(NodeDrag),
     Junction(JunctionDrag),
     Handle(HandleDrag),
+    TextWrap(TextWrapDrag),
     /// Corners in screen coordinates.
     RubberBand {
         start: Pt,
@@ -117,9 +127,10 @@ struct HandleRef {
 struct NodeDrag {
     /// World point of the mouse-down.
     start: Pt,
-    /// Moved species and junctions, with their original positions.
+    /// Moved species, junctions and texts, with their original positions.
     species: Vec<(Id, Pt)>,
     junctions: Vec<(Id, Pt)>,
+    texts: Vec<(Id, Pt)>,
     handles: Vec<HandleRef>,
     /// Smooth reactions whose junction moves: their handles are recomputed
     /// as it goes (S §6.4).
@@ -145,6 +156,19 @@ struct HandleDrag {
     /// so the drag is undone as a snapshot.
     smooth: bool,
     before: Option<Box<Model>>,
+    delta: Pt,
+}
+
+/// Dragging a text's wrap handle sets the width its lines wrap at (S §7.8).
+#[derive(Clone, Debug)]
+struct TextWrapDrag {
+    start: Pt,
+    id: Id,
+    /// The wrap width before the drag.
+    from: f64,
+    /// The text's width when the drag began.
+    base: f64,
+    before: Box<Model>,
     delta: Pt,
 }
 
@@ -184,6 +208,7 @@ impl DiagramView {
             hover: None,
             layout: None,
             nudged: None,
+            text_edited: None,
         }
     }
 
@@ -321,6 +346,16 @@ impl DiagramView {
     pub fn has_selection(&self) -> bool {
         self.model.selected_species().next().is_some()
             || self.model.selected_reactions().next().is_some()
+            || self.model.selected_texts().next().is_some()
+    }
+
+    /// The selected texts' ids, in z-order.
+    pub fn selected_text_ids(&self) -> Vec<Id> {
+        self.model.selected_texts().map(|t| t.id.clone()).collect()
+    }
+
+    fn selection_state(&self) -> SelectionState {
+        (self.selection(), self.selected_text_ids())
     }
 
     /// The selected species and reaction ids, in model order.
@@ -337,7 +372,7 @@ impl DiagramView {
         )
     }
 
-    /// Selects every species and reaction (Ctrl/Cmd + A).
+    /// Selects every species, reaction and text (Ctrl/Cmd + A).
     pub fn select_all(&mut self) -> ViewResponse {
         self.select_only(true, true)
     }
@@ -352,18 +387,22 @@ impl DiagramView {
         self.select_only(false, true)
     }
 
-    /// Makes the selection every species, every reaction, or both.
+    /// Makes the selection every species, every reaction, or both; texts
+    /// only with both.
     fn select_only(&mut self, species: bool, reactions: bool) -> ViewResponse {
-        let before = self.selection();
+        let before = self.selection_state();
         for s in self.model.species_mut() {
             s.selected = species;
         }
         for r in self.model.reactions_mut() {
             r.selected = reactions;
         }
+        for t in self.model.texts_mut() {
+            t.selected = species && reactions;
+        }
         ViewResponse {
             repaint: true,
-            selection_changed: self.selection() != before,
+            selection_changed: self.selection_state() != before,
             model_changed: false,
             request: None,
         }
@@ -382,7 +421,7 @@ impl DiagramView {
                 _ => ViewResponse::default(),
             };
         }
-        let before = self.selection();
+        let before = self.selection_state();
         let mut response = match *event {
             ViewEvent::PointerDown {
                 pos,
@@ -427,7 +466,7 @@ impl DiagramView {
             ViewEvent::FocusLost => self.cancel_gesture(),
             _ => ViewResponse::default(),
         };
-        if self.selection() != before {
+        if self.selection_state() != before {
             response.selection_changed = true;
             response.repaint = true;
         }
@@ -442,6 +481,7 @@ impl DiagramView {
             Tool::Select => {}
             Tool::AddSpecies => return self.add_species_at(pos),
             Tool::AddReaction { .. } => return self.pick_for_reaction(pos),
+            Tool::AddText => return self.add_text_at(pos),
         }
         let world = self.screen_to_world(pos);
         match self.target_at(pos) {
@@ -455,6 +495,23 @@ impl DiagramView {
                         self.set_species_selected(&id, true);
                     }
                     self.gesture = Gesture::Nodes(self.begin_node_drag(world));
+                }
+            }
+            Target::Text(id) => {
+                let selected = self.model.find_text(&id).is_some_and(|t| t.selected);
+                if modifiers.shift {
+                    self.set_text_selected(&id, !selected);
+                } else {
+                    if !selected {
+                        self.model.clear_selection();
+                        self.set_text_selected(&id, true);
+                    }
+                    self.gesture = Gesture::Nodes(self.begin_node_drag(world));
+                }
+            }
+            Target::TextWrap(id) => {
+                if let Some(drag) = self.begin_text_wrap(world, id) {
+                    self.gesture = Gesture::TextWrap(drag);
                 }
             }
             Target::Handle(h) => {
@@ -504,6 +561,12 @@ impl DiagramView {
         }
     }
 
+    fn set_text_selected(&mut self, id: &str, selected: bool) {
+        if let Some(t) = self.model.find_text_mut(id) {
+            t.selected = selected;
+        }
+    }
+
     fn pointer_move(&mut self, pos: Pt) -> ViewResponse {
         let world = self.screen_to_world(pos);
         match &mut self.gesture {
@@ -523,6 +586,11 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_handle_drag(&drag);
             }
+            Gesture::TextWrap(drag) => {
+                drag.delta = world - drag.start;
+                let drag = drag.clone();
+                self.apply_text_wrap(&drag);
+            }
             Gesture::RubberBand { current, .. } => *current = pos,
         }
         ViewResponse {
@@ -540,7 +608,11 @@ impl DiagramView {
                 None
             }
             // A drag that ends where it started records nothing (S §9.1).
-            Gesture::Nodes(drag) if drag.delta == Pt::ZERO || drag.species.is_empty() => None,
+            Gesture::Nodes(drag)
+                if drag.delta == Pt::ZERO || (drag.species.is_empty() && drag.texts.is_empty()) =>
+            {
+                None
+            }
             Gesture::Nodes(drag) => Some(match drag.before {
                 Some(before) => Command::Snapshot {
                     desc: "Move",
@@ -589,6 +661,12 @@ impl DiagramView {
                     }
                 }
             }),
+            Gesture::TextWrap(drag) if drag.delta == Pt::ZERO => None,
+            Gesture::TextWrap(drag) => Some(Command::Snapshot {
+                desc: "Wrap Text",
+                before: drag.before,
+                after: Box::new(self.model.clone()),
+            }),
             Gesture::Junction(drag) if drag.delta == Pt::ZERO => None,
             Gesture::Junction(drag) => Some(match drag.before {
                 Some(before) => Command::Snapshot {
@@ -628,6 +706,10 @@ impl DiagramView {
                 self.apply_junction_drag(&drag);
             }
             Gesture::Handle(drag) => self.revert_handle_drag(drag),
+            Gesture::TextWrap(mut drag) => {
+                drag.delta = Pt::ZERO;
+                self.apply_text_wrap(&drag);
+            }
             Gesture::RubberBand { .. } => {}
         }
         ViewResponse {
@@ -696,13 +778,19 @@ impl DiagramView {
                 }
             }
         }
+        let texts: Vec<(Id, Pt)> = m
+            .selected_texts()
+            .map(|t| (t.id.clone(), t.position))
+            .collect();
         // Undo of a plain move restores positions only; a drag that moves more
         // needs a snapshot taken now (S §9.2).
-        let before = (!handles.is_empty() || !smooth.is_empty()).then(|| Box::new(m.clone()));
+        let before = (!handles.is_empty() || !smooth.is_empty() || !texts.is_empty())
+            .then(|| Box::new(m.clone()));
         NodeDrag {
             start,
             species,
             junctions,
+            texts,
             handles,
             smooth,
             linear,
@@ -758,6 +846,11 @@ impl DiagramView {
                 r.junction = *orig + drag.delta;
             }
         }
+        for (id, orig) in &drag.texts {
+            if let Some(t) = self.model.find_text_mut(id) {
+                t.position = *orig + drag.delta;
+            }
+        }
         self.move_handles(&drag.handles, drag.delta);
         // A Linear reaction's junction keeps its place along the line, so the
         // modifier arcs that end at it don't slide into a node.
@@ -777,6 +870,30 @@ impl DiagramView {
         // A smooth junction that moved gets its handles recomputed (S §6.4).
         for id in &drag.smooth {
             apply_smooth_handles(&mut self.model, id);
+        }
+    }
+
+    fn begin_text_wrap(&self, start: Pt, id: Id) -> Option<TextWrapDrag> {
+        let t = self.model.find_text(&id)?;
+        Some(TextWrapDrag {
+            start,
+            from: t.wrap_width,
+            base: lay_out(t).width,
+            id,
+            before: Box::new(self.model.clone()),
+            delta: Pt::ZERO,
+        })
+    }
+
+    /// The text wraps at its width when the drag began plus how far the
+    /// handle has moved, never less than [`MIN_WRAP_WIDTH`].
+    fn apply_text_wrap(&mut self, drag: &TextWrapDrag) {
+        if let Some(t) = self.model.find_text_mut(&drag.id) {
+            t.wrap_width = if drag.delta == Pt::ZERO {
+                drag.from
+            } else {
+                (drag.base + drag.delta.x).max(MIN_WRAP_WIDTH)
+            };
         }
     }
 
@@ -910,12 +1027,18 @@ impl DiagramView {
                 r.selected = true;
             }
         }
+        for t in self.model.texts_mut() {
+            let (min, max) = text_box(t);
+            if max.x >= a.x && min.x <= b.x && max.y >= a.y && min.y <= b.y {
+                t.selected = true;
+            }
+        }
     }
 
     // ----- Editing commands -------------------------------------------------
 
     /// Deletes the selected species, with the cascade of S §3.7, then any
-    /// selected reactions that are left. One undo step (S §7.2).
+    /// selected reactions and texts that are left. One undo step (S §7.2).
     pub fn delete_selection(&mut self) -> ViewResponse {
         if self.is_busy() || self.layout.is_some() || !self.has_selection() {
             return ViewResponse::default();
@@ -927,6 +1050,9 @@ impl DiagramView {
         }
         for id in &reactions {
             self.model.delete_reaction(id);
+        }
+        for id in self.selected_text_ids() {
+            self.model.delete_text(&id);
         }
         self.undo.push(Command::Snapshot {
             desc: "Delete",
@@ -968,7 +1094,7 @@ impl DiagramView {
     /// (the model tree, SPEC-Rust §11.3). With `add`, it is toggled in or out
     /// of the selection instead.
     pub fn select_item(&mut self, item: &Target, add: bool) -> ViewResponse {
-        let before = self.selection();
+        let before = self.selection_state();
         if !add {
             self.model.clear_selection();
         }
@@ -983,11 +1109,16 @@ impl DiagramView {
                     r.selected = !(add && r.selected);
                 }
             }
+            Target::Text(id) | Target::TextWrap(id) => {
+                if let Some(t) = self.model.find_text_mut(id) {
+                    t.selected = !(add && t.selected);
+                }
+            }
             Target::Handle(_) | Target::Empty => {}
         }
         ViewResponse {
             repaint: true,
-            selection_changed: self.selection() != before,
+            selection_changed: self.selection_state() != before,
             ..ViewResponse::default()
         }
     }
@@ -1023,6 +1154,8 @@ impl DiagramView {
     fn undo_or_redo(&mut self, undo: bool) -> ViewResponse {
         self.cancel_layout();
         self.cancel_gesture();
+        // Typing after an undo or redo starts a new step.
+        self.text_edited = None;
         let done = if undo {
             self.undo.undo(&mut self.model)
         } else {

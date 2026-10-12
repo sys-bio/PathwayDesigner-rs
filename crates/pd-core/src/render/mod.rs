@@ -11,7 +11,7 @@ pub mod draw;
 pub mod pdf;
 pub mod svg;
 
-use crate::model::Rgba;
+use crate::model::{Rgba, TextFont};
 
 /// A point in screen space (egui points, or SVG user units).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -74,9 +74,9 @@ pub trait Renderer {
     fn cubic(&mut self, p0: SPt, c1: SPt, c2: SPt, p3: SPt, stroke: Stroke);
     /// A filled convex polygon.
     fn polygon(&mut self, pts: &[SPt], fill: Rgba);
-    /// One line of text in the bundled font, centred horizontally on
+    /// One line of text in one of the bundled faces, centred horizontally on
     /// `center.x` and vertically on its cap height at `center.y` (S §5.3).
-    fn text(&mut self, center: SPt, s: &str, size: f32, color: Rgba);
+    fn text(&mut self, center: SPt, s: &str, size: f32, font: TextFont, color: Rgba);
 }
 
 /// The outline of a rounded rectangle as a closed polyline (the last point

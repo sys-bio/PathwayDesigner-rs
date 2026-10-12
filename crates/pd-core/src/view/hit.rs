@@ -1,8 +1,9 @@
 //! Hit testing (S §6.2).
 //!
 //! Candidates are tried in order and the first hit wins: a handle of a
-//! selected Bézier reaction, a junction, the topmost species, then a reaction
-//! leg. Tolerances are in screen points, so they are divided by the zoom to
+//! selected Bézier reaction, the wrap handle of a selected text, the topmost
+//! text, a junction, the topmost species, then a reaction leg. Text is drawn
+//! above everything, so it is hit first. Tolerances are in screen points, so they are divided by the zoom to
 //! compare in world space.
 
 use crate::bezier::{Ctrl, leg_curve};
@@ -11,7 +12,8 @@ use crate::model::{Model, Reaction, ReactionMode, Role, SpeciesNode};
 use crate::render::constants::{
     BEZIER_HIT_SAMPLES, HANDLE_HIT_TOLERANCE_PX, JUNCTION_HIT_TOLERANCE_PX, LEG_HIT_TOLERANCE_PX,
 };
-use crate::render::draw::{effective_junction, effective_mode, leg_end, leg_start};
+use crate::render::draw::{effective_junction, effective_mode, leg_end, leg_start, wrap_handle};
+use crate::textbox::text_box;
 use crate::view::input::{HandleId, Target};
 
 /// What is at world point `p`, at `zoom`. Hidden null nodes, and legs that
@@ -44,6 +46,19 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
                 }
             }
         }
+    }
+
+    for t in model.selected_texts() {
+        if wrap_handle(t).distance(p) <= handle_tol {
+            return Target::TextWrap(t.id.clone());
+        }
+    }
+    let in_box = |t: &&crate::model::TextItem| {
+        let (a, b) = text_box(t);
+        (a.x..=b.x).contains(&p.x) && (a.y..=b.y).contains(&p.y)
+    };
+    if let Some(t) = model.texts().iter().rev().find(in_box) {
+        return Target::Text(t.id.clone());
     }
 
     let junction_tol = JUNCTION_HIT_TOLERANCE_PX / zoom;

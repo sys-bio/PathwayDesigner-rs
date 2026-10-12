@@ -17,5 +17,6 @@ pub mod passes;
 pub mod render;
 pub mod sbml;
 pub mod text;
+pub mod textbox;
 pub mod undo;
 pub mod view;

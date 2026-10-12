@@ -219,7 +219,7 @@ fn picking_feedback_is_drawn() {
         }
         fn cubic(&mut self, _: SPt, _: SPt, _: SPt, _: SPt, _: Stroke) {}
         fn polygon(&mut self, _: &[SPt], _: Rgba) {}
-        fn text(&mut self, _: SPt, _: &str, _: f32, _: Rgba) {}
+        fn text(&mut self, _: SPt, _: &str, _: f32, _: crate::model::TextFont, _: Rgba) {}
     }
     let mut v = four_species();
     v.set_tool(Tool::UNI_BI);

@@ -10,6 +10,7 @@ use crate::expr;
 use crate::geometry::Pt;
 use crate::model::{DEFAULT_COMPARTMENT, Model, ReactionMode, Role, SpeciesNode};
 use crate::render::draw::{border, effective_junction, effective_mode};
+use crate::textbox::lay_out;
 
 const LEVEL: u32 = 3;
 const VERSION: u32 = 1;
@@ -394,6 +395,11 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         max_x = max_x.max(s.center.x + s.width / 2.0);
         max_y = max_y.max(s.center.y + s.height / 2.0);
     }
+    let texts: Vec<_> = model.texts().iter().map(|t| (t, lay_out(t))).collect();
+    for (t, l) in &texts {
+        max_x = max_x.max(t.position.x + l.width);
+        max_y = max_y.max(t.position.y + l.height);
+    }
     let mut l = sb::Layout {
         id: ids.unique("layout1".into()),
         dimensions: sb::Dimensions::new(max_x + LAYOUT_MARGIN, max_y + LAYOUT_MARGIN),
@@ -421,6 +427,24 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                 ..Default::default()
             });
         }
+    }
+
+    // Free text: a text glyph with its words, its box, and a note on how it
+    // looks (S §7.8).
+    for (t, lay) in &texts {
+        let mut g = sb::TextGlyph {
+            id: ids.unique(format!("tg_{}", t.id)),
+            text: Some(t.text.clone()),
+            bounding_box: Some(sb::BoundingBox::new(
+                t.position.x,
+                t.position.y,
+                lay.width,
+                lay.height,
+            )),
+            ..Default::default()
+        };
+        g.meta.annotation = Some(super::shape::text_note(t));
+        l.text_glyphs.push(g);
     }
 
     for r in model.reactions() {

@@ -1,8 +1,10 @@
-//! Installing the bundled font into egui (SPEC-Rust §5.4).
+//! Installing the bundled fonts into egui (SPEC-Rust §5.4).
 
 use std::sync::Arc;
 
 use eframe::egui::{self, FontData, FontDefinitions, FontFamily, FontId};
+use pd_core::model::TextFont;
+use pd_core::text::{all_fonts, font_data, font_key};
 
 const NOTO: &str = "noto-sans";
 
@@ -15,6 +17,16 @@ pub fn diagram_family() -> FontFamily {
 /// A diagram label font at `size` points.
 pub fn diagram_font(size: f32) -> FontId {
     FontId::new(size, diagram_family())
+}
+
+/// One of the bundled faces (free text, S §7.8) at `size` points. Each face is
+/// a family of its own holding only that font, so egui draws exactly what
+/// `pd_core::text` measured.
+pub fn face_font(font: TextFont, size: f32) -> FontId {
+    if font == TextFont::default() {
+        return diagram_font(size);
+    }
+    FontId::new(size, FontFamily::Name(font_key(font).into()))
 }
 
 /// The bundled font is the only font: for diagram labels and for the whole UI.
@@ -33,6 +45,16 @@ pub fn font_definitions() -> FontDefinitions {
     ] {
         fonts.families.insert(family, vec![NOTO.to_owned()]);
     }
+    for font in all_fonts().into_iter().skip(1) {
+        let key = font_key(font);
+        fonts.font_data.insert(
+            key.to_owned(),
+            Arc::new(FontData::from_static(font_data(font))),
+        );
+        fonts
+            .families
+            .insert(FontFamily::Name(key.into()), vec![key.to_owned()]);
+    }
     fonts
 }
 
@@ -46,6 +68,10 @@ mod tests {
 
     /// Lays out `text` with egui, the way the canvas will draw it, and returns its width.
     fn egui_width(text: &str, size: f32) -> f32 {
+        egui_width_in(TextFont::default(), text, size)
+    }
+
+    fn egui_width_in(font: TextFont, text: &str, size: f32) -> f32 {
         let ctx = egui::Context::default();
         install(&ctx);
         let mut width = 0.0;
@@ -54,7 +80,7 @@ mod tests {
             let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
                 let galley = ui.painter().layout_no_wrap(
                     text.to_owned(),
-                    diagram_font(size),
+                    face_font(font, size),
                     egui::Color32::BLACK,
                 );
                 width = galley.size().x;
@@ -74,6 +100,20 @@ mod tests {
             assert!(
                 (core - ui).abs() <= 1.0,
                 "{label}: pd-core {core}, egui {ui}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_face_measures_what_egui_draws() {
+        for font in all_fonts() {
+            let text = "Glucose 6-phosphate";
+            let core = pd_core::text::text_width_in(font, text, 14.0);
+            let ui = f64::from(egui_width_in(font, text, 14.0));
+            assert!(
+                (core - ui).abs() <= 1.0,
+                "{}: pd-core {core}, egui {ui}",
+                font_key(font)
             );
         }
     }

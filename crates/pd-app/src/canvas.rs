@@ -44,6 +44,8 @@ pub enum MenuAction {
     DeleteReaction(String),
     MakeNice(String),
     Arrange(Arrange),
+    EditText(String),
+    DeleteText(String),
 }
 
 /// What happened on the canvas this frame.
@@ -241,7 +243,12 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
             );
             alignment(ui, view, &mut item);
         }
-        Target::Handle(_) | Target::Empty => ui.close(),
+        Target::Text(id) => {
+            item(ui, "Edit Text", MenuAction::EditText(id.clone()));
+            item(ui, "Delete Text", MenuAction::DeleteText(id.clone()));
+            alignment(ui, view, &mut item);
+        }
+        Target::Handle(_) | Target::TextWrap(_) | Target::Empty => ui.close(),
     }
     chosen
 }
@@ -350,7 +357,8 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
         Some(Target::Handle(_)) => CursorIcon::Crosshair,
-        Some(Target::Species(_) | Target::Junction(_)) => CursorIcon::Grab,
+        Some(Target::Species(_) | Target::Junction(_) | Target::Text(_)) => CursorIcon::Grab,
+        Some(Target::TextWrap(_)) => CursorIcon::ResizeHorizontal,
         Some(Target::Leg(_)) => CursorIcon::PointingHand,
         _ => CursorIcon::Default,
     }

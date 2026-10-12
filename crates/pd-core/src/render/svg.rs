@@ -8,10 +8,11 @@
 use std::fmt::Write as _;
 
 use crate::geometry::pt;
+use crate::model::TextFont;
 use crate::model::{Model, Rgba};
 use crate::render::draw::{DrawOptions, Shown, content_bounds, draw_model};
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
-use crate::text::{fmt_num, font_metrics, text_path, text_width};
+use crate::text::{fmt_num, font_metrics_in, text_path_in, text_width_in};
 
 /// Collects SVG elements; [`SvgRenderer::finish`] wraps them in a document.
 pub struct SvgRenderer {
@@ -149,11 +150,11 @@ impl Renderer for SvgRenderer {
         self.body.push_str("/>\n");
     }
 
-    fn text(&mut self, center: SPt, s: &str, size: f32, color: Rgba) {
+    fn text(&mut self, center: SPt, s: &str, size: f32, font: TextFont, color: Rgba) {
         let size = f64::from(size);
-        let x = f64::from(center.x) - text_width(s, size) / 2.0;
-        let baseline = f64::from(center.y) + font_metrics(size).cap_height / 2.0;
-        let d = text_path(s, size, x, baseline);
+        let x = f64::from(center.x) - text_width_in(font, s, size) / 2.0;
+        let baseline = f64::from(center.y) + font_metrics_in(font, size).cap_height / 2.0;
+        let d = text_path_in(font, s, size, x, baseline);
         if d.is_empty() {
             return;
         }
@@ -257,7 +258,13 @@ mod tests {
     #[test]
     fn labels_are_outlines_not_text() {
         let mut svg = SvgRenderer::new(100.0, 50.0);
-        svg.text(spt(50.0, 25.0), "S1", 12.0, Rgba::rgb(0x1A, 0x1A, 0x1A));
+        svg.text(
+            spt(50.0, 25.0),
+            "S1",
+            12.0,
+            TextFont::default(),
+            Rgba::rgb(0x1A, 0x1A, 0x1A),
+        );
         let doc = svg.finish();
         assert!(!doc.contains("<text"));
         assert!(doc.contains("<path d=\"M"));

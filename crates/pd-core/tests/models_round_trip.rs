@@ -112,7 +112,8 @@ fn every_reference_file_loads_without_warnings() {
             path.display(),
             loaded.warnings
         );
-        assert_eq!(loaded.version, 3, "{}", path.display());
+        let needed = pd_core::json::needed_version(&loaded.model);
+        assert_eq!(loaded.version, needed, "{}", path.display());
         assert!(!loaded.model.species().is_empty(), "{}", path.display());
     }
 }

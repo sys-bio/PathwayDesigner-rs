@@ -7,9 +7,13 @@ use crate::bezier::{Ctrl, cut_leg, leg_curve};
 use crate::geometry::{
     Pt, filled_arrowhead, normalize, pt, rect_boundary_intersect, world_to_screen,
 };
-use crate::model::{Model, Reaction, ReactionMode, Rgba, Role, SpeciesNode, VisualStyle};
+use crate::model::{
+    Model, Reaction, ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem, VisualStyle,
+};
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
+use crate::text::font_metrics_in;
+use crate::textbox::{lay_out, text_box};
 
 /// What to draw and where.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -108,11 +112,24 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     for reaction in model.reactions() {
         d.junction(reaction, r);
     }
+    for text in model.texts() {
+        d.free_text(text, r);
+    }
     if !opts.for_output {
+        for text in model.selected_texts() {
+            d.text_selection(text, r);
+        }
         for reaction in model.selected_reactions() {
             d.bezier_handles(reaction, r);
         }
     }
+}
+
+/// Where a selected text's wrap handle is: the middle of its box's right
+/// edge (S §7.8).
+pub fn wrap_handle(t: &TextItem) -> Pt {
+    let (min, max) = text_box(t);
+    pt(max.x, (min.y + max.y) / 2.0)
 }
 
 /// The world-space rectangle that output draws: every species rectangle and
@@ -132,6 +149,11 @@ pub fn content_bounds(model: &Model) -> (Pt, Pt) {
     }
     for r in model.reactions() {
         grow(r.junction);
+    }
+    for t in model.texts() {
+        let (a, b) = text_box(t);
+        grow(a);
+        grow(b);
     }
     if min.x > max.x {
         return (Pt::ZERO, pt(800.0, 600.0));
@@ -454,6 +476,7 @@ impl Drawer<'_> {
                 self.to_screen(node.center),
                 node.primary_id(),
                 size as f32,
+                TextFont::default(),
                 color,
             );
         }
@@ -543,6 +566,56 @@ impl Drawer<'_> {
             );
             out.round_rect(rect, self.len(HALO_CORNER_RADIUS), None, Some(stroke));
         }
+    }
+
+    // ----- Free text (S §7.8) -------------------------------------------------
+
+    /// A text, line by line, each line from the text's left edge.
+    fn free_text(&self, t: &TextItem, out: &mut dyn Renderer) {
+        let size = t.size * self.opts.zoom;
+        if size < MIN_LABEL_SIZE_PX {
+            return;
+        }
+        let l = lay_out(t);
+        let color = if t.color.is_default() { LABEL } else { t.color };
+        let cap = font_metrics_in(t.font, t.size).cap_height;
+        for (i, line) in l.lines.iter().enumerate() {
+            if line.text.trim().is_empty() {
+                continue;
+            }
+            let centre = t.position + pt(line.x + line.width / 2.0, l.baseline(i) - cap / 2.0);
+            out.text(
+                self.to_screen(centre),
+                &line.text,
+                size as f32,
+                t.font,
+                color,
+            );
+        }
+    }
+
+    /// A selected text's dashed outline and its wrap handle (screen only).
+    fn text_selection(&self, t: &TextItem, out: &mut dyn Renderer) {
+        let (min, max) = text_box(t);
+        let stroke = Stroke {
+            width: self.len(HALO_WIDTH),
+            color: SELECTION_HALO,
+            dash: self.dash(HALO_DASH),
+            round_cap: false,
+        };
+        let rect = self.rect(
+            (min + max) / 2.0,
+            (max.x - min.x) / 2.0,
+            (max.y - min.y) / 2.0,
+        );
+        out.round_rect(rect, 0.0, None, Some(stroke));
+        let h = self.rect(wrap_handle(t), HANDLE_RADIUS, HANDLE_RADIUS);
+        out.round_rect(
+            h,
+            0.0,
+            Some(HANDLE_FILL),
+            Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
+        );
     }
 
     // ----- Pass 6: junction handles (S §5.8) --------------------------------
@@ -643,6 +716,7 @@ mod tests {
         Polyline(Vec<SPt>, Stroke),
         Polygon(Vec<SPt>, Rgba),
         Text(SPt, String, f32, Rgba),
+        TextIn(SPt, String, f32, TextFont, Rgba),
     }
 
     impl Renderer for Recorder {
@@ -667,9 +741,15 @@ mod tests {
         fn polygon(&mut self, pts: &[SPt], fill: Rgba) {
             self.calls.push(Call::Polygon(pts.to_vec(), fill));
         }
-        fn text(&mut self, center: SPt, s: &str, size: f32, color: Rgba) {
-            self.calls
-                .push(Call::Text(center, s.to_owned(), size, color));
+        fn text(&mut self, center: SPt, s: &str, size: f32, font: TextFont, color: Rgba) {
+            // Labels are always in the label font.
+            if font == TextFont::default() {
+                self.calls
+                    .push(Call::Text(center, s.to_owned(), size, color));
+            } else {
+                self.calls
+                    .push(Call::TextIn(center, s.to_owned(), size, font, color));
+            }
         }
     }
 
@@ -727,6 +807,12 @@ mod tests {
     fn draw_order_follows_s_5_2() {
         let mut m = uni_uni();
         m.find_species_mut("S1").unwrap().selected = true;
+        // Free text, bold, selected: drawn over everything, then its outline
+        // and wrap handle.
+        let t = m.add_text(pt(0.0, 100.0), "Note");
+        let t = m.find_text_mut(&t).unwrap();
+        t.font.bold = true;
+        t.selected = true;
         let opts = DrawOptions {
             background: Some(SRect {
                 min: spt(0.0, 0.0),
@@ -738,17 +824,20 @@ mod tests {
             .iter()
             .map(|c| match c {
                 Call::RoundRect(_, Some(f), _) if *f == BACKGROUND => "bg",
+                Call::RoundRect(_, Some(f), _) if *f == HANDLE_FILL => "handle",
                 Call::RoundRect(_, None, _) => "halo",
                 Call::RoundRect(..) => "node",
                 Call::Polyline(..) | Call::Polygon(..) => "leg",
                 Call::Text(..) => "label",
+                Call::TextIn(..) => "text",
                 Call::Circle(..) => "junction",
             })
             .collect();
         assert_eq!(
             kinds,
             [
-                "bg", "leg", "leg", "leg", "node", "label", "node", "label", "halo", "junction"
+                "bg", "leg", "leg", "leg", "node", "label", "node", "label", "halo", "junction",
+                "text", "halo", "handle"
             ]
         );
     }

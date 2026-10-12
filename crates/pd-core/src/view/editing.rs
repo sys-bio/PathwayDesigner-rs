@@ -32,6 +32,9 @@ fn midpoint(m: &Model, id: &str) -> Option<Pt> {
     Some((a + b) / 2.0)
 }
 
+/// The words of new text, selected so typing replaces them (S §7.8).
+const NEW_TEXT: &str = "Text";
+
 /// The value of a parameter made for a new reaction's rate law (S §6.5).
 const NEW_PARAMETER_VALUE: &str = "0.1";
 /// Radius of the dot at the cursor while picking species, in screen points.
@@ -51,13 +54,13 @@ impl DiagramView {
         self.cancel_gesture();
         self.tool = tool;
         self.pending = Pending::default();
-        let before = self.selection();
+        let before = self.selection_state();
         if tool != Tool::Select {
             self.model.clear_selection();
         }
         ViewResponse {
             repaint: true,
-            selection_changed: self.selection() != before,
+            selection_changed: self.selection_state() != before,
             ..ViewResponse::default()
         }
     }
@@ -89,6 +92,37 @@ impl DiagramView {
         self.model
             .add_species(world, DEFAULT_SPECIES_WIDTH, DEFAULT_SPECIES_HEIGHT);
         self.record("Add Species", before)
+    }
+
+    /// AddText: a click places new text with its top-left corner there,
+    /// selects it, and goes back to Select; the app then puts the keyboard
+    /// in its editor (S §7.8).
+    pub(super) fn add_text_at(&mut self, pos: Pt) -> ViewResponse {
+        let before = self.model.clone();
+        let world = self.screen_to_world(pos);
+        let id = self.model.add_text(world, NEW_TEXT);
+        self.model.clear_selection();
+        if let Some(t) = self.model.find_text_mut(&id) {
+            t.selected = true;
+        }
+        self.tool = Tool::Select;
+        let mut r = self.record("Add Text", before);
+        // Typing its words joins this step: one undo takes the text away.
+        self.text_edited = Some((self.undo.version(), id.clone()));
+        r.selection_changed = true;
+        r.request = Some(Request::EditText(id));
+        r
+    }
+
+    /// Deletes one text. One undo step.
+    pub fn delete_text(&mut self, id: &str) -> ViewResponse {
+        let before = self.model.clone();
+        if !self.model.delete_text(id) {
+            return ViewResponse::default();
+        }
+        let mut r = self.record("Delete Text", before);
+        r.selection_changed = true;
+        r
     }
 
     /// AddReaction: a click on a species picks it as the next reactant, then
@@ -355,8 +389,8 @@ impl DiagramView {
 
     // ----- Double click and context menu ------------------------------------
 
-    /// A double click on a species asks for a new name (S §6.6). Null nodes
-    /// can't be renamed.
+    /// A double click on a species asks for a new name (S §6.6); on text, it
+    /// asks for its words to be edited (S §7.8). Null nodes can't be renamed.
     pub(super) fn double_click(&mut self, pos: Pt) -> ViewResponse {
         if self.tool != Tool::Select || self.is_busy() {
             return ViewResponse::default();
@@ -370,6 +404,10 @@ impl DiagramView {
                     ..ViewResponse::default()
                 }
             }
+            Target::Text(id) | Target::TextWrap(id) => ViewResponse {
+                request: Some(Request::EditText(id)),
+                ..ViewResponse::default()
+            },
             _ => ViewResponse::default(),
         }
     }
@@ -383,8 +421,9 @@ impl DiagramView {
             return ViewResponse::default();
         }
         let target = match self.target_at(pos) {
-            // A handle stands for its reaction here.
+            // A handle stands for its reaction or text here.
             Target::Handle(h) => Target::Leg(h.reaction),
+            Target::TextWrap(id) => Target::Text(id),
             t => t,
         };
         match &target {
@@ -400,7 +439,15 @@ impl DiagramView {
                     self.set_reaction_selected(id, true);
                 }
             }
-            Target::Handle(_) | Target::Empty => return ViewResponse::default(),
+            Target::Text(id) => {
+                if !self.model.find_text(id).is_some_and(|t| t.selected) {
+                    self.model.clear_selection();
+                    self.set_text_selected(id, true);
+                }
+            }
+            Target::Handle(_) | Target::TextWrap(_) | Target::Empty => {
+                return ViewResponse::default();
+            }
         }
         ViewResponse {
             repaint: true,

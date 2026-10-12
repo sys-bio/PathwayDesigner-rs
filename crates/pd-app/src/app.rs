@@ -51,12 +51,17 @@ const SAVE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::S)
 const HOME_PAGE: &str = "https://github.com/sys-bio/PathwayDesigner-rs";
 
 /// The tool palette, in the order of S §13.2, with tooltips.
-const TOOLS: [(Tool, &str, &str); 6] = [
+const TOOLS: [(Tool, &str, &str); 7] = [
     (Tool::Select, "Select", "Select, move and edit (Esc)"),
     (
         Tool::AddSpecies,
         "Species",
         "Add species: click on the canvas",
+    ),
+    (
+        Tool::AddText,
+        "Text",
+        "Add text: click where it should go, then type in the Text panel",
     ),
     (
         Tool::BI_BI,
@@ -137,6 +142,9 @@ pub struct PathwayApp {
     fit: Option<egui::Rect>,
     /// The canvas's centre on screen last frame, for centring things.
     canvas_centre: Pt,
+    /// The file version the model needed last frame, to say when it starts
+    /// needing version 4 (SPEC-Rust §4.2).
+    needed_version: u32,
     tree: crate::tree::TreeState,
     /// The Deckard and Randomize options for auto-layout (S §13.2).
     layout_params: LayoutParams,
@@ -183,6 +191,7 @@ impl PathwayApp {
             fit_pending: false,
             fit: None,
             canvas_centre: Pt::ZERO,
+            needed_version: pd_core::json::DELPHI_VERSION,
             tree: crate::tree::TreeState::default(),
             layout_params: LayoutParams::default(),
             layout_iterations: LAYOUT_START_ITERATIONS,
@@ -308,6 +317,17 @@ impl PathwayApp {
         }
     }
 
+    /// The first time an edit makes the document need format version 4 (free
+    /// text), the status bar says the Delphi app can no longer open it
+    /// (SPEC-Rust §4.2). Opening a version 4 file says nothing.
+    fn note_version_change(&mut self) {
+        let needed = pd_core::json::needed_version(self.view.model());
+        if needed > self.needed_version && self.view.is_modified() {
+            self.notice = Some("This file now needs PathwayDesigner (Rust) to open".to_owned());
+        }
+        self.needed_version = needed;
+    }
+
     /// Carries out a context-menu command.
     fn act(&mut self, action: MenuAction, canvas_centre: pd_core::geometry::Pt) {
         match action {
@@ -338,6 +358,10 @@ impl PathwayApp {
             }
             MenuAction::Arrange(cmd) => {
                 self.view.arrange(cmd);
+            }
+            MenuAction::EditText(id) => self.inspector.edit_text(&id),
+            MenuAction::DeleteText(id) => {
+                self.view.delete_text(&id);
             }
         }
     }
@@ -884,6 +908,7 @@ impl PathwayApp {
         match self.view.tool() {
             Tool::Select => None,
             Tool::AddSpecies => Some("Click to add a species · Esc to stop".to_owned()),
+            Tool::AddText => Some("Click where the text should go · Esc to stop".to_owned()),
             Tool::AddReaction {
                 reactants,
                 products,
@@ -1067,7 +1092,7 @@ impl PathwayApp {
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new(
-                            "MIT licence. Labels use Noto Sans, under the SIL Open Font Licence.",
+                            "MIT licence. Text uses Noto Sans and Noto Serif, under the SIL Open Font Licence.",
                         )
                         .small(),
                     );
@@ -1157,13 +1182,19 @@ impl eframe::App for PathwayApp {
             });
         if let Some(out) = output {
             self.canvas_centre = out.centre;
-            if let Some(Request::Rename(id)) = &out.view.request {
-                self.ask_rename(id);
+            match &out.view.request {
+                Some(Request::Rename(id)) => self.ask_rename(id),
+                Some(Request::EditText(id)) => {
+                    self.inspector.edit_text(id);
+                    ctx.request_repaint();
+                }
+                _ => {}
             }
             if let Some(action) = out.action {
                 self.act(action, out.centre);
             }
         }
+        self.note_version_change();
         self.dialogs(&ctx);
     }
 }

@@ -3,9 +3,9 @@
 use eframe::egui::{
     self, Color32, CornerRadius, Painter, Pos2, Rect, Shape, StrokeKind, epaint::CubicBezierShape,
 };
-use pd_core::model::Rgba;
+use pd_core::model::{Rgba, TextFont};
 use pd_core::render::{Renderer, SPt, SRect, Stroke, rounded_rect_outline};
-use pd_core::text::font_metrics;
+use pd_core::text::font_metrics_in;
 
 use crate::fonts;
 
@@ -131,16 +131,16 @@ impl Renderer for EguiRenderer<'_> {
         ));
     }
 
-    fn text(&mut self, center: SPt, s: &str, size: f32, c: Rgba) {
-        let galley = self
-            .painter
-            .layout_no_wrap(s.to_owned(), fonts::diagram_font(size), color(c));
+    fn text(&mut self, center: SPt, s: &str, size: f32, font: TextFont, c: Rgba) {
+        let galley =
+            self.painter
+                .layout_no_wrap(s.to_owned(), fonts::face_font(font, size), color(c));
         let baseline_in_galley = galley
             .rows
             .first()
             .and_then(|row| row.row.glyphs.first().map(|g| row.pos.y + g.pos.y))
             .unwrap_or(0.0);
-        let cap = font_metrics(f64::from(size)).cap_height as f32;
+        let cap = font_metrics_in(font, f64::from(size)).cap_height as f32;
         let top_left = Pos2::new(
             center.x - galley.size().x / 2.0,
             center.y + cap / 2.0 - baseline_in_galley,

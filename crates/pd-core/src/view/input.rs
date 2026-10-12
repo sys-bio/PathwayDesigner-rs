@@ -82,6 +82,8 @@ pub enum Request {
     Rename(Id),
     /// Show the context menu for what was right-clicked (S §13.4).
     ContextMenu(Target),
+    /// Put the keyboard in the editor for this text's words (S §7.8).
+    EditText(Id),
 }
 
 impl ViewResponse {
@@ -105,6 +107,8 @@ pub enum Tool {
     AddSpecies,
     /// Pick this many reactants, then this many products.
     AddReaction { reactants: usize, products: usize },
+    /// A click places new text, then goes back to Select (S §7.8).
+    AddText,
 }
 
 impl Tool {
@@ -143,5 +147,9 @@ pub enum Target {
     Junction(Id),
     Species(Id),
     Leg(Id),
+    /// Free text (S §7.8).
+    Text(Id),
+    /// The wrap handle on a selected text's right edge.
+    TextWrap(Id),
     Empty,
 }

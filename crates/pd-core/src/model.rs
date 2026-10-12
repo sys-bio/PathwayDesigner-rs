@@ -241,6 +241,75 @@ impl Reaction {
     }
 }
 
+/// The typeface of free text (S §7.8).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Typeface {
+    /// Noto Sans, the label font.
+    #[default]
+    Sans,
+    /// Noto Serif, a Times-like face.
+    Serif,
+}
+
+/// One face of the bundled fonts. The default is the label font, Noto Sans
+/// Regular.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct TextFont {
+    pub typeface: Typeface,
+    pub bold: bool,
+    pub italic: bool,
+}
+
+/// How the lines of free text line up in its box (S §7.8).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TextAlign {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
+/// The size of new free text (S §17.1).
+pub const DEFAULT_TEXT_SIZE: f64 = 14.0;
+
+/// Free text on the diagram (S §7.8): a note, a title, a paragraph.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextItem {
+    /// `T<n>`, from the shared id counter.
+    pub id: Id,
+    /// The top-left corner of the text: the left end of its first line's top.
+    pub position: Pt,
+    /// The width lines wrap at. 0: lines break only where the text has a line
+    /// break.
+    pub wrap_width: f64,
+    /// May hold line breaks (`\n`).
+    pub text: String,
+    pub font: TextFont,
+    pub align: TextAlign,
+    /// Font size, the height of one em, in world units.
+    pub size: f64,
+    /// [`Rgba::DEFAULT`] draws in the label colour.
+    pub color: Rgba,
+    /// Transient: not saved.
+    pub selected: bool,
+}
+
+impl TextItem {
+    pub fn new(id: impl Into<Id>, position: Pt, text: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            position,
+            wrap_width: 0.0,
+            text: text.into(),
+            font: TextFont::default(),
+            align: TextAlign::Left,
+            size: DEFAULT_TEXT_SIZE,
+            color: Rgba::DEFAULT,
+            selected: false,
+        }
+    }
+}
+
 /// A compartment (S §3.5). Stored and saved, not yet drawn.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Compartment {
@@ -320,6 +389,8 @@ pub struct Model {
     pub assignment_rules: Vec<AssignmentRule>,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
+    /// Free text, in z-order. Drawn above everything else.
+    texts: Vec<TextItem>,
     species_index: HashMap<Id, usize>,
     reaction_index: HashMap<Id, usize>,
     /// Next numeric suffix for generated ids (S §4).
@@ -335,6 +406,7 @@ impl Default for Model {
             assignment_rules: Vec::new(),
             species: Vec::new(),
             reactions: Vec::new(),
+            texts: Vec::new(),
             species_index: HashMap::new(),
             reaction_index: HashMap::new(),
             next_id: 1,
@@ -356,6 +428,29 @@ impl Model {
 
     pub fn reactions(&self) -> &[Reaction] {
         &self.reactions
+    }
+
+    /// All free text, in z-order.
+    pub fn texts(&self) -> &[TextItem] {
+        &self.texts
+    }
+
+    pub fn find_text(&self, id: &str) -> Option<&TextItem> {
+        self.texts.iter().find(|t| t.id == id)
+    }
+
+    /// The text with this id, for editing. Don't change its `id` here.
+    pub fn find_text_mut(&mut self, id: &str) -> Option<&mut TextItem> {
+        self.texts.iter_mut().find(|t| t.id == id)
+    }
+
+    /// Every text, for editing in place. Don't change ids here.
+    pub fn texts_mut(&mut self) -> impl Iterator<Item = &mut TextItem> {
+        self.texts.iter_mut()
+    }
+
+    pub fn selected_texts(&self) -> impl Iterator<Item = &TextItem> {
+        self.texts.iter().filter(|t| t.selected)
     }
 
     /// The species with this exact id (case-sensitive).
@@ -454,6 +549,31 @@ impl Model {
         Ok(())
     }
 
+    /// Adds a text built elsewhere (by a loader or importer) on top. Fails if
+    /// any item already has its id.
+    pub fn push_text(&mut self, text: TextItem) -> Result<(), DuplicateId> {
+        if self.is_id_used(&text.id) {
+            return Err(DuplicateId(text.id));
+        }
+        self.texts.push(text);
+        Ok(())
+    }
+
+    /// New free text with a generated id `T<n>`, its top-left corner at
+    /// `position`, on top.
+    pub fn add_text(&mut self, position: Pt, text: &str) -> Id {
+        let id = self.generate_id('T');
+        self.texts.push(TextItem::new(id.clone(), position, text));
+        id
+    }
+
+    /// Deletes a text. Returns false if there was none with that id.
+    pub fn delete_text(&mut self, id: &str) -> bool {
+        let before = self.texts.len();
+        self.texts.retain(|t| t.id != id);
+        self.texts.len() != before
+    }
+
     /// A new species with a generated id `S<n>`, `width × height`, on top.
     pub fn add_species(&mut self, center: Pt, width: f64, height: f64) -> Id {
         let id = self.generate_id('S');
@@ -491,7 +611,7 @@ impl Model {
         id
     }
 
-    /// `S<n>` or `R<n>` from the shared counter (S §4). Skips any id already
+    /// `S<n>`, `R<n>` or `T<n>` from the shared counter (S §4). Skips any id already
     /// taken, so a generated id never clashes with one typed by the user.
     fn generate_id(&mut self, prefix: char) -> Id {
         loop {
@@ -511,6 +631,7 @@ impl Model {
             .iter()
             .map(|s| &s.id)
             .chain(self.reactions.iter().map(|r| &r.id))
+            .chain(self.texts.iter().map(|t| &t.id))
             .filter_map(|id| numeric_suffix(id))
             .max()
             .unwrap_or(0);
@@ -530,6 +651,9 @@ impl Model {
         }
         for r in &mut self.reactions {
             r.selected = false;
+        }
+        for t in &mut self.texts {
+            t.selected = false;
         }
     }
 
@@ -646,12 +770,13 @@ impl Model {
         Ok(())
     }
 
-    /// True if any species, reaction, parameter or compartment uses `id`.
-    /// Species and reactions match exactly; parameters and compartments ignore
-    /// case, as the reference's lookups do.
+    /// True if any species, reaction, text, parameter or compartment uses
+    /// `id`. Species, reactions and texts match exactly; parameters and
+    /// compartments ignore case, as the reference's lookups do.
     pub fn is_id_used(&self, id: &str) -> bool {
         self.species_index.contains_key(id)
             || self.reaction_index.contains_key(id)
+            || self.find_text(id).is_some()
             || self.find_parameter(id).is_some()
             || self.find_compartment(id).is_some()
     }
@@ -993,6 +1118,25 @@ mod tests {
         m.clear_selection();
         assert_eq!(m.selected_species().count(), 0);
         assert_eq!(m.selected_reactions().count(), 0);
+    }
+
+    #[test]
+    fn texts_share_the_id_counter_and_the_selection() {
+        let mut m = small_model();
+        let t = m.add_text(pt(0.0, 0.0), "Note");
+        assert_eq!(t, "T5");
+        assert_eq!(m.add_species(Pt::ZERO, 80.0, 36.0), "S6");
+        assert!(m.is_id_used("T5"));
+        assert_eq!(m.rename_species("S1", "T5"), Err(RenameError::InUse));
+        assert!(m.push_text(TextItem::new("S1", Pt::ZERO, "x")).is_err());
+        m.find_text_mut(&t).unwrap().selected = true;
+        assert_eq!(m.selected_texts().count(), 1);
+        m.clear_selection();
+        assert_eq!(m.selected_texts().count(), 0);
+        m.recompute_id_counter();
+        assert_eq!(m.next_id(), 7);
+        assert!(m.delete_text(&t));
+        assert!(!m.delete_text(&t));
     }
 
     #[test]

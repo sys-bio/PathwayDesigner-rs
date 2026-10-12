@@ -1,10 +1,13 @@
-//! Text measurement from the bundled font (SPEC-Rust §5.4).
+//! Text measurement from the bundled fonts (SPEC-Rust §5.4).
 //!
 //! Label widths change saved geometry (a renamed node widens to fit its label,
 //! S §5.3), so they must be the same on every platform. They are measured here
-//! from the bundled font's own data, never from egui or the system. Text is
+//! from the bundled fonts' own data, never from egui or the system. Text is
 //! shaped with harfrust, the shaper egui uses, so a width measured here matches
 //! the text egui draws, kerning included.
+//!
+//! Labels always use Noto Sans Regular. Free text (S §7.8) can also use bold,
+//! italic and Noto Serif: eight faces in all, each a font file of its own.
 
 use std::fmt::Write as _;
 use std::sync::OnceLock;
@@ -15,13 +18,68 @@ use skrifa::metrics::Metrics;
 use skrifa::outline::{DrawSettings, OutlinePen};
 use skrifa::{FontRef, GlyphId, MetadataProvider};
 
-/// The one bundled font, used for labels everywhere: on screen, in SVG, PNG and
-/// PDF. Noto Sans Regular, under the SIL Open Font Licence
-/// (`assets/fonts/NotoSans-OFL.txt`).
+use crate::model::{TextFont, Typeface};
+
+/// The label font, used for labels everywhere: on screen, in SVG, PNG and
+/// PDF. Noto Sans Regular. All the bundled fonts are Noto, version 2.015,
+/// under the SIL Open Font Licence (`assets/fonts/NotoSans-OFL.txt`).
 pub static FONT_DATA: &[u8] = include_bytes!("../../../assets/fonts/NotoSans-Regular.ttf");
 
 /// The family name of [`FONT_DATA`].
 pub const FONT_NAME: &str = "Noto Sans";
+
+/// The font file for each face, in [`face_index`] order.
+static FACE_DATA: [&[u8]; 8] = [
+    FONT_DATA,
+    include_bytes!("../../../assets/fonts/NotoSans-Bold.ttf"),
+    include_bytes!("../../../assets/fonts/NotoSans-Italic.ttf"),
+    include_bytes!("../../../assets/fonts/NotoSans-BoldItalic.ttf"),
+    include_bytes!("../../../assets/fonts/NotoSerif-Regular.ttf"),
+    include_bytes!("../../../assets/fonts/NotoSerif-Bold.ttf"),
+    include_bytes!("../../../assets/fonts/NotoSerif-Italic.ttf"),
+    include_bytes!("../../../assets/fonts/NotoSerif-BoldItalic.ttf"),
+];
+
+/// The font file of `font`, for the app to give egui.
+pub fn font_data(font: TextFont) -> &'static [u8] {
+    FACE_DATA[face_index(font)]
+}
+
+/// Every face, in a fixed order.
+pub fn all_fonts() -> [TextFont; 8] {
+    let mut out = [TextFont::default(); 8];
+    for (i, f) in out.iter_mut().enumerate() {
+        *f = TextFont {
+            typeface: if i < 4 {
+                Typeface::Sans
+            } else {
+                Typeface::Serif
+            },
+            bold: i & 1 != 0,
+            italic: i & 2 != 0,
+        };
+    }
+    out
+}
+
+/// A short name for `font`, unique among the faces ("serif-bold-italic").
+pub fn font_key(font: TextFont) -> &'static str {
+    [
+        "sans",
+        "sans-bold",
+        "sans-italic",
+        "sans-bold-italic",
+        "serif",
+        "serif-bold",
+        "serif-italic",
+        "serif-bold-italic",
+    ][face_index(font)]
+}
+
+fn face_index(font: TextFont) -> usize {
+    let serif = usize::from(font.typeface == Typeface::Serif);
+    serif * 4 + usize::from(font.bold) + 2 * usize::from(font.italic)
+}
 
 /// Vertical metrics of the bundled font at one size, in the same units as the
 /// size. `descent` is negative (below the baseline).
@@ -38,10 +96,11 @@ struct Face {
     metrics: Metrics,
 }
 
-fn face() -> &'static Face {
-    static FACE: OnceLock<Face> = OnceLock::new();
-    FACE.get_or_init(|| {
-        let font = FontRef::new(FONT_DATA).expect("the bundled font is a valid font file");
+fn face(font: TextFont) -> &'static Face {
+    static FACES: [OnceLock<Face>; 8] = [const { OnceLock::new() }; 8];
+    let i = face_index(font);
+    FACES[i].get_or_init(|| {
+        let font = FontRef::new(FACE_DATA[i]).expect("the bundled fonts are valid font files");
         let shaper_data = ShaperData::new(&font);
         let metrics = Metrics::new(&font, Size::unscaled(), LocationRef::default());
         Face {
@@ -53,26 +112,31 @@ fn face() -> &'static Face {
 }
 
 /// Scale from font design units to `size` (the size of one em).
-fn units_to(size: f64) -> f64 {
-    size / f64::from(face().metrics.units_per_em)
+fn units_to(face: &Face, size: f64) -> f64 {
+    size / f64::from(face.metrics.units_per_em)
 }
 
-/// The advance width of one line of `text` set in the bundled font at `size`
+/// The advance width of one line of `text` set in the label font at `size`
 /// (font size, the height of one em). An empty string has width 0.
 pub fn text_width(text: &str, size: f64) -> f64 {
+    text_width_in(TextFont::default(), text, size)
+}
+
+/// [`text_width`] in any of the bundled faces.
+pub fn text_width_in(font: TextFont, text: &str, size: f64) -> f64 {
     if text.is_empty() {
         return 0.0;
     }
-    let units: i64 = shape(text)
+    let face = face(font);
+    let units: i64 = shape(face, text)
         .glyph_positions()
         .iter()
         .map(|p| i64::from(p.x_advance))
         .sum();
-    units as f64 * units_to(size)
+    units as f64 * units_to(face, size)
 }
 
-fn shape(text: &str) -> GlyphBuffer {
-    let face = face();
+fn shape(face: &Face, text: &str) -> GlyphBuffer {
     let shaper = face.shaper_data.shaper(&face.font).build();
     let mut buffer = UnicodeBuffer::new();
     buffer.push_str(text);
@@ -97,8 +161,20 @@ pub trait PathSink {
 /// labels as outlines (SPEC-Rust §9). Shaped exactly as [`text_width`]
 /// measures it.
 pub fn text_outline(text: &str, size: f64, x: f64, baseline: f64, sink: &mut dyn PathSink) {
-    let face = face();
-    let k = units_to(size);
+    text_outline_in(TextFont::default(), text, size, x, baseline, sink);
+}
+
+/// [`text_outline`] in any of the bundled faces.
+pub fn text_outline_in(
+    font: TextFont,
+    text: &str,
+    size: f64,
+    x: f64,
+    baseline: f64,
+    sink: &mut dyn PathSink,
+) {
+    let face = face(font);
+    let k = units_to(face, size);
     let outlines = face.font.outline_glyphs();
     let mut pen = Placed {
         sink,
@@ -107,7 +183,7 @@ pub fn text_outline(text: &str, size: f64, x: f64, baseline: f64, sink: &mut dyn
         y0: baseline,
     };
     let mut pen_x = x;
-    let glyphs = shape(text);
+    let glyphs = shape(face, text);
     for (info, pos) in glyphs.glyph_infos().iter().zip(glyphs.glyph_positions()) {
         pen.x0 = pen_x + f64::from(pos.x_offset) * k;
         pen.y0 = baseline - f64::from(pos.y_offset) * k;
@@ -122,8 +198,13 @@ pub fn text_outline(text: &str, size: f64, x: f64, baseline: f64, sink: &mut dyn
 
 /// One line of `text` as SVG path data: [`text_outline`] in SVG syntax.
 pub fn text_path(text: &str, size: f64, x: f64, baseline: f64) -> String {
+    text_path_in(TextFont::default(), text, size, x, baseline)
+}
+
+/// [`text_path`] in any of the bundled faces.
+pub fn text_path_in(font: TextFont, text: &str, size: f64, x: f64, baseline: f64) -> String {
     let mut svg = SvgPath(String::new());
-    text_outline(text, size, x, baseline, &mut svg);
+    text_outline_in(font, text, size, x, baseline, &mut svg);
     svg.0
 }
 
@@ -226,11 +307,17 @@ pub fn fmt_num(v: f64) -> String {
     }
 }
 
-/// Ascent, descent and cap height of the bundled font at `size`.
+/// Ascent, descent and cap height of the label font at `size`.
 pub fn font_metrics(size: f64) -> FontMetrics {
-    let m = &face().metrics;
-    let k = units_to(size);
-    // Every version of Noto Sans has a cap height; 0.7 em is the usual fallback.
+    font_metrics_in(TextFont::default(), size)
+}
+
+/// [`font_metrics`] of any of the bundled faces.
+pub fn font_metrics_in(font: TextFont, size: f64) -> FontMetrics {
+    let face = face(font);
+    let m = &face.metrics;
+    let k = units_to(face, size);
+    // Every version of Noto has a cap height; 0.7 em is the usual fallback.
     let cap = m
         .cap_height
         .map_or(0.7 * f64::from(m.units_per_em), f64::from);
@@ -340,6 +427,28 @@ mod tests {
         assert_eq!(fmt_num(1.256), "1.26");
         assert_eq!(fmt_num(-0.001), "0");
         assert_eq!(fmt_num(-2.5), "-2.5");
+    }
+
+    #[test]
+    fn every_face_loads_and_differs() {
+        let plain = text_width_in(TextFont::default(), "Glucose", 100.0);
+        let mut widths = Vec::new();
+        for font in all_fonts() {
+            let w = text_width_in(font, "Glucose", 100.0);
+            assert!(w > 0.0, "{}", font_key(font));
+            assert!(font_metrics_in(font, 12.0).cap_height > 0.0);
+            assert!(!text_path_in(font, "G", 12.0, 0.0, 0.0).is_empty());
+            widths.push(w);
+        }
+        // The first face is the label font.
+        assert_eq!(widths[0], plain);
+        // Bold is wider than regular, and serif differs from sans.
+        assert!(widths[1] > widths[0]);
+        assert_ne!(widths[4], widths[0]);
+        // Each key is different.
+        let mut keys: Vec<&str> = all_fonts().into_iter().map(font_key).collect();
+        keys.dedup();
+        assert_eq!(keys.len(), 8);
     }
 
     #[test]

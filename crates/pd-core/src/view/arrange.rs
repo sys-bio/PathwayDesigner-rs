@@ -35,6 +35,8 @@ struct Item {
 enum ItemKind {
     Species(Id),
     Junction(Id),
+    /// Free text, by its box (S §7.8).
+    Text(Id),
 }
 
 /// The align and distribute commands, and Arrange in Circle (S §7.5).
@@ -243,8 +245,8 @@ impl DiagramView {
 
     // ----- Align and distribute (S §7.5) ------------------------------------
 
-    /// What align and distribute act on: the selected species, by their
-    /// boxes, and the junctions of the selected reactions, as points. A
+    /// What align and distribute act on: the selected species and texts, by
+    /// their boxes, and the junctions of the selected reactions, as points. A
     /// Linear reaction's junction is left out: it stays on its line.
     fn arrange_items(&self) -> Vec<Item> {
         let species = self.model.selected_species().map(|s| Item {
@@ -265,7 +267,17 @@ impl DiagramView {
                 hh: 0.0,
                 locked: false,
             });
-        species.chain(junctions).collect()
+        let texts = self.model.selected_texts().map(|t| {
+            let (min, max) = crate::textbox::text_box(t);
+            Item {
+                what: ItemKind::Text(t.id.clone()),
+                center: (min + max) / 2.0,
+                hw: (max.x - min.x) / 2.0,
+                hh: (max.y - min.y) / 2.0,
+                locked: false,
+            }
+        });
+        species.chain(junctions).chain(texts).collect()
     }
 
     /// True if `cmd` can do anything with the current selection.
@@ -366,11 +378,17 @@ impl DiagramView {
         self.moved_species(&moved);
         self.keep_linear(&linear, &moved);
         for (what, at) in targets {
-            if let ItemKind::Junction(id) = what
-                && let Some(j) = self.model.find_reaction(&id).map(|r| r.junction)
+            if let ItemKind::Junction(id) = &what
+                && let Some(j) = self.model.find_reaction(id).map(|r| r.junction)
                 && j != at
             {
-                self.shift_junction(&id, at - j);
+                self.shift_junction(id, at - j);
+            }
+            if let ItemKind::Text(id) = &what
+                && let Some(t) = self.model.find_text_mut(id)
+            {
+                let (min, max) = crate::textbox::text_box(t);
+                t.position += at - (min + max) / 2.0;
             }
         }
         if self.model == before {
@@ -430,15 +448,15 @@ impl DiagramView {
         if self.layout.is_some() || self.is_busy() || delta == Pt::ZERO {
             return ViewResponse::default();
         }
-        let selection = self.selection();
-        if selection.0.is_empty() && selection.1.is_empty() {
+        let selection = self.selection_state();
+        if !self.has_selection() {
             return ViewResponse::default();
         }
         let before = self.model.clone();
         let mut drag = self.begin_node_drag(Pt::ZERO);
         drag.delta = delta;
         self.apply_node_drag(&drag);
-        for id in &selection.1 {
+        for id in &selection.0.1 {
             let followed = drag.junctions.iter().any(|(j, _)| j == id);
             if !followed {
                 self.shift_junction(id, delta);

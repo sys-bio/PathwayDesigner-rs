@@ -10,7 +10,7 @@ use pd_core::bezier::leg_curve;
 use pd_core::expr;
 use pd_core::geometry::Pt;
 use pd_core::json::from_json;
-use pd_core::model::{Model, ReactionMode, Role};
+use pd_core::model::{Model, ReactionMode, Rgba, Role, TextFont, Typeface};
 use pd_core::render::draw::{effective_junction, effective_mode};
 use pd_core::sbml;
 
@@ -243,4 +243,35 @@ fn every_model_exports_and_imports_back() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn free_text_exports_as_a_text_glyph_and_comes_back() {
+    let mut m = Model::new();
+    m.add_species(Pt::ZERO, 80.0, 36.0);
+    let id = m.add_text(Pt { x: 200.0, y: -50.0 }, "Glycolysis\nin yeast");
+    let t = m.find_text_mut(&id).unwrap();
+    t.font = TextFont {
+        typeface: Typeface::Serif,
+        bold: true,
+        italic: false,
+    };
+    t.size = 20.0;
+    t.color = Rgba::rgb(0x11, 0x22, 0x33);
+    t.wrap_width = 150.0;
+    let out = sbml::export(&m);
+    assert!(out.problems.is_empty(), "{:?}", out.problems);
+    assert!(
+        out.xml.contains("text=\"Glycolysis\nin yeast\"")
+            || out.xml.contains("Glycolysis&#10;in yeast")
+    );
+    let back = sbml::import(&out.xml, &OPTS).unwrap().model;
+    assert_eq!(back.texts().len(), 1);
+    let (a, b) = (&m.texts()[0], &back.texts()[0]);
+    assert_eq!(b.text, a.text);
+    assert!(close(b.position, a.position));
+    assert_eq!(
+        (b.font, b.size, b.color, b.wrap_width),
+        (a.font, a.size, a.color, a.wrap_width)
+    );
 }

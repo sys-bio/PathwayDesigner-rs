@@ -5,7 +5,8 @@
 
 use super::DiagramView;
 use crate::expr;
-use crate::model::{Id, Model, Rgba, VisualStyle};
+use crate::model::{Id, Model, Rgba, TextAlign, TextItem, Typeface, VisualStyle};
+use crate::render::constants::LABEL;
 use crate::render::draw::{line_colour, species_colours};
 use crate::undo::Command;
 use crate::view::ViewResponse;
@@ -19,6 +20,8 @@ pub enum ColourField {
     Border,
     /// Lines of the selected reactions.
     Line,
+    /// The selected texts (S §7.8).
+    Text,
 }
 
 /// Brings a reaction's modifiers in line with its rate law (S §8.4):
@@ -136,18 +139,26 @@ impl DiagramView {
                 })
             }
             ColourField::Line => self.model.selected_reactions().next().map(line_colour),
+            ColourField::Text => self
+                .model
+                .selected_texts()
+                .next()
+                .map(|t| if t.color.is_default() { LABEL } else { t.color }),
         }
     }
 
     /// Applies a colour to every selected item of the matching kind, and
     /// makes their styles custom. One undo step (S §8.2).
     pub fn apply_colour(&mut self, field: ColourField, colour: Rgba) -> ViewResponse {
+        if field == ColourField::Text {
+            return self.on_selected_texts("Text Colour", |t| t.color = colour);
+        }
         self.style_edit(
             |s| {
                 match field {
                     ColourField::Fill => Some(&mut s.fill_color),
                     ColourField::Border => Some(&mut s.border_color),
-                    ColourField::Line => None,
+                    ColourField::Line | ColourField::Text => None,
                 }
                 .into_iter()
                 .for_each(|c| {
@@ -272,6 +283,91 @@ impl DiagramView {
             model_changed: true,
             ..ViewResponse::default()
         }
+    }
+
+    // ----- Free text (S §7.8) ------------------------------------------------
+
+    /// Sets the words of text `id`, as they are typed. A run of changes to
+    /// the same text, with nothing else in between, is one undo step; so is
+    /// adding a text and then typing its words.
+    pub fn set_text(&mut self, id: &str, text: &str) -> ViewResponse {
+        let before = self.model.clone();
+        let Some(t) = self.model.find_text_mut(id) else {
+            return ViewResponse::default();
+        };
+        t.text = text.to_owned();
+        if self.model == before {
+            return ViewResponse::default();
+        }
+        let same_run = self.text_edited.as_ref() == Some(&(self.undo.version(), id.to_owned()))
+            && matches!(self.undo.undo_description(), Some("Edit Text" | "Add Text"));
+        let response = if same_run && self.undo.amend_last(self.model.clone()) {
+            ViewResponse {
+                repaint: true,
+                model_changed: true,
+                ..ViewResponse::default()
+            }
+        } else {
+            self.record("Edit Text", before)
+        };
+        self.text_edited = Some((self.undo.version(), id.to_owned()));
+        response
+    }
+
+    /// Sets the width text `id` wraps at (0: no wrapping; otherwise at least
+    /// the narrowest wrap). One undo step.
+    pub fn set_text_wrap(&mut self, id: &str, width: f64) -> ViewResponse {
+        if !width.is_finite() {
+            return ViewResponse::default();
+        }
+        let width = if width <= 0.0 {
+            0.0
+        } else {
+            width.max(crate::textbox::MIN_WRAP_WIDTH)
+        };
+        let before = self.model.clone();
+        if let Some(t) = self.model.find_text_mut(id) {
+            t.wrap_width = width;
+        }
+        self.record_if_changed("Wrap Text", before)
+    }
+
+    /// Sets the size of the selected texts. Sizes below 1 are ignored.
+    pub fn set_text_size(&mut self, size: f64) -> ViewResponse {
+        if !(size.is_finite() && size >= 1.0) {
+            return ViewResponse::default();
+        }
+        self.on_selected_texts("Text Size", |t| t.size = size)
+    }
+
+    pub fn set_text_typeface(&mut self, typeface: Typeface) -> ViewResponse {
+        self.on_selected_texts("Typeface", |t| t.font.typeface = typeface)
+    }
+
+    pub fn set_text_align(&mut self, align: TextAlign) -> ViewResponse {
+        self.on_selected_texts("Align Text", |t| t.align = align)
+    }
+
+    pub fn set_text_bold(&mut self, bold: bool) -> ViewResponse {
+        self.on_selected_texts("Bold", |t| t.font.bold = bold)
+    }
+
+    pub fn set_text_italic(&mut self, italic: bool) -> ViewResponse {
+        self.on_selected_texts("Italic", |t| t.font.italic = italic)
+    }
+
+    /// Runs `change` on every selected text: one undo step, if anything changed.
+    fn on_selected_texts(
+        &mut self,
+        desc: &'static str,
+        change: impl Fn(&mut TextItem),
+    ) -> ViewResponse {
+        let before = self.model.clone();
+        self.model
+            .texts_mut()
+            .filter(|t| t.selected)
+            .for_each(change);
+        self.record_if_changed(desc, before)
     }
 
     /// Records a change since `before` as one undo step, or nothing if the

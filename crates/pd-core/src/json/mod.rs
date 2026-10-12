@@ -2,9 +2,10 @@
 //!
 //! The file is a contract shared with the Delphi app, so it is described by
 //! its own structs here, separate from the model types. Renaming a model field
-//! can never change the file. Reading accepts versions 1–3 (and newer files, as
-//! far as possible); writing always produces version 3 with the keys in the
-//! order the Delphi app writes them.
+//! can never change the file. Reading accepts versions 1–4 (and newer files, as
+//! far as possible). Writing produces the lowest version that fits, with the
+//! keys in the order the Delphi app writes them: version 3, which the Delphi
+//! app reads, or version 4 when the model has free text (SPEC-Rust §4.2).
 
 pub mod colour;
 
@@ -12,12 +13,27 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::geometry::pt;
 use crate::model::{
-    AssignmentRule, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, Model, Parameter,
-    Participant, Reaction, ReactionMode, Rgba, SpeciesNode, VisualStyle,
+    AssignmentRule, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE,
+    Model, Parameter, Participant, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign, TextFont,
+    TextItem, Typeface, VisualStyle,
 };
 
-/// The version this code writes, and the newest it fully understands.
-pub const FORMAT_VERSION: u32 = 3;
+/// The newest version this code understands, and writes when it must.
+pub const FORMAT_VERSION: u32 = 4;
+
+/// The version the Delphi app reads, and what is written when nothing newer
+/// is needed.
+pub const DELPHI_VERSION: u32 = 3;
+
+/// The version `model` must be saved as: 4 if it has free text (SPEC-Rust
+/// §4.2), 3 otherwise.
+pub fn needed_version(model: &Model) -> u32 {
+    if model.texts().is_empty() {
+        DELPHI_VERSION
+    } else {
+        FORMAT_VERSION
+    }
+}
 
 /// The result of reading a file.
 #[derive(Clone, Debug)]
@@ -81,9 +97,9 @@ pub fn from_json(text: &str) -> Result<Loaded, JsonError> {
     Ok(file.into_model())
 }
 
-/// Writes `model` as a version 3 document: UTF-8, 2-space indentation, keys in
-/// the Delphi app's order, colours as upper-case `#RRGGBBAA`. Selection is not
-/// saved.
+/// Writes `model` as a version 3 document, or 4 if it has free text: UTF-8,
+/// 2-space indentation, keys in the Delphi app's order, colours as upper-case
+/// `#RRGGBBAA`. Selection is not saved.
 pub fn to_json(model: &Model) -> String {
     let file = FileModel::from_model(model);
     let mut text = serde_json::to_string_pretty(&file).expect("the file structs always serialise");
@@ -113,6 +129,39 @@ struct FileModel {
     species: Vec<FileSpecies>,
     #[serde(default)]
     reactions: Vec<FileReaction>,
+    /// Version 4: free text. Left out when there is none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    texts: Vec<FileText>,
+}
+
+/// Free text (version 4, S §7.8). Every key but `id` is optional; left out
+/// at its default.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileText {
+    id: String,
+    #[serde(default)]
+    x: f64,
+    #[serde(default)]
+    y: f64,
+    #[serde(default)]
+    text: String,
+    #[serde(default = "default_text_size")]
+    size: f64,
+    /// `"sans"` or `"serif"`; anything else reads as sans.
+    #[serde(default, skip_serializing_if = "is_sans")]
+    typeface: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    bold: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    italic: bool,
+    /// `"left"`, `"center"` or `"right"`; anything else reads as left.
+    #[serde(default, skip_serializing_if = "is_left")]
+    align: String,
+    #[serde(default, with = "colour", skip_serializing_if = "is_default_colour")]
+    color: Rgba,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    wrap_width: f64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -267,6 +316,21 @@ fn default_height() -> f64 {
 fn is_false(b: &bool) -> bool {
     !*b
 }
+fn is_zero(v: &f64) -> bool {
+    *v == 0.0
+}
+fn is_sans(s: &str) -> bool {
+    s.is_empty() || s == "sans"
+}
+fn is_left(s: &str) -> bool {
+    s.is_empty() || s == "left"
+}
+fn is_default_colour(c: &Rgba) -> bool {
+    c.is_default()
+}
+fn default_text_size() -> f64 {
+    DEFAULT_TEXT_SIZE
+}
 
 /// A whole number written either as `3` or `3.0`.
 fn lenient_u32<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
@@ -390,6 +454,43 @@ impl FileModel {
             }
         }
 
+        for t in self.texts {
+            let size = if t.size.is_finite() && t.size >= 1.0 {
+                t.size
+            } else {
+                DEFAULT_TEXT_SIZE
+            };
+            let item = TextItem {
+                id: t.id,
+                position: pt(t.x, t.y),
+                wrap_width: t.wrap_width.max(0.0),
+                text: t.text,
+                font: TextFont {
+                    typeface: if t.typeface == "serif" {
+                        Typeface::Serif
+                    } else {
+                        Typeface::Sans
+                    },
+                    bold: t.bold,
+                    italic: t.italic,
+                },
+                align: match t.align.as_str() {
+                    "center" => TextAlign::Center,
+                    "right" => TextAlign::Right,
+                    _ => TextAlign::Left,
+                },
+                size,
+                color: t.color,
+                selected: false,
+            };
+            if let Err(dup) = model.push_text(item) {
+                warnings.push(format!(
+                    "A text with id `{}`, already used, was skipped.",
+                    dup.0
+                ));
+            }
+        }
+
         model.recompute_id_counter();
         Loaded {
             model,
@@ -501,7 +602,7 @@ fn style_from_file(s: Option<FileStyle>) -> VisualStyle {
 impl FileModel {
     fn from_model(m: &Model) -> Self {
         FileModel {
-            version: Some(FORMAT_VERSION),
+            version: Some(needed_version(m)),
             model_name: m.model_name.clone(),
             compartments: m
                 .compartments
@@ -549,6 +650,32 @@ impl FileModel {
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
+            texts: m
+                .texts()
+                .iter()
+                .map(|t| FileText {
+                    id: t.id.clone(),
+                    x: t.position.x,
+                    y: t.position.y,
+                    text: t.text.clone(),
+                    size: t.size,
+                    typeface: match t.font.typeface {
+                        Typeface::Sans => "sans",
+                        Typeface::Serif => "serif",
+                    }
+                    .to_owned(),
+                    bold: t.font.bold,
+                    italic: t.font.italic,
+                    align: match t.align {
+                        TextAlign::Left => "left",
+                        TextAlign::Center => "center",
+                        TextAlign::Right => "right",
+                    }
+                    .to_owned(),
+                    color: t.color,
+                    wrap_width: t.wrap_width,
+                })
+                .collect(),
         }
     }
 }
@@ -786,8 +913,56 @@ mod tests {
     }
 
     #[test]
+    fn free_text_is_version_4_and_round_trips() {
+        let mut m = Model::new();
+        m.add_species(Pt::ZERO, 80.0, 36.0);
+        let plain = to_json(&m);
+        assert!(plain.contains("\"version\": 3"), "no text: still version 3");
+        assert!(!plain.contains("texts"));
+
+        let id = m.add_text(pt(10.0, -20.0), "Glycolysis\nin yeast");
+        let t = m.find_text_mut(&id).unwrap();
+        t.font = TextFont {
+            typeface: Typeface::Serif,
+            bold: true,
+            italic: true,
+        };
+        t.size = 18.0;
+        t.align = TextAlign::Center;
+        t.color = Rgba::rgb(0xCC, 0x00, 0x00);
+        t.wrap_width = 120.0;
+        m.add_text(pt(0.0, 0.0), "plain");
+        let text = to_json(&m);
+        assert!(text.contains("\"version\": 4"));
+        assert!(text.contains("\"typeface\": \"serif\""));
+        assert!(text.contains("\"align\": \"center\""));
+        assert!(text.contains("\"color\": \"#CC0000FF\""));
+        let loaded = from_json(&text).unwrap();
+        assert!(loaded.warnings.is_empty(), "{:?}", loaded.warnings);
+        assert!(!loaded.is_newer_than_supported());
+        assert_eq!(loaded.model.texts(), m.texts());
+        // Defaults are left out of the file.
+        let plain_text = text.split("\"plain\"").nth(1).unwrap();
+        assert!(!plain_text.contains("bold") && !plain_text.contains("wrapWidth"));
+        assert!(!plain_text.contains("align"));
+    }
+
+    #[test]
+    fn missing_text_keys_take_their_defaults() {
+        let text = r#"{ "version": 4, "texts": [ { "id": "T1", "text": "Hi" },
+            { "id": "T1" } ] }"#;
+        let loaded = from_json(text).unwrap();
+        let t = &loaded.model.texts()[0];
+        assert_eq!(t.size, DEFAULT_TEXT_SIZE);
+        assert_eq!(t.font, TextFont::default());
+        assert_eq!(t.color, Rgba::DEFAULT);
+        assert_eq!(loaded.warnings.len(), 1, "the second T1 is skipped");
+        assert_eq!(loaded.model.next_id(), 2);
+    }
+
+    #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 4, "species": [ { "id": "A", "shape": "ellipse" } ] }"#;
+        let text = r#"{ "version": 5, "species": [ { "id": "A", "shape": "ellipse" } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);

@@ -10,8 +10,17 @@
 //! <pd:reaction xmlns:pd="https://github.com/sys-bio/PathwayDesigner-rs/ns/sbml-layout/1"
 //!              mode="linear"/>
 //! ```
+//!
+//! Free text (S §7.8) is a text glyph with its words. SBML Layout has no
+//! fonts, so its look goes in a note on the text glyph:
+//!
+//! ```xml
+//! <pd:text xmlns:pd="…" size="14" typeface="serif" bold="true" italic="true"
+//!          align="center" color="#CC0000FF" wrapWidth="120"/>
+//! ```
 
-use crate::model::{Reaction, ReactionMode};
+use crate::json::colour::{from_hex, to_hex};
+use crate::model::{Reaction, ReactionMode, Rgba, TextAlign, TextFont, TextItem, Typeface};
 
 /// The namespace of PathwayDesigner's note.
 pub const NS: &str = "https://github.com/sys-bio/PathwayDesigner-rs/ns/sbml-layout/1";
@@ -55,10 +64,117 @@ pub fn read(annotation: &str) -> (bool, bool) {
     )
 }
 
+/// How a free text looks, as its note says.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextLook {
+    pub font: TextFont,
+    pub align: TextAlign,
+    pub size: f64,
+    pub color: Rgba,
+    pub wrap_width: f64,
+}
+
+/// The note for a free text's glyph: its size, and whatever isn't the default.
+pub fn text_note(t: &TextItem) -> String {
+    let mut attrs = format!(" size=\"{}\"", sbml_io::fmt_f64(t.size));
+    if t.font.typeface == Typeface::Serif {
+        attrs.push_str(" typeface=\"serif\"");
+    }
+    if t.font.bold {
+        attrs.push_str(" bold=\"true\"");
+    }
+    if t.font.italic {
+        attrs.push_str(" italic=\"true\"");
+    }
+    match t.align {
+        TextAlign::Left => {}
+        TextAlign::Center => attrs.push_str(" align=\"center\""),
+        TextAlign::Right => attrs.push_str(" align=\"right\""),
+    }
+    if !t.color.is_default() {
+        attrs.push_str(&format!(" color=\"{}\"", to_hex(t.color)));
+    }
+    if t.wrap_width > 0.0 {
+        attrs.push_str(&format!(
+            " wrapWidth=\"{}\"",
+            sbml_io::fmt_f64(t.wrap_width)
+        ));
+    }
+    format!("\n<pd:text xmlns:pd=\"{NS}\"{attrs}/>\n")
+}
+
+/// What a text glyph's note says, or `None` if it has none. Values that
+/// don't read keep their defaults.
+pub fn read_text(annotation: &str) -> Option<TextLook> {
+    let wrapped = format!("<a>{annotation}</a>");
+    let doc = roxmltree::Document::parse(&wrapped).ok()?;
+    let note = doc
+        .descendants()
+        .find(|n| n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "text")?;
+    let number = |key: &str| note.attribute(key).and_then(|v| v.parse::<f64>().ok());
+    let yes = |key: &str| note.attribute(key) == Some("true");
+    Some(TextLook {
+        font: TextFont {
+            typeface: if note.attribute("typeface") == Some("serif") {
+                Typeface::Serif
+            } else {
+                Typeface::Sans
+            },
+            bold: yes("bold"),
+            italic: yes("italic"),
+        },
+        align: match note.attribute("align") {
+            Some("center") => TextAlign::Center,
+            Some("right") => TextAlign::Right,
+            _ => TextAlign::Left,
+        },
+        size: number("size")
+            .filter(|s| s.is_finite() && *s >= 1.0)
+            .unwrap_or(crate::model::DEFAULT_TEXT_SIZE),
+        color: note
+            .attribute("color")
+            .and_then(from_hex)
+            .unwrap_or_default(),
+        wrap_width: number("wrapWidth")
+            .filter(|w| w.is_finite() && *w > 0.0)
+            .unwrap_or(0.0),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::geometry::Pt;
+
+    #[test]
+    fn a_text_note_round_trips() {
+        let mut t = TextItem::new("T1", Pt::ZERO, "x");
+        let plain = read_text(&text_note(&t)).unwrap();
+        assert_eq!(plain.font, TextFont::default());
+        assert_eq!((plain.size, plain.wrap_width), (t.size, 0.0));
+        assert!(plain.color.is_default());
+        t.font = TextFont {
+            typeface: Typeface::Serif,
+            bold: true,
+            italic: true,
+        };
+        t.size = 18.5;
+        t.align = TextAlign::Right;
+        t.color = Rgba::rgb(0xCC, 0, 0);
+        t.wrap_width = 120.0;
+        let back = read_text(&text_note(&t)).unwrap();
+        assert_eq!(
+            back,
+            TextLook {
+                font: t.font,
+                align: TextAlign::Right,
+                size: 18.5,
+                color: t.color,
+                wrap_width: 120.0
+            }
+        );
+        assert_eq!(read_text("<other/>"), None);
+    }
 
     #[test]
     fn written_only_when_needed_and_read_back() {

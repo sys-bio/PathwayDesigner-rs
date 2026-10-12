@@ -802,6 +802,71 @@ know about. *Not in the reference; added at the user's request.*
   - Give every reaction a mass-action law `k<i>*…` and a matching parameter
     `k<i> = 0.1`.
 
+### 7.8 Free text
+
+*Not in the reference; added at the user's request.* Free text puts notes, titles
+and paragraphs on the diagram. It has no part in the model's biochemistry.
+
+**A text** has an id `T<n>` from the shared counter (§4), the top-left corner of its
+first line, its words, a typeface, a size, bold and italic, an alignment, a
+colour, and a wrap width.
+
+- **Words** may hold line breaks, which start new lines.
+- **Wrap width** 0 means lines break only at line breaks. Otherwise the text wraps
+  between words, so no line is wider than the wrap width. A word wider than the
+  wrap width gets a line of its own. The narrowest wrap width is 20.
+- **Typefaces:** *Sans* (Noto Sans, the label font) or *Serif* (Noto Serif, a
+  Times-like face), each in regular, bold, italic and bold italic. These eight
+  bundled fonts are the only ones, so text looks and measures the same on every
+  platform, in the browser, and in SVG, PNG and PDF (SPEC-Rust §5.4).
+- **Size** is the font size in world units, at least 1. New text is 14.
+- **Alignment:** *Left* (the default), *Center* or *Right*: how each line lines up
+  in the text's width (below). A line wider than the width starts at the left
+  edge.
+- **Colour** defaults to the label colour.
+
+The style applies to the whole text; there is no mixed styling within one text.
+
+**Layout.** The text's width is its wrap width, or else its widest line. Each
+line starts at the left edge, is centred in the width, or ends at its right edge,
+as the alignment says. Lines are one font height apart (ascent − descent of the
+face). The text's **box** is its width (the wrap
+width, or else its widest line, but at least one em) by its lines' height, plus 4
+on every side. The box is what selects the text, what the rubber band meets, what
+alignment lines up, and what the exported picture's bounds include (§11.6).
+
+**Drawing.** Texts are drawn after everything else, in their order, so they are on
+top. A selected text has the selection halo's dashed outline around its box, and a
+square **wrap handle** (the Bézier handle's size and colours) in the middle of its
+box's right edge. Neither is drawn in exported pictures.
+
+**Editing.**
+- The **Text** tool (left palette, after Species): a click places new text, with
+  its top-left corner at the click, words "Text", selected. The tool goes back to
+  Select, and the keyboard goes to the words field of the right panel's Text group
+  with the words selected, so typing replaces them.
+- **Hit testing (§6.2):** after a selected Bézier reaction's handles come the wrap
+  handles of selected texts, then texts (topmost first), then junctions, species
+  and legs. Text is drawn on top, so it is hit first.
+- Click, Shift+click, the rubber band, **Select All** (Ctrl/Cmd+A), Delete, arrow-key
+  nudges and dragging work on texts as on species. Select All Species and Select
+  All Reactions leave texts out.
+- **Dragging the wrap handle** sets the wrap width to the text's width when the drag
+  began plus the distance moved, never less than the narrowest wrap width. One undo
+  step, "Wrap Text".
+- **Double-click** a text: the keyboard goes to its words field.
+- **Right-click** a text: Edit Text · Delete Text · Alignment ▸ …
+- **Align and distribute (§7.5)** treat a text like a species: by its box.
+- Arrange in Circle and auto-layout leave texts where they are.
+
+**Undo.** Placing a text and then typing its words is one undo step. Later typing
+in the words field is one step for each run of typing, until something else
+happens. Every style change is one step.
+
+**Files.** JSON version 4 (SPEC-Rust §4.2). In SBML, a text glyph with the words,
+with PathwayDesigner's note for the look (SPEC-Rust §8.3). Antimony has no layout,
+so it doesn't keep texts.
+
 ---
 
 ## 8. Properties, styling and kinetic laws
@@ -1341,15 +1406,18 @@ changes on New, Open and Quit. The reference has none of these.
   UniUni · Random network · Set Bézier · Smooth junction · Make Nice, then the
   checkboxes **Deckard** and **Randomize** (both off by default), which apply to
   auto-layout.
-- **Left tool palette** (modes): Select · Add Species · Add BiBi · Add UniBi ·
-  Add BiUni · Add UniUni.
+- **Left tool palette** (modes): Select · Add Species · Add Text (§7.8) · Add BiBi ·
+  Add UniBi · Add BiUni · Add UniUni.
 - Each tool button MUST have a tooltip. The current mode SHOULD be highlighted.
 
 ### 13.3 Right panel
 
 From top to bottom: the **Species** inspector group, the **Antimony** text panel
-with its *Load Antimony* and *Get Antimony* buttons, and the **Reaction** inspector
-group (§8.1).
+with its *Load Antimony* and *Get Antimony* buttons, the **Reaction** inspector
+group (§8.1), and the **Text** group (§7.8). The Text group has the words of the one
+selected text (applied as they are typed), then Typeface, Size, Style (Bold,
+Italic), Align (Left, Center, Right), Colour and Wrap width. All but the words and
+the wrap width apply to every selected text.
 
 ### 13.4 Context menu
 
@@ -1361,6 +1429,7 @@ Which items appear depends on what was right-clicked:
 | Null node | Remove Null Node · Alignment ▸ … |
 | Alias | Rename (renames the primary) · Go to Primary · Delete Alias · Alignment ▸ … |
 | Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) |
+| Free text (§7.8) | Edit Text · Delete Text · Alignment ▸ … |
 
 The *Alignment ▸* submenu contains Align Top / Middle / Bottom, Align Left / Center
 / Right, and Distribute Horizontally / Vertically.
@@ -1719,6 +1788,7 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | Tooltip delay | 600 ms | | Undo depth | 100 |
 | Layout: Kr / Ka / Kg | 8000 / 0.02 / 0.01 | | Layout: start speed / decay / iterations | max(20, 5 % of diagonal) / 0.98 / 800 |
 | Content margin for export | 60 | | PNG default DPI | 150 |
+| Free text: default size | 14 | | Free text: box padding / narrowest wrap | 4 / 20 |
 
 ### 17.2 Palette
 

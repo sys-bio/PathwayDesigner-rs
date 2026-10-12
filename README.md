@@ -195,7 +195,7 @@ SPECIFICATION.md §15.
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). The bundled Noto Sans font is under the SIL Open
+MIT, see [LICENSE](LICENSE). The bundled Noto Sans and Noto Serif fonts are under the SIL Open
 Font Licence ([assets/fonts/NotoSans-OFL.txt](assets/fonts/NotoSans-OFL.txt)).
 The licences of the open-source crates PathwayDesigner is built from are in
 [THIRD-PARTY.html](THIRD-PARTY.html), which the app also links to from its About box.

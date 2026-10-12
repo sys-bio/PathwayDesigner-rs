@@ -9,10 +9,11 @@
 use std::fmt::Write as _;
 
 use crate::geometry::pt;
+use crate::model::TextFont;
 use crate::model::{Model, Rgba};
 use crate::render::draw::{DrawOptions, Shown, content_bounds, draw_model};
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
-use crate::text::{PathSink, font_metrics, text_outline, text_width};
+use crate::text::{PathSink, font_metrics_in, text_outline_in, text_width_in};
 
 /// Points per inch, PDF's unit.
 const PT_PER_INCH: f64 = 72.0;
@@ -340,15 +341,15 @@ impl Renderer for PdfRenderer {
         self.end(true, false);
     }
 
-    fn text(&mut self, center: SPt, s: &str, size: f32, color: Rgba) {
+    fn text(&mut self, center: SPt, s: &str, size: f32, font: TextFont, color: Rgba) {
         let size = f64::from(size);
-        let x = f64::from(center.x) - text_width(s, size) / 2.0;
-        let baseline = f64::from(center.y) + font_metrics(size).cap_height / 2.0;
+        let x = f64::from(center.x) - text_width_in(font, s, size) / 2.0;
+        let baseline = f64::from(center.y) + font_metrics_in(font, size).cap_height / 2.0;
         let mut path = PdfPath {
             ops: String::new(),
             at: (0.0, 0.0),
         };
-        text_outline(s, size, x, baseline, &mut path);
+        text_outline_in(font, s, size, x, baseline, &mut path);
         if path.ops.is_empty() {
             return;
         }
@@ -542,7 +543,13 @@ mod tests {
                 round_cap: true,
             }),
         );
-        p.text(spt(50.0, 25.0), "S1", 12.0, Rgba::rgb(0x1A, 0x1A, 0x1A));
+        p.text(
+            spt(50.0, 25.0),
+            "S1",
+            12.0,
+            TextFont::default(),
+            Rgba::rgb(0x1A, 0x1A, 0x1A),
+        );
         let pdf = p.finish();
         check_xref(&pdf);
         let t = text(&pdf);

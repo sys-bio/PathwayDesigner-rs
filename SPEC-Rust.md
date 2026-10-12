@@ -315,6 +315,25 @@ The Delphi app stays at v3. From v4 onwards the Rust app owns the format.
   to this section before the feature is released. The round-trip tests (§4.1) get v4
   sample files.
 
+**Version 4: free text (S §7.8).** A top-level `texts` array, after `reactions`,
+left out when empty. A document without texts is still written as version 3. Each
+text is an object; every key but `id` may be missing and takes its default, and the
+writer leaves out keys at their default (except `size`, `x`, `y` and `text`):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `id` | (required) | `T<n>`; unique among all ids |
+| `x`, `y` | 0 | the top-left corner of the first line |
+| `text` | `""` | the words; `\n` starts a new line |
+| `size` | 14 | font size; below 1 reads as 14 |
+| `typeface` | `"sans"` | `"sans"` or `"serif"`; anything else reads as sans |
+| `bold`, `italic` | false | |
+| `align` | `"left"` | `"left"`, `"center"` or `"right"`; anything else reads as left |
+| `color` | label colour | `#RRGGBBAA` |
+| `wrapWidth` | 0 | 0: no wrapping |
+
+`Models/text_1.json` is the version 4 sample file.
+
 ---
 
 ## 5. Rendering
@@ -384,9 +403,13 @@ Text width affects saved geometry: renaming a species widens its node to fit the
 label (S §5.3), and that width is saved as `w`. It MUST therefore come out **the
 same on every platform**:
 
-- Bundle **one** font, **Noto Sans Regular** (SIL Open Font Licence), in
-  `assets/fonts/`. Use it for diagram labels in egui, in SVG (embedded
-  through font data given to `usvg`), in PNG and in PDF.
+- Bundle **Noto Sans Regular** (SIL Open Font Licence) in `assets/fonts/` and
+  use it for diagram labels in egui, SVG, PNG and PDF. Free text (S §7.8) may
+  also use Noto Sans Bold, Italic and Bold Italic, and Noto Serif in the same
+  four faces: eight files, all Noto 2.015 from the same project, under the same
+  licence. In egui each face is a font family of its own holding only that
+  font, so egui draws exactly what was measured. SVG and PDF draw glyph
+  outlines from the font data, so no font needs to be installed.
 - **Measure** label width in `pd-core::text` from that font's own data, not with
   egui. Then the width is the same in a headless test, a desktop build and a browser.
   Shape the text with **harfrust**, the shaper egui 0.36 uses, so GPOS kerning is
@@ -806,6 +829,16 @@ Instead:
    `tests/scripts/check_sbml.py`). All pass with no errors; the warnings are
    about units, which these models don't declare. python-libsbml is a
    development-only dependency and is never shipped (§12).
+
+**Free text (S §7.8)** is written as a text glyph with a `text` attribute and its
+box (the text's layout width and height), and no graphical object or origin of
+text. SBML Layout has no fonts, so the glyph's annotation holds PathwayDesigner's
+note, next to the reaction note:
+`<pd:text xmlns:pd="…/ns/sbml-layout/1" size="14" typeface="serif" bold="true"
+italic="true" align="center" color="#CC0000FF" wrapWidth="120"/>`, with only `size` always present.
+Import makes free text from every text glyph that has a `text` and labels nothing,
+at its box's top-left corner, with the note's look if it has one and the defaults
+otherwise. Text glyphs that label a species are not free text.
 
 ### 8.4 Behaviour specific to PathwayDesigner
 
