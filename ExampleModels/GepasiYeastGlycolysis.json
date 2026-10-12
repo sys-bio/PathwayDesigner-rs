@@ -1,0 +1,1628 @@
+{
+  "version": 3,
+  "modelName": "model",
+  "compartments": [
+    {
+      "id": "compartment",
+      "size": 1.0,
+      "dimensions": 3
+    }
+  ],
+  "parameters": [
+    {
+      "variable": "HXT_Vmax_1",
+      "expression": "97.24"
+    },
+    {
+      "variable": "HXT_Kglc_1",
+      "expression": "1.1918"
+    },
+    {
+      "variable": "HXT_Ki_1",
+      "expression": "0.91"
+    },
+    {
+      "variable": "HK_Vmax_2",
+      "expression": "236.7"
+    },
+    {
+      "variable": "HK_Kglc_2",
+      "expression": "0.08"
+    },
+    {
+      "variable": "HK_Katp_2",
+      "expression": "0.15"
+    },
+    {
+      "variable": "HK_Keq_2",
+      "expression": "2000"
+    },
+    {
+      "variable": "HK_Kg6p_2",
+      "expression": "30"
+    },
+    {
+      "variable": "HK_Kadp_2",
+      "expression": "0.23"
+    },
+    {
+      "variable": "PGI_Vmax_3",
+      "expression": "1056"
+    },
+    {
+      "variable": "PGI_Kg6p_3",
+      "expression": "1.4"
+    },
+    {
+      "variable": "PGI_Keq_3",
+      "expression": "0.29"
+    },
+    {
+      "variable": "PGI_Kf6p_3",
+      "expression": "0.3"
+    },
+    {
+      "variable": "PFK_Vmax_4",
+      "expression": "110"
+    },
+    {
+      "variable": "PFK_gR_4",
+      "expression": "5.12"
+    },
+    {
+      "variable": "PFK_Kf6p_4",
+      "expression": "0.1"
+    },
+    {
+      "variable": "PFK_Katp_4",
+      "expression": "0.71"
+    },
+    {
+      "variable": "PFK_L0_4",
+      "expression": "0.66"
+    },
+    {
+      "variable": "PFK_Ciatp_4",
+      "expression": "100"
+    },
+    {
+      "variable": "PFK_Kiatp_4",
+      "expression": "0.65"
+    },
+    {
+      "variable": "PFK_Camp_4",
+      "expression": "0.0845"
+    },
+    {
+      "variable": "PFK_Kamp_4",
+      "expression": "0.0995"
+    },
+    {
+      "variable": "PFK_Cf26_4",
+      "expression": "0.0174"
+    },
+    {
+      "variable": "PFK_Kf26_4",
+      "expression": "0.000682"
+    },
+    {
+      "variable": "PFK_Cf16_4",
+      "expression": "0.397"
+    },
+    {
+      "variable": "PFK_Kf16_4",
+      "expression": "0.111"
+    },
+    {
+      "variable": "PFK_Catp_4",
+      "expression": "3"
+    },
+    {
+      "variable": "ALD_Vmax_5",
+      "expression": "94.69"
+    },
+    {
+      "variable": "ALD_Kf16bp_5",
+      "expression": "0.3"
+    },
+    {
+      "variable": "ALD_Keq_5",
+      "expression": "0.069"
+    },
+    {
+      "variable": "ALD_Kdhap_5",
+      "expression": "2"
+    },
+    {
+      "variable": "ALD_Kgap_5",
+      "expression": "2.4"
+    },
+    {
+      "variable": "ALD_Kigap_5",
+      "expression": "10"
+    },
+    {
+      "variable": "TPI_k1_6",
+      "expression": "450000"
+    },
+    {
+      "variable": "TPI_k2_6",
+      "expression": "10000000"
+    },
+    {
+      "variable": "GAPDH_C_7",
+      "expression": "1"
+    },
+    {
+      "variable": "GAPDH_Vmaxf_7",
+      "expression": "1152"
+    },
+    {
+      "variable": "GAPDH_Kgap_7",
+      "expression": "0.21"
+    },
+    {
+      "variable": "GAPDH_Knad_7",
+      "expression": "0.09"
+    },
+    {
+      "variable": "GAPDH_Vmaxr_7",
+      "expression": "6719"
+    },
+    {
+      "variable": "GAPDH_Kbpg_7",
+      "expression": "0.0098"
+    },
+    {
+      "variable": "GAPDH_Knadh_7",
+      "expression": "0.06"
+    },
+    {
+      "variable": "PGK_Vmax_8",
+      "expression": "1288"
+    },
+    {
+      "variable": "PGK_Keq_8",
+      "expression": "3200"
+    },
+    {
+      "variable": "PGK_Kp3g_8",
+      "expression": "0.53"
+    },
+    {
+      "variable": "PGK_Katp_8",
+      "expression": "0.3"
+    },
+    {
+      "variable": "PGK_Kbpg_8",
+      "expression": "0.003"
+    },
+    {
+      "variable": "PGK_Kadp_8",
+      "expression": "0.2"
+    },
+    {
+      "variable": "PGM_Vmax_9",
+      "expression": "2585"
+    },
+    {
+      "variable": "PGM_Kp3g_9",
+      "expression": "1.2"
+    },
+    {
+      "variable": "PGM_Keq_9",
+      "expression": "0.19"
+    },
+    {
+      "variable": "PGM_Kp2g_9",
+      "expression": "0.08"
+    },
+    {
+      "variable": "ENO_Vmax_10",
+      "expression": "201.6"
+    },
+    {
+      "variable": "ENO_Kp2g_10",
+      "expression": "0.04"
+    },
+    {
+      "variable": "ENO_Keq_10",
+      "expression": "6.7"
+    },
+    {
+      "variable": "ENO_Kpep_10",
+      "expression": "0.5"
+    },
+    {
+      "variable": "PYK_Vmax_11",
+      "expression": "1000"
+    },
+    {
+      "variable": "PYK_Kpep_11",
+      "expression": "0.14"
+    },
+    {
+      "variable": "PYK_Kadp_11",
+      "expression": "0.53"
+    },
+    {
+      "variable": "PYK_Keq_11",
+      "expression": "6500"
+    },
+    {
+      "variable": "PYK_Kpyr_11",
+      "expression": "21"
+    },
+    {
+      "variable": "PYK_Katp_11",
+      "expression": "1.5"
+    },
+    {
+      "variable": "PDC_Vmax_12",
+      "expression": "857.8"
+    },
+    {
+      "variable": "PDC_Kpyr_12",
+      "expression": "4.33"
+    },
+    {
+      "variable": "PDC_nH_12",
+      "expression": "1.9"
+    },
+    {
+      "variable": "ADH_Vmax_13",
+      "expression": "209.5"
+    },
+    {
+      "variable": "ADH_Ketoh_13",
+      "expression": "17"
+    },
+    {
+      "variable": "ADH_Kinad_13",
+      "expression": "0.92"
+    },
+    {
+      "variable": "ADH_Keq_13",
+      "expression": "0.000069"
+    },
+    {
+      "variable": "ADH_Knad_13",
+      "expression": "0.17"
+    },
+    {
+      "variable": "ADH_Knadh_13",
+      "expression": "0.11"
+    },
+    {
+      "variable": "ADH_Kinadh_13",
+      "expression": "0.031"
+    },
+    {
+      "variable": "ADH_Kacald_13",
+      "expression": "1.11"
+    },
+    {
+      "variable": "ADH_Kiacald_13",
+      "expression": "1.1"
+    },
+    {
+      "variable": "ADH_Kietoh_13",
+      "expression": "90"
+    },
+    {
+      "variable": "ATPase_Katpase_14",
+      "expression": "39.5"
+    },
+    {
+      "variable": "AK_k1_15",
+      "expression": "45"
+    },
+    {
+      "variable": "AK_k2_15",
+      "expression": "100"
+    },
+    {
+      "variable": "G3PDH_Vmax_16",
+      "expression": "47.11"
+    },
+    {
+      "variable": "G3PDH_Kdhap_16",
+      "expression": "0.4"
+    },
+    {
+      "variable": "G3PDH_Knadh_16",
+      "expression": "0.023"
+    },
+    {
+      "variable": "G3PDH_Keq_16",
+      "expression": "4300"
+    },
+    {
+      "variable": "G3PDH_Kglycerol_16",
+      "expression": "1"
+    },
+    {
+      "variable": "G3PDH_Knad_16",
+      "expression": "0.93"
+    },
+    {
+      "variable": "Glycogen_Branch_KGLYCOGEN_17",
+      "expression": "6"
+    },
+    {
+      "variable": "Trehalose_Branch_Ktrehalose_18",
+      "expression": "2.4"
+    },
+    {
+      "variable": "Succinate_Branch_k_19",
+      "expression": "21.4"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "GLCi",
+      "x": 38.0,
+      "y": -170.0,
+      "w": 42.0,
+      "h": 30.0,
+      "initialValue": 0.097652231064563,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "ATP",
+      "x": 229.4032258064517,
+      "y": 25.741935483870975,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 2.52512746499271,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "G6P",
+      "x": 36.0,
+      "y": 0.0,
+      "w": 38.0,
+      "h": 30.0,
+      "initialValue": 2.67504014044787,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "ADP",
+      "x": 254.5322580645161,
+      "y": 426.7096774193549,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 1.28198768168719,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "F6P",
+      "x": 34.241935483870975,
+      "y": 147.9032258064516,
+      "w": 35.0,
+      "h": 30.0,
+      "initialValue": 0.624976405532373,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "F16bP",
+      "x": 35.5,
+      "y": 328.0,
+      "w": 53.0,
+      "h": 30.0,
+      "initialValue": 6.22132076069411,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "AMP",
+      "x": 471.5326286082618,
+      "y": 245.0321233213359,
+      "w": 41.0,
+      "h": 30.0,
+      "initialValue": 0.29288485332009,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "DHAP",
+      "x": -43.5,
+      "y": 487.0645161290322,
+      "w": 51.0,
+      "h": 30.0,
+      "initialValue": 1.00415254899644,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "GAP",
+      "x": 96.0,
+      "y": 487.0645161290322,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0451809175780963,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "NAD",
+      "x": 19.0,
+      "y": 553.0,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 1.50329030201531,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "BPG",
+      "x": 96.0,
+      "y": 665.0,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.000736873499865602,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "NADH",
+      "x": 2.0,
+      "y": 614.0,
+      "w": 52.0,
+      "h": 30.0,
+      "initialValue": 0.0867096979846952,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "P3G",
+      "x": 95.0,
+      "y": 844.0,
+      "w": 38.0,
+      "h": 30.0,
+      "initialValue": 0.885688538360659,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "P2G",
+      "x": 95.0,
+      "y": 934.6451612903226,
+      "w": 38.0,
+      "h": 30.0,
+      "initialValue": 0.127695817386632,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "PEP",
+      "x": 95.0,
+      "y": 1025.0,
+      "w": 38.0,
+      "h": 30.0,
+      "initialValue": 0.0632352144936527,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "PYR",
+      "x": 95.5,
+      "y": 1179.0,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 1.81531251192736,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "AcAld",
+      "x": 409.0,
+      "y": 1174.0,
+      "w": 48.0,
+      "h": 30.0,
+      "initialValue": 0.178140579850657,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "GLCo",
+      "x": 35.54838709677426,
+      "y": -277.29032258064524,
+      "w": 48.0,
+      "h": 30.0,
+      "initialValue": 2.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "F26bP",
+      "x": -104.04838709677426,
+      "y": 172.32258064516122,
+      "w": 53.0,
+      "h": 30.0,
+      "initialValue": 0.02,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "CO2",
+      "x": 354.5,
+      "y": 1255.0,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "EtOH",
+      "x": 407.5,
+      "y": 973.1290322580644,
+      "w": 45.0,
+      "h": 30.0,
+      "initialValue": 50.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "Glycerol",
+      "x": -263.43548387096774,
+      "y": 487.0645161290322,
+      "w": 65.0,
+      "h": 30.0,
+      "initialValue": 0.15,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "Glycogen",
+      "x": -210.54835341097913,
+      "y": -0.6450602329373734,
+      "w": 74.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "Trehalose",
+      "x": 156.0,
+      "y": -296.0,
+      "w": 78.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "Succinate",
+      "x": 671.5,
+      "y": 1176.0,
+      "w": 77.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "compartment"
+    },
+    {
+      "id": "S1",
+      "x": -62.02347564618742,
+      "y": -105.56427999053165,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S2",
+      "x": -28.57480099622296,
+      "y": 267.5340577529911,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S3",
+      "x": -4.770161290322562,
+      "y": 713.5282258064517,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S4",
+      "x": 13.838567356527165,
+      "y": 1071.8792231297145,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S5",
+      "x": 483.0031227415974,
+      "y": 77.3148529869829,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S6",
+      "x": -105.43446120682168,
+      "y": 63.07432747999684,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S7",
+      "x": 221.7862903225806,
+      "y": -238.04435483870975,
+      "w": 39.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S8",
+      "x": 101.10887096774195,
+      "y": 181.72580645161293,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S9",
+      "x": 22.28521768770598,
+      "y": 790.7478775080469,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S10",
+      "x": 27.567209357970683,
+      "y": 1127.6712065309102,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S11",
+      "x": 381.5142455695013,
+      "y": 427.27566673258696,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S12",
+      "x": 572.5571064049939,
+      "y": 166.9354449268957,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S13",
+      "x": -25.572580645161224,
+      "y": 54.55645161290329,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S14",
+      "x": 180.88306451612902,
+      "y": -89.31854838709671,
+      "w": 37.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S15",
+      "x": 331.8125,
+      "y": 1042.5,
+      "w": 52.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "NADH"
+    },
+    {
+      "id": "S16",
+      "x": -102.5,
+      "y": 539.5,
+      "w": 52.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "NADH"
+    },
+    {
+      "id": "S17",
+      "x": 582.7318548387098,
+      "y": 1253.5967741935483,
+      "w": 52.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "NADH"
+    },
+    {
+      "id": "S18",
+      "x": 499.42606963090134,
+      "y": 1098.2229497134376,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "NAD"
+    },
+    {
+      "id": "S19",
+      "x": -190.380343546358,
+      "y": 544.7230942663349,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "NAD"
+    },
+    {
+      "id": "S20",
+      "x": 492.58018589483527,
+      "y": 1255.7147644509314,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "NAD"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "HXT",
+      "jx": 36.77419354838713,
+      "jy": -223.64516129032262,
+      "kineticLaw": "HXT_Vmax_1*(GLCo - GLCi)/HXT_Kglc_1/(1 + (GLCo + GLCi)/HXT_Kglc_1 + HXT_Ki_1*GLCo*GLCi/HXT_Kglc_1^2)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GLCo",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GLCi",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "HK",
+      "jx": 34.0,
+      "jy": -94.5,
+      "kineticLaw": "HK_Vmax_2*(GLCi*ATP/(HK_Kglc_2*HK_Katp_2) - G6P*ADP/(HK_Kglc_2*HK_Katp_2*HK_Keq_2))/((1 + GLCi/HK_Kglc_2 + G6P/HK_Kg6p_2)*(1 + ATP/HK_Katp_2 + ADP/HK_Kadp_2))",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "GLCi",
+          "stoichiometry": 1.0,
+          "ctrl1x": 35.9,
+          "ctrl1y": -143.575,
+          "ctrl2x": 33.635862253734054,
+          "ctrl2y": -121.0058112251209,
+          "ctrlSet": true
+        },
+        {
+          "id": "ATP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 127.41209677419363,
+          "ctrl1y": -0.9427419354838662,
+          "ctrl2x": 32.55181533820773,
+          "ctrl2y": -199.91425506749601,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 34.69440293279304,
+          "ctrl1y": -43.95398207265171,
+          "ctrl2x": 42.3,
+          "ctrl2y": -57.074999999999996,
+          "ctrlSet": true
+        },
+        {
+          "id": "S1",
+          "stoichiometry": 1.0,
+          "ctrl1x": 34.37411916894795,
+          "ctrl1y": -67.26763485927877,
+          "ctrl2x": -35.065259170021825,
+          "ctrl2y": -101.69178199384557,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "ADP"
+        }
+      ]
+    },
+    {
+      "id": "PGI",
+      "jx": 35.70283549163306,
+      "jy": 24.99998662132883,
+      "kineticLaw": "PGI_Vmax_3*(G6P/PGI_Kg6p_3 - F6P/(PGI_Kg6p_3*PGI_Keq_3))/(1 + G6P/PGI_Kg6p_3 + F6P/PGI_Kf6p_3)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PFK",
+      "jx": 36.42741935483866,
+      "jy": 238.8064516129033,
+      "kineticLaw": "PFK_Vmax_4*(PFK_gR_4*(F6P/PFK_Kf6p_4)*(ATP/PFK_Katp_4)*(1 + F6P/PFK_Kf6p_4 + ATP/PFK_Katp_4 + PFK_gR_4*F6P/PFK_Kf6p_4*ATP/PFK_Katp_4)/((1 + F6P/PFK_Kf6p_4 + ATP/PFK_Katp_4 + PFK_gR_4*F6P/PFK_Kf6p_4*ATP/PFK_Katp_4)^2 + PFK_L0_4*((1 + PFK_Ciatp_4*ATP/PFK_Kiatp_4)/(1 + ATP/PFK_Kiatp_4))^2*((1 + PFK_Camp_4*AMP/PFK_Kamp_4)/(1 + AMP/PFK_Kamp_4))^2*((1 + PFK_Cf26_4*F26bP/PFK_Kf26_4 + PFK_Cf16_4*F16bP/PFK_Kf16_4)/(1 + F26bP/PFK_Kf26_4 + F16bP/PFK_Kf16_4))^2*(1 + PFK_Catp_4*ATP/PFK_Katp_4)^2))",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S8",
+          "stoichiometry": 1.0,
+          "ctrl1x": 59.220362903225805,
+          "ctrl1y": 179.30403225806455,
+          "ctrl2x": 39.37003145639183,
+          "ctrl2y": 196.95130698126488,
+          "ctrlSet": true
+        },
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 35.006854838709664,
+          "ctrl1y": 179.71935483870968,
+          "ctrl2x": 38.65937894003436,
+          "ctrl2y": 207.05949074061257,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 33.21151815750672,
+          "ctrl1y": 284.54880741451984,
+          "ctrl2x": 24.625976126648602,
+          "ctrl2y": 264.47939560396037,
+          "ctrlSet": true
+        },
+        {
+          "id": "F16bP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 34.23795201369724,
+          "ctrl1y": 269.94901103531356,
+          "ctrl2x": 35.82459677419353,
+          "ctrl2y": 296.78225806451616,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "AMP"
+        },
+        {
+          "id": "F26bP"
+        },
+        {
+          "id": "ATP"
+        }
+      ]
+    },
+    {
+      "id": "ALD",
+      "jx": 27.875,
+      "jy": 411.5,
+      "kineticLaw": "ALD_Vmax_5*(F16bP/ALD_Kf16bp_5 - DHAP*GAP/(ALD_Kf16bp_5*ALD_Keq_5))/(1 + F16bP/ALD_Kf16bp_5 + DHAP/ALD_Kdhap_5 + GAP/ALD_Kgap_5 + F16bP*GAP/(ALD_Kf16bp_5*ALD_Kigap_5) + DHAP*GAP/(ALD_Kdhap_5*ALD_Kgap_5))",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "F16bP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 32.83125,
+          "ctrl1y": 357.225,
+          "ctrl2x": 27.665386785514656,
+          "ctrl2y": 382.15414997205204,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "DHAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "TPI",
+      "jx": 26.250000000000043,
+      "jy": 487.0645161290322,
+      "kineticLaw": "TPI_k1_6*DHAP - TPI_k2_6*GAP",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "DHAP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "GAPDH",
+      "jx": 95.5,
+      "jy": 587.5,
+      "kineticLaw": "GAPDH_C_7*(GAPDH_Vmaxf_7*GAP*NAD/(GAPDH_Kgap_7*GAPDH_Knad_7) - GAPDH_Vmaxr_7*BPG*NADH/(GAPDH_Kbpg_7*GAPDH_Knadh_7))/((1 + GAP/GAPDH_Kgap_7 + BPG/GAPDH_Kbpg_7)*(1 + NAD/GAPDH_Knad_7 + NADH/GAPDH_Knadh_7))",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0,
+          "ctrl1x": -4.275000000000006,
+          "ctrl1y": 569.975,
+          "ctrl2x": 111.25738150241007,
+          "ctrl2y": 558.8755056764476,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "BPG",
+          "stoichiometry": 1.0,
+          "ctrl1x": 117.55379770946057,
+          "ctrl1y": 614.4576625386863,
+          "ctrl2x": 113.525,
+          "ctrl2y": 637.875,
+          "ctrlSet": true
+        },
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0,
+          "ctrl1x": 118.89592858691125,
+          "ctrl1y": 626.3054385603201,
+          "ctrl2x": -32.82499999999999,
+          "ctrl2y": 596.325,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PGK",
+      "jx": 93.83064516129025,
+      "jy": 744.3467741935483,
+      "kineticLaw": "PGK_Vmax_8*((PGK_Keq_8*BPG*ADP - P3G*ATP)/(PGK_Kp3g_8*PGK_Katp_8))/((1 + BPG/PGK_Kbpg_8 + P3G/PGK_Kp3g_8)*(1 + ADP/PGK_Kadp_8 + ATP/PGK_Katp_8))",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 71.39012096774192,
+          "ctrl1y": 687.5647177419355,
+          "ctrl2x": 75.10812334080495,
+          "ctrl2y": 669.5733561810284,
+          "ctrlSet": true
+        },
+        {
+          "id": "BPG",
+          "stoichiometry": 1.0,
+          "ctrl1x": 110.14072580645158,
+          "ctrl1y": 692.7713709677419,
+          "ctrl2x": 94.51800608120828,
+          "ctrl2y": 718.4031050323483,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S9",
+          "stoichiometry": 1.0,
+          "ctrl1x": 125.46891516898734,
+          "ctrl1y": 796.266796312169,
+          "ctrl2x": 61.90225387586505,
+          "ctrl2y": 751.3509572048713,
+          "ctrlSet": true
+        },
+        {
+          "id": "P3G",
+          "stoichiometry": 1.0,
+          "ctrl1x": 117.77693004318175,
+          "ctrl1y": 776.9159477323713,
+          "ctrl2x": 98.44072580645158,
+          "ctrl2y": 809.1213709677419,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+      ]
+    },
+    {
+      "id": "PGM",
+      "jx": 95.0,
+      "jy": 889.3225806451612,
+      "kineticLaw": "PGM_Vmax_9*(P3G/PGM_Kp3g_9 - P2G/(PGM_Kp3g_9*PGM_Keq_9))/(1 + P3G/PGM_Kp3g_9 + P2G/PGM_Kp2g_9)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "P3G",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "P2G",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ENO",
+      "jx": 95.0,
+      "jy": 978.5247389052274,
+      "kineticLaw": "ENO_Vmax_10*(P2G/ENO_Kp2g_10 - PEP/(ENO_Kp2g_10*ENO_Keq_10))/(1 + P2G/ENO_Kp2g_10 + PEP/ENO_Kpep_10)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "P2G",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PYK",
+      "jx": 98.31854838709671,
+      "jy": 1101.233870967742,
+      "kineticLaw": "PYK_Vmax_11*(PEP*ADP/(PYK_Kpep_11*PYK_Kadp_11) - PYR*ATP/(PYK_Kpep_11*PYK_Kadp_11*PYK_Keq_11))/((1 + PEP/PYK_Kpep_11 + PYR/PYK_Kpyr_11)*(1 + ADP/PYK_Kadp_11 + ATP/PYK_Katp_11))",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S4",
+          "stoichiometry": 1.0,
+          "ctrl1x": 86.45656071722647,
+          "ctrl1y": 1031.0533498730242,
+          "ctrl2x": 68.33830838369778,
+          "ctrl2y": 1041.3093031351507,
+          "ctrlSet": true
+        },
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 96.86149193548385,
+          "ctrl1y": 1057.6318548387098,
+          "ctrl2x": 87.77139172137856,
+          "ctrl2y": 1088.0532155400278,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S10",
+          "stoichiometry": 1.0,
+          "ctrl1x": 123.35763379048115,
+          "ctrl1y": 1173.6515816454962,
+          "ctrl2x": 86.63017801816477,
+          "ctrl2y": 1117.0181390838013,
+          "ctrlSet": true
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0,
+          "ctrl1x": 113.9926448902271,
+          "ctrl1y": 1151.12524276147,
+          "ctrl2x": 99.08649193548388,
+          "ctrl2y": 1143.3818548387096,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+      ]
+    },
+    {
+      "id": "PDC",
+      "jx": 250.125,
+      "jy": 1177.25,
+      "kineticLaw": "PDC_Vmax_12*(PYR/PDC_Kpyr_12)^PDC_nH_12/(1 + (PYR/PDC_Kpyr_12)^PDC_nH_12)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "AcAld",
+          "stoichiometry": 1.0,
+          "ctrl1x": 296.8103688844217,
+          "ctrl1y": 1181.2528461671639,
+          "ctrl2x": 363.89374999999995,
+          "ctrl2y": 1186.6875,
+          "ctrlSet": true
+        },
+        {
+          "id": "CO2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 279.7861429554871,
+          "ctrl1y": 1179.7931734873298,
+          "ctrl2x": 339.66875000000005,
+          "ctrl2y": 1229.1875,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ADH",
+      "jx": 409.625,
+      "jy": 1080.0,
+      "kineticLaw": "ADH_Vmax_13*(EtOH*NAD/(ADH_Ketoh_13*ADH_Kinad_13) - AcAld*NADH/(ADH_Ketoh_13*ADH_Kinad_13*ADH_Keq_13))/(1 + NAD/ADH_Kinad_13 + EtOH*ADH_Knad_13/(ADH_Kinad_13*ADH_Ketoh_13) + AcAld*ADH_Knadh_13/(ADH_Kinadh_13*ADH_Kacald_13) + NADH/ADH_Kinadh_13 + EtOH*NAD/(ADH_Kinad_13*ADH_Ketoh_13) + NAD*AcAld*ADH_Knadh_13/(ADH_Kinad_13*ADH_Kinadh_13*ADH_Kacald_13) + EtOH*NADH*ADH_Knad_13/(ADH_Kinad_13*ADH_Kinadh_13*ADH_Ketoh_13) + AcAld*NADH/(ADH_Kacald_13*ADH_Kinadh_13) + EtOH*NAD*AcAld/(ADH_Kinad_13*ADH_Kiacald_13*ADH_Ketoh_13) + EtOH*AcAld*NADH/(ADH_Kietoh_13*ADH_Kinadh_13*ADH_Kacald_13))",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S18",
+          "stoichiometry": 1.0,
+          "ctrl1x": 321.6956952600858,
+          "ctrl1y": 1173.3949173137344,
+          "ctrl2x": 773.5975094279589,
+          "ctrl2y": 954.2486502274324,
+          "ctrlSet": true
+        },
+        {
+          "id": "EtOH",
+          "stoichiometry": 1.0,
+          "ctrl1x": 297.51633064516136,
+          "ctrl1y": 1022.0838709677419,
+          "ctrl2x": 710.7647857629428,
+          "ctrl2y": 970.295647585872,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S15",
+          "stoichiometry": 1.0,
+          "ctrl1x": 438.3506011575837,
+          "ctrl1y": 1039.8681481202962,
+          "ctrl2x": 234.09687499999995,
+          "ctrl2y": 1160.275,
+          "ctrlSet": true
+        },
+        {
+          "id": "AcAld",
+          "stoichiometry": 1.0,
+          "ctrl1x": 502.7773299864772,
+          "ctrl1y": 1023.4140540268742,
+          "ctrl2x": 471.16875,
+          "ctrl2y": 1113.8,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ATPase",
+      "jx": 323.73486179063957,
+      "jy": 427.0181300977734,
+      "kineticLaw": "ATPase_Katpase_14*ATP",
+      "isReversible": false,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S11",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ADP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+      ]
+    },
+    {
+      "id": "AK",
+      "jx": 469.0241935483873,
+      "jy": 151.5645161290322,
+      "kineticLaw": "AK_k1_15*ADP*ADP - AK_k2_15*ATP*AMP",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S5",
+          "stoichiometry": 2.0,
+          "ctrl1x": 459.8424372577266,
+          "ctrl1y": 116.0829981482732,
+          "ctrl2x": 469.2066729711398,
+          "ctrl2y": 106.4053184768381,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S12",
+          "stoichiometry": 1.0,
+          "ctrl1x": 468.8368551154357,
+          "ctrl1y": 197.92620005975922,
+          "ctrl2x": 558.5175025790692,
+          "ctrl2y": 122.75026237672202,
+          "ctrlSet": true
+        },
+        {
+          "id": "AMP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 468.8612296791724,
+          "ctrl1y": 191.89409120678877,
+          "ctrl2x": 496.8435157050361,
+          "ctrl2y": 193.08615557940038,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+      ]
+    },
+    {
+      "id": "G3PDH",
+      "jx": -143.0,
+      "jy": 489.0,
+      "kineticLaw": "G3PDH_Vmax_16*(DHAP/G3PDH_Kdhap_16*(NADH/G3PDH_Knadh_16) - Glycerol/G3PDH_Kdhap_16*(NAD/G3PDH_Knadh_16)*(1/G3PDH_Keq_16))/((1 + DHAP/G3PDH_Kdhap_16 + Glycerol/G3PDH_Kglycerol_16)*(1 + NADH/G3PDH_Knadh_16 + NAD/G3PDH_Knad_16))",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "DHAP",
+          "stoichiometry": 1.0,
+          "ctrl1x": -70.975,
+          "ctrl1y": 498.35,
+          "ctrl2x": -102.78159717230358,
+          "ctrl2y": 479.3619981222022,
+          "ctrlSet": true
+        },
+        {
+          "id": "S16",
+          "stoichiometry": 1.0,
+          "ctrl1x": -85.525,
+          "ctrl1y": 599.875,
+          "ctrl2x": -78.13456821712691,
+          "ctrl2y": 454.17684588851307,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S19",
+          "stoichiometry": 1.0,
+          "ctrl1x": -136.25685539253925,
+          "ctrl1y": 513.568128032299,
+          "ctrl2x": -178.6972233051327,
+          "ctrl2y": 528.0200112731177,
+          "ctrlSet": true
+        },
+        {
+          "id": "Glycerol",
+          "stoichiometry": 1.0,
+          "ctrl1x": -156.74654964453765,
+          "ctrl1y": 534.5051776822504,
+          "ctrl2x": -213.93306451612904,
+          "ctrl2y": 491.2419354838709,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "Glycogen_Branch",
+      "jx": -60.16125663678536,
+      "jy": 0.9517139606110385,
+      "kineticLaw": "Glycogen_Branch_KGLYCOGEN_17",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S13",
+          "stoichiometry": 1.0,
+          "ctrl1x": -32.93669354838698,
+          "ctrl1y": 34.62056451612908,
+          "ctrl2x": -26.663356866231208,
+          "ctrl2y": 4.923803143535647,
+          "ctrlSet": true
+        },
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S6",
+          "stoichiometry": 1.0,
+          "ctrl1x": -81.70802731797997,
+          "ctrl1y": -15.292891846568459,
+          "ctrl2x": -76.20961870879206,
+          "ctrl2y": 86.39212769005476,
+          "ctrlSet": true
+        },
+        {
+          "id": "Glycogen",
+          "stoichiometry": 1.0,
+          "ctrl1x": -100.99267580349867,
+          "ctrl1y": -22.375718453094514,
+          "ctrl2x": -152.66286954001131,
+          "ctrl2y": 1.6638107348045708,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "Trehalose_Branch",
+      "jx": 156.75,
+      "jy": -196.25,
+      "kineticLaw": "Trehalose_Branch_Ktrehalose_18",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S14",
+          "stoichiometry": 1.0,
+          "ctrl1x": 172.43649193548387,
+          "ctrl1y": -126.74455645161285,
+          "ctrl2x": 143.69666762805807,
+          "ctrl2y": -160.17145815040544,
+          "ctrlSet": true
+        },
+        {
+          "id": "G6P",
+          "stoichiometry": 2.0,
+          "ctrl1x": 78.26249999999999,
+          "ctrl1y": -68.6875,
+          "ctrl2x": 129.3119438619811,
+          "ctrl2y": -120.41303910449125,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S7",
+          "stoichiometry": 1.0,
+          "ctrl1x": 165.95557788290478,
+          "ctrl1y": -221.69360454744725,
+          "ctrl2x": 199.0235887096774,
+          "ctrl2y": -223.41633064516134,
+          "ctrlSet": true
+        },
+        {
+          "id": "Trehalose",
+          "stoichiometry": 1.0,
+          "ctrl1x": 168.62827132545993,
+          "ctrl1y": -229.08075132888,
+          "ctrl2x": 156.2625,
+          "ctrl2y": -261.0875,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "Succinate_Branch",
+      "jx": 545.4637096774193,
+      "jy": 1175.1935483870968,
+      "kineticLaw": "Succinate_Branch_k_19*AcAld",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S20",
+          "stoichiometry": 3.0,
+          "ctrl1x": 475.3894192187397,
+          "ctrl1y": 1220.5323388285892,
+          "ctrl2x": 564.3473635165849,
+          "ctrl2y": 1168.9927133626818,
+          "ctrlSet": true
+        },
+        {
+          "id": "AcAld",
+          "stoichiometry": 2.0,
+          "ctrl1x": 477.06229838709675,
+          "ctrl1y": 1171.617741935484,
+          "ctrl2x": 535.4316581110553,
+          "ctrl2y": 1170.3226976152,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S17",
+          "stoichiometry": 3.0,
+          "ctrl1x": 649.6828965785289,
+          "ctrl1y": 1165.0676866838953,
+          "ctrl2x": 544.4880040322581,
+          "ctrl2y": 1227.5556451612904,
+          "ctrlSet": true
+        },
+        {
+          "id": "Succinate",
+          "stoichiometry": 1.0,
+          "ctrl1x": 659.9734356400637,
+          "ctrl1y": 1164.5943710683907,
+          "ctrl2x": 615.1372983870967,
+          "ctrl2y": 1171.167741935484,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    }
+  ]
+}

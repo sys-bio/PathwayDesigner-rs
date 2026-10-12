@@ -1,0 +1,582 @@
+{
+  "version": 3,
+  "modelName": "",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "k11",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k12",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k13",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k14",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k15",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k16",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k17",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k18",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k19",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k20",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k21",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k22",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k23",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k24",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "S1",
+      "x": 67.75970811750983,
+      "y": 45.59776297772056,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 2.9419765766991643,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S2",
+      "x": 207.84045644717213,
+      "y": -133.94861434802357,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.5455031915866804,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S3",
+      "x": 426.70287512524106,
+      "y": -196.86728688473823,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.1236952987871702,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S4",
+      "x": 640.7489590767041,
+      "y": -119.12546025042309,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 3.404864159589611,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S5",
+      "x": 768.2203793909157,
+      "y": 69.58213012811535,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.5980194792443116,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S6",
+      "x": 59.96671482866509,
+      "y": 273.19123151097335,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.3906407618794447,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S7",
+      "x": 187.43813514287675,
+      "y": 461.8988218895118,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 2.393183312148233,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S8",
+      "x": 401.4842190943398,
+      "y": 539.6406485238269,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 2.4007811488464204,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S9",
+      "x": 620.3466377724087,
+      "y": 476.72197598711216,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 3.9235715899754005,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S10",
+      "x": 760.427386102071,
+      "y": 297.17559866136804,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.9369551065754114,
+      "isBoundary": false,
+      "isConstant": false
+    }
+  ],
+  "reactions": [
+    {
+      "id": "R11",
+      "jx": 123.58140603982298,
+      "jy": -55.26873114736941,
+      "kineticLaw": "k11*S1",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0,
+          "ctrl1x": 80.95944482920747,
+          "ctrl1y": 9.255010631300465,
+          "ctrl2x": 99.79718232937877,
+          "ctrl2y": -24.783662673395046,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 147.3656297502672,
+          "ctrl1y": -85.75379962134377,
+          "ctrl2x": 175.79991126919043,
+          "ctrl2y": -112.30532065068913,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R12",
+      "jx": 312.2889964183614,
+      "jy": -182.74015146158104,
+      "kineticLaw": "k12*S2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 239.88100162515383,
+          "ctrl1y": -155.591908045358,
+          "ctrl2x": 275.12848157446814,
+          "ctrl2y": -172.0572289256759,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 349.4495112622547,
+          "ctrl1y": -193.42307399748617,
+          "ctrl2x": 388.0599207208878,
+          "ctrl2y": -198.19045440037482,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R13",
+      "jx": 539.8824649516141,
+      "jy": -174.94715817273624,
+      "kineticLaw": "k13*S3",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 465.3458295295943,
+          "ctrl1y": -195.54411936910165,
+          "ctrl2x": 503.53971260519404,
+          "ctrl2y": -188.14689488443386,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S4",
+          "stoichiometry": 1.0,
+          "ctrl1x": 576.2252172980342,
+          "ctrl1y": -161.7474214610386,
+          "ctrl2x": 610.2638906027297,
+          "ctrl2y": -142.90968396086728,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R14",
+      "jx": 719.4288422773583,
+      "jy": -34.86640984307394,
+      "kineticLaw": "k14*S4",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S4",
+          "stoichiometry": 1.0,
+          "ctrl1x": 671.2340275506784,
+          "ctrl1y": -95.34123653997888,
+          "ctrl2x": 697.7855485800238,
+          "ctrl2y": -66.90695502105562,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S5",
+          "stoichiometry": 1.0,
+          "ctrl1x": 741.0721359746927,
+          "ctrl1y": -2.8258646650922543,
+          "ctrl2x": 757.5374568550105,
+          "ctrl2y": 32.42161528422208,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R16",
+      "jx": 108.75825194222256,
+      "jy": 377.6397714821626,
+      "kineticLaw": "k16*S6",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S6",
+          "stoichiometry": 1.0,
+          "ctrl1x": 70.64963736457022,
+          "ctrl1y": 310.35174635486663,
+          "ctrl2x": 87.11495824488811,
+          "ctrl2y": 345.5992263041809,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S7",
+          "stoichiometry": 1.0,
+          "ctrl1x": 130.401545639557,
+          "ctrl1y": 409.6803166601443,
+          "ctrl2x": 156.95306666890238,
+          "ctrl2y": 438.11459817906757,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R17",
+      "jx": 288.3046292679667,
+      "jy": 517.7205198118249,
+      "kineticLaw": "k17*S7",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S7",
+          "stoichiometry": 1.0,
+          "ctrl1x": 217.9232036168511,
+          "ctrl1y": 485.683045599956,
+          "ctrl2x": 251.96187692154658,
+          "ctrl2y": 504.5207831001273,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S8",
+          "stoichiometry": 1.0,
+          "ctrl1x": 324.64738161438675,
+          "ctrl1y": 530.9202565235225,
+          "ctrl2x": 362.8412646899865,
+          "ctrl2y": 538.3174810081904,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R18",
+      "jx": 515.8980978012194,
+      "jy": 525.5135131006697,
+      "kineticLaw": "k18*S8",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S8",
+          "stoichiometry": 1.0,
+          "ctrl1x": 440.1271734986931,
+          "ctrl1y": 540.9638160394635,
+          "ctrl2x": 478.7375829573261,
+          "ctrl2y": 536.1964356365748,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S9",
+          "stoichiometry": 1.0,
+          "ctrl1x": 553.0586126451126,
+          "ctrl1y": 514.8305905647645,
+          "ctrl2x": 588.306092594427,
+          "ctrl2y": 498.3652696844466,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R19",
+      "jx": 704.6056881797579,
+      "jy": 398.042092786458,
+      "kineticLaw": "k19*S9",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S9",
+          "stoichiometry": 1.0,
+          "ctrl1x": 652.3871829503904,
+          "ctrl1y": 455.0786822897777,
+          "ctrl2x": 680.8214644693137,
+          "ctrl2y": 428.52716126043236,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S10",
+          "stoichiometry": 1.0,
+          "ctrl1x": 728.389911890202,
+          "ctrl1y": 367.55702431248363,
+          "ctrl2x": 747.2276493903734,
+          "ctrl2y": 333.51835100778817,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R20",
+      "jx": 416.6912115394053,
+      "jy": 95.5221913084601,
+      "kineticLaw": "k20*S4*S2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S4",
+          "stoichiometry": 1.0,
+          "ctrl1x": 562.3287474386495,
+          "ctrl1y": -43.99878220481398,
+          "ctrl2x": 420.40755612402813,
+          "ctrl2y": -13.013222867993022,
+          "ctrlSet": true
+        },
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 280.93822072945375,
+          "ctrl1y": -53.63383236825429,
+          "ctrl2x": 420.40755612402813,
+          "ctrl2y": -13.013222867993022,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S8",
+          "stoichiometry": 1.0,
+          "ctrl1x": 411.3687641836324,
+          "ctrl1y": 250.9636513338385,
+          "ctrl2x": 406.8066664501127,
+          "ctrl2y": 384.19918849844856,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R21",
+      "jx": 338.54174312081915,
+      "jy": 268.2240611762001,
+      "kineticLaw": "k21*S7",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S7",
+          "stoichiometry": 1.0,
+          "ctrl1x": 240.32439793515658,
+          "ctrl1y": 394.11265563985273,
+          "ctrl2x": 285.6554803285393,
+          "ctrl2y": 336.01022742585917,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0,
+          "ctrl1x": 414.01313643234084,
+          "ctrl1y": 171.48974598736015,
+          "ctrl2x": 162.5334203686681,
+          "ctrl2y": 123.5169673471884,
+          "ctrlSet": true
+        },
+        {
+          "id": "S10",
+          "stoichiometry": 1.0,
+          "ctrl1x": 429.5848798873433,
+          "ctrl1y": 151.5308996838562,
+          "ctrl2x": 612.7674110586329,
+          "ctrl2y": 287.0425605415593,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R23",
+      "jx": 782.347514814073,
+      "jy": 183.99600883499497,
+      "kineticLaw": "k23*S5",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S5",
+          "stoichiometry": 1.0,
+          "ctrl1x": 778.9033019268209,
+          "ctrl1y": 106.74264497200863,
+          "ctrl2x": 783.6706823297095,
+          "ctrl2y": 145.3530544306417,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S10",
+          "stoichiometry": 1.0,
+          "ctrl1x": 781.0243472984364,
+          "ctrl1y": 222.63896323934824,
+          "ctrl2x": 773.6271228137686,
+          "ctrl2y": 260.8328463149479,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R24",
+      "jx": 45.839579405507834,
+      "jy": 158.7773528040937,
+      "kineticLaw": "k24*S6",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S6",
+          "stoichiometry": 1.0,
+          "ctrl1x": 49.283792292759955,
+          "ctrl1y": 236.03071666708007,
+          "ctrl2x": 44.51641188987124,
+          "ctrl2y": 197.42030720844699,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0,
+          "ctrl1x": 47.162746921144425,
+          "ctrl1y": 120.13439839974043,
+          "ctrl2x": 54.55997140581214,
+          "ctrl2y": 81.94051532414073,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    }
+  ]
+}
