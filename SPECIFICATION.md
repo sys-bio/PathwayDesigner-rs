@@ -771,14 +771,15 @@ the circle. Both handles are 0.35 of the leg's length.
 junction at the centre of its species and automatic handles (smooth handles
 recomputed). Without this, the mean movement could put the junction anywhere.
 
-### 7.6 View toggles (not undoable, not persisted)
+### 7.6 View toggles (not undoable; only Modifier lines is remembered)
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border
   of aliases on or off.
 - **Modifier lines** on/off (View menu). Default **on**. Hides or shows the dashed
   arcs from modifiers to their reactions, and the dots at their ends, for every
-  reaction at once. The modifiers stay in the model. *Not in the reference; added
-  at the user's request.*
+  reaction at once. The modifiers stay in the model. It is remembered between
+  sessions, like a preference. *Not in the reference; added at the user's
+  request.*
 
 Exported pictures (SVG, PNG, PDF, print) follow these settings.
 

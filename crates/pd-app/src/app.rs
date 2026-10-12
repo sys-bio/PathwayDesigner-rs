@@ -190,6 +190,7 @@ impl PathwayApp {
         // Saved preferences apply from the start (fixes D-2).
         app.view.show_null_species = app.prefs.show_null_species;
         app.view.selected_reaction_colour = app.prefs.selected_reaction;
+        app.view.show_modifiers = app.prefs.show_modifiers;
         app.perform(Action::OpenSample(START_SAMPLE));
         app.notice = None;
         // Changes lost last time (a closed tab, a crash): offer them back.
@@ -1094,6 +1095,8 @@ impl PathwayApp {
 
 impl eframe::App for PathwayApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        // View ▸ Modifier lines changes the view directly.
+        self.prefs.show_modifiers = self.view.show_modifiers;
         self.prefs.save(storage);
         self.autosave(storage);
         #[cfg(not(target_arch = "wasm32"))]

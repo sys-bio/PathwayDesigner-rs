@@ -904,7 +904,8 @@ Use eframe's built-in storage (the `persistence` feature). On the desktop it is 
 file in the app's data folder. On the web it is `localStorage`.
 
 - Store the S §12 preferences under the same names
-  (`convertCatalyticReactions`, `showNullSpecies`).
+  (`convertCatalyticReactions`, `showNullSpecies`), with `selectedReactionColour`
+  and View ▸ Modifier lines (`showModifiers`, S §7.6), which are kept the same way.
 - Store UI-only settings (panel sizes, the alias-indicator toggle, layout options,
   recent files on desktop) under a separate key.
 - Apply the preferences **when the app starts** (fixes D-2).
