@@ -279,9 +279,22 @@ impl DiagramView {
         })
     }
 
-    /// Toggle Smooth Junction (S §7.4.4), Bézier reactions only. Turning it on
-    /// computes and stores the smooth handles at once.
+    /// True if there are selected Bézier reactions and every one has a
+    /// smooth junction. The Smooth junction button then shows pressed.
+    pub fn selection_is_smooth(&self) -> bool {
+        let mut bezier = self
+            .model
+            .selected_reactions()
+            .filter(|r| r.mode == ReactionMode::Bezier)
+            .peekable();
+        bezier.peek().is_some() && bezier.all(|r| r.junction_smooth)
+    }
+
+    /// Toggle Smooth Junction (S §7.4.4), Bézier reactions only. If every
+    /// selected one is smooth, turns smoothing off; otherwise turns it on for
+    /// all of them, computing and storing the smooth handles at once.
     pub fn toggle_smooth(&mut self) -> ViewResponse {
+        let on = !self.selection_is_smooth();
         self.on_selected_reactions("Smooth Junction", |m, id| {
             let Some(r) = m
                 .find_reaction_mut(id)
@@ -289,8 +302,8 @@ impl DiagramView {
             else {
                 return;
             };
-            r.junction_smooth = !r.junction_smooth;
-            if r.junction_smooth {
+            r.junction_smooth = on;
+            if on {
                 apply_smooth_handles(m, id);
             }
         })

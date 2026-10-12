@@ -636,12 +636,16 @@ impl PathwayApp {
             ) {
                 self.view.set_straight();
             }
-            if button(
-                ui,
-                bezier,
-                "Smooth junction",
-                "Toggle a smooth junction: legs pass through it in line",
-            ) {
+            // Shows pressed when the selected Bézier reactions are smooth.
+            let smooth =
+                egui::Button::selectable(self.view.selection_is_smooth(), "Smooth junction");
+            let tip = "Smooth junction: legs pass through it in line. Click again to turn it off";
+            if ui
+                .add_enabled(bezier, smooth)
+                .on_hover_text(tip)
+                .on_disabled_hover_text(tip)
+                .clicked()
+            {
                 self.view.toggle_smooth();
             }
             if button(

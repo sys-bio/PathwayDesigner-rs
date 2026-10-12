@@ -244,6 +244,30 @@ fn toggle_smooth_stores_the_handles() {
 }
 
 #[test]
+fn smooth_junction_turns_a_mixed_selection_all_on_first() {
+    let mut v = view();
+    // A second Bézier reaction, C → D, smooth already.
+    let mut m = v.model().clone();
+    let r = m.add_reaction(pt(200.0, 200.0));
+    let r = m.find_reaction_mut(&r).unwrap();
+    r.reactants.push(Participant::new("S3", 1.0));
+    r.products.push(Participant::new("S4", 1.0));
+    r.mode = ReactionMode::Bezier;
+    r.junction_smooth = true;
+    r.selected = true;
+    let mut v2 = DiagramView::new(m);
+    assert!(!v2.selection_is_smooth(), "only one of two is smooth");
+    v2.toggle_smooth();
+    assert!(v2.selection_is_smooth());
+    assert!(v2.model().reactions().iter().all(|r| r.junction_smooth));
+    v2.toggle_smooth();
+    assert!(v2.model().reactions().iter().all(|r| !r.junction_smooth));
+    // Nothing selected: not pressed.
+    v.handle(&ViewEvent::Cancel);
+    assert!(!v.selection_is_smooth());
+}
+
+#[test]
 fn make_nice_centres_the_junction_and_resets_handles() {
     let mut v = view();
     drag(&mut v, pt(70.0, 0.0), pt(70.0, -60.0));

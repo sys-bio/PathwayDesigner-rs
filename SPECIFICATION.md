@@ -647,7 +647,13 @@ code but not in its UI. A re-implementation SHOULD show it.
 
 #### 7.4.4 Toggle Smooth Junction (Bézier reactions only)
 
-Flip `isJunctionSmooth`. When it turns **on**, compute and store the smooth handles
+The toolbar button shows pressed when there are selected Bézier reactions and all
+of them are smooth. If they are all smooth, a click turns `isJunctionSmooth` off
+for all of them. Otherwise it turns it **on** for all of them, including any that
+were already smooth. (The reference flips each reaction on its own. The button
+showed no state, and new reactions start smooth, so the first click seemed to do
+nothing: it turned smoothing off, which leaves the curves as they are. Changed at
+the user's request.) When it turns **on**, compute and store the smooth handles
 immediately:
 
 ```
