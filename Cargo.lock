@@ -2337,11 +2337,11 @@ dependencies = [
 
 [[package]]
 name = "pd-antimony"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "pd-app"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "eframe",
  "js-sys",
@@ -2359,7 +2359,7 @@ dependencies = [
 
 [[package]]
 name = "pd-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "harfrust",
  "pd-antimony",
@@ -2372,7 +2372,7 @@ dependencies = [
 
 [[package]]
 name = "pd-export"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "pd-core",
  "resvg",
