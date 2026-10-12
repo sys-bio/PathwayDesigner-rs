@@ -37,7 +37,7 @@ enum ItemKind {
     Junction(Id),
 }
 
-/// The eight align and distribute commands (S §7.5).
+/// The align and distribute commands, and Arrange in Circle (S §7.5).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Arrange {
     Left,
@@ -48,10 +48,12 @@ pub enum Arrange {
     Bottom,
     DistributeHorizontally,
     DistributeVertically,
+    /// Arrange in Circle (S §7.5.1).
+    Circle,
 }
 
 impl Arrange {
-    pub const ALL: [Arrange; 8] = [
+    pub const ALL: [Arrange; 9] = [
         Arrange::Left,
         Arrange::Center,
         Arrange::Right,
@@ -60,7 +62,13 @@ impl Arrange {
         Arrange::Bottom,
         Arrange::DistributeHorizontally,
         Arrange::DistributeVertically,
+        Arrange::Circle,
     ];
+
+    /// True if a menu separator goes before this command.
+    pub fn starts_group(self) -> bool {
+        matches!(self, Arrange::DistributeHorizontally | Arrange::Circle)
+    }
 
     pub fn label(self) -> &'static str {
         match self {
@@ -72,13 +80,15 @@ impl Arrange {
             Arrange::Bottom => "Align Bottom",
             Arrange::DistributeHorizontally => "Distribute Horizontally",
             Arrange::DistributeVertically => "Distribute Vertically",
+            Arrange::Circle => "Arrange in Circle",
         }
     }
 
-    /// How many selected species and junctions the command needs.
+    /// How many selected species and junctions the command needs; for
+    /// Arrange in Circle, how many unlocked selected species.
     pub fn minimum(self) -> usize {
         match self {
-            Arrange::DistributeHorizontally | Arrange::DistributeVertically => 3,
+            Arrange::DistributeHorizontally | Arrange::DistributeVertically | Arrange::Circle => 3,
             _ => 2,
         }
     }
@@ -260,6 +270,9 @@ impl DiagramView {
 
     /// True if `cmd` can do anything with the current selection.
     pub fn can_arrange(&self, cmd: Arrange) -> bool {
+        if cmd == Arrange::Circle {
+            return self.circle_species().len() >= cmd.minimum();
+        }
         self.arrange_items().len() >= cmd.minimum()
     }
 
@@ -273,6 +286,9 @@ impl DiagramView {
         if self.layout.is_some() || !matches!(self.gesture, Gesture::Idle) || !self.can_arrange(cmd)
         {
             return ViewResponse::default();
+        }
+        if cmd == Arrange::Circle {
+            return self.arrange_circle();
         }
         let sel = self.arrange_items();
         let left = sel
@@ -364,7 +380,7 @@ impl DiagramView {
     }
 
     /// Where each Linear junction is along its line, to keep it there.
-    fn linear_positions(&self) -> Vec<(Id, f64)> {
+    pub(super) fn linear_positions(&self) -> Vec<(Id, f64)> {
         self.model
             .reactions()
             .iter()
@@ -374,7 +390,7 @@ impl DiagramView {
 
     /// Puts each Linear junction back at its place along its line, if one of
     /// its ends moved.
-    fn keep_linear(&mut self, linear: &[(Id, f64)], moved: &[(Id, Pt)]) {
+    pub(super) fn keep_linear(&mut self, linear: &[(Id, f64)], moved: &[(Id, Pt)]) {
         for (id, t) in linear {
             let ends_moved = self.model.find_reaction(id).is_some_and(|r| {
                 r.reactants
@@ -452,7 +468,7 @@ impl DiagramView {
     ///   and a smooth junction gets its handles recomputed;
     /// - if only some moved, the junction stays, and the moved participants of
     ///   a Bézier reaction go back to automatic handles.
-    fn moved_species(&mut self, moved: &[(Id, Pt)]) {
+    pub(super) fn moved_species(&mut self, moved: &[(Id, Pt)]) {
         let delta_of = |id: &str| moved.iter().find(|(m, _)| m == id).map(|(_, d)| *d);
         let mut smooth = Vec::new();
         for r in self.model.reactions_mut() {

@@ -254,8 +254,8 @@ fn alignment(
     item: &mut impl FnMut(&mut egui::Ui, &str, MenuAction),
 ) {
     ui.menu_button("Alignment", |ui| {
-        for (i, cmd) in Arrange::ALL.into_iter().enumerate() {
-            if i == 6 {
+        for cmd in Arrange::ALL {
+            if cmd.starts_group() {
                 ui.separator();
             }
             if view.can_arrange(cmd) {

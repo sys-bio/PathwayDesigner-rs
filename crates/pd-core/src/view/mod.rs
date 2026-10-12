@@ -9,6 +9,7 @@
 mod arrange;
 #[cfg(test)]
 mod bezier_tests;
+mod circle;
 mod editing;
 #[cfg(test)]
 mod editing_tests;

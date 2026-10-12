@@ -720,6 +720,51 @@ The changes are then passed on to the reactions:
 - **A selected junction** then goes to its own new position, moving as a junction
   drag does (a smooth junction's inner handles go with it).
 
+#### 7.5.1 Arrange in Circle
+
+*Not in the reference; added at the user's request.* It is in the Alignment
+submenu and the Arrange menu, after the distribute commands. It works on the
+selected species that aren't locked, and needs at least 3 of them; locked
+species are left out. It is one undo step.
+
+**The circle.** Its centre is the centre of the species. Its radius is the larger
+of their mean distance from the centre and the radius at which neighbours are
+the largest box diagonal plus 140 apart, centre to centre. The species go evenly
+round it.
+
+**The order round the circle.** A *link* is a reaction with exactly one reactant
+and one product among these species, and they are different. If the links join
+every species into one chain or one loop, the order follows the chain or loop.
+Otherwise the order is the species' order round the centre now, so placing them
+roughly first sets the order. The order runs clockwise or anticlockwise, and
+starts at the angle, that moves the species least from their angles now.
+
+**Reactions between neighbours.** A link between neighbours on the circle is
+drawn as an arc of the circle. It becomes a Bézier reaction with stored handles and
+no smooth junction. Its junction goes on the circle halfway between the two
+species. Each leg is a cubic Bézier along half the arc. Its handles lie on the
+circle's tangents at its ends, and are (4/3)·tan(θ/4)·R long, for sweep θ and
+radius R. This is the usual cubic approximation of a circular arc, and it is out
+by less than 0.03 % of R for the arcs used here. The two legs meet at the junction
+along the same tangent, so the reaction reads as one piece of the circle. A
+second link between the same neighbours takes the mirror image of the arc in the
+line between them, so it bulges inwards. Any further links get automatic
+handles.
+
+**Other species of an arc reaction** (as in uni-bi, bi-uni and bi-bi reactions)
+join at the junction. A species that belongs to just one arc reaction this way,
+and isn't locked, is moved to just outside the circle beside the junction. The
+reactants go before the junction and the products after it, in the direction of
+travel. A species shared by several arc reactions, such as a cofactor, stays
+where it is. The leg of each such species has its junction-side handle on the
+arc's tangent, so it merges into the arc, and its own handle pointing square to
+the circle. Both handles are 0.35 of the leg's length.
+
+**Other reactions.** Species movements are passed on to other reactions as in
+§7.5. A reaction that isn't an arc, and all of whose species moved, gets its
+junction at the centre of its species and automatic handles (smooth handles
+recomputed). Without this, the mean movement could put the junction anywhere.
+
 ### 7.6 View toggles (not undoable, not persisted)
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border

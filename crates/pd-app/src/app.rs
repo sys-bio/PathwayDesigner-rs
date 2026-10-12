@@ -544,8 +544,8 @@ impl PathwayApp {
             });
             // Align and distribute, also in the context menu (SPEC-Rust §6.3).
             ui.menu_button("Arrange", |ui| {
-                for (i, cmd) in Arrange::ALL.into_iter().enumerate() {
-                    if i == 6 {
+                for cmd in Arrange::ALL {
+                    if cmd.starts_group() {
                         ui.separator();
                     }
                     let tip = format!("Needs {} or more selected species", cmd.minimum());

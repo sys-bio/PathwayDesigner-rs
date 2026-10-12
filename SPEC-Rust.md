@@ -498,6 +498,8 @@ changes) uses the same pattern.
 `view.align(mode)` with the eight modes and the effect on junctions and handles
 from S §7.5. They appear in the context menu, and SHOULD also appear in an
 **Arrange** menu so they can be found without right-clicking.
+Arrange in Circle (S §7.5.1, `view/circle.rs`) is the ninth command,
+`Arrange::Circle`, after a separator.
 
 ### 6.4 Browser default actions
 
