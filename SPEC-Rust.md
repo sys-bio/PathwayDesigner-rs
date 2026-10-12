@@ -927,7 +927,7 @@ Same layout as S §13: a single window, menu bar, toolbars, canvas, right-hand p
 | Right panel | A `SidePanel` the user can resize. The Antimony panel uses a multi-line `TextEdit` with error markers in the margin (§8.2) |
 | Context menu (S §13.4) | `Response::context_menu` for the target that was hit. Lock/Unlock works (D-16) |
 | Colour picker (S §8.2) | A popup next to the swatch: an 8 × 5 grid of swatches, a preview and a `#RRGGBB` text field. Take the style snapshot when it **opens**, and record one StyleEdit undo step when a colour is applied |
-| Status bar | Counts, the file-access mode on the web, and the compartment warning until compartments are drawn (F-2) |
+| Status bar | Counts, the file-access mode on the web, the compartment warning until compartments are drawn (F-2), and the zoom control at the right (S §13.5) |
 | Dialogs | `egui::Modal`. Esc closes them, and Enter confirms |
 
 ### 11.1 The Antimony panel

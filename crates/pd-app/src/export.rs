@@ -43,12 +43,7 @@ const DPI_RANGE: std::ops::RangeInclusive<f64> = 36.0..=600.0;
 impl PathwayApp {
     /// Saves the drawing as SVG, at its size on screen at 100%.
     pub(crate) fn export_svg(&mut self) {
-        let svg = pd_export::model_to_svg(
-            self.view.model(),
-            1.0,
-            self.view.show_alias_indicator,
-            self.view.show_null_species,
-        );
+        let svg = pd_export::model_to_svg(self.view.model(), 1.0, self.view.shown());
         let name = with_extension(&self.doc.name, "svg");
         self.files.save(
             &self.ctx,
@@ -68,10 +63,10 @@ impl PathwayApp {
     /// Writes the output the dialog was for, with its options.
     pub(crate) fn export(&mut self, kind: ExportKind, s: ExportSettings) {
         self.export_settings = s;
-        let (alias, null) = (self.view.show_alias_indicator, self.view.show_null_species);
+        let shown = self.view.shown();
         let model = self.view.model();
         match kind {
-            ExportKind::Png => match pd_export::model_to_png(model, s.dpi, alias, null) {
+            ExportKind::Png => match pd_export::model_to_png(model, s.dpi, shown) {
                 Ok(png) => {
                     let name = with_extension(&self.doc.name, "png");
                     self.files
@@ -80,13 +75,13 @@ impl PathwayApp {
                 Err(e) => self.warnings = vec![format!("The PNG couldn't be made: {e}.")],
             },
             ExportKind::Pdf => {
-                let pdf = pd_export::model_to_pdf(model, s.page, s.landscape, alias, null);
+                let pdf = pd_export::model_to_pdf(model, s.page, s.landscape, shown);
                 let name = with_extension(&self.doc.name, "pdf");
                 self.files
                     .save(&self.ctx, Purpose::ExportPdf, name, pdf, None, true);
             }
             ExportKind::Print => {
-                let pdf = pd_export::model_to_pdf(model, s.page, s.landscape, alias, null);
+                let pdf = pd_export::model_to_pdf(model, s.page, s.landscape, shown);
                 self.print(pdf);
             }
         }

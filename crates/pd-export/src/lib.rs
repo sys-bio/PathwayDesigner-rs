@@ -6,6 +6,7 @@
 
 use pd_core::model::Model;
 use pd_core::render::constants::PNG_DEFAULT_DPI;
+pub use pd_core::render::draw::Shown;
 pub use pd_core::render::pdf::{PageSize, model_to_pdf};
 pub use pd_core::render::svg::model_to_svg;
 pub use resvg::tiny_skia::Pixmap;
@@ -43,18 +44,8 @@ pub fn svg_to_pixmap(svg: &str) -> Result<Pixmap, ExportError> {
 /// The model as PNG bytes: the content bounds at `dpi` (S §11.6; 150 by
 /// default, so a scale of 150/96), without anything that depends on the
 /// selection.
-pub fn model_to_png(
-    model: &Model,
-    dpi: f64,
-    show_alias_indicator: bool,
-    show_null_species: bool,
-) -> Result<Vec<u8>, ExportError> {
-    let svg = model_to_svg(
-        model,
-        dpi / SVG_DPI,
-        show_alias_indicator,
-        show_null_species,
-    );
+pub fn model_to_png(model: &Model, dpi: f64, shown: Shown) -> Result<Vec<u8>, ExportError> {
+    let svg = model_to_svg(model, dpi / SVG_DPI, shown);
     svg_to_pixmap(&svg)?
         .encode_png()
         .map_err(|e| ExportError(format!("the PNG could not be written: {e}")))
@@ -90,7 +81,7 @@ mod tests {
     fn png_size_follows_the_dpi() {
         let model = Model::new();
         // Empty model: 800 × 600 world units, at 150 DPI = 1250 × 937.5 → 938.
-        let png = model_to_png(&model, DEFAULT_DPI, true, true).unwrap();
+        let png = model_to_png(&model, DEFAULT_DPI, Shown::ALL).unwrap();
         let p = Pixmap::decode_png(&png).unwrap();
         assert_eq!((p.width(), p.height()), (1250, 938));
     }

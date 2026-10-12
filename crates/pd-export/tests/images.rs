@@ -38,7 +38,7 @@ fn model_files() -> Vec<PathBuf> {
 
 fn render(path: &Path) -> Pixmap {
     let model = from_json(&fs::read_to_string(path).unwrap()).unwrap().model;
-    svg_to_pixmap(&model_to_svg(&model, 1.0, true, true)).unwrap()
+    svg_to_pixmap(&model_to_svg(&model, 1.0, pd_export::Shown::ALL)).unwrap()
 }
 
 /// The number of pixels that differ by more than the tolerance in any channel.

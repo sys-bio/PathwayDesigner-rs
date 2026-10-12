@@ -26,6 +26,8 @@ pub struct DrawOptions {
     pub show_alias_indicator: bool,
     /// Draw null nodes and the legs that touch them (S §12). Default on.
     pub show_null_species: bool,
+    /// Draw modifier arcs (S §7.6). Default on.
+    pub show_modifiers: bool,
     /// The colour of a selected reaction's lines, arrowheads and modifier
     /// arcs (a preference; selection accent by default).
     pub selected_reaction: Rgba,
@@ -40,9 +42,40 @@ impl Default for DrawOptions {
             for_output: false,
             show_alias_indicator: true,
             show_null_species: true,
+            show_modifiers: true,
             selected_reaction: SELECTED_REACTION,
         }
     }
+}
+
+impl DrawOptions {
+    /// These options with the optional parts shown as `shown` says.
+    pub fn with(self, shown: Shown) -> Self {
+        Self {
+            show_alias_indicator: shown.alias_indicator,
+            show_null_species: shown.null_species,
+            show_modifiers: shown.modifiers,
+            ..self
+        }
+    }
+}
+
+/// Which optional parts of the drawing are shown (S §7.6, §12): the view's
+/// settings, which output follows too.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shown {
+    pub alias_indicator: bool,
+    pub null_species: bool,
+    pub modifiers: bool,
+}
+
+impl Shown {
+    /// Everything shown: the defaults.
+    pub const ALL: Shown = Shown {
+        alias_indicator: true,
+        null_species: true,
+        modifiers: true,
+    };
 }
 
 /// Labels smaller than this many screen points are not drawn: at very small
@@ -347,7 +380,7 @@ impl Drawer<'_> {
     // ----- Pass 3: modifier arcs (S §5.7) -----------------------------------
 
     fn modifier_arcs(&self, r: &Reaction, out: &mut dyn Renderer) {
-        if r.modifiers.is_empty() {
+        if r.modifiers.is_empty() || !self.opts.show_modifiers {
             return;
         }
         let j = effective_junction(self.model, r);
@@ -833,6 +866,19 @@ mod tests {
         assert!(close(arc.0[1], spt(200.0, -10.0)));
         assert_eq!(arc.1.color, MODIFIER);
         assert!(calls.contains(&Call::Circle(spt(200.0, -10.0), 4.0, Some(MODIFIER), None)));
+        // Hidden: no arc and no dot, and nothing else changes.
+        let hidden = DrawOptions::default().with(Shown {
+            modifiers: false,
+            ..Shown::ALL
+        });
+        let without = draw(&m, &hidden);
+        assert!(
+            !without
+                .iter()
+                .any(|c| matches!(c, Call::Polyline(_, s) if s.dash.is_some()))
+        );
+        assert!(!without.contains(&Call::Circle(spt(200.0, -10.0), 4.0, Some(MODIFIER), None)));
+        assert_eq!(without.len(), calls.len() - 2);
     }
 
     #[test]

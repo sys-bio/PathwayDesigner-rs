@@ -775,6 +775,17 @@ recomputed). Without this, the mean movement could put the junction anywhere.
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border
   of aliases on or off.
+- **Modifier lines** on/off (View menu). Default **on**. Hides or shows the dashed
+  arcs from modifiers to their reactions, and the dots at their ends, for every
+  reaction at once. The modifiers stay in the model. *Not in the reference; added
+  at the user's request.*
+
+Exported pictures (SVG, PNG, PDF, print) follow these settings.
+
+**Zoom In and Zoom Out** are in the View menu and in the status bar (§13.5). Each
+zooms by two wheel notches (×1.15², within [0.1, 8]) about the centre of the
+canvas. Without them, zooming needs the mouse wheel or a pinch, which users may not
+know about. *Not in the reference; added at the user's request.*
 
 ### 7.7 New / demo / random network
 
@@ -1364,6 +1375,11 @@ nothing.
 The status bar MAY show the pointer coordinates. After an import it MUST warn when
 the model contains compartments other than the default one, because compartments are
 not drawn.
+
+At its right end is a zoom control: **− 95% +**. The buttons zoom out and in as
+the View menu's Zoom Out and Zoom In do (§7.6). Clicking the percentage zooms to
+fit. Small controls about the view, rather than the diagram, belong here and in
+the View menu, which keeps the toolbar for the reaction commands.
 
 ---
 

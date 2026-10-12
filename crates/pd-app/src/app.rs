@@ -7,6 +7,7 @@ use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
 use pd_core::geometry::Pt;
 use pd_core::geometry::pt;
 use pd_core::layout::LayoutParams;
+use pd_core::render::constants::ZOOM_STEP;
 use pd_core::view::{Arrange, DiagramView, Request, Tool, ViewEvent};
 
 use crate::antimony_panel::{AntimonyPanel, PanelAction};
@@ -577,6 +578,16 @@ impl PathwayApp {
                 }
             });
             ui.menu_button("View", |ui| {
+                let zoom_in = egui::Button::new("Zoom In").shortcut_text("Ctrl+Wheel");
+                if ui.add(zoom_in).clicked() {
+                    self.zoom_step(1);
+                    ui.close();
+                }
+                let zoom_out = egui::Button::new("Zoom Out").shortcut_text("Ctrl+Wheel");
+                if ui.add(zoom_out).clicked() {
+                    self.zoom_step(-1);
+                    ui.close();
+                }
                 if ui.button("Zoom to fit").clicked() {
                     self.fit_pending = true;
                     ui.close();
@@ -587,6 +598,8 @@ impl PathwayApp {
                 }
                 ui.separator();
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
+                ui.checkbox(&mut self.view.show_modifiers, "Modifier lines")
+                    .on_hover_text("Show the dashed lines from modifiers to their reactions");
             });
             // On macOS, About is in the application menu (macos_menu.rs).
             #[cfg(not(target_os = "macos"))]
@@ -762,7 +775,18 @@ impl PathwayApp {
         let _ = panel;
     }
 
-    fn status_bar(&self, ui: &mut egui::Ui) {
+    /// The status bar: the zoom control at the right, and the rest in the
+    /// space left of it.
+    fn status_bar(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            self.zoom_control(ui);
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                self.status_text(ui)
+            });
+        });
+    }
+
+    fn status_text(&self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let m = self.view.model();
             let (species, reactions) = self.view.selection();
@@ -772,11 +796,10 @@ impl PathwayApp {
                 ""
             };
             let mut text = format!(
-                "{}{mark} · {} species · {} reactions · {:.0}%",
+                "{}{mark} · {} species · {} reactions",
                 self.doc.name,
                 m.species().len(),
                 m.reactions().len(),
-                self.view.zoom() * 100.0
             );
             if !species.is_empty() || !reactions.is_empty() {
                 text.push_str(&format!(
@@ -818,6 +841,41 @@ impl PathwayApp {
                 ui.colored_label(egui::Color32::from_rgb(0xA0, 0x50, 0x00), text);
             }
         });
+    }
+
+    /// The zoom control at the right of the status bar: − 95% +. Clicking
+    /// the percentage zooms to fit.
+    /// In a right-to-left layout, so the + comes first.
+    fn zoom_control(&mut self, ui: &mut egui::Ui) {
+        if ui
+            .small_button("+")
+            .on_hover_text("Zoom in (Ctrl+Wheel)")
+            .clicked()
+        {
+            self.zoom_step(1);
+        }
+        let percent = format!("{:.0}%", self.view.zoom() * 100.0);
+        let fit = egui::Button::new(percent)
+            .frame(false)
+            .min_size(egui::vec2(40.0, 0.0));
+        if ui.add(fit).on_hover_text("Zoom to fit").clicked() {
+            self.fit_pending = true;
+        }
+        if ui
+            .small_button("−")
+            .on_hover_text("Zoom out (Ctrl+Wheel)")
+            .clicked()
+        {
+            self.zoom_step(-1);
+        }
+        ui.separator();
+    }
+
+    /// Zoom In (+1) or Zoom Out (−1) from a button or menu: two wheel
+    /// notches about the centre of the canvas.
+    fn zoom_step(&mut self, steps: i32) {
+        self.view
+            .zoom_at(ZOOM_STEP.powi(2 * steps), self.canvas_centre);
     }
 
     /// What the current tool expects next.

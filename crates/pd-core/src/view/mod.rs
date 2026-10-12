@@ -26,7 +26,7 @@ use crate::geometry::{Pt, normalize, pt, screen_to_world, world_to_screen};
 use crate::model::{Id, Model, ReactionMode, Role};
 use crate::render::constants::{RUBBER_BAND, ZOOM_MAX, ZOOM_MIN};
 use crate::render::draw::{
-    DrawOptions, content_bounds, draw_model, linear_junction_t, linear_line,
+    DrawOptions, Shown, content_bounds, draw_model, linear_junction_t, linear_line,
 };
 use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::undo::{Command, CtrlState, UndoHistory};
@@ -52,6 +52,8 @@ pub struct DiagramView {
     pub show_alias_indicator: bool,
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
+    /// Modifier arcs drawn (S §7.6).
+    pub show_modifiers: bool,
     /// The colour a selected reaction is drawn in (a preference).
     pub selected_reaction_colour: crate::model::Rgba,
     /// New reactions are Bézier (S §6.5). The reference starts with it on.
@@ -170,6 +172,7 @@ impl DiagramView {
             zoom: 1.0,
             scroll: Pt::ZERO,
             show_alias_indicator: true,
+            show_modifiers: true,
             show_null_species: true,
             selected_reaction_colour: crate::render::constants::SELECTED_REACTION,
             default_bezier: true,
@@ -196,6 +199,15 @@ impl DiagramView {
         self.gesture = Gesture::Idle;
         self.pending = Pending::default();
         self.layout = None;
+    }
+
+    /// Which optional parts of the drawing are shown, for output too.
+    pub fn shown(&self) -> Shown {
+        Shown {
+            alias_indicator: self.show_alias_indicator,
+            null_species: self.show_null_species,
+            modifiers: self.show_modifiers,
+        }
     }
 
     // ----- Zoom and scroll --------------------------------------------------
@@ -263,6 +275,7 @@ impl DiagramView {
             for_output: false,
             show_alias_indicator: self.show_alias_indicator,
             show_null_species: self.show_null_species,
+            show_modifiers: self.show_modifiers,
             selected_reaction: self.selected_reaction_colour,
         };
         draw_model(&self.model, &opts, r);

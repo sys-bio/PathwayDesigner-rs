@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 
 use crate::geometry::pt;
 use crate::model::{Model, Rgba};
-use crate::render::draw::{DrawOptions, content_bounds, draw_model};
+use crate::render::draw::{DrawOptions, Shown, content_bounds, draw_model};
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
 use crate::text::{fmt_num, font_metrics, text_path, text_width};
 
@@ -165,13 +165,8 @@ impl Renderer for SvgRenderer {
 
 /// The model as an SVG document for output: the content bounds (S §11.6) at
 /// `scale` user units per world unit, with nothing that depends on the
-/// selection.
-pub fn model_to_svg(
-    model: &Model,
-    scale: f64,
-    show_alias_indicator: bool,
-    show_null_species: bool,
-) -> String {
+/// selection, and the optional parts `shown`.
+pub fn model_to_svg(model: &Model, scale: f64, shown: Shown) -> String {
     let (min, max) = content_bounds(model);
     let size = (max - min) * scale;
     let (w, h) = (size.x.ceil() as f32, size.y.ceil() as f32);
@@ -184,10 +179,9 @@ pub fn model_to_svg(
             max: spt(w, h),
         }),
         for_output: true,
-        show_alias_indicator,
-        show_null_species,
         ..DrawOptions::default()
-    };
+    }
+    .with(shown);
     draw_model(model, &opts, &mut svg);
     svg.finish()
 }
@@ -280,7 +274,7 @@ mod tests {
         r.reactants.push(Participant::new(a, 1.0));
         r.products.push(Participant::new(b, 1.0));
         m.find_species_mut("S1").unwrap().selected = true;
-        let doc = model_to_svg(&m, 1.0, true, true);
+        let doc = model_to_svg(&m, 1.0, Shown::ALL);
         // Bounds: x 60..340, y 82..118, plus 60 on each side.
         assert!(doc.contains("width=\"400\" height=\"156\""));
         // The background fills it; the first node's rectangle starts 60 in.

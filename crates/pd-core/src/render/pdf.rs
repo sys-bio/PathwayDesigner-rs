@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 
 use crate::geometry::pt;
 use crate::model::{Model, Rgba};
-use crate::render::draw::{DrawOptions, content_bounds, draw_model};
+use crate::render::draw::{DrawOptions, Shown, content_bounds, draw_model};
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
 use crate::text::{PathSink, font_metrics, text_outline, text_width};
 
@@ -59,14 +59,9 @@ impl PageSize {
 
 /// The model as a one-page vector PDF (S §11.6): the content bounds, scaled
 /// to fit the page inside its margin and centred, with nothing that depends
-/// on the selection. `landscape` turns a Letter or A4 page sideways.
-pub fn model_to_pdf(
-    model: &Model,
-    page: PageSize,
-    landscape: bool,
-    show_alias_indicator: bool,
-    show_null_species: bool,
-) -> Vec<u8> {
+/// on the selection, and the optional parts `shown`. `landscape` turns a
+/// Letter or A4 page sideways.
+pub fn model_to_pdf(model: &Model, page: PageSize, landscape: bool, shown: Shown) -> Vec<u8> {
     let (min, max) = content_bounds(model);
     let (cw, ch) = (max.x - min.x, max.y - min.y);
     // The drawing's place on the page: (scale, left, top, width, height).
@@ -95,10 +90,9 @@ pub fn model_to_pdf(
             max: spt((ox + dw) as f32, (oy + dh) as f32),
         }),
         for_output: true,
-        show_alias_indicator,
-        show_null_species,
         ..DrawOptions::default()
-    };
+    }
+    .with(shown);
     draw_model(model, &opts, &mut pdf);
     pdf.finish()
 }
@@ -485,7 +479,7 @@ mod tests {
 
     #[test]
     fn a_valid_document() {
-        let pdf = model_to_pdf(&model(), PageSize::Letter, false, true, true);
+        let pdf = model_to_pdf(&model(), PageSize::Letter, false, Shown::ALL);
         assert!(pdf.starts_with(b"%PDF-1.4\n"));
         assert!(pdf.ends_with(b"%%EOF\n"));
         check_xref(&pdf);
@@ -508,7 +502,7 @@ mod tests {
 
     #[test]
     fn pages_and_fitting() {
-        let t = text(&model_to_pdf(&model(), PageSize::A4, true, true, true));
+        let t = text(&model_to_pdf(&model(), PageSize::A4, true, Shown::ALL));
         assert!(t.contains("/MediaBox [0 0 841.89 595.276]"));
         // The drawing (400 × 156 with its margin) fills the width inside the
         // page margin, and is centred vertically: the background's corner.
@@ -526,8 +520,7 @@ mod tests {
             &model(),
             PageSize::Drawing,
             false,
-            true,
-            true,
+            Shown::ALL,
         ));
         assert!(t.contains("/MediaBox [0 0 300 117]"));
     }
@@ -566,9 +559,9 @@ mod tests {
     #[test]
     fn nothing_that_depends_on_the_selection() {
         let mut m = model();
-        let plain = model_to_pdf(&m, PageSize::Letter, false, true, true);
+        let plain = model_to_pdf(&m, PageSize::Letter, false, Shown::ALL);
         m.find_species_mut("S1").unwrap().selected = true;
         m.find_reaction_mut("R3").unwrap().selected = true;
-        assert_eq!(model_to_pdf(&m, PageSize::Letter, false, true, true), plain);
+        assert_eq!(model_to_pdf(&m, PageSize::Letter, false, Shown::ALL), plain);
     }
 }

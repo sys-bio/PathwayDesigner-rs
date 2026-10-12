@@ -26,11 +26,12 @@ fn main() {
             .model;
         let name = p.file_stem().unwrap().to_string_lossy();
         let file = |suffix: &str| Path::new(&out).join(format!("{name}{suffix}"));
-        let pdf = pd_export::model_to_pdf(&model, PageSize::Drawing, false, true, true);
+        let pdf = pd_export::model_to_pdf(&model, PageSize::Drawing, false, pd_export::Shown::ALL);
         std::fs::write(file(".pdf"), pdf).unwrap();
-        let letter = pd_export::model_to_pdf(&model, PageSize::Letter, false, true, true);
+        let letter =
+            pd_export::model_to_pdf(&model, PageSize::Letter, false, pd_export::Shown::ALL);
         std::fs::write(file("-letter.pdf"), letter).unwrap();
-        let png = pd_export::model_to_png(&model, 96.0, true, true).unwrap();
+        let png = pd_export::model_to_png(&model, 96.0, pd_export::Shown::ALL).unwrap();
         std::fs::write(file(".png"), png).unwrap();
     }
 }
