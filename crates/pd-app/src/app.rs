@@ -85,6 +85,15 @@ const TOOLS: [(Tool, &str, &str); 7] = [
     ),
 ];
 
+/// A keyboard shortcut for a file command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FileShortcut {
+    New,
+    Open,
+    Save,
+    SaveAs,
+}
+
 /// The dialog on screen, if any (SPEC-Rust §6.2).
 pub(crate) enum Dialog {
     /// Asks for a new id for a species.
@@ -145,6 +154,9 @@ pub struct PathwayApp {
     /// The file version the model needed last frame, to say when it starts
     /// needing version 4 (SPEC-Rust §4.2).
     needed_version: u32,
+    /// A file shortcut pressed while a text field had the keyboard: it runs
+    /// next frame, once the field has let go and applied what was typed.
+    pending_shortcut: Option<FileShortcut>,
     tree: crate::tree::TreeState,
     /// The Deckard and Randomize options for auto-layout (S §13.2).
     layout_params: LayoutParams,
@@ -192,6 +204,7 @@ impl PathwayApp {
             fit: None,
             canvas_centre: Pt::ZERO,
             needed_version: pd_core::json::DELPHI_VERSION,
+            pending_shortcut: None,
             tree: crate::tree::TreeState::default(),
             layout_params: LayoutParams::default(),
             layout_iterations: LAYOUT_START_ITERATIONS,
@@ -366,10 +379,50 @@ impl PathwayApp {
         }
     }
 
+    fn file_shortcut(&mut self, cmd: FileShortcut) {
+        match cmd {
+            FileShortcut::Save => self.save(false),
+            FileShortcut::SaveAs => self.save(true),
+            FileShortcut::New => self.request(Action::New),
+            FileShortcut::Open => self.request(Action::Open),
+        }
+    }
+
     /// Diagram shortcuts apply only while no text field is being edited and no
     /// dialog is open, so those get their own keys first (SPEC-Rust §6.1).
+    /// The file shortcuts (New, Open, Save, Save As) mean nothing to a text
+    /// field, so they work while typing too: the field lets go first, which
+    /// applies what was typed, and the command runs on the next frame.
     fn shortcuts(&mut self, ctx: &egui::Context) {
-        if ctx.egui_wants_keyboard_input() || self.dialog.is_some() {
+        if self.dialog.is_some() {
+            return;
+        }
+        if let Some(cmd) = self.pending_shortcut.take() {
+            self.file_shortcut(cmd);
+        }
+        if ctx.egui_wants_keyboard_input() {
+            let cmd = ctx.input_mut(|i| {
+                if i.consume_shortcut(&SAVE_AS) {
+                    Some(FileShortcut::SaveAs)
+                } else if i.consume_shortcut(&SAVE) {
+                    Some(FileShortcut::Save)
+                } else if i.consume_shortcut(&NEW) {
+                    Some(FileShortcut::New)
+                } else if i.consume_shortcut(&OPEN) {
+                    Some(FileShortcut::Open)
+                } else {
+                    None
+                }
+            });
+            if let Some(cmd) = cmd {
+                ctx.memory_mut(|m| {
+                    if let Some(id) = m.focused() {
+                        m.surrender_focus(id);
+                    }
+                });
+                self.pending_shortcut = Some(cmd);
+                ctx.request_repaint();
+            }
             return;
         }
         // While a layout runs, only Esc does anything: it cancels the layout.
@@ -382,16 +435,16 @@ impl PathwayApp {
         // Save As before Save, Redo before Undo: with Shift they would also
         // match the shorter shortcut.
         if ctx.input_mut(|i| i.consume_shortcut(&SAVE_AS)) {
-            self.save(true);
+            self.file_shortcut(FileShortcut::SaveAs);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&SAVE)) {
-            self.save(false);
+            self.file_shortcut(FileShortcut::Save);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&NEW)) {
-            self.request(Action::New);
+            self.file_shortcut(FileShortcut::New);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&OPEN)) {
-            self.request(Action::Open);
+            self.file_shortcut(FileShortcut::Open);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&REDO) || i.consume_shortcut(&REDO_Y)) {
             self.view.redo();
@@ -1444,6 +1497,39 @@ k = 0.1",
         assert!(h.app.warnings[0].contains("couldn't be opened"));
         assert_eq!(h.app.recent.files, std::slice::from_ref(&a));
         assert_eq!(h.app.doc.name, "first.json", "the diagram is unchanged");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_works_while_typing_in_the_text_box() {
+        let dir = std::env::temp_dir().join(format!("pd-save-typing-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("existing.json");
+        let mut h = Harness::new();
+        h.app.doc.target = Some(crate::files::SaveTarget::Path(path.clone()));
+        // Place text below S7, where the canvas is empty.
+        h.app.view.set_tool(Tool::AddText);
+        let at = h.on_screen("S7") + egui::vec2(0.0, 90.0);
+        h.click(at);
+        h.run(vec![]);
+        h.run(vec![Event::Text("Typed, not yet clicked away".into())]);
+        assert!(
+            h.app.ctx.egui_wants_keyboard_input(),
+            "the keyboard is still in the text box"
+        );
+        h.key(Key::S, Modifiers::COMMAND);
+        for _ in 0..3 {
+            h.run(vec![]);
+        }
+        let saved = std::fs::read_to_string(&path).expect("Save wrote the file");
+        assert!(saved.contains("\"texts\""), "{saved}");
+        assert!(saved.contains("Typed, not yet clicked away"));
+        assert!(
+            h.app
+                .notice
+                .as_deref()
+                .is_some_and(|n| n.starts_with("Saved"))
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

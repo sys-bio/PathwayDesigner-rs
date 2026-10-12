@@ -479,7 +479,11 @@ are all S §6 exactly. This section only covers how they map onto egui.
 **Keyboard shortcuts.** Use `Context::input_mut(|i| i.consume_shortcut(..))` so a
 text field that has the keyboard focus gets its normal editing keys first.
 Shortcuts that affect the diagram only apply while the canvas has focus or no text
-field is being edited:
+field is being edited. The file shortcuts (New, Open, Save, Save As) are the
+exception: they mean nothing to a text field, so they work while typing too. The
+field gives up the keyboard first, which applies what was typed, and the command
+runs on the next frame. (Fixed 2026-10-12: Ctrl+S right after typing text in the
+Text group did nothing, so the text was never saved.)
 
 | Keys | Action |
 |---|---|
