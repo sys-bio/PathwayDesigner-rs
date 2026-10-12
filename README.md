@@ -109,8 +109,10 @@ for more: aliases, renaming, locking, alignment.
 | SBML Level 2 and 3, with Layout | `.xml` | yes | Level 3 Version 1 |
 | SVG, PNG, PDF | `.svg`, `.png`, `.pdf` | | yes |
 
-`Models/` holds example models in each format. File ▸ Open sample opens the JSON
-ones directly, even in the browser.
+`Models/` holds the reference models in each format. The tests check every one,
+so a model added there needs a stored image. File ▸ Open sample opens the JSON
+ones directly, even in the browser. `ExampleModels/` holds more example models;
+the tests don't use it.
 
 ## Project layout
 
@@ -170,7 +172,7 @@ is written to the `gh-pages` branch.
 
 ## Status
 
-Version 0.1.0. All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
+Version 0.1.1. All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
 browser version (R0 to R12) and the desktop version (D1). The conformance checklist
 and its evidence are in [docs/release-checklist.md](docs/release-checklist.md).
 
