@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "modelName": "",
   "compartments": [],
   "parameters": [
@@ -577,6 +577,15 @@
         }
       ],
       "modifiers": []
+    }
+  ],
+  "texts": [
+    {
+      "id": "T25",
+      "x": -289.9064528902096,
+      "y": -241.61331918045562,
+      "text": "Circle Three",
+      "size": 14.0
     }
   ]
 }
