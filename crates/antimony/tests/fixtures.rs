@@ -1,76 +1,20 @@
-//! The test data is in place and readable (milestone A0).
+//! The test data is in place and readable.
 //!
 //! `tests/invalid/` holds one Antimony file per diagnostic, each with a
 //! `.expected` file naming the codes and lines it must produce. This file
-//! only checks the set is well formed and names real codes; A3 and A4 check
-//! the parser against it.
+//! only checks the set is well formed and names real codes; `parser.rs`
+//! checks the parser against it.
 //!
 //! The corpus lives outside the repository and is found through
-//! `ANTIMONY_CORPUS` (SPEC.md §8). Without it the corpus test is skipped
+//! `ANTIMONY_CORPUS` (SPEC.md §8). Without it the corpus tests are skipped
 //! with a note, so a fresh clone still passes.
 
 mod common;
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use antimony::Code;
-
-/// One expected diagnostic: its Delphi code name (`dcTypeConflict`) and the
-/// 1-based line it is reported on.
-#[derive(Debug, PartialEq)]
-struct Expected {
-    code: String,
-    line: u32,
-}
-
-/// Reads a `.expected` file: `#` lines are comments, every other non-blank
-/// line is `<code> <line>`.
-fn read_expected(path: &Path) -> Result<Vec<Expected>, String> {
-    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut expected = Vec::new();
-    for (i, line) in text.lines().enumerate() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let bad = || {
-            format!(
-                "{}:{}: expected `<code> <line>`, got {line:?}",
-                path.display(),
-                i + 1
-            )
-        };
-        let mut parts = line.split_whitespace();
-        let (Some(code), Some(n), None) = (parts.next(), parts.next(), parts.next()) else {
-            return Err(bad());
-        };
-        if !code.starts_with("dc") {
-            return Err(bad());
-        }
-        let line = n.parse::<u32>().map_err(|_| bad())?;
-        expected.push(Expected {
-            code: code.to_string(),
-            line,
-        });
-    }
-    Ok(expected)
-}
-
-fn invalid_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/invalid")
-}
-
-/// The files in `dir` with extension `ext`, sorted by name.
-fn files_with(dir: &Path, ext: &str) -> Vec<PathBuf> {
-    let mut files: Vec<PathBuf> = fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
-        .map(|entry| entry.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == ext))
-        .collect();
-    files.sort();
-    files
-}
+use common::{Expected, files_with, invalid_dir, read_expected};
 
 #[test]
 fn invalid_fixtures_are_well_formed() {
@@ -118,7 +62,7 @@ fn invalid_fixtures_are_well_formed() {
 
 #[test]
 fn expected_file_format() {
-    let dir = std::env::temp_dir().join(format!("antimony-a0-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("antimony-fixtures-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     let good = dir.join("good.expected");
     fs::write(&good, "# a comment\n\ndcTypeConflict 3\ndcExpectedEnd 4\n").unwrap();
@@ -158,5 +102,24 @@ fn corpus_is_reachable() {
         common::CORPUS_SIZE,
         "Antimony files under {}",
         root.display()
+    );
+}
+
+#[test]
+fn corpus_index_is_readable() {
+    let Some(cases) = common::corpus_index("corpus_index_is_readable") else {
+        return;
+    };
+    assert_eq!(cases.len(), common::CORPUS_SIZE);
+    // Delphi §9.1's milestone sets.
+    assert_eq!(cases.iter().filter(|c| c.is_core()).count(), 836);
+    assert_eq!(cases.iter().filter(|c| c.is_m5()).count(), 1629);
+    assert_eq!(cases.iter().filter(|c| c.has_package("comp")).count(), 125);
+    assert_eq!(cases.iter().filter(|c| c.is_challenge()).count(), 10);
+    assert_eq!(cases.iter().filter(|c| c.expects_reject()).count(), 5);
+    assert_eq!(cases.iter().filter(|c| c.is_lossy()).count(), 9);
+    assert!(
+        cases.iter().all(|c| c.path.is_file()),
+        "a case without its file"
     );
 }

@@ -180,6 +180,10 @@ dependencies = [
 [[package]]
 name = "antimony-rs"
 version = "0.1.0"
+dependencies = [
+ "sbml-io",
+ "serde_json",
+]
 
 [[package]]
 name = "arboard"

@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3.
 
 ---
 
@@ -122,13 +122,39 @@ pub struct Symbol {
 `Parameter`, `Compartment`, `Reaction`, `Event`, `Function`, `Submodule`,
 `UnitDef`, `Constraint`, `Interaction`, `Deleted`, `Stoichiometry`), and the
 promotion table of Delphi §6.2 (with `parameter → stoichiometry`, decision
-17) is a function on it. This sketch fixes the *shape*; the exact field list
-is settled in A3–A5 against `uAntModel`, and recorded here.
+17) is `SymbolKind::can_promote_to`.
 
-The other model types follow Delphi §4.2 one for one — `Participant`,
-`Reaction`, `Interaction`, `Event`, `EventAssignment`, `Function`, `UnitDef`,
-`Constraint`, `Objective`, `CvTerm`, `Creator`, `Metadata`, `Module`,
-`Document` — with the same conventions.
+**As built in A3** (`src/model/items.rs`), the field list above is exact.
+`Rule { kind: RuleKind, expr: Option<Expr> }`, where `RuleKind` is
+`Assignment` or `Rate`: Delphi's `TAntSymbolRule` also had `srNone` (here
+`rule: None`) and `srInitialAssign`, which nothing ever set (an initial
+assignment is an `initial_value` that is not constant). `expr` is `None` for
+a rule written empty, `p' = ;`.
+
+The other model types follow Delphi §4.2 one for one, with these choices:
+
+- `Participant { species, stoichiometry: Option<Expr>, is_boundary, span }`;
+  `None` means 1.
+- `Reaction` always has a `name`: an unlabelled one is named `_J1`, `_J2`, …
+  by the parser, as in Delphi. `has_empty_kinetic_law` beside `kinetic_law`.
+- `Interaction`, `Event`, `Constraint` and `Objective` have
+  `name: Option<String>`; an unnamed one has no invented name.
+  `AlgebraicRule.name` is a `String`, because only the labelled form exists.
+- `Event.trigger` is an `Expr`, not an `Option`: the parser only adds an
+  event once it has one.
+- `Constraint.kind` is an enum: `ConstraintKind::Expr(Expr)`, or
+  `ConstraintKind::Range { lower, subject, upper, lower_inclusive,
+  upper_inclusive }` for a chained comparison (decision 18). Delphi had four
+  nullable fields.
+- `RawSection.kind` is `RawKind::Layout` or `RawKind::Annotation`, not a
+  string.
+- `Module.name` is `Option<String>`: `None` for the statements of a file
+  with no `model` block.
+- Every optional string is `Option<String>` (R4). So `S1 notes ""` keeps an
+  empty note, where Delphi's empty string meant "no note" and dropped it.
+- Lookups by name: `Module::symbol`, `symbol_mut`, `reaction`, `unit`,
+  `unit_mut`, `function`, `symbols_of(kind)`; `Document::module`,
+  `module_index`, `main_module`, `main_module_mut`.
 
 ### 3.4 Expressions are an owned `enum`
 
@@ -156,9 +182,11 @@ wrong field, an argument list on every leaf) cannot be written in this shape.
 
 ### 3.5 Documents and modules
 
-`Document { modules: Vec<Module>, … }` from the start, even though it holds
-one module until modules are built (seam 1, Delphi §2.2.2), with a
-`main_module()` method. `flatten(&Document) -> Module` exists from A4 and
+`Document { modules: Vec<Module>, main: usize }` from the start, even though
+it holds one module until modules are built (seam 1, Delphi §2.2.2); `main`
+is the index of the `*` module, or else the first. `Document::default()` is
+one unnamed main module, which is what parsing starts from.
+`flatten(&Document) -> Module` exists from A4 and
 returns a copy of the main module (seam 2); the SBML writer is written against
 its result, never against the parse tree.
 
@@ -308,6 +336,40 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
 - Checked beyond the Delphi tests: all 96,019 expressions in the 689
   BioModels parse, read back as the same tree, and write back identically.
 
+## 5.4 The statement parser (built in A3)
+
+- `parser::parse_document(&str) -> (Document, Diagnostics)`. It never fails
+  and never panics; problems are in the diagnostics in the order found. The
+  facade of §6 (`antimony::parse`, with options and the semantic pass) wraps
+  it from A4.
+- **The whole Delphi parser is ported in A3**, not only the core statements
+  the plan gave A3: events, functions, unit definitions, constraints, the
+  fbc objective and `sboTerm`, interactions and annotations (Delphi M5 and
+  M9) are all in the one unit, and splitting it would have meant writing
+  half a dispatcher and returning to it. A5 is left with porting the M5
+  tests and checking the 1629-case set.
+- It follows Delphi statement by statement, including its recovery
+  (resynchronise at the next terminator, a reaction at the next line, a
+  block at its `end`), its lookahead limits (4096 tokens), its generated
+  reaction ids (`_J` + position, skipping a taken id; reactions are compared
+  ignoring ASCII case, as Delphi's `SameText` did), and its quirks. One
+  example of a quirk kept: `unit x = ;` records the definition `;`.
+- The parser keeps a `HashMap` from symbol name to index for the module it
+  is filling, so declaring a symbol is not a linear search (SPEC §3.1: the
+  model itself holds only `Vec`s).
+- The `comp` package's syntax (`sub1: moddef()`, `A.x is B.y`,
+  `delete …`, `import`) is reported as `dcNotYetSupported` naming Delphi's
+  milestone M10, the Delphi wording; some of it (`sub1.p80 * conv`) is a
+  syntax error, as in Delphi. Modules are not in this plan.
+- Checked: the 836 core cases parse with no errors except the 5 rejected by
+  design; the 10 challenge cases parse; all 1657 parseable non-`comp` cases
+  parse (1663 less the 5 and case 01622, an fbc case with a negative
+  stoichiometry that the index does not flag and Delphi also rejects); all
+  689 BioModels parse with no errors; 10 parser-level invalid fixtures give
+  exactly their expected codes and lines; and 1,800 mangled corpus files
+  (truncated, characters deleted, junk inserted) give diagnostics, never a
+  panic.
+
 ## 6. Entry points and the error contract
 
 A sketch; the final names are settled by the milestone that builds each one
@@ -361,7 +423,7 @@ antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
 | `lexer` | `uAntLexer`, `uAntTypes` (tokens, keywords, character classes) | public: an editor can use the tokens for highlighting |
 | `expr` | `uAntExprNode`, `uAntExprParser` | public |
 | `model` | `uAntTypes` (model enums), `uAntModel` | |
-| `parser` | `uAntParser` | |
+| `parser` | `uAntParser` | §5.4 |
 | `semantics` | `uAntSemantics` | |
 | `flatten` | `uAntFlatten` | identity copy, as in Delphi |
 | `write` | `uAntWriter` | |
@@ -397,10 +459,25 @@ decisions 23–25 do not apply), `Oracle/` (replaced by the differential tier,
   | `ANTIMONY_BIOMODELS` | the curated BioModels folder | A8 |
   | `ANTIMONY_ORACLE` | the Delphi `ant2sbml.exe` | A3 |
 
-- **The differential tier** (A3 onward) is a `cargo run --example`, Windows
-  only, that runs `ANTIMONY_ORACLE` and this crate on the same file and
-  compares the results structurally, classifying each difference as Delphi
-  decision 22 does. Only a divergence fails.
+- **The corpus index** is read with `serde_json`, a dev-dependency that
+  never reaches a user (`tests/common/mod.rs`). Its milestone sets are
+  checked against Delphi's counts: 836 core, 1629 M5, 125 `comp`, 10
+  challenge, 5 reject, 9 lossy.
+- **The differential tier** (built in A3) is
+  `cargo run --release -p antimony-rs --example differential [case …]`,
+  Windows only in practice. It runs `ANTIMONY_ORACLE` (`ant2sbml.exe`) on
+  every non-`comp` case, caching its SBML under `target/antimony-oracle/`,
+  reads that with `sbml-io` (also a dev-dependency) and compares it
+  structurally with this crate's result for the same file, never as text.
+  Until the semantic pass exists it compares only what the parser alone
+  decides: each reaction's id, reversibility, participants, stoichiometry
+  and whether it has a law; which symbols have assignment and rate rules;
+  event ids and targets; function ids; the number of algebraic rules. Each
+  later milestone widens it, and from A7 it compares SBML with SBML,
+  classifying differences as Delphi decision 22 does (only a divergence
+  fails). A3 result: 1657 cases agree, none diverge, 1 rejected by the
+  oracle (01622), 7358 facts compared; with the arrows deliberately
+  swapped, 399 cases diverge.
 - **CI**: the workspace CI already runs `cargo fmt --check`, clippy (native
   and `wasm32-unknown-unknown`, warnings as errors) and `cargo test` over
   every member, which covers this crate. When the `sbml` feature exists (A7)
@@ -436,12 +513,12 @@ licence and API.
 | R19 | `- -a` written as `-(-a)`, `!!a` as `!(!a)` | Written `- -a`, `! !a` (§5.3) | A bracket adds nesting, so the written form could exceed the limit |
 | R20 | A bracketed expression's span stops before `)` | It includes the `)` | The span is the text of the expression |
 | R21 | `--` after an operand is named as DNA syntax only after the first term of a sum (`a + b--c` was a generic syntax error) | Named wherever it follows an operand | A consequence of precedence climbing, and the better message |
+| R22 | `TAntSymbolRule` with `srNone` and `srInitialAssign` | `rule: Option<Rule>`, `RuleKind` = `Assignment` or `Rate` (§3.3) | `srInitialAssign` was never set; `None` says "no rule" |
+| R23 | A constraint holds `Expr` or `Lower`/`Subject`/`Upper`, all nullable | `ConstraintKind::Expr` or `ConstraintKind::Range` (§3.3) | Only the valid combinations can be written |
+| R24 | An empty string meant "absent" for names, notes and display names | `Option<String>`, so `notes ""` keeps an empty note | R4; the empty string and no string are different facts |
+| R25 | The plan split the parser between A3 and A5 | The whole parser is ported in A3 (§5.4) | It is one unit; A5 keeps the M5 tests and the 1629-case check |
 
 ## 10. Left open, for the milestone that needs it
 
-- The exact field lists of the model types (A3–A5), checked against
-  `uAntModel`.
 - The deep model comparison for round-trip closure (A6), following
   `uAntModelCompare`: it ignores spans, and treats `nan` as equal to itself.
-- Reading `index.json` (A3): a small hand-written reader in the tests, or a
-  JSON dev-dependency.

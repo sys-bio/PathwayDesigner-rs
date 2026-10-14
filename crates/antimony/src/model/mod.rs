@@ -1,7 +1,17 @@
 //! The model (Delphi §4, `uAntModel`).
 //!
-//! A1 holds only the enumerations from `uAntTypes`; the model types arrive
-//! with the parser in A3.
+//! Plain data: structs with public fields, `Vec` in source order, `Option`
+//! for what may be absent (SPEC.md §3). Items refer to each other by name,
+//! never by pointer or index, so editing the model can never leave a
+//! reference dangling (SPEC.md §3.1); the `symbol`, `reaction`, `unit` and
+//! `function` methods look a name up.
+//!
+//! Nothing here is resolved: a name is what the file wrote. Binding names
+//! and checking them is the semantic pass's job.
+
+mod items;
+
+pub use items::*;
 
 /// What a symbol is. Antimony infers this as a file is read, and promotes it
 /// as more is learned (Delphi §4.1, §6.2).

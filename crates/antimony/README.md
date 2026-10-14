@@ -6,8 +6,8 @@ the human-readable language for biochemical models, and convert it to
 WebAssembly.
 
 > **Status: under construction, not yet published.** The lexer,
-> diagnostics and expressions are built (milestone A2); the statement parser
-> is next. The package will be published as `antimony-rs` (the name
+> expressions and statement parser are built (milestone A3); the semantic
+> pass is next. The package will be published as `antimony-rs` (the name
 > `antimony` is taken on crates.io); the library is called `antimony`.
 
 It is a port of a complete, tested Antimony implementation written in Delphi,
@@ -53,6 +53,13 @@ with a note when those are not set (see `SPEC.md` §8):
 | `ANTIMONY_CORPUS_INDEX` | the corpus `index.json` |
 | `ANTIMONY_BIOMODELS` | the curated BioModels folder |
 | `ANTIMONY_ORACLE` | the reference converter, `ant2sbml.exe` |
+
+With all three corpus variables set, the differential tier compares this
+crate with the reference implementation over the whole corpus:
+
+```sh
+cargo run --release --example differential
+```
 
 ## Licence
 
