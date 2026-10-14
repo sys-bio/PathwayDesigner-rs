@@ -334,6 +334,15 @@ writer leaves out keys at their default (except `size`, `x`, `y` and `text`):
 
 `Models/text_1.json` is the version 4 sample file.
 
+**Version 4: drawn compartments (S §7.9).** Each entry of `compartments` may have
+`x`, `y`, `w` and `h`: the box's centre and size, as for a species. All four are
+written for a drawn compartment and left out otherwise. A compartment missing any
+of them, or with a width or height below 1, is not drawn yet, and gets a box fitted
+around its species when opened. A document with a drawn compartment is version 4.
+`Models/compartment_1.json` is its sample file. Opening a version 3 file that has
+compartments fits boxes, so saving it writes version 4: drawing compartments needs
+their boxes.
+
 ---
 
 ## 5. Rendering
@@ -834,6 +843,12 @@ Instead:
    about units, which these models don't declare. python-libsbml is a
    development-only dependency and is never shipped (§12).
 
+**Compartments (S §7.9)** are written as compartment glyphs with their box. A custom
+style goes in a note on the glyph: `<pd:compartment xmlns:pd="…/ns/sbml-layout/1"
+fill="#F0F6EAFF" border="#7FA36BFF" borderWidth="3"/>`, with only the fields that
+are set. Import gives each compartment the box of its glyph and the note's style.
+Compartments without a glyph are fitted around their species.
+
 **Free text (S §7.8)** is written as a text glyph with a `text` attribute and its
 box (the text's layout width and height), and no graphical object or origin of
 text. SBML Layout has no fonts, so the glyph's annotation holds PathwayDesigner's
@@ -965,7 +980,7 @@ Same layout as S §13: a single window, menu bar, toolbars, canvas, right-hand p
 | Right panel | A `SidePanel` the user can resize. The Antimony panel uses a multi-line `TextEdit` with error markers in the margin (§8.2) |
 | Context menu (S §13.4) | `Response::context_menu` for the target that was hit. Lock/Unlock works (D-16) |
 | Colour picker (S §8.2) | A popup next to the swatch: an 8 × 5 grid of swatches, a preview and a `#RRGGBB` text field. Take the style snapshot when it **opens**, and record one StyleEdit undo step when a colour is applied |
-| Status bar | Counts, the file-access mode on the web, the compartment warning until compartments are drawn (F-2), and the zoom control at the right (S §13.5) |
+| Status bar | Counts, the file-access mode on the web, and the zoom control at the right (S §13.5) |
 | Dialogs | `egui::Modal`. Esc closes them, and Enter confirms |
 
 ### 11.1 The Antimony panel
@@ -1285,7 +1300,7 @@ been compiled and tested natively since R0, it is mostly platform work:
 
 In order of value. These follow S §16.2.
 
-1. **Draw compartments** (F-2). The model and its styles already exist and are saved.
+1. **Draw compartments** (F-2). **Done (S §7.9).** The model and its styles already exist and are saved.
    Draw compartments as a background layer, and decide which species belong to one by
    whether they sit inside it.
 2. **Font size and label colour controls** (F-3). The fields exist and are already

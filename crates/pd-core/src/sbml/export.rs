@@ -395,6 +395,10 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         max_x = max_x.max(s.center.x + s.width / 2.0);
         max_y = max_y.max(s.center.y + s.height / 2.0);
     }
+    for f in model.compartments.iter().filter_map(|c| c.frame) {
+        max_x = max_x.max(f.max().x);
+        max_y = max_y.max(f.max().y);
+    }
     let texts: Vec<_> = model.texts().iter().map(|t| (t, lay_out(t))).collect();
     for (t, l) in &texts {
         max_x = max_x.max(t.position.x + l.width);
@@ -427,6 +431,24 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                 ..Default::default()
             });
         }
+    }
+
+    // Drawn compartments (S §7.9), with a note for a custom style.
+    for c in &model.compartments {
+        let Some(f) = c.frame else { continue };
+        let mut g = sb::CompartmentGlyph {
+            id: ids.unique(format!("cg_{}", c.id)),
+            compartment: Some(c.id.clone()),
+            bounding_box: Some(sb::BoundingBox::new(
+                f.min().x,
+                f.min().y,
+                f.width,
+                f.height,
+            )),
+            ..Default::default()
+        };
+        g.meta.annotation = super::shape::compartment_note(c);
+        l.compartment_glyphs.push(g);
     }
 
     // Free text: a text glyph with its words, its box, and a note on how it

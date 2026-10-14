@@ -8,11 +8,12 @@ use crate::geometry::{
     Pt, filled_arrowhead, normalize, pt, rect_boundary_intersect, world_to_screen,
 };
 use crate::model::{
-    Model, Reaction, ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem, VisualStyle,
+    Compartment, Frame, Model, Reaction, ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem,
+    VisualStyle,
 };
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
-use crate::text::font_metrics_in;
+use crate::text::{font_metrics, font_metrics_in, text_width};
 use crate::textbox::{lay_out, text_box};
 
 /// What to draw and where.
@@ -95,6 +96,16 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     if let Some(bg) = opts.background {
         r.round_rect(bg, 0.0, Some(BACKGROUND), None);
     }
+    // Compartments first, largest first, so nested ones are drawn on top.
+    let mut framed: Vec<(&Compartment, Frame)> = model
+        .compartments
+        .iter()
+        .filter_map(|c| c.frame.map(|f| (c, f)))
+        .collect();
+    framed.sort_by(|a, b| b.1.area().total_cmp(&a.1.area()));
+    for (c, f) in &framed {
+        d.compartment(c, f, r);
+    }
     for reaction in model.reactions() {
         d.reaction_legs(reaction, r);
     }
@@ -116,6 +127,9 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
         d.free_text(text, r);
     }
     if !opts.for_output {
+        for (c, f) in framed.iter().filter(|(c, _)| c.selected) {
+            d.compartment_selection(c, f, r);
+        }
         for text in model.selected_texts() {
             d.text_selection(text, r);
         }
@@ -123,6 +137,32 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
             d.bezier_handles(reaction, r);
         }
     }
+}
+
+/// A compartment's four corner handles, clockwise from the top left
+/// (S §7.9).
+pub fn compartment_corners(f: &Frame) -> [Pt; 4] {
+    let (a, b) = (f.min(), f.max());
+    [a, pt(b.x, a.y), b, pt(a.x, b.y)]
+}
+
+/// The box of a compartment's name, inside its top-left corner: what
+/// selects it, with its border (S §7.9).
+pub fn compartment_label_box(c: &Compartment, f: &Frame) -> (Pt, Pt) {
+    let m = font_metrics(COMPARTMENT_LABEL_SIZE);
+    let w = text_width(&c.id, COMPARTMENT_LABEL_SIZE);
+    let a = f.min() + pt(COMPARTMENT_LABEL_INSET, COMPARTMENT_LABEL_INSET);
+    (a, a + pt(w, m.ascent - m.descent))
+}
+
+/// The fill, border colour and border width a compartment is drawn with.
+pub fn compartment_colours(c: &Compartment) -> (Rgba, Rgba, f64) {
+    let style = custom(&c.style);
+    (
+        pick(style.map(|s| s.fill_color), COMPARTMENT_FILL),
+        pick(style.map(|s| s.border_color), COMPARTMENT_BORDER),
+        pick_width(style.map(|s| s.border_width), COMPARTMENT_BORDER_WIDTH),
+    )
 }
 
 /// Where a selected text's wrap handle is: the middle of its box's right
@@ -154,6 +194,10 @@ pub fn content_bounds(model: &Model) -> (Pt, Pt) {
         let (a, b) = text_box(t);
         grow(a);
         grow(b);
+    }
+    for f in model.compartments.iter().filter_map(|c| c.frame) {
+        grow(f.min());
+        grow(f.max());
     }
     if min.x > max.x {
         return (Pt::ZERO, pt(800.0, 600.0));
@@ -565,6 +609,70 @@ impl Drawer<'_> {
                 node.height / 2.0 + HALO_OUTSET,
             );
             out.round_rect(rect, self.len(HALO_CORNER_RADIUS), None, Some(stroke));
+        }
+    }
+
+    // ----- Compartments (S §7.9) ---------------------------------------------
+
+    /// A rounded box with the compartment's name inside its top-left corner.
+    fn compartment(&self, c: &Compartment, f: &Frame, out: &mut dyn Renderer) {
+        let (fill, border, width) = compartment_colours(c);
+        out.round_rect(
+            self.rect(f.center, f.width / 2.0, f.height / 2.0),
+            self.len(
+                COMPARTMENT_CORNER_RADIUS
+                    .min(f.width / 2.0)
+                    .min(f.height / 2.0),
+            ),
+            Some(fill),
+            Some(Stroke::solid(self.len(width), border)),
+        );
+        let size = COMPARTMENT_LABEL_SIZE * self.opts.zoom;
+        if size >= MIN_LABEL_SIZE_PX {
+            let (a, b) = compartment_label_box(c, f);
+            let cap = font_metrics(COMPARTMENT_LABEL_SIZE).cap_height;
+            let m = font_metrics(COMPARTMENT_LABEL_SIZE);
+            let centre = pt((a.x + b.x) / 2.0, a.y + m.ascent - cap / 2.0);
+            out.text(
+                self.to_screen(centre),
+                &c.id,
+                size as f32,
+                TextFont::default(),
+                // The name takes a custom border colour; otherwise its own.
+                if c.style.has_custom_style && !c.style.border_color.is_default() {
+                    border
+                } else {
+                    COMPARTMENT_LABEL
+                },
+            );
+        }
+    }
+
+    /// A selected compartment's dashed outline and corner handles (screen only).
+    fn compartment_selection(&self, _c: &Compartment, f: &Frame, out: &mut dyn Renderer) {
+        let stroke = Stroke {
+            width: self.len(HALO_WIDTH),
+            color: SELECTION_HALO,
+            dash: self.dash(HALO_DASH),
+            round_cap: false,
+        };
+        out.round_rect(
+            self.rect(
+                f.center,
+                f.width / 2.0 + HALO_OUTSET,
+                f.height / 2.0 + HALO_OUTSET,
+            ),
+            self.len(HALO_CORNER_RADIUS),
+            None,
+            Some(stroke),
+        );
+        for p in compartment_corners(f) {
+            out.round_rect(
+                self.rect(p, HANDLE_RADIUS, HANDLE_RADIUS),
+                0.0,
+                Some(HANDLE_FILL),
+                Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
+            );
         }
     }
 

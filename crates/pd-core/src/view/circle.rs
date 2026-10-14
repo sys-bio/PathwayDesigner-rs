@@ -252,6 +252,8 @@ impl DiagramView {
         }
         self.moved_species(&moved);
         self.keep_linear(&linear, &moved);
+        let ids: Vec<Id> = moved.iter().map(|(id, _)| id.clone()).collect();
+        crate::compartments::reassign(&mut self.model, &ids);
         self.tidy_moved_reactions(&moved, &arcs);
         for arc in &arcs {
             shape_arc(&mut self.model, arc);

@@ -121,7 +121,7 @@ world coordinates.
 | Field | Type | Notes |
 |---|---|---|
 | `modelName` | string | From Antimony `model <name>`. Empty for a new diagram. |
-| `compartments` | list of Compartment | Stored and round-tripped. Not drawn (see roadmap). |
+| `compartments` | list of Compartment | Drawn as boxes (§7.9). |
 | `parameters` | list of Parameter | `variable = expression` |
 | `assignmentRules` | list of AssignmentRule | `variable := expression` |
 | `species` | ordered list of SpeciesNode | List order is the **z-order**: later items are drawn on top and are hit first. |
@@ -183,8 +183,9 @@ sets one MUST clear the other.
 
 ### 3.5 Compartment, Parameter, AssignmentRule
 
-- **Compartment**: `id`, `size` (default 1), `dimensions` (default 3), `style`. The
-  id `defaultCompartment` is special: it is never shown as a "real" compartment.
+- **Compartment**: `id`, `size` (the volume; default 1), `dimensions` (default 3),
+  `style`, and the box it is drawn as (§7.9). The id `defaultCompartment` is special:
+  it is never shown as a "real" compartment, and never drawn.
 - **Parameter**: `variable`, `expression` (a string, usually a number such as `0.1`).
 - **AssignmentRule**: `variable`, `expression` (string).
 
@@ -867,6 +868,68 @@ happens. Every style change is one step.
 with PathwayDesigner's note for the look (SPEC-Rust §8.3). Antimony has no layout,
 so it doesn't keep texts.
 
+### 7.9 Compartments
+
+*Drawing them was planned (F-2); the details below were settled with the user.*
+Every compartment except the default one is drawn as a box: its id `C<n>` (or any
+valid id it is given), its volume, its style, and the box (centre and size).
+
+**Drawing.** First of all, before the reactions, largest box first so nested ones
+are on top. A rectangle with corners rounded by 14 (less for a very small box),
+filled and outlined: by default a pale green fill (`#F0F6EA`), a green border
+(`#7FA36B`) 2 wide. The fill, border colour and border width can each be set. The
+id is written inside the top-left corner, 8 in from each side, in 12-point label
+font, dark green (`#3D5C2B`), or in the border colour if that was set. A selected
+compartment has the selection halo's dashed outline and a square handle at each
+corner. Neither is drawn in exported pictures.
+
+**Which compartment a species is in.** A species belongs to the **innermost** box
+its centre is in (the smallest one, so boxes can be nested), or to the default
+compartment if it is in none. Aliases and null nodes have no compartment of their
+own. Two rules keep the drawing and the model in step:
+- **When the user moves things,** each species moved for itself takes the
+  compartment it ends up in: after a drag, a nudge, an align or distribute, Arrange
+  in Circle, and when a species is added. Drawing a compartment takes in the
+  species inside it. Resizing one updates the species inside its old and new box,
+  and its own species. Species carried by a dragged compartment keep theirs.
+- **When the app moves things,** species keep their compartment and the boxes
+  follow. Auto-layout refits every box around its species and around the boxes
+  nested in it (as they were nested at the start), innermost first, with 30 of space
+  all round, at every step. A compartment that has no box (an older file, an
+  Antimony or SBML import without one) gets one fitted around its species when the
+  model is opened or imported, or a 300 × 200 box to the right of the drawing if it
+  has no species.
+
+A model with no drawn compartments never has its species' compartments changed.
+
+**Editing.**
+- The **Compartment** tool (left palette, after Text): a drag draws the box; a
+  click makes a 300 × 200 box centred on it. The new compartment is selected and the
+  tool goes back to Select. The smallest box is 40 × 40.
+- **Hit testing (§6.2):** a selected compartment's corner handles come after the
+  wrap handles of texts. Its border (within the leg tolerance) or its name selects it,
+  after every other target, innermost box first. A click anywhere else inside it
+  reaches what is there, or starts a rubber band.
+- **Dragging a compartment** moves everything inside its box: species (unless
+  locked), reaction junctions (except a Linear reaction's, which stays on its line),
+  texts, and the compartments nested in it. Reactions follow as in a node drag
+  (§6.4): a moved junction takes its junction-side handles with it, and a smooth
+  junction is recomputed, even when some of its species are outside the box.
+- **Dragging a corner** resizes the box; the opposite corner stays.
+- The rubber band selects a compartment only when it encloses the whole box. Select
+  All selects compartments too.
+- **Delete** removes the compartment; its species stay, in the default compartment.
+- **Right-click:** Delete Compartment (keeps its species).
+- The right panel's **Compartment** group (§13.3): Id, Volume, Fill, Border, Border
+  width. A new id must be a valid SId not used by anything else (changing only its
+  letter case is allowed). Renaming updates the species in it and whole-word uses in
+  rate laws, parameters and rules.
+- The tooltip over a compartment's border or name is `id: volume v`.
+
+**Files.** JSON version 4 (SPEC-Rust §4.2). In SBML, a compartment glyph with the
+box, and PathwayDesigner's note for a custom style (SPEC-Rust §8.3). Antimony has
+no layout: imported compartments get fitted boxes.
+
 ---
 
 ## 8. Properties, styling and kinetic laws
@@ -1406,15 +1469,17 @@ changes on New, Open and Quit. The reference has none of these.
   UniUni · Random network · Set Bézier · Smooth junction · Make Nice, then the
   checkboxes **Deckard** and **Randomize** (both off by default), which apply to
   auto-layout.
-- **Left tool palette** (modes): Select · Add Species · Add Text (§7.8) · Add BiBi ·
-  Add UniBi · Add BiUni · Add UniUni.
+- **Left tool palette** (modes): Select · Add Species · Add Text (§7.8) · Add
+  Compartment (§7.9) · Add BiBi · Add UniBi · Add BiUni · Add UniUni.
 - Each tool button MUST have a tooltip. The current mode SHOULD be highlighted.
 
 ### 13.3 Right panel
 
 From top to bottom: the **Species** inspector group, the **Antimony** text panel
 with its *Load Antimony* and *Get Antimony* buttons, the **Reaction** inspector
-group (§8.1), and the **Text** group (§7.8). The Text group has the words of the one
+group (§8.1), the **Compartment** group (§7.9: Id, Volume, Fill, Border, Border
+width, for one selected compartment; the colours for every selected one), and the
+**Text** group (§7.8). The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,
 Italic), Align (Left, Center, Right), Colour and Wrap width. All but the words and
 the wrap width apply to every selected text.
@@ -1430,6 +1495,7 @@ Which items appear depends on what was right-clicked:
 | Alias | Rename (renames the primary) · Go to Primary · Delete Alias · Alignment ▸ … |
 | Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) |
 | Free text (§7.8) | Edit Text · Delete Text · Alignment ▸ … |
+| Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) |
 
 The *Alignment ▸* submenu contains Align Top / Middle / Bottom, Align Left / Center
 / Right, and Distribute Horizontally / Vertically.
@@ -1442,9 +1508,8 @@ nothing.
 
 ### 13.5 Status bar
 
-The status bar MAY show the pointer coordinates. After an import it MUST warn when
-the model contains compartments other than the default one, because compartments are
-not drawn.
+The status bar MAY show the pointer coordinates. (It used to warn that compartments
+weren't drawn; they are now, §7.9.)
 
 At its right end is a zoom control: **− 95% +**. The buttons zoom out and in as
 the View menu's Zoom Out and Zoom In do (§7.6). Clicking the percentage zooms to
@@ -1753,7 +1818,7 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | # | Milestone | Notes |
 |---|---|---|
 | F-1 | **SBML import with Layout import** | Positions come from `speciesGlyph`/`reactionGlyph` when present. Otherwise run auto-layout. Use `initialConcentration`, falling back to `initialAmount`. Import modifiers and rules. |
-| F-2 | **Compartment drawing** | A compartment is drawn as a rounded box containing its species, with its own style. This replaces the status-bar warning. |
+| F-2 | **Compartment drawing** | A compartment is drawn as a rounded box containing its species, with its own style. This replaces the status-bar warning. **Done: §7.9.** |
 | F-3 | **Font size and label colour controls** | The model already stores `fontSize` and `labelColor`. Only the UI is missing. |
 | F-4 | **Node shapes** | Rectangle, ellipse, circle and polygon. Border intersection and hit testing must handle each shape. |
 | F-5 | **Label positioning** | Inside, above, below, left or right of the node. |
@@ -1789,6 +1854,8 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | Layout: Kr / Ka / Kg | 8000 / 0.02 / 0.01 | | Layout: start speed / decay / iterations | max(20, 5 % of diagonal) / 0.98 / 800 |
 | Content margin for export | 60 | | PNG default DPI | 150 |
 | Free text: default size | 14 | | Free text: box padding / narrowest wrap | 4 / 20 |
+| Compartment: border width / corner radius | 2 / 14 | | Compartment: default box / smallest | 300 × 200 / 40 |
+| Compartment: name inset / size | 8 / 12 | | Compartment: fitting space | 30 |
 
 ### 17.2 Palette
 

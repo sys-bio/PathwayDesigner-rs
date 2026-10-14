@@ -1,9 +1,12 @@
 //! Hit testing (S §6.2).
 //!
 //! Candidates are tried in order and the first hit wins: a handle of a
-//! selected Bézier reaction, the wrap handle of a selected text, the topmost
-//! text, a junction, the topmost species, then a reaction leg. Text is drawn
-//! above everything, so it is hit first. Tolerances are in screen points, so they are divided by the zoom to
+//! selected Bézier reaction, the wrap handle of a selected text, a corner of a
+//! selected compartment, the topmost text, a junction, the topmost species, a
+//! reaction leg, then a compartment's border or name (innermost first). Text
+//! is drawn above everything, so it is hit first; compartments are drawn
+//! below everything, and only their edge and name select them, so a click
+//! inside one still reaches what is in it, or starts a rubber band. Tolerances are in screen points, so they are divided by the zoom to
 //! compare in world space.
 
 use crate::bezier::{Ctrl, leg_curve};
@@ -12,7 +15,10 @@ use crate::model::{Model, Reaction, ReactionMode, Role, SpeciesNode};
 use crate::render::constants::{
     BEZIER_HIT_SAMPLES, HANDLE_HIT_TOLERANCE_PX, JUNCTION_HIT_TOLERANCE_PX, LEG_HIT_TOLERANCE_PX,
 };
-use crate::render::draw::{effective_junction, effective_mode, leg_end, leg_start, wrap_handle};
+use crate::render::draw::{
+    compartment_corners, compartment_label_box, effective_junction, effective_mode, leg_end,
+    leg_start, wrap_handle,
+};
 use crate::textbox::text_box;
 use crate::view::input::{HandleId, Target};
 
@@ -53,6 +59,15 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
             return Target::TextWrap(t.id.clone());
         }
     }
+    for c in model.selected_compartments() {
+        let Some(f) = c.frame else { continue };
+        if let Some(i) = compartment_corners(&f)
+            .iter()
+            .position(|q| q.distance(p) <= handle_tol)
+        {
+            return Target::CompartmentCorner(c.id.clone(), i);
+        }
+    }
     let in_box = |t: &&crate::model::TextItem| {
         let (a, b) = text_box(t);
         (a.x..=b.x).contains(&p.x) && (a.y..=b.y).contains(&p.y)
@@ -84,6 +99,29 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
             .any(|(a, b)| point_to_segment_dist(p, a, b) <= leg_tol);
         if near {
             return Target::Leg(r.id.clone());
+        }
+    }
+
+    let mut framed: Vec<_> = model
+        .compartments
+        .iter()
+        .filter_map(|c| c.frame.map(|f| (c, f)))
+        .collect();
+    framed.sort_by(|a, b| a.1.area().total_cmp(&b.1.area()));
+    for (c, f) in framed {
+        let (a, b) = (f.min(), f.max());
+        let (la, lb) = compartment_label_box(c, &f);
+        let on_label = (la.x..=lb.x).contains(&p.x) && (la.y..=lb.y).contains(&p.y);
+        let dx = (a.x - p.x).max(p.x - b.x);
+        let dy = (a.y - p.y).max(p.y - b.y);
+        // Distance to the outline: inside, to the nearest side; outside, to the box.
+        let to_edge = if dx <= 0.0 && dy <= 0.0 {
+            -dx.max(dy)
+        } else {
+            dx.max(0.0).hypot(dy.max(0.0))
+        };
+        if on_label || to_edge <= leg_tol {
+            return Target::Compartment(c.id.clone());
         }
     }
     Target::Empty

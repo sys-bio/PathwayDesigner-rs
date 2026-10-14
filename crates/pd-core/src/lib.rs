@@ -7,6 +7,7 @@
 
 pub mod antimony;
 pub mod bezier;
+pub mod compartments;
 pub mod expr;
 pub mod generate;
 pub mod geometry;

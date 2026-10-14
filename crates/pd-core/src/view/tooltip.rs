@@ -47,6 +47,10 @@ impl DiagramView {
                     format!("{}: {}", r.id, r.kinetic_law)
                 })
             }
+            Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
+                let c = self.model.find_compartment(id)?;
+                Some(format!("{}: volume {}", c.id, format_value(c.size)))
+            }
             Target::Text(_) | Target::TextWrap(_) | Target::Empty => None,
         }
     }

@@ -51,7 +51,7 @@ const SAVE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::S)
 const HOME_PAGE: &str = "https://github.com/sys-bio/PathwayDesigner-rs";
 
 /// The tool palette, in the order of S §13.2, with tooltips.
-const TOOLS: [(Tool, &str, &str); 7] = [
+const TOOLS: [(Tool, &str, &str); 8] = [
     (Tool::Select, "Select", "Select, move and edit (Esc)"),
     (
         Tool::AddSpecies,
@@ -62,6 +62,11 @@ const TOOLS: [(Tool, &str, &str); 7] = [
         Tool::AddText,
         "Text",
         "Add text: click where it should go, then type in the Text panel",
+    ),
+    (
+        Tool::AddCompartment,
+        "Compartment",
+        "Add a compartment: drag out its box (species inside join it)",
     ),
     (
         Tool::BI_BI,
@@ -375,6 +380,9 @@ impl PathwayApp {
             MenuAction::EditText(id) => self.inspector.edit_text(&id),
             MenuAction::DeleteText(id) => {
                 self.view.delete_text(&id);
+            }
+            MenuAction::DeleteCompartment(id) => {
+                self.view.delete_compartment(&id);
             }
         }
     }
@@ -896,14 +904,6 @@ impl PathwayApp {
                 ui.separator();
                 ui.label(n);
             }
-            // Compartments are kept but not drawn (S §13.5).
-            if self.view.model().has_non_default_compartments() {
-                ui.separator();
-                ui.colored_label(
-                    egui::Color32::from_rgb(0xA0, 0x50, 0x00),
-                    "This model has compartments; they aren't drawn yet",
-                );
-            }
             if let Some(hint) = self.tool_hint() {
                 ui.separator();
                 ui.label(hint);
@@ -962,6 +962,9 @@ impl PathwayApp {
             Tool::Select => None,
             Tool::AddSpecies => Some("Click to add a species · Esc to stop".to_owned()),
             Tool::AddText => Some("Click where the text should go · Esc to stop".to_owned()),
+            Tool::AddCompartment => {
+                Some("Drag out the compartment's box (a click makes a 300 × 200 box)".to_owned())
+            }
             Tool::AddReaction {
                 reactants,
                 products,

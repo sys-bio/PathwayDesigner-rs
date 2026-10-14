@@ -24,6 +24,9 @@ enum Field {
     KineticLaw,
     TextSize,
     TextWrap,
+    CompartmentId,
+    Volume,
+    CompartmentBorderWidth,
 }
 
 /// The text being typed into one field, and the item it is for.
@@ -42,6 +45,11 @@ pub struct Inspector {
     law: Draft,
     text_size: Draft,
     text_wrap: Draft,
+    compartment_id: Draft,
+    volume: Draft,
+    compartment_border: Draft,
+    /// Why the last compartment rename was refused.
+    rename_error: Option<String>,
     /// The words of the one selected text, as shown or typed.
     words: String,
     /// The text `words` belongs to.
@@ -79,6 +87,8 @@ impl Inspector {
         let texts = view.selected_text_ids();
         let one_text = (texts.len() == 1).then(|| texts[0].clone());
         let first_text = texts.first().cloned();
+        let compartments = view.selected_compartment_ids();
+        let one_compartment = (compartments.len() == 1).then(|| compartments[0].clone());
 
         // Drafts typed for an item that is no longer the one shown go to that
         // item first (SPEC-Rust §11.2).
@@ -89,6 +99,9 @@ impl Inspector {
             (Field::KineticLaw, &one_reaction),
             (Field::TextSize, &first_text),
             (Field::TextWrap, &one_text),
+            (Field::CompartmentId, &one_compartment),
+            (Field::Volume, &one_compartment),
+            (Field::CompartmentBorderWidth, &one_compartment),
         ] {
             if self.draft(field).target != *target {
                 self.commit(field, view);
@@ -96,6 +109,10 @@ impl Inspector {
                 d.target = target.clone();
                 d.dirty = false;
             }
+        }
+
+        if one_compartment.is_none() {
+            self.rename_error = None;
         }
 
         ui.heading("Species");
@@ -189,6 +206,47 @@ impl Inspector {
                 });
             ui.label("Rate law");
             self.law_field(ui, view, one_reaction.is_some());
+        });
+
+        ui.add_space(8.0);
+        ui.separator();
+        ui.heading("Compartment");
+        ui.add_enabled_ui(!compartments.is_empty(), |ui| {
+            egui::Grid::new("compartment")
+                .num_columns(2)
+                .spacing([8.0, 6.0])
+                .show(ui, |ui| {
+                    ui.label("Id");
+                    if one_compartment.is_some() {
+                        self.number(ui, view, Field::CompartmentId, true, "");
+                    } else if compartments.is_empty() {
+                        ui.label("");
+                    } else {
+                        ui.label(format!("{} selected", compartments.len()));
+                    }
+                    ui.end_row();
+                    ui.label("Volume");
+                    self.number(ui, view, Field::Volume, one_compartment.is_some(), "");
+                    ui.end_row();
+                    ui.label("Fill");
+                    self.swatch(ui, view, ColourField::CompartmentFill);
+                    ui.end_row();
+                    ui.label("Border");
+                    self.swatch(ui, view, ColourField::CompartmentBorder);
+                    ui.end_row();
+                    ui.label("Border width");
+                    self.number(
+                        ui,
+                        view,
+                        Field::CompartmentBorderWidth,
+                        one_compartment.is_some(),
+                        "0 = default",
+                    );
+                    ui.end_row();
+                });
+            if let Some(e) = &self.rename_error {
+                ui.label(RichText::new(e).color(ERROR).small());
+            }
         });
 
         ui.add_space(8.0);
@@ -338,6 +396,9 @@ impl Inspector {
             Field::KineticLaw => &self.law,
             Field::TextSize => &self.text_size,
             Field::TextWrap => &self.text_wrap,
+            Field::CompartmentId => &self.compartment_id,
+            Field::Volume => &self.volume,
+            Field::CompartmentBorderWidth => &self.compartment_border,
         }
     }
 
@@ -349,6 +410,9 @@ impl Inspector {
             Field::KineticLaw => &mut self.law,
             Field::TextSize => &mut self.text_size,
             Field::TextWrap => &mut self.text_wrap,
+            Field::CompartmentId => &mut self.compartment_id,
+            Field::Volume => &mut self.volume,
+            Field::CompartmentBorderWidth => &mut self.compartment_border,
         }
     }
 
@@ -370,6 +434,11 @@ impl Inspector {
             Field::KineticLaw => m.find_reaction(target).map(|r| r.kinetic_law.clone()),
             Field::TextSize => m.find_text(target).map(|t| t.size.to_string()),
             Field::TextWrap => m.find_text(target).map(|t| t.wrap_width.to_string()),
+            Field::CompartmentId => m.find_compartment(target).map(|c| c.id.clone()),
+            Field::Volume => m.find_compartment(target).map(|c| c.size.to_string()),
+            Field::CompartmentBorderWidth => m
+                .find_compartment(target)
+                .map(|c| c.style.border_width.to_string()),
         }
         .unwrap_or_default()
     }
@@ -408,6 +477,18 @@ impl Inspector {
             (Field::TextWrap, Some(v)) => {
                 view.set_text_wrap(&target, v);
             }
+            (Field::CompartmentId, _) => {
+                self.rename_error = view
+                    .rename_compartment(&target, &text)
+                    .err()
+                    .map(|e| format!("Not renamed: {e}"));
+            }
+            (Field::Volume, Some(v)) => {
+                view.set_compartment_volume(&target, v);
+            }
+            (Field::CompartmentBorderWidth, Some(v)) => {
+                view.set_compartment_border_width(&target, v);
+            }
             _ => {}
         }
     }
@@ -434,7 +515,10 @@ impl Inspector {
     ) -> egui::Response {
         self.refresh(field, view);
         let d = self.draft_mut(field);
-        let valid = !d.dirty || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite);
+        // The compartment's id is the one field here that isn't a number.
+        let valid = field == Field::CompartmentId
+            || !d.dirty
+            || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite);
         let edit = egui::TextEdit::singleline(&mut d.text)
             .desired_width(90.0)
             .hint_text(hint)

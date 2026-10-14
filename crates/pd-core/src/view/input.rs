@@ -109,6 +109,8 @@ pub enum Tool {
     AddReaction { reactants: usize, products: usize },
     /// A click places new text, then goes back to Select (S §7.8).
     AddText,
+    /// A drag draws a compartment's box, then goes back to Select (S §7.9).
+    AddCompartment,
 }
 
 impl Tool {
@@ -151,5 +153,9 @@ pub enum Target {
     Text(Id),
     /// The wrap handle on a selected text's right edge.
     TextWrap(Id),
+    /// A compartment, by its border or its name (S §7.9).
+    Compartment(Id),
+    /// A corner handle of a selected compartment, clockwise from the top left.
+    CompartmentCorner(Id, usize),
     Empty,
 }

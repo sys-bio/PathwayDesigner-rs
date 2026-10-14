@@ -310,13 +310,61 @@ impl TextItem {
     }
 }
 
-/// A compartment (S §3.5). Stored and saved, not yet drawn.
+/// Where a compartment is drawn: a box, by its centre and size (S §7.9).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Frame {
+    pub center: Pt,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Frame {
+    /// The box with these two opposite corners.
+    pub fn from_corners(a: Pt, b: Pt) -> Self {
+        Self {
+            center: (a + b) / 2.0,
+            width: (a.x - b.x).abs(),
+            height: (a.y - b.y).abs(),
+        }
+    }
+
+    pub fn min(&self) -> Pt {
+        self.center - crate::geometry::pt(self.width / 2.0, self.height / 2.0)
+    }
+
+    pub fn max(&self) -> Pt {
+        self.center + crate::geometry::pt(self.width / 2.0, self.height / 2.0)
+    }
+
+    pub fn area(&self) -> f64 {
+        self.width * self.height
+    }
+
+    /// True if `p` is inside the box or on its border.
+    pub fn contains(&self, p: Pt) -> bool {
+        let (a, b) = (self.min(), self.max());
+        (a.x..=b.x).contains(&p.x) && (a.y..=b.y).contains(&p.y)
+    }
+
+    /// True if `other` lies wholly inside this box.
+    pub fn encloses(&self, other: &Frame) -> bool {
+        self.contains(other.min()) && self.contains(other.max())
+    }
+}
+
+/// A compartment (S §3.5, §7.9). Drawn once it has a frame; the default
+/// compartment never has one.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Compartment {
     pub id: Id,
+    /// The volume.
     pub size: f64,
     pub dimensions: u32,
     pub style: VisualStyle,
+    /// Where it is drawn. `None` until it is placed.
+    pub frame: Option<Frame>,
+    /// Transient: not saved.
+    pub selected: bool,
 }
 
 impl Compartment {
@@ -326,7 +374,14 @@ impl Compartment {
             size: 1.0,
             dimensions: 3,
             style: VisualStyle::default(),
+            frame: None,
+            selected: false,
         }
+    }
+
+    /// True for `defaultCompartment` (any case), which is never drawn.
+    pub fn is_default(&self) -> bool {
+        self.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT)
     }
 }
 
@@ -497,6 +552,18 @@ impl Model {
             .find(|c| c.id.eq_ignore_ascii_case(name))
     }
 
+    /// The compartment called `name` (ignoring case), for editing. Don't
+    /// change its `id` here: use [`Model::rename_compartment`].
+    pub fn find_compartment_mut(&mut self, name: &str) -> Option<&mut Compartment> {
+        self.compartments
+            .iter_mut()
+            .find(|c| c.id.eq_ignore_ascii_case(name))
+    }
+
+    pub fn selected_compartments(&self) -> impl Iterator<Item = &Compartment> {
+        self.compartments.iter().filter(|c| c.selected)
+    }
+
     /// True if any compartment is not `defaultCompartment` (ignoring case).
     pub fn has_non_default_compartments(&self) -> bool {
         self.compartments
@@ -574,6 +641,67 @@ impl Model {
         self.texts.len() != before
     }
 
+    /// A new compartment drawn as `frame`, with a generated id `C<n>`, volume 1.
+    pub fn add_compartment(&mut self, frame: Frame) -> Id {
+        let id = self.generate_id('C');
+        let mut c = Compartment::new(id.clone());
+        c.frame = Some(frame);
+        self.compartments.push(c);
+        id
+    }
+
+    /// Deletes a compartment. Its species go to the default compartment.
+    /// Returns false if there was none with that id (ignoring case).
+    pub fn delete_compartment(&mut self, id: &str) -> bool {
+        let before = self.compartments.len();
+        self.compartments.retain(|c| !c.id.eq_ignore_ascii_case(id));
+        if self.compartments.len() == before {
+            return false;
+        }
+        for s in &mut self.species {
+            if s.compartment.eq_ignore_ascii_case(id) {
+                s.compartment.clear();
+            }
+        }
+        true
+    }
+
+    /// Renames a compartment, and every species in it, and whole-word uses
+    /// of its id in rate laws, parameters and rules (its volume can be used
+    /// in them). Changing only the letter case is allowed.
+    pub fn rename_compartment(&mut self, old: &str, new: &str) -> Result<(), RenameError> {
+        let old = self
+            .find_compartment(old)
+            .ok_or(RenameError::NotFound)?
+            .id
+            .clone();
+        if new == old {
+            return Ok(());
+        }
+        if !is_valid_sid(new) {
+            return Err(RenameError::InvalidId);
+        }
+        if !new.eq_ignore_ascii_case(&old) && self.is_id_used(new) {
+            return Err(RenameError::InUse);
+        }
+        self.find_compartment_mut(&old).expect("found above").id = new.to_owned();
+        for s in &mut self.species {
+            if s.compartment.eq_ignore_ascii_case(&old) {
+                s.compartment = new.to_owned();
+            }
+        }
+        for r in &mut self.reactions {
+            r.kinetic_law = replace_whole_word(&r.kinetic_law, &old, new);
+        }
+        for p in &mut self.parameters {
+            p.expression = replace_whole_word(&p.expression, &old, new);
+        }
+        for r in &mut self.assignment_rules {
+            r.expression = replace_whole_word(&r.expression, &old, new);
+        }
+        Ok(())
+    }
+
     /// A new species with a generated id `S<n>`, `width × height`, on top.
     pub fn add_species(&mut self, center: Pt, width: f64, height: f64) -> Id {
         let id = self.generate_id('S');
@@ -611,7 +739,7 @@ impl Model {
         id
     }
 
-    /// `S<n>`, `R<n>` or `T<n>` from the shared counter (S §4). Skips any id already
+    /// `S<n>`, `R<n>`, `T<n>` or `C<n>` from the shared counter (S §4). Skips any id already
     /// taken, so a generated id never clashes with one typed by the user.
     fn generate_id(&mut self, prefix: char) -> Id {
         loop {
@@ -632,6 +760,7 @@ impl Model {
             .map(|s| &s.id)
             .chain(self.reactions.iter().map(|r| &r.id))
             .chain(self.texts.iter().map(|t| &t.id))
+            .chain(self.compartments.iter().map(|c| &c.id))
             .filter_map(|id| numeric_suffix(id))
             .max()
             .unwrap_or(0);
@@ -654,6 +783,9 @@ impl Model {
         }
         for t in &mut self.texts {
             t.selected = false;
+        }
+        for c in &mut self.compartments {
+            c.selected = false;
         }
     }
 
@@ -1137,6 +1269,33 @@ mod tests {
         assert_eq!(m.next_id(), 7);
         assert!(m.delete_text(&t));
         assert!(!m.delete_text(&t));
+    }
+
+    #[test]
+    fn compartments_are_added_renamed_and_deleted() {
+        let mut m = small_model();
+        let frame = Frame::from_corners(pt(-50.0, -50.0), pt(250.0, 50.0));
+        assert_eq!((frame.width, frame.height), (300.0, 100.0));
+        assert!(frame.contains(pt(0.0, 0.0)) && !frame.contains(pt(0.0, 60.0)));
+        let c = m.add_compartment(frame);
+        assert_eq!(c, "C5");
+        m.find_species_mut("S1").unwrap().compartment = c.clone();
+        m.find_reaction_mut("R2").unwrap().kinetic_law = "k1*S1*C5".into();
+        assert_eq!(m.rename_compartment(&c, "S3"), Err(RenameError::InUse));
+        assert_eq!(m.rename_compartment(&c, "1x"), Err(RenameError::InvalidId));
+        m.rename_compartment(&c, "cell").unwrap();
+        assert_eq!(m.find_species("S1").unwrap().compartment, "cell");
+        assert_eq!(m.find_reaction("R2").unwrap().kinetic_law, "k1*S1*cell");
+        // Only the case: allowed.
+        m.rename_compartment("cell", "Cell").unwrap();
+        assert_eq!(m.find_species("S1").unwrap().compartment, "Cell");
+        m.find_compartment_mut("cell").unwrap().selected = true;
+        assert_eq!(m.selected_compartments().count(), 1);
+        m.clear_selection();
+        assert_eq!(m.selected_compartments().count(), 0);
+        assert!(m.delete_compartment("CELL"));
+        assert_eq!(m.find_species("S1").unwrap().compartment, "");
+        assert!(!m.delete_compartment("Cell"));
     }
 
     #[test]

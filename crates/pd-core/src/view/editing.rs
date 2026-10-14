@@ -73,6 +73,8 @@ impl DiagramView {
 
     /// Records a change made since `before` as one undo step.
     pub(super) fn record(&mut self, desc: &'static str, before: Model) -> ViewResponse {
+        // An import may bring compartments without boxes (S §7.9).
+        crate::compartments::place_unplaced(&mut self.model);
         self.undo.push(Command::Snapshot {
             desc,
             before: Box::new(before),
@@ -89,8 +91,10 @@ impl DiagramView {
     pub(super) fn add_species_at(&mut self, pos: Pt) -> ViewResponse {
         let before = self.model.clone();
         let world = self.screen_to_world(pos);
-        self.model
+        let id = self
+            .model
             .add_species(world, DEFAULT_SPECIES_WIDTH, DEFAULT_SPECIES_HEIGHT);
+        crate::compartments::reassign(&mut self.model, &[id]);
         self.record("Add Species", before)
     }
 
@@ -111,6 +115,18 @@ impl DiagramView {
         self.text_edited = Some((self.undo.version(), id.clone()));
         r.selection_changed = true;
         r.request = Some(Request::EditText(id));
+        r
+    }
+
+    /// Deletes one compartment; its species go to the default compartment.
+    /// One undo step.
+    pub fn delete_compartment(&mut self, id: &str) -> ViewResponse {
+        let before = self.model.clone();
+        if !self.model.delete_compartment(id) {
+            return ViewResponse::default();
+        }
+        let mut r = self.record("Delete Compartment", before);
+        r.selection_changed = true;
         r
     }
 
@@ -424,6 +440,7 @@ impl DiagramView {
             // A handle stands for its reaction or text here.
             Target::Handle(h) => Target::Leg(h.reaction),
             Target::TextWrap(id) => Target::Text(id),
+            Target::CompartmentCorner(id, _) => Target::Compartment(id),
             t => t,
         };
         match &target {
@@ -445,7 +462,16 @@ impl DiagramView {
                     self.set_text_selected(id, true);
                 }
             }
-            Target::Handle(_) | Target::TextWrap(_) | Target::Empty => {
+            Target::Compartment(id) => {
+                if !self.model.find_compartment(id).is_some_and(|c| c.selected) {
+                    self.model.clear_selection();
+                    self.set_compartment_selected(id, true);
+                }
+            }
+            Target::Handle(_)
+            | Target::TextWrap(_)
+            | Target::CompartmentCorner(..)
+            | Target::Empty => {
                 return ViewResponse::default();
             }
         }

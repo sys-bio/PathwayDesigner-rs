@@ -1,0 +1,119 @@
+{
+  "version": 4,
+  "modelName": "compartment_1",
+  "compartments": [
+    {
+      "id": "cell",
+      "size": 1.0,
+      "dimensions": 3,
+      "x": 440.0,
+      "y": 200.0,
+      "w": 420.0,
+      "h": 220.0
+    },
+    {
+      "id": "nucleus",
+      "size": 0.2,
+      "dimensions": 3,
+      "style": {
+        "fillColor": "#E8F0FBFF",
+        "borderColor": "#4A7FCBFF",
+        "labelColor": "#00000000",
+        "borderWidth": 3.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "x": 560.0,
+      "y": 200.0,
+      "w": 140.0,
+      "h": 120.0
+    }
+  ],
+  "parameters": [],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "S1",
+      "x": 60.0,
+      "y": 200.0,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S2",
+      "x": 300.0,
+      "y": 200.0,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "S3",
+      "x": 560.0,
+      "y": 200.0,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "nucleus"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "R4",
+      "jx": 180.0,
+      "jy": 200.0,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R5",
+      "jx": 430.0,
+      "jy": 200.0,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    }
+  ]
+}

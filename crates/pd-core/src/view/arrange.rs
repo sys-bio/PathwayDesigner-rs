@@ -15,6 +15,9 @@ use crate::view::ViewResponse;
 pub(super) struct LayoutState {
     run: LayoutRun,
     before: Box<Model>,
+    /// Which compartment box sits in which at the start: boxes are refitted
+    /// around their species as the layout moves them (S §7.9).
+    nest: Vec<(Id, Id)>,
 }
 
 /// The undo step a run of keyboard nudges makes.
@@ -122,7 +125,8 @@ impl DiagramView {
         }
         let run = LayoutRun::new(&self.model, params, seed);
         run.apply_positions(&mut self.model);
-        self.layout = Some(LayoutState { run, before });
+        let nest = crate::compartments::nesting(&self.model);
+        self.layout = Some(LayoutState { run, before, nest });
         self.follow_handles();
         ViewResponse {
             repaint: true,
@@ -155,6 +159,7 @@ impl DiagramView {
         }
         let state = self.layout.take().expect("checked above");
         state.run.finish(&mut self.model);
+        crate::compartments::refit(&mut self.model, &state.nest);
         self.record("Auto-layout", *state.before)
     }
 
@@ -166,6 +171,8 @@ impl DiagramView {
         let Some(state) = self.layout.take() else {
             return;
         };
+        // Species keep their compartments; the boxes follow them.
+        crate::compartments::refit(&mut self.model, &state.nest);
         let before = &state.before;
         let mut smooth = Vec::new();
         let moved_species =
@@ -377,6 +384,8 @@ impl DiagramView {
         }
         self.moved_species(&moved);
         self.keep_linear(&linear, &moved);
+        let ids: Vec<Id> = moved.iter().map(|(id, _)| id.clone()).collect();
+        crate::compartments::reassign(&mut self.model, &ids);
         for (what, at) in targets {
             if let ItemKind::Junction(id) = &what
                 && let Some(j) = self.model.find_reaction(id).map(|r| r.junction)
@@ -456,6 +465,7 @@ impl DiagramView {
         let mut drag = self.begin_node_drag(Pt::ZERO);
         drag.delta = delta;
         self.apply_node_drag(&drag);
+        crate::compartments::reassign(&mut self.model, &drag.reassign);
         for id in &selection.0.1 {
             let followed = drag.junctions.iter().any(|(j, _)| j == id);
             if !followed {

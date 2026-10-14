@@ -46,6 +46,7 @@ pub enum MenuAction {
     Arrange(Arrange),
     EditText(String),
     DeleteText(String),
+    DeleteCompartment(String),
 }
 
 /// What happened on the canvas this frame.
@@ -248,7 +249,16 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
             item(ui, "Delete Text", MenuAction::DeleteText(id.clone()));
             alignment(ui, view, &mut item);
         }
-        Target::Handle(_) | Target::TextWrap(_) | Target::Empty => ui.close(),
+        Target::Compartment(id) => {
+            item(
+                ui,
+                "Delete Compartment (keeps its species)",
+                MenuAction::DeleteCompartment(id.clone()),
+            );
+        }
+        Target::Handle(_) | Target::TextWrap(_) | Target::CompartmentCorner(..) | Target::Empty => {
+            ui.close()
+        }
     }
     chosen
 }
@@ -359,6 +369,10 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
         Some(Target::Handle(_)) => CursorIcon::Crosshair,
         Some(Target::Species(_) | Target::Junction(_) | Target::Text(_)) => CursorIcon::Grab,
         Some(Target::TextWrap(_)) => CursorIcon::ResizeHorizontal,
+        Some(Target::Compartment(_)) => CursorIcon::Grab,
+        // Top-left and bottom-right corners, then the other two.
+        Some(Target::CompartmentCorner(_, 0 | 2)) => CursorIcon::ResizeNwSe,
+        Some(Target::CompartmentCorner(..)) => CursorIcon::ResizeNeSw,
         Some(Target::Leg(_)) => CursorIcon::PointingHand,
         _ => CursorIcon::Default,
     }

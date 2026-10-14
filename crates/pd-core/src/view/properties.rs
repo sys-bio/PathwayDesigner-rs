@@ -5,8 +5,11 @@
 
 use super::DiagramView;
 use crate::expr;
-use crate::model::{Id, Model, Rgba, TextAlign, TextItem, Typeface, VisualStyle};
+use crate::model::{
+    Compartment, Id, Model, RenameError, Rgba, TextAlign, TextItem, Typeface, VisualStyle,
+};
 use crate::render::constants::LABEL;
+use crate::render::draw::compartment_colours;
 use crate::render::draw::{line_colour, species_colours};
 use crate::undo::Command;
 use crate::view::ViewResponse;
@@ -22,6 +25,10 @@ pub enum ColourField {
     Line,
     /// The selected texts (S §7.8).
     Text,
+    /// Fill of the selected compartments (S §7.9).
+    CompartmentFill,
+    /// Border of the selected compartments.
+    CompartmentBorder,
 }
 
 /// Brings a reaction's modifiers in line with its rate law (S §8.4):
@@ -139,6 +146,15 @@ impl DiagramView {
                 })
             }
             ColourField::Line => self.model.selected_reactions().next().map(line_colour),
+            ColourField::CompartmentFill | ColourField::CompartmentBorder => {
+                let c = self.model.selected_compartments().next()?;
+                let (fill, border, _) = compartment_colours(c);
+                Some(if field == ColourField::CompartmentFill {
+                    fill
+                } else {
+                    border
+                })
+            }
             ColourField::Text => self
                 .model
                 .selected_texts()
@@ -153,12 +169,24 @@ impl DiagramView {
         if field == ColourField::Text {
             return self.on_selected_texts("Text Colour", |t| t.color = colour);
         }
+        if field == ColourField::CompartmentFill {
+            return self.on_selected_compartments("Compartment Colour", |c| {
+                c.style.has_custom_style = true;
+                c.style.fill_color = colour;
+            });
+        }
+        if field == ColourField::CompartmentBorder {
+            return self.on_selected_compartments("Compartment Colour", |c| {
+                c.style.has_custom_style = true;
+                c.style.border_color = colour;
+            });
+        }
         self.style_edit(
             |s| {
                 match field {
                     ColourField::Fill => Some(&mut s.fill_color),
                     ColourField::Border => Some(&mut s.border_color),
-                    ColourField::Line | ColourField::Text => None,
+                    _ => None,
                 }
                 .into_iter()
                 .for_each(|c| {
@@ -283,6 +311,59 @@ impl DiagramView {
             model_changed: true,
             ..ViewResponse::default()
         }
+    }
+
+    // ----- Compartments (S §7.9) ---------------------------------------------
+
+    /// Sets a compartment's volume (finite, not negative). One undo step.
+    pub fn set_compartment_volume(&mut self, id: &str, volume: f64) -> ViewResponse {
+        if !(volume.is_finite() && volume >= 0.0) {
+            return ViewResponse::default();
+        }
+        let before = self.model.clone();
+        if let Some(c) = self.model.find_compartment_mut(id) {
+            c.size = volume;
+        }
+        self.record_if_changed("Edit Volume", before)
+    }
+
+    /// Sets a compartment's border width (0 means the default). One undo step.
+    pub fn set_compartment_border_width(&mut self, id: &str, width: f64) -> ViewResponse {
+        if !(width.is_finite() && width >= 0.0) {
+            return ViewResponse::default();
+        }
+        let before = self.model.clone();
+        if let Some(c) = self.model.find_compartment_mut(id) {
+            c.style.border_width = width;
+            if width > 0.0 {
+                c.style.has_custom_style = true;
+            }
+        }
+        self.record_if_changed("Border Width", before)
+    }
+
+    /// Renames a compartment, and every reference to it (S §7.9). One undo
+    /// step.
+    pub fn rename_compartment(&mut self, id: &str, new: &str) -> Result<ViewResponse, RenameError> {
+        let before = self.model.clone();
+        self.model.rename_compartment(id, new)?;
+        Ok(self.record_if_changed("Rename Compartment", before))
+    }
+
+    /// Runs `change` on every selected compartment: one undo step, if anything
+    /// changed.
+    fn on_selected_compartments(
+        &mut self,
+        desc: &'static str,
+        change: impl Fn(&mut Compartment),
+    ) -> ViewResponse {
+        let before = self.model.clone();
+        self.model
+            .compartments
+            .iter_mut()
+            .filter(|c| c.selected)
+            .for_each(change);
+        self.record_if_changed(desc, before)
     }
 
     // ----- Free text (S §7.8) ------------------------------------------------

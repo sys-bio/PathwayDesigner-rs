@@ -5,7 +5,8 @@
 //! can never change the file. Reading accepts versions 1–4 (and newer files, as
 //! far as possible). Writing produces the lowest version that fits, with the
 //! keys in the order the Delphi app writes them: version 3, which the Delphi
-//! app reads, or version 4 when the model has free text (SPEC-Rust §4.2).
+//! app reads, or version 4 when the model has free text or drawn compartments
+//! (SPEC-Rust §4.2).
 
 pub mod colour;
 
@@ -14,8 +15,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::geometry::pt;
 use crate::model::{
     AssignmentRule, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE,
-    Model, Parameter, Participant, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign, TextFont,
-    TextItem, Typeface, VisualStyle,
+    Frame, Model, Parameter, Participant, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign,
+    TextFont, TextItem, Typeface, VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must.
@@ -25,10 +26,10 @@ pub const FORMAT_VERSION: u32 = 4;
 /// is needed.
 pub const DELPHI_VERSION: u32 = 3;
 
-/// The version `model` must be saved as: 4 if it has free text (SPEC-Rust
-/// §4.2), 3 otherwise.
+/// The version `model` must be saved as: 4 if it has free text or a drawn
+/// compartment (SPEC-Rust §4.2), 3 otherwise.
 pub fn needed_version(model: &Model) -> u32 {
-    if model.texts().is_empty() {
+    if model.texts().is_empty() && model.compartments.iter().all(|c| c.frame.is_none()) {
         DELPHI_VERSION
     } else {
         FORMAT_VERSION
@@ -174,6 +175,16 @@ struct FileCompartment {
     dimensions: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style: Option<FileStyle>,
+    /// Version 4: the box it is drawn as, by its centre and size, as for a
+    /// species. Left out until it is drawn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    x: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    w: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    h: Option<f64>,
 }
 
 /// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
@@ -371,6 +382,16 @@ impl FileModel {
                 size: c.size,
                 dimensions: c.dimensions,
                 style: style_from_file(c.style),
+                // All four, and a size of at least 1, or not drawn yet.
+                frame: match (c.x, c.y, c.w, c.h) {
+                    (Some(x), Some(y), Some(w), Some(h)) if w >= 1.0 && h >= 1.0 => Some(Frame {
+                        center: pt(x, y),
+                        width: w,
+                        height: h,
+                    }),
+                    _ => None,
+                },
+                selected: false,
             })
             .collect();
         model.parameters = self
@@ -612,6 +633,10 @@ impl FileModel {
                     size: c.size,
                     dimensions: c.dimensions,
                     style: custom_style_to_file(&c.style),
+                    x: c.frame.map(|f| f.center.x),
+                    y: c.frame.map(|f| f.center.y),
+                    w: c.frame.map(|f| f.width),
+                    h: c.frame.map(|f| f.height),
                 })
                 .collect(),
             parameters: m
@@ -945,6 +970,39 @@ mod tests {
         let plain_text = text.split("\"plain\"").nth(1).unwrap();
         assert!(!plain_text.contains("bold") && !plain_text.contains("wrapWidth"));
         assert!(!plain_text.contains("align"));
+    }
+
+    #[test]
+    fn a_drawn_compartment_is_version_4_and_round_trips() {
+        let mut m = Model::new();
+        m.compartments.push(Compartment::new("hidden"));
+        assert!(
+            to_json(&m).contains("\"version\": 3"),
+            "not drawn: version 3"
+        );
+        let id = m.add_compartment(Frame {
+            center: pt(100.0, 50.0),
+            width: 300.0,
+            height: 200.0,
+        });
+        let text = to_json(&m);
+        assert!(text.contains("\"version\": 4"));
+        let back = from_json(&text).unwrap().model;
+        assert_eq!(
+            back.find_compartment(&id).unwrap().frame,
+            m.find_compartment(&id).unwrap().frame
+        );
+        assert_eq!(back.find_compartment("hidden").unwrap().frame, None);
+        assert!(
+            !text
+                .split("\"hidden\"")
+                .nth(1)
+                .unwrap()
+                .split('}')
+                .next()
+                .unwrap()
+                .contains("\"x\"")
+        );
     }
 
     #[test]

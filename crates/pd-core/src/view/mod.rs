@@ -10,6 +10,8 @@ mod arrange;
 #[cfg(test)]
 mod bezier_tests;
 mod circle;
+#[cfg(test)]
+mod compartment_tests;
 mod editing;
 #[cfg(test)]
 mod editing_tests;
@@ -45,8 +47,9 @@ const RUBBER_BAND_FILL_ALPHA: u8 = 51;
 /// The selected species and reactions, by id.
 pub type Selection = (Vec<Id>, Vec<Id>);
 
-/// Everything selected, texts included, to tell when the selection changes.
-type SelectionState = (Selection, Vec<Id>);
+/// Everything selected, texts and compartments included, to tell when the
+/// selection changes.
+type SelectionState = (Selection, Vec<Id>, Vec<Id>);
 
 #[derive(Clone, Debug)]
 pub struct DiagramView {
@@ -99,6 +102,12 @@ enum Gesture {
     Junction(JunctionDrag),
     Handle(HandleDrag),
     TextWrap(TextWrapDrag),
+    Resize(ResizeDrag),
+    /// The Compartment tool: a box being drawn, corners in world coordinates.
+    NewCompartment {
+        start: Pt,
+        current: Pt,
+    },
     /// Corners in screen coordinates.
     RubberBand {
         start: Pt,
@@ -127,10 +136,15 @@ struct HandleRef {
 struct NodeDrag {
     /// World point of the mouse-down.
     start: Pt,
-    /// Moved species, junctions and texts, with their original positions.
+    /// Moved species, junctions, texts and compartments (by their box's
+    /// centre), with their original positions.
     species: Vec<(Id, Pt)>,
     junctions: Vec<(Id, Pt)>,
     texts: Vec<(Id, Pt)>,
+    compartments: Vec<(Id, Pt)>,
+    /// Species moved for themselves, not carried by a compartment: they take
+    /// the compartment they end up in (S §7.9).
+    reassign: Vec<Id>,
     handles: Vec<HandleRef>,
     /// Smooth reactions whose junction moves: their handles are recomputed
     /// as it goes (S §6.4).
@@ -156,6 +170,18 @@ struct HandleDrag {
     /// so the drag is undone as a snapshot.
     smooth: bool,
     before: Option<Box<Model>>,
+    delta: Pt,
+}
+
+/// Dragging a selected compartment's corner resizes it; the opposite corner
+/// stays put (S §7.9).
+#[derive(Clone, Debug)]
+struct ResizeDrag {
+    start: Pt,
+    id: Id,
+    corner: usize,
+    orig: crate::model::Frame,
+    before: Box<Model>,
     delta: Pt,
 }
 
@@ -217,9 +243,11 @@ impl DiagramView {
     }
 
     /// Replaces the model, as Open and New do: the undo history is cleared and
-    /// any gesture dropped (S §9.1).
+    /// any gesture dropped (S §9.1). Compartments without a box get one,
+    /// fitted around their species (S §7.9).
     pub fn set_model(&mut self, model: Model) {
         self.model = model;
+        crate::compartments::place_unplaced(&mut self.model);
         self.undo.clear();
         self.gesture = Gesture::Idle;
         self.pending = Pending::default();
@@ -305,6 +333,23 @@ impl DiagramView {
         };
         draw_model(&self.model, &opts, r);
         self.draw_overlays(r);
+        if let Gesture::NewCompartment { start, current } = &self.gesture {
+            let (a, b) = corners(self.world_to_screen(*start), self.world_to_screen(*current));
+            r.round_rect(
+                SRect {
+                    min: spt(a.x as f32, a.y as f32),
+                    max: spt(b.x as f32, b.y as f32),
+                },
+                0.0,
+                None,
+                Some(Stroke {
+                    width: 1.5,
+                    color: crate::render::constants::COMPARTMENT_BORDER,
+                    dash: Some((6.0, 4.0)),
+                    round_cap: false,
+                }),
+            );
+        }
         if let Gesture::RubberBand { start, current } = &self.gesture {
             let (min, max) = corners(*start, *current);
             let mut fill = RUBBER_BAND;
@@ -347,6 +392,15 @@ impl DiagramView {
         self.model.selected_species().next().is_some()
             || self.model.selected_reactions().next().is_some()
             || self.model.selected_texts().next().is_some()
+            || self.model.selected_compartments().next().is_some()
+    }
+
+    /// The selected compartments' ids.
+    pub fn selected_compartment_ids(&self) -> Vec<Id> {
+        self.model
+            .selected_compartments()
+            .map(|c| c.id.clone())
+            .collect()
     }
 
     /// The selected texts' ids, in z-order.
@@ -355,7 +409,11 @@ impl DiagramView {
     }
 
     fn selection_state(&self) -> SelectionState {
-        (self.selection(), self.selected_text_ids())
+        (
+            self.selection(),
+            self.selected_text_ids(),
+            self.selected_compartment_ids(),
+        )
     }
 
     /// The selected species and reaction ids, in model order.
@@ -399,6 +457,9 @@ impl DiagramView {
         }
         for t in self.model.texts_mut() {
             t.selected = species && reactions;
+        }
+        for c in &mut self.model.compartments {
+            c.selected = species && reactions && c.frame.is_some();
         }
         ViewResponse {
             repaint: true,
@@ -482,6 +543,17 @@ impl DiagramView {
             Tool::AddSpecies => return self.add_species_at(pos),
             Tool::AddReaction { .. } => return self.pick_for_reaction(pos),
             Tool::AddText => return self.add_text_at(pos),
+            Tool::AddCompartment => {
+                let at = self.screen_to_world(pos);
+                self.gesture = Gesture::NewCompartment {
+                    start: at,
+                    current: at,
+                };
+                return ViewResponse {
+                    repaint: true,
+                    ..ViewResponse::default()
+                };
+            }
         }
         let world = self.screen_to_world(pos);
         match self.target_at(pos) {
@@ -512,6 +584,30 @@ impl DiagramView {
             Target::TextWrap(id) => {
                 if let Some(drag) = self.begin_text_wrap(world, id) {
                     self.gesture = Gesture::TextWrap(drag);
+                }
+            }
+            Target::Compartment(id) => {
+                let selected = self.model.find_compartment(&id).is_some_and(|c| c.selected);
+                if modifiers.shift {
+                    self.set_compartment_selected(&id, !selected);
+                } else {
+                    if !selected {
+                        self.model.clear_selection();
+                        self.set_compartment_selected(&id, true);
+                    }
+                    self.gesture = Gesture::Nodes(self.begin_node_drag(world));
+                }
+            }
+            Target::CompartmentCorner(id, corner) => {
+                if let Some(orig) = self.model.find_compartment(&id).and_then(|c| c.frame) {
+                    self.gesture = Gesture::Resize(ResizeDrag {
+                        start: world,
+                        id,
+                        corner,
+                        orig,
+                        before: Box::new(self.model.clone()),
+                        delta: Pt::ZERO,
+                    });
                 }
             }
             Target::Handle(h) => {
@@ -567,6 +663,12 @@ impl DiagramView {
         }
     }
 
+    fn set_compartment_selected(&mut self, id: &str, selected: bool) {
+        if let Some(c) = self.model.find_compartment_mut(id) {
+            c.selected = selected;
+        }
+    }
+
     fn pointer_move(&mut self, pos: Pt) -> ViewResponse {
         let world = self.screen_to_world(pos);
         match &mut self.gesture {
@@ -591,6 +693,12 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_text_wrap(&drag);
             }
+            Gesture::Resize(drag) => {
+                drag.delta = world - drag.start;
+                let drag = drag.clone();
+                self.apply_resize(&drag);
+            }
+            Gesture::NewCompartment { current, .. } => *current = world,
             Gesture::RubberBand { current, .. } => *current = pos,
         }
         ViewResponse {
@@ -601,15 +709,41 @@ impl DiagramView {
 
     fn pointer_up(&mut self) -> ViewResponse {
         let gesture = std::mem::take(&mut self.gesture);
+        // Species moved for themselves take the compartment they are now in.
+        if let Gesture::Nodes(drag) = &gesture
+            && drag.delta != Pt::ZERO
+        {
+            crate::compartments::reassign(&mut self.model, &drag.reassign);
+        }
         let cmd = match gesture {
             Gesture::Idle => return ViewResponse::default(),
+            Gesture::NewCompartment { start, current } => {
+                return self.finish_new_compartment(start, current);
+            }
+            Gesture::Resize(drag) if drag.delta == Pt::ZERO => None,
+            Gesture::Resize(drag) => {
+                let now = self.model.find_compartment(&drag.id).and_then(|c| c.frame);
+                let mut ids = crate::compartments::members(&self.model, &drag.id);
+                for f in [Some(drag.orig), now].into_iter().flatten() {
+                    ids.extend(crate::compartments::contents(&self.model, &f).species);
+                }
+                crate::compartments::reassign(&mut self.model, &ids);
+                Some(Command::Snapshot {
+                    desc: "Resize Compartment",
+                    before: drag.before,
+                    after: Box::new(self.model.clone()),
+                })
+            }
             Gesture::RubberBand { start, current } => {
                 self.finish_rubber_band(start, current);
                 None
             }
             // A drag that ends where it started records nothing (S §9.1).
             Gesture::Nodes(drag)
-                if drag.delta == Pt::ZERO || (drag.species.is_empty() && drag.texts.is_empty()) =>
+                if drag.delta == Pt::ZERO
+                    || (drag.species.is_empty()
+                        && drag.texts.is_empty()
+                        && drag.compartments.is_empty()) =>
             {
                 None
             }
@@ -710,7 +844,11 @@ impl DiagramView {
                 drag.delta = Pt::ZERO;
                 self.apply_text_wrap(&drag);
             }
-            Gesture::RubberBand { .. } => {}
+            Gesture::Resize(mut drag) => {
+                drag.delta = Pt::ZERO;
+                self.apply_resize(&drag);
+            }
+            Gesture::RubberBand { .. } | Gesture::NewCompartment { .. } => {}
         }
         ViewResponse {
             repaint: true,
@@ -722,11 +860,42 @@ impl DiagramView {
 
     fn begin_node_drag(&self, start: Pt) -> NodeDrag {
         let m = &self.model;
+        // A selected compartment carries what is inside its box: species,
+        // texts and the compartments nested in it (S §7.9).
+        let mut comp_ids: Vec<Id> = Vec::new();
+        let mut carried_species: Vec<Id> = Vec::new();
+        let mut carried_texts: Vec<Id> = Vec::new();
+        let mut carried_junctions: Vec<Id> = Vec::new();
+        for c in m.selected_compartments() {
+            let Some(f) = c.frame else { continue };
+            let inside = crate::compartments::contents(m, &f);
+            comp_ids.push(c.id.clone());
+            comp_ids.extend(inside.compartments);
+            carried_species.extend(inside.species);
+            carried_texts.extend(inside.texts);
+            carried_junctions.extend(inside.junctions);
+        }
+        let mut compartments: Vec<(Id, Pt)> = Vec::new();
+        for id in comp_ids {
+            if compartments.iter().any(|(c, _)| *c == id) {
+                continue;
+            }
+            if let Some(f) = m.find_compartment(&id).and_then(|c| c.frame) {
+                compartments.push((id, f.center));
+            }
+        }
         // Locked species never move.
-        let species: Vec<(Id, Pt)> = m
+        let mut species: Vec<(Id, Pt)> = Vec::new();
+        for s in m.species() {
+            let picked = s.selected || carried_species.contains(&s.id);
+            if picked && !s.locked {
+                species.push((s.id.clone(), s.center));
+            }
+        }
+        let reassign: Vec<Id> = m
             .selected_species()
-            .filter(|s| !s.locked)
-            .map(|s| (s.id.clone(), s.center))
+            .filter(|s| !s.locked && !carried_species.contains(&s.id))
+            .map(|s| s.id.clone())
             .collect();
         let is_moved = |id: &str| species.iter().any(|(s, _)| s == id);
 
@@ -735,9 +904,11 @@ impl DiagramView {
         let mut smooth = Vec::new();
         let mut linear = Vec::new();
         for r in m.reactions() {
-            // The junction follows when every reactant and product moves.
+            // The junction follows when every reactant and product moves, or
+            // when a dragged compartment carries it (S §7.9).
             let mut ends = r.reactants.iter().chain(&r.products).peekable();
-            let junction_moves = ends.peek().is_some() && ends.all(|p| is_moved(&p.species));
+            let junction_moves = (ends.peek().is_some() && ends.all(|p| is_moved(&p.species)))
+                || carried_junctions.contains(&r.id);
             if junction_moves {
                 junctions.push((r.id.clone(), r.junction));
                 if r.junction_smooth && r.mode == ReactionMode::Bezier {
@@ -779,18 +950,24 @@ impl DiagramView {
             }
         }
         let texts: Vec<(Id, Pt)> = m
-            .selected_texts()
+            .texts()
+            .iter()
+            .filter(|t| t.selected || carried_texts.contains(&t.id))
             .map(|t| (t.id.clone(), t.position))
             .collect();
         // Undo of a plain move restores positions only; a drag that moves more
-        // needs a snapshot taken now (S §9.2).
-        let before = (!handles.is_empty() || !smooth.is_empty() || !texts.is_empty())
+        // needs a snapshot taken now (S §9.2). With compartments on the
+        // diagram a move may change a species' compartment.
+        let framed = m.compartments.iter().any(|c| c.frame.is_some());
+        let before = (!handles.is_empty() || !smooth.is_empty() || !texts.is_empty() || framed)
             .then(|| Box::new(m.clone()));
         NodeDrag {
             start,
             species,
             junctions,
             texts,
+            compartments,
+            reassign,
             handles,
             smooth,
             linear,
@@ -851,6 +1028,15 @@ impl DiagramView {
                 t.position = *orig + drag.delta;
             }
         }
+        for (id, orig) in &drag.compartments {
+            if let Some(f) = self
+                .model
+                .find_compartment_mut(id)
+                .and_then(|c| c.frame.as_mut())
+            {
+                f.center = *orig + drag.delta;
+            }
+        }
         self.move_handles(&drag.handles, drag.delta);
         // A Linear reaction's junction keeps its place along the line, so the
         // modifier arcs that end at it don't slide into a node.
@@ -895,6 +1081,67 @@ impl DiagramView {
                 (drag.base + drag.delta.x).max(MIN_WRAP_WIDTH)
             };
         }
+    }
+
+    /// The dragged corner follows the pointer; the opposite one stays. Never
+    /// smaller than the smallest box.
+    fn apply_resize(&mut self, drag: &ResizeDrag) {
+        use crate::compartments::MIN_SIZE;
+        let corners = crate::render::draw::compartment_corners(&drag.orig);
+        let fixed = corners[(drag.corner + 2) % 4];
+        let moved = corners[drag.corner] + drag.delta;
+        // Keep the dragged corner on its own side of the fixed one.
+        let sx = if corners[drag.corner].x >= fixed.x {
+            1.0
+        } else {
+            -1.0
+        };
+        let sy = if corners[drag.corner].y >= fixed.y {
+            1.0
+        } else {
+            -1.0
+        };
+        let w = ((moved.x - fixed.x) * sx).max(MIN_SIZE);
+        let h = ((moved.y - fixed.y) * sy).max(MIN_SIZE);
+        let other = fixed + pt(w * sx, h * sy);
+        if let Some(c) = self.model.find_compartment_mut(&drag.id) {
+            c.frame = Some(if drag.delta == Pt::ZERO {
+                drag.orig
+            } else {
+                crate::model::Frame::from_corners(fixed, other)
+            });
+        }
+    }
+
+    /// The Compartment tool's drag is done: the new compartment, its box as
+    /// drawn (or the default size, centred, for a click), with every species
+    /// inside now in it. Selected; the tool goes back to Select (S §7.9).
+    fn finish_new_compartment(&mut self, start: Pt, end: Pt) -> ViewResponse {
+        use crate::compartments::{DEFAULT_SIZE, MIN_SIZE};
+        let before = self.model.clone();
+        let click =
+            (end.x - start.x).abs() < MIN_SIZE / 4.0 && (end.y - start.y).abs() < MIN_SIZE / 4.0;
+        let frame = if click {
+            crate::model::Frame {
+                center: start,
+                width: DEFAULT_SIZE.x,
+                height: DEFAULT_SIZE.y,
+            }
+        } else {
+            let mut f = crate::model::Frame::from_corners(start, end);
+            f.width = f.width.max(MIN_SIZE);
+            f.height = f.height.max(MIN_SIZE);
+            f
+        };
+        let id = self.model.add_compartment(frame);
+        let inside = crate::compartments::contents(&self.model, &frame).species;
+        crate::compartments::reassign(&mut self.model, &inside);
+        self.model.clear_selection();
+        self.set_compartment_selected(&id, true);
+        self.tool = Tool::Select;
+        let mut r = self.record("Add Compartment", before);
+        r.selection_changed = true;
+        r
     }
 
     fn apply_junction_drag(&mut self, drag: &JunctionDrag) {
@@ -1033,6 +1280,14 @@ impl DiagramView {
                 t.selected = true;
             }
         }
+        // A compartment only when the band encloses it: a band drawn inside
+        // one selects what is in it.
+        let band = crate::model::Frame::from_corners(a, b);
+        for c in &mut self.model.compartments {
+            if c.frame.is_some_and(|f| band.encloses(&f)) {
+                c.selected = true;
+            }
+        }
     }
 
     // ----- Editing commands -------------------------------------------------
@@ -1053,6 +1308,9 @@ impl DiagramView {
         }
         for id in self.selected_text_ids() {
             self.model.delete_text(&id);
+        }
+        for id in self.selected_compartment_ids() {
+            self.model.delete_compartment(&id);
         }
         self.undo.push(Command::Snapshot {
             desc: "Delete",
@@ -1112,6 +1370,11 @@ impl DiagramView {
             Target::Text(id) | Target::TextWrap(id) => {
                 if let Some(t) = self.model.find_text_mut(id) {
                     t.selected = !(add && t.selected);
+                }
+            }
+            Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
+                if let Some(c) = self.model.find_compartment_mut(id) {
+                    c.selected = !(add && c.selected);
                 }
             }
             Target::Handle(_) | Target::Empty => {}

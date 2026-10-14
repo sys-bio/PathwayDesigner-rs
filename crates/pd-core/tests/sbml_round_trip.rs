@@ -275,3 +275,32 @@ fn free_text_exports_as_a_text_glyph_and_comes_back() {
         (a.font, a.size, a.color, a.wrap_width)
     );
 }
+
+#[test]
+fn compartment_boxes_and_styles_come_back() {
+    let mut m = Model::new();
+    let s = m.add_species(Pt { x: 0.0, y: 0.0 }, 80.0, 36.0);
+    let id = m.add_compartment(pd_core::model::Frame {
+        center: Pt { x: 10.0, y: 20.0 },
+        width: 300.0,
+        height: 200.0,
+    });
+    m.find_species_mut(&s).unwrap().compartment = id.clone();
+    let c = m.find_compartment_mut(&id).unwrap();
+    c.size = 2.5;
+    c.style.has_custom_style = true;
+    c.style.fill_color = Rgba::rgb(0xEE, 0xEE, 0xFF);
+    c.style.border_width = 3.0;
+    let out = sbml::export(&m);
+    assert!(out.problems.is_empty(), "{:?}", out.problems);
+    let back = sbml::import(&out.xml, &OPTS).unwrap().model;
+    let (a, b) = (
+        m.find_compartment(&id).unwrap(),
+        back.find_compartment(&id).unwrap(),
+    );
+    assert_eq!(b.frame, a.frame);
+    assert_eq!(b.size, 2.5);
+    assert_eq!(b.style.fill_color, a.style.fill_color);
+    assert_eq!(b.style.border_width, 3.0);
+    assert_eq!(back.find_species(&s).unwrap().compartment, id);
+}

@@ -205,6 +205,35 @@ impl Builder {
         for r in &m.reactions {
             self.reaction(m, r, layout, &glyph_node, &nulls, opts);
         }
+        // Compartment boxes (S §7.9), and their style from PathwayDesigner's
+        // note. Compartments without one are fitted around their species.
+        if let Some(l) = m.layouts.first() {
+            for g in &l.compartment_glyphs {
+                let (Some(id), Some(b)) = (&g.compartment, positioned(g.bounding_box.as_ref()))
+                else {
+                    continue;
+                };
+                let (w, h) = (b.dimensions.width, b.dimensions.height);
+                let style = g
+                    .meta
+                    .annotation
+                    .as_deref()
+                    .and_then(super::shape::read_compartment);
+                if let Some(c) = self.model.find_compartment_mut(id)
+                    && w >= 1.0
+                    && h >= 1.0
+                {
+                    c.frame = Some(crate::model::Frame {
+                        center: pt(b.position.x + w / 2.0, b.position.y + h / 2.0),
+                        width: w,
+                        height: h,
+                    });
+                    if let Some(s) = style {
+                        c.style = s;
+                    }
+                }
+            }
+        }
         // Free text: a text glyph with words of its own and nothing it labels
         // (S §7.8). Its look comes from PathwayDesigner's note, if it has one.
         if let Some(l) = m.layouts.first() {

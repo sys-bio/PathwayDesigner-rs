@@ -20,7 +20,9 @@
 //! ```
 
 use crate::json::colour::{from_hex, to_hex};
-use crate::model::{Reaction, ReactionMode, Rgba, TextAlign, TextFont, TextItem, Typeface};
+use crate::model::{
+    Compartment, Reaction, ReactionMode, Rgba, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
+};
 
 /// The namespace of PathwayDesigner's note.
 pub const NS: &str = "https://github.com/sys-bio/PathwayDesigner-rs/ns/sbml-layout/1";
@@ -62,6 +64,55 @@ pub fn read(annotation: &str) -> (bool, bool) {
         note.attribute("mode") == Some("linear"),
         note.attribute("smoothJunction") == Some("true"),
     )
+}
+
+/// The note for a compartment glyph: its custom fill, border colour and
+/// border width, or `None` if it uses the defaults (S §7.9). SBML Layout
+/// has no styles.
+///
+/// ```xml
+/// <pd:compartment xmlns:pd="…" fill="#F0F6EAFF" border="#7FA36BFF" borderWidth="3"/>
+/// ```
+pub fn compartment_note(c: &Compartment) -> Option<String> {
+    let s = &c.style;
+    if !s.has_custom_style {
+        return None;
+    }
+    let mut attrs = String::new();
+    if !s.fill_color.is_default() {
+        attrs.push_str(&format!(" fill=\"{}\"", to_hex(s.fill_color)));
+    }
+    if !s.border_color.is_default() {
+        attrs.push_str(&format!(" border=\"{}\"", to_hex(s.border_color)));
+    }
+    if s.border_width > 0.0 {
+        attrs.push_str(&format!(
+            " borderWidth=\"{}\"",
+            sbml_io::fmt_f64(s.border_width)
+        ));
+    }
+    (!attrs.is_empty()).then(|| format!("\n<pd:compartment xmlns:pd=\"{NS}\"{attrs}/>\n"))
+}
+
+/// The style a compartment glyph's note gives, or `None` without one.
+pub fn read_compartment(annotation: &str) -> Option<VisualStyle> {
+    let wrapped = format!("<a>{annotation}</a>");
+    let doc = roxmltree::Document::parse(&wrapped).ok()?;
+    let note = doc
+        .descendants()
+        .find(|n| n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "compartment")?;
+    let colour = |key: &str| note.attribute(key).and_then(from_hex).unwrap_or_default();
+    Some(VisualStyle {
+        has_custom_style: true,
+        fill_color: colour("fill"),
+        border_color: colour("border"),
+        border_width: note
+            .attribute("borderWidth")
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|w| w.is_finite() && *w > 0.0)
+            .unwrap_or(0.0),
+        ..VisualStyle::default()
+    })
 }
 
 /// How a free text looks, as its note says.
@@ -145,6 +196,19 @@ pub fn read_text(annotation: &str) -> Option<TextLook> {
 mod tests {
     use super::*;
     use crate::geometry::Pt;
+
+    #[test]
+    fn a_compartment_note_round_trips() {
+        let mut c = Compartment::new("cell");
+        assert_eq!(compartment_note(&c), None, "default style: no note");
+        c.style.has_custom_style = true;
+        c.style.fill_color = Rgba::rgb(1, 2, 3);
+        c.style.border_width = 3.0;
+        let back = read_compartment(&compartment_note(&c).unwrap()).unwrap();
+        assert_eq!(back.fill_color, c.style.fill_color);
+        assert!(back.border_color.is_default());
+        assert_eq!(back.border_width, 3.0);
+    }
 
     #[test]
     fn a_text_note_round_trips() {

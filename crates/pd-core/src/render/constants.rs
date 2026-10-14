@@ -32,6 +32,11 @@ pub const ARROW_TIP_INSET: f64 = 3.0;
 pub const ARROW_LENGTH: f64 = 12.0;
 pub const ARROW_HALF_BASE: f64 = 5.0;
 pub const HALO_OUTSET: f64 = 6.0;
+pub const COMPARTMENT_BORDER_WIDTH: f64 = 2.0;
+pub const COMPARTMENT_CORNER_RADIUS: f64 = 14.0;
+pub const COMPARTMENT_LABEL_SIZE: f64 = 12.0;
+/// The name's distance from the box's top-left corner.
+pub const COMPARTMENT_LABEL_INSET: f64 = 8.0;
 pub const HALO_WIDTH: f64 = 2.0;
 pub const HALO_CORNER_RADIUS: f64 = 14.0;
 pub const PENDING_RING_OUTSET: f64 = 4.0;
@@ -67,6 +72,11 @@ pub const SPECIES_BORDER: Rgba = hex(0x4A7FCB);
 pub const ALIAS_FILL: Rgba = hex(0xF5F0FF);
 pub const ALIAS_BORDER: Rgba = hex(0x7A6FC8);
 pub const LABEL: Rgba = hex(0x1A1A1A);
+/// Compartments (S §7.9): a pale fill, a darker border, the name in a darker
+/// shade still.
+pub const COMPARTMENT_FILL: Rgba = hex(0xF0F6EA);
+pub const COMPARTMENT_BORDER: Rgba = hex(0x7FA36B);
+pub const COMPARTMENT_LABEL: Rgba = hex(0x3D5C2B);
 pub const REACTION_LINE: Rgba = hex(0x444444);
 pub const SELECTED_ACCENT: Rgba = hex(0x1144CC);
 /// The colour a selected reaction is drawn in, unless the preferences say
