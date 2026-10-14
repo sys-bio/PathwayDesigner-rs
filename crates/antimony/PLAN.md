@@ -117,7 +117,7 @@ when those tests pass, `cargo clippy` is clean and the crate builds for wasm.
 | # | Milestone | Ports | Done when |
 |---|---|---|---|
 | A0 ✓ | Skeleton | — | Crate in the workspace (not yet used by pd-core), README, `SPEC.md` with the §3 decisions, licence files, CI runs its tests and a wasm build. **Done 2026-10-13** (the workspace CI covers it; no CI change was needed) |
-| A1 | Types, diagnostics, lexer | `uAntTypes`, `uAntDiagnostics`, `uAntStrings`, `uAntLexer` | `uAntLexerTests`, `uAntTypesTests`, `uAntDiagnosticsTests` ported and passing |
+| A1 ✓ | Types, diagnostics, lexer | `uAntTypes`, `uAntDiagnostics`, `uAntStrings`, `uAntLexer` | `uAntLexerTests`, `uAntTypesTests`, `uAntDiagnosticsTests` ported and passing. **Done 2026-10-13**: same 273,129 tokens as Delphi over the corpus |
 | A2 | Expressions | `uAntExprNode`, `uAntExprParser` | `uAntExprTests` passing: precedence, functions, `ToString` formatting, evaluation, symbol collection |
 | A3 | Model and statement parser | `uAntModel`, `uAntParser` | `uAntParserTests` passing; every corpus case in the M3/M4 set (836, Delphi §9.1) parses with no errors |
 | A4 | Semantics | `uAntSemantics`, `uAntFlatten` (identity) | `uAntSemanticsTests` passing; promotion table; §6.5 warnings; the `invalid/` set gives each expected code and line; zero `dcImplicitParameter` over the corpus |

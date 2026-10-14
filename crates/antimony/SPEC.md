@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13, milestone A0.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1.
 
 ---
 
@@ -219,11 +219,50 @@ pub struct Diagnostic {
   default severity.
 - **Messages use the Delphi wording** (`uAntStrings`), so the two
   implementations can be compared on diagnostics as well as models.
-- **Display:** `diagnostic.display(file)` gives Delphi's one-line form,
-  `file(3:17): error: message [dcSyntaxError]`. The diagnostic does not store
-  the file name: the parser takes a `&str`, and only the caller knows where it
-  came from.
+- **Display:** `diagnostic.with_file("model.ant")` gives Delphi's one-line
+  form, `model.ant(3:17): error: message [dcSyntaxError]`; `Display` gives the
+  same without the file. The diagnostic does not store the file name: the
+  parser takes a `&str`, and only the caller knows where it came from.
+- **The list is `Diagnostics`**, a thin wrapper that reads as a
+  `[Diagnostic]` slice (indexing, `iter`, `len`) and adds Delphi's
+  `TAntDiagnostics` helpers: `add` (default severity), `add_with` (explicit
+  severity, for strict mode), `count_of`, `has_errors`, `has_any`,
+  `first_of`, `sort_by_span` (stable, by line then column), `summary`, and a
+  `Display` of one line per diagnostic.
 - Diagnostics are returned **in source order** (Delphi `SortBySpan`).
+- The message texts are functions and constants in `messages`
+  (`messages::negative_stoichiometry("A")`), one per Delphi resource string.
+
+## 5.1 The lexer (built in A1)
+
+- `Lexer::new(&str)` reads on demand: `next_token()`, `peek(n)` (any depth),
+  `try_consume(kind) -> Option<Token>`, `try_consume_keyword`, `current()`,
+  `tokens()` (all of them, end of file included), and `tokenize(&str)` for
+  the whole source at once.
+- A `Token` has `kind`, `text`, `keyword: Option<Keyword>`, `number: f64`,
+  `span` and `trivia` (the comments before it, one per line, joined with
+  `\n`). There are no reserved words: an identifier notes the keyword it
+  spells and the parser decides by position.
+- The lexer owns its `Diagnostics`; the parser takes them with
+  `take_diagnostics()`. In Delphi the lexer and parser share one list.
+- Behaviour is the Delphi lexer's in every detail, including its edge cases
+  (a `\` before a line break inside a string escapes the break; `3end`
+  closes an `end`-terminated layout section). The corpus check is exact:
+  the same 273,129 tokens over the 1788 files, and the same 44,001 in the
+  5000-line benchmark.
+- Scanning is by byte: every character the language gives a meaning to is
+  ASCII, and UTF-8 never uses an ASCII byte inside a longer character, so
+  slicing at those bytes is always at a character boundary. A non-ASCII
+  character outside a string or comment is one `Unknown` token (Delphi made
+  two for a character outside the BMP, one per UTF-16 unit).
+
+## 5.2 Numbers (built in A1)
+
+`number::parse` and `number::format` replace Delphi's `AntTryStrToFloat` and
+`AntFloatToStr`. `format` writes the shortest text that reads back as the
+identical value, in exponent form outside 1e-5 to 1e15 (`6.02214076e23`),
+with `inf`, `-inf` and `nan` for the non-finite values: the same thresholds
+as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
 
 ## 6. Entry points and the error contract
 
@@ -234,7 +273,7 @@ and recorded here.
 let loaded = antimony::parse(source);                      // never fails, never panics
 let loaded = antimony::parse_with(source, &Options { strict: true, ..Default::default() });
 loaded.document          // the model, as far as it could be read
-loaded.diagnostics       // Vec<Diagnostic>
+loaded.diagnostics       // Diagnostics (§5)
 loaded.has_errors()
 let doc = loaded.into_result()?;   // Result<Document, Vec<Diagnostic>> for callers who want it
 
@@ -270,9 +309,12 @@ antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
 
 | Module | Ports | Notes |
 |---|---|---|
-| `span` | `TSourcePos`, `TSourceSpan` | §4 |
-| `diagnostics` | `uAntDiagnostics`, `uAntStrings` | §5 |
-| `lexer` | `uAntLexer` | public: an editor can use the tokens for highlighting |
+| `span` | `TSourcePos`, `TSourceSpan` | §4; also `LineIndex` |
+| `diagnostics` | `uAntDiagnostics` | §5 |
+| `messages` | `uAntStrings` | §5 |
+| `number` | `uAntTypes` (number conversion) | §5.2 |
+| `builtins` | `uAntTypes` (built-in function lists) | |
+| `lexer` | `uAntLexer`, `uAntTypes` (tokens, keywords, character classes) | public: an editor can use the tokens for highlighting |
 | `expr` | `uAntExprNode`, `uAntExprParser` | public |
 | `model` | `uAntTypes` (model enums), `uAntModel` | |
 | `parser` | `uAntParser` | |
@@ -342,14 +384,15 @@ licence and API.
 | R11 | `uAntCompat`, `Oracle/`, FPC (decisions 4, 23–25) | Not ported (§7) | Delphi-specific |
 | R12 | Invariant `TFormatSettings` for every number conversion | `str::parse::<f64>` and Rust's own formatting | Both are locale-independent by definition, so the Delphi hazard cannot arise; never call C library number functions |
 | R13 | `TStringList` must be made case-sensitive | `String` comparison is case-sensitive | The Delphi defect cannot arise; the BIOMD0000000557 `duspn`/`DUSPn` case is still tested |
+| R14 | Comments in a token's trivia joined with the platform line break (CRLF on Windows) | Joined with `\n` | The same text on every platform |
+| R15 | Lexer and parser share one diagnostics list | The lexer owns its list; the parser takes it (§5.1) | Ownership without sharing |
+| R16 | A non-BMP character outside a string is two `ttUnknown` tokens | One `Unknown` token | Rust reads characters, not UTF-16 units (§5.1) |
+| R17 | `AntVersionString` | `antimony::VERSION`, from `Cargo.toml` | One place for the version |
 
 ## 10. Left open, for the milestone that needs it
 
 - The exact field lists of the model types (A3–A5), checked against
   `uAntModel`.
-- How numbers are written back (A6): shortest round-trip form, or the Delphi
-  writer's format. Round-trip closure compares values, not text, so either
-  holds the invariant.
 - The deep model comparison for round-trip closure (A6), following
   `uAntModelCompare`: it ignores spans, and treats `nan` as equal to itself.
 - Reading `index.json` (A3): a small hand-written reader in the tests, or a

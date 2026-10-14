@@ -1,18 +1,20 @@
 //! The test data is in place and readable (milestone A0).
 //!
 //! `tests/invalid/` holds one Antimony file per diagnostic, each with a
-//! `.expected` file naming the codes and lines it must produce. A0 only
-//! checks the set is well formed; A3 and A4 check the parser against it.
+//! `.expected` file naming the codes and lines it must produce. This file
+//! only checks the set is well formed and names real codes; A3 and A4 check
+//! the parser against it.
 //!
 //! The corpus lives outside the repository and is found through
 //! `ANTIMONY_CORPUS` (SPEC.md §8). Without it the corpus test is skipped
 //! with a note, so a fresh clone still passes.
 
+mod common;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// The number of `NNNNN-antimony.ant` files the corpus generator wrote.
-const CORPUS_SIZE: usize = 1788;
+use antimony::Code;
 
 /// One expected diagnostic: its Delphi code name (`dcTypeConflict`) and the
 /// 1-based line it is reported on.
@@ -99,6 +101,12 @@ fn invalid_fixtures_are_well_formed() {
         // is reported (expected-end.ant).
         for e in &expected {
             assert!(
+                Code::from_name(&e.code).is_some(),
+                "{}: {} is not a diagnostic code",
+                source.display(),
+                e.code
+            );
+            assert!(
                 (1..=lines + 1).contains(&e.line),
                 "{}: line {} is outside the file ({lines} lines)",
                 source.display(),
@@ -142,24 +150,12 @@ fn expected_file_format() {
 
 #[test]
 fn corpus_is_reachable() {
-    let Some(root) = std::env::var_os("ANTIMONY_CORPUS") else {
-        eprintln!("note: ANTIMONY_CORPUS is not set; corpus test skipped");
+    let Some(root) = common::corpus_root("corpus_is_reachable") else {
         return;
     };
-    let root = PathBuf::from(root);
-    let mut cases = 0;
-    for entry in fs::read_dir(&root).unwrap_or_else(|e| panic!("{}: {e}", root.display())) {
-        let case = entry.unwrap().path();
-        let Some(id) = case.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        if case.join(format!("{id}-antimony.ant")).is_file() {
-            cases += 1;
-        }
-    }
     assert_eq!(
-        cases,
-        CORPUS_SIZE,
+        common::corpus_files(&root).len(),
+        common::CORPUS_SIZE,
         "Antimony files under {}",
         root.display()
     );
