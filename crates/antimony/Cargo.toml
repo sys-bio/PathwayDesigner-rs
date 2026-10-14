@@ -1,0 +1,19 @@
+[package]
+# `antimony` on crates.io is an unrelated crate (2017), so the package is
+# `antimony-rs`; the library keeps the language's name, so code says
+# `use antimony::…` (SPEC.md §1).
+name = "antimony-rs"
+description = "Read and write the Antimony model language, and convert it to SBML. Pure Rust, works in WebAssembly."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["antimony", "sbml", "systems-biology", "biochemistry", "parser"]
+categories = ["parser-implementations", "science"]
+
+[lib]
+name = "antimony"
+
+# The core has no dependencies, and must keep it that way (SPEC.md §2).
+[dependencies]

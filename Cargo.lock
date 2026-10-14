@@ -178,6 +178,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "antimony-rs"
+version = "0.1.0"
+
+[[package]]
 name = "arboard"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
