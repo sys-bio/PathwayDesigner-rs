@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2.
 
 ---
 
@@ -264,6 +264,50 @@ identical value, in exponent form outside 1e-5 to 1e15 (`6.02214076e23`),
 with `inf`, `-inf` and `nan` for the non-finite values: the same thresholds
 as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
 
+## 5.3 Expressions (built in A2)
+
+- **The tree** is `Expr { kind: ExprKind, span }` as sketched in §3.4, with
+  `UnaryOp`, `BinaryOp` and `Constant` enums. A number's unit is
+  `Option<String>`. There is no `Binding` back-pointer (R3); a symbol is its
+  name.
+- **Methods** (Delphi in brackets): `to_string()` via `Display`, with the
+  fewest brackets the meaning needs (`ToString`); `same_tree` (`EqualsTree`:
+  ignores spans, `nan` equals `nan`; derived `==` compares spans too);
+  `evaluate()` and `evaluate_with(&resolver)` (`TryEvaluate`, returning
+  `Option<f64>`); `is_constant`; `symbols()` (`CollectSymbols`, first
+  appearance order); `node_count`, `depth`, `children`. `Clone` is derived.
+- **Evaluation** follows Delphi call by call: lazy `piecewise`,
+  short-circuit `&&`/`||`, the n-ary MathML operators, a bare `log` as base
+  10, `None` for a zero divisor or reciprocal. A domain error the Delphi code
+  did not check for (`sqrt(-1)`, `ln(0)`) gives IEEE's NaN or infinity, as
+  Rust's functions do.
+- **The parser** is `ExprParser::new(&mut lexer)` with `parse()`,
+  `at_expression_start()` and the `parse_unit_suffixes` flag (off inside a
+  participant list), plus `parse_expression(&str)` for a whole string and
+  `can_start_expression(kind)`. It adds its problems to the lexer's list.
+  It accepts exactly the Delphi grammar and builds the same trees, but it is
+  written as precedence climbing (one loop over the precedence table) rather
+  than Delphi's one function per level: a bracket costs about 4 stack frames
+  instead of 13.
+- **Nesting is limited, where Delphi had no limit.** A recursive descent
+  parser and every recursive walk of a tree (writing, evaluating, cloning,
+  comparing, dropping) use stack in proportion to depth, and running out
+  aborts the program, which §6 does not allow. So the parser rejects, with
+  one `dcSyntaxError`, an expression nested more than `MAX_NESTING` = 64
+  levels (brackets, calls, unary operators, `^`, `?:`) or a tree more than
+  `MAX_DEPTH` = 800 deep (a sum of 801 terms). Measured in A2: the deepest
+  tree in 689 BioModels is 192 and the deepest brackets 15; in the corpus,
+  100 and 4. The limits are about four times that, and a test walks the
+  deepest accepted trees on a 1 MB stack (a Windows main thread,
+  WebAssembly) in an unoptimised build.
+- **What is written is never nested deeper than what was read**, or a valid
+  expression could be written in a form that cannot be read back. A unary
+  operator applied to a unary operator is written with a space, `- -a`,
+  where Delphi wrote a bracket, `-(-a)`; both keep `--` from being read as
+  the DNA operator.
+- Checked beyond the Delphi tests: all 96,019 expressions in the 689
+  BioModels parse, read back as the same tree, and write back identically.
+
 ## 6. Entry points and the error contract
 
 A sketch; the final names are settled by the milestone that builds each one
@@ -385,9 +429,13 @@ licence and API.
 | R12 | Invariant `TFormatSettings` for every number conversion | `str::parse::<f64>` and Rust's own formatting | Both are locale-independent by definition, so the Delphi hazard cannot arise; never call C library number functions |
 | R13 | `TStringList` must be made case-sensitive | `String` comparison is case-sensitive | The Delphi defect cannot arise; the BIOMD0000000557 `duspn`/`DUSPn` case is still tested |
 | R14 | Comments in a token's trivia joined with the platform line break (CRLF on Windows) | Joined with `\n` | The same text on every platform |
-| R15 | Lexer and parser share one diagnostics list | The lexer owns its list; the parser takes it (§5.1) | Ownership without sharing |
+| R15 | Lexer and parser share one diagnostics list | The lexer owns the list; parsers add to it through the lexer, and the owner takes it at the end (§5.1) | Ownership without sharing; still one list in the order found |
 | R16 | A non-BMP character outside a string is two `ttUnknown` tokens | One `Unknown` token | Rust reads characters, not UTF-16 units (§5.1) |
 | R17 | `AntVersionString` | `antimony::VERSION`, from `Cargo.toml` | One place for the version |
+| R18 | No limit on expression nesting | 64 levels of nesting, a tree 800 deep (§5.3) | Running out of stack aborts; a diagnostic does not |
+| R19 | `- -a` written as `-(-a)`, `!!a` as `!(!a)` | Written `- -a`, `! !a` (§5.3) | A bracket adds nesting, so the written form could exceed the limit |
+| R20 | A bracketed expression's span stops before `)` | It includes the `)` | The span is the text of the expression |
+| R21 | `--` after an operand is named as DNA syntax only after the first term of a sum (`a + b--c` was a generic syntax error) | Named wherever it follows an operand | A consequence of precedence climbing, and the better message |
 
 ## 10. Left open, for the milestone that needs it
 

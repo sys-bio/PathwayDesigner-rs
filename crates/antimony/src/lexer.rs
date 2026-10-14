@@ -544,6 +544,12 @@ impl<'a> Lexer<'a> {
         &self.diagnostics
     }
 
+    /// The list the parsers built on this lexer add their problems to, so
+    /// that every problem in a source is in one list, in the order found.
+    pub fn diagnostics_mut(&mut self) -> &mut Diagnostics {
+        &mut self.diagnostics
+    }
+
     /// Takes the problems found so far, leaving none.
     pub fn take_diagnostics(&mut self) -> Diagnostics {
         std::mem::take(&mut self.diagnostics)
