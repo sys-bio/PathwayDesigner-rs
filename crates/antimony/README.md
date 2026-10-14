@@ -6,9 +6,8 @@ the human-readable language for biochemical models, and convert it to
 WebAssembly.
 
 > **Status: under construction, not yet published.** Reading is built
-> (milestone A4): `antimony::parse` gives a checked model and its
-> diagnostics. Functions, events and units are being checked next (A5),
-> then the writers. The package will be published as `antimony-rs` (the name
+> and checked (milestone A5): `antimony::parse` gives a checked model and
+> its diagnostics. The Antimony writer is next (A6), then SBML. The package will be published as `antimony-rs` (the name
 > `antimony` is taken on crates.io); the library is called `antimony`.
 
 It is a port of a complete, tested Antimony implementation written in Delphi,

@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4.
 
 ---
 
@@ -354,6 +354,11 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
   reaction ids (`_J` + position, skipping a taken id; reactions are compared
   ignoring ASCII case, as Delphi's `SameText` did), and its quirks. One
   example of a quirk kept: `unit x = ;` records the definition `;`.
+- **A5** ported the Delphi M5 tests (`tests/m5.rs`: events, functions,
+  algebraic rules, constraints, annotations, and the 1629-case M5 set). All
+  38 passed against the A3 parser and the A4 semantic pass unchanged: no
+  gap was found. Deliberately breaking the `t0` modifier and a range's
+  strictness each failed a test.
 - The parser keeps a `HashMap` from symbol name to index for the module it
   is filling, so declaring a symbol is not a linear search (SPEC §3.1: the
   model itself holds only `Vec`s).
