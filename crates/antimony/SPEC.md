@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4.
 
 ---
 
@@ -370,18 +370,55 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
   (truncated, characters deleted, junk inserted) give diagnostics, never a
   panic.
 
+## 5.5 The semantic pass (built in A4)
+
+- `semantics::analyse(&mut Document, &Options) -> Diagnostics` resolves and
+  checks every module, in Delphi's order: resolve all modules, then
+  validate all. `antimony::parse_with` runs it after the parser.
+- **Resolution** follows `uAntSemantics` step by step and in the same
+  order, so implicit parameters are created in the same order as Delphi
+  creates them: symbol values and rules, then each reaction (participant by
+  participant, then its law), events, function bodies (with the function's
+  arguments in scope), algebraic rules, constraints and objectives, symbol
+  values again, then `in` and `conversionFactor` attachments, and last,
+  anything still unclassified becomes a parameter.
+- **References are names** (R3), so Delphi's `Binding`, `Compartment` and
+  `Species` pointers have no counterpart. `semantics::resolve(module, name)`
+  answers "what does this name refer to", with Delphi's rules: a built-in
+  function or csymbol refers to nothing, nor does a module's formal argument.
+- **Validation** is Delphi §6.3's list as Delphi built it: const with a
+  rule, a species in a non-compartment, a conversion factor that is not a
+  parameter, §6.5's uninitialised and implicit symbols, circular assignment
+  rules (one report per module, naming the path), recursive functions and
+  arity. Delphi's checker recursed through the rule graph; this one is a loop
+  with an explicit stack, so a chain of 20,000 rules cannot exhaust the
+  stack (tested on a 1 MB thread). The order and wording of its report are
+  the same.
+- `flatten::flatten(&Document) -> Module` and `flatten_module(&Document,
+  name)` are a copy, seam 2 of Delphi §2.2.2.
+- Checked: the 12 invalid fixtures each give exactly their expected codes
+  and lines and no other error; the core and whole non-`comp` corpus give no
+  `dcImplicitParameter` and leave nothing unclassified; all 689 BioModels
+  load with no errors. And **every diagnostic matches the Delphi
+  converter's**, by file, line and code: all 818 over the 1788-case corpus
+  (`comp` cases included) and all 26 over the BioModels.
+- One Delphi test (`ParameterPromotesToCompartment`) never reached the
+  promotion it names: `v = 2` leaves `v` unclassified until the end of the
+  pass. A test with `formula v` does reach it; a deliberate breakage of that
+  promotion showed the gap.
+
 ## 6. Entry points and the error contract
 
-A sketch; the final names are settled by the milestone that builds each one
-and recorded here.
+Reading is built (A4); the writers are a sketch until A6 and A7.
 
 ```rust
 let loaded = antimony::parse(source);                      // never fails, never panics
 let loaded = antimony::parse_with(source, &Options { strict: true, ..Default::default() });
 loaded.document          // the model, as far as it could be read
-loaded.diagnostics       // Diagnostics (§5)
+loaded.diagnostics       // Diagnostics (§5): the parser's, then the semantic pass's
 loaded.has_errors()
-let doc = loaded.into_result()?;   // Result<Document, Vec<Diagnostic>> for callers who want it
+let doc = loaded.into_result()?;   // Result<Document, Diagnostics> for callers who want it
+let flat = antimony::flatten::flatten(&doc);               // seam 2: a copy of the main module
 
 antimony::write(&module) -> String                         // A6
 antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
@@ -394,10 +431,13 @@ antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
 - **No input may panic.** Every path through the lexer and parser recovers;
   a panic on any input is a bug. A fuzz-style test over mangled corpus files
   is added in A3.
-- **`Options`** (a plain struct with `Default`): `strict` turns warnings into
-  errors (Delphi `StrictMode`); `initialise_missing` is Delphi §6.5.1's
-  opt-in fill-in (`--init-zero`) — off by default, still reported, zero
-  except for a compartment, which gets 1.
+- **`Options`** (a plain struct with `Default`, `semantics::Options`
+  re-exported at the root): `strict` reports Delphi §6.5's two warnings
+  (`dcUninitialisedSymbol`, `dcImplicitParameter`) as errors, as Delphi's
+  `StrictMode` does; other warnings, such as `dcInformationLoss`, stay
+  warnings. `initialise_missing` is Delphi §6.5.1's opt-in fill-in
+  (`--init-zero`): off by default, still reported, zero except for a
+  compartment, which gets 1.
 - **Queries return `Option`.** Delphi's facade raises `EAntArgumentError` for
   an id that names nothing; in Rust a lookup by id returns `Option<&T>`, and
   a lookup by index is a slice index, which panics like any other — the same
@@ -424,8 +464,8 @@ antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
 | `expr` | `uAntExprNode`, `uAntExprParser` | public |
 | `model` | `uAntTypes` (model enums), `uAntModel` | |
 | `parser` | `uAntParser` | §5.4 |
-| `semantics` | `uAntSemantics` | |
-| `flatten` | `uAntFlatten` | identity copy, as in Delphi |
+| `semantics` | `uAntSemantics` | §5.5 |
+| `flatten` | `uAntFlatten` | a copy, as in Delphi (§5.5) |
 | `write` | `uAntWriter` | |
 | `sbml` | `uAntSBMLWriter`'s mapping | `sbml` feature; built on `sbml-io` |
 | crate root | `uAntFacade` | re-shaped (§6) |
@@ -477,7 +517,16 @@ decisions 23–25 do not apply), `Oracle/` (replaced by the differential tier,
   classifying differences as Delphi decision 22 does (only a divergence
   fails). A3 result: 1657 cases agree, none diverge, 1 rejected by the
   oracle (01622), 7358 facts compared; with the arrows deliberately
-  swapped, 399 cases diverge.
+  swapped, 399 cases diverge. **From A4** it covers every one of the 1788
+  cases: each case's diagnostics are compared by line and code with the
+  oracle's (from its stderr, also cached), and where the oracle wrote SBML
+  outside `comp`, the model comparison adds which ids are species,
+  compartments and parameters, with each species' compartment and boundary
+  flag. The oracle's `default_compartment`, which its SBML writer adds for
+  species without one, is the one difference it allows. A4 result: all 1788
+  agree, 818 diagnostics and 17,943 facts over 1657 models compared; with
+  the uninitialised-symbol warning deliberately suppressed, 188 cases
+  diverge.
 - **CI**: the workspace CI already runs `cargo fmt --check`, clippy (native
   and `wasm32-unknown-unknown`, warnings as errors) and `cargo test` over
   every member, which covers this crate. When the `sbml` feature exists (A7)
@@ -517,6 +566,8 @@ licence and API.
 | R23 | A constraint holds `Expr` or `Lower`/`Subject`/`Upper`, all nullable | `ConstraintKind::Expr` or `ConstraintKind::Range` (§3.3) | Only the valid combinations can be written |
 | R24 | An empty string meant "absent" for names, notes and display names | `Option<String>`, so `notes ""` keeps an empty note | R4; the empty string and no string are different facts |
 | R25 | The plan split the parser between A3 and A5 | The whole parser is ported in A3 (§5.4) | It is one unit; A5 keeps the M5 tests and the 1629-case check |
+| R26 | References bound by pointer (`Binding`) | `semantics::resolve(module, name)` (§5.5) | R3; the same rules for built-ins and formal arguments |
+| R27 | Circular rules found by recursion | A loop with an explicit stack (§5.5) | A long chain of rules cannot exhaust the stack; same result and message |
 
 ## 10. Left open, for the milestone that needs it
 

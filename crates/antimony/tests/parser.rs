@@ -2,9 +2,8 @@
 //!
 //! Changed for Rust: `ForwardReferencesAreNotResolved` drops its check that
 //! the compartment object is unbound, since references are names (SPEC.md
-//! §3.1). The invalid-fixture tests run the parser only: two fixtures
-//! (`arity-mismatch`, `recursive-function`) need the semantic pass and are
-//! checked from A4.
+//! §3.1). The invalid-fixture tests run the whole pipeline, parser and
+//! semantic pass, as Delphi's do (`antimony::parse`).
 //!
 //! The tests after "Added in the Rust port" have no Delphi counterpart. The
 //! corpus tests need `ANTIMONY_CORPUS` and `ANTIMONY_CORPUS_INDEX`.
@@ -859,22 +858,22 @@ fn every_non_comp_case_parses() {
 
 // --- TInvalidCorpusTests ------------------------------------------------------------------
 
-/// The fixtures whose diagnostics come from the semantic pass, checked from A4.
-const SEMANTIC_FIXTURES: [&str; 2] = ["arity-mismatch", "recursive-function"];
-
-fn parser_fixtures() -> Vec<std::path::PathBuf> {
+/// Every fixture. They cover semantic diagnostics too (arity, recursion,
+/// type conflicts), so each is read by the whole pipeline.
+fn fixtures() -> Vec<std::path::PathBuf> {
     common::files_with(&common::invalid_dir(), "ant")
-        .into_iter()
-        .filter(|p| !SEMANTIC_FIXTURES.contains(&p.file_stem().unwrap().to_str().unwrap()))
-        .collect()
+}
+
+fn diagnose(file: &std::path::Path) -> Diagnostics {
+    antimony::parse(&common::read(file)).diagnostics
 }
 
 #[test]
 fn every_fixture_produces_its_expected_diagnostics() {
     let mut missing = String::new();
-    for file in parser_fixtures() {
+    for file in fixtures() {
         let expected = common::read_expected(&file.with_extension("expected")).unwrap();
-        let (_, diagnostics) = parse_document(&common::read(&file));
+        let diagnostics = diagnose(&file);
         for e in &expected {
             let found = diagnostics
                 .iter()
@@ -897,9 +896,9 @@ fn no_fixture_produces_an_unexpected_code() {
     // An error the fixture did not predict means it is not testing what it
     // says. Hints and warnings are commentary, and allowed.
     let mut surprises = String::new();
-    for file in parser_fixtures() {
+    for file in fixtures() {
         let expected = common::read_expected(&file.with_extension("expected")).unwrap();
-        let (_, diagnostics) = parse_document(&common::read(&file));
+        let diagnostics = diagnose(&file);
         for d in diagnostics.iter().filter(|d| d.severity == Severity::Error) {
             if !expected.iter().any(|e| e.code == d.code.name()) {
                 surprises += &format!("{}: unexpected {d}\n", file.display());

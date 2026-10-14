@@ -5,9 +5,10 @@ the human-readable language for biochemical models, and convert it to
 [SBML](https://sbml.org). Pure Rust with no dependencies, so it also works in
 WebAssembly.
 
-> **Status: under construction, not yet published.** The lexer,
-> expressions and statement parser are built (milestone A3); the semantic
-> pass is next. The package will be published as `antimony-rs` (the name
+> **Status: under construction, not yet published.** Reading is built
+> (milestone A4): `antimony::parse` gives a checked model and its
+> diagnostics. Functions, events and units are being checked next (A5),
+> then the writers. The package will be published as `antimony-rs` (the name
 > `antimony` is taken on crates.io); the library is called `antimony`.
 
 It is a port of a complete, tested Antimony implementation written in Delphi,
