@@ -123,3 +123,32 @@ fn corpus_index_is_readable() {
         "a case without its file"
     );
 }
+
+/// Ported from the Delphi `Tests/uAntCorpusTests.pas`: the rest of what
+/// `corpus_index_is_readable` does not already check.
+#[test]
+fn corpus_sets_are_consistent() {
+    let Some(cases) = common::corpus_index("corpus_sets_are_consistent") else {
+        return;
+    };
+    // The M5 set is exactly the cases with no SBML package, and contains the
+    // core set.
+    for case in &cases {
+        assert_eq!(case.is_m5(), case.packages.is_empty(), "{}", case.id);
+        assert!(!case.is_core() || case.is_m5(), "{}", case.id);
+    }
+    // The rejected cases left the challenge set; if a case were in both, one
+    // acceptance criterion could not be met.
+    for case in cases.iter().filter(|c| c.expects_reject()) {
+        assert_eq!(case.expect_reject, "negative-stoichiometry", "{}", case.id);
+        assert!(!case.is_challenge(), "{}", case.id);
+    }
+    // The conversionFactor repair of Delphi §5.8: 117 statements in 78 cases.
+    // If the corpus is regenerated without it, this notices.
+    let repaired: Vec<_> = cases.iter().filter(|c| c.conversion_factors > 0).collect();
+    assert_eq!(repaired.len(), 78);
+    assert_eq!(
+        repaired.iter().map(|c| c.conversion_factors).sum::<u64>(),
+        117
+    );
+}

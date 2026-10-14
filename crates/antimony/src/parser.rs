@@ -1620,7 +1620,10 @@ impl<'a> Parser<'a> {
                 let at = self.declare_symbol(name, name_span);
                 self.apply_declaration(at, SymbolKind::Reaction, name_span);
             }
-            None => reaction.name = self.generate_reaction_id(),
+            None => {
+                reaction.name = self.generate_reaction_id();
+                reaction.name_generated = true;
+            }
         }
         self.module_mut().reactions.push(reaction);
         self.expect_statement_end();

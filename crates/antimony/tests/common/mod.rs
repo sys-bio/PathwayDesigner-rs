@@ -3,6 +3,8 @@
 
 #![allow(dead_code)]
 
+pub mod compare;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -59,6 +61,9 @@ pub struct Case {
     pub challenge: String,
     /// Non-empty: the case must be rejected (Delphi §5.7).
     pub expect_reject: String,
+    /// `conversionFactor` statements the corpus generator added to repair
+    /// what libantimony drops (Delphi §5.8).
+    pub conversion_factors: u64,
 }
 
 /// Delphi §9.1's core component set: the M3/M4 acceptance cases use these
@@ -150,6 +155,7 @@ pub fn corpus_index(test: &str) -> Option<Vec<Case>> {
                 lossy: strings(item, "lossy"),
                 challenge: text_of(item, "challenge"),
                 expect_reject: text_of(item, "expect_reject"),
+                conversion_factors: item["conversion_factors"].as_u64().unwrap_or(0),
             }
         })
         .collect();

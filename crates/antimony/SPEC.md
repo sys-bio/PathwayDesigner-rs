@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4; §5.6, R28–R29 and the end of §10 in A6.
 
 ---
 
@@ -412,6 +412,34 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
   pass. A test with `formula v` does reach it; a deliberate breakage of that
   promotion showed the gap.
 
+## 5.6 The Antimony writer (built in A6)
+
+- `write_document(&Document) -> String` and `write_module(&Module)`, and
+  `write_document_with` / `write_module_with` taking `WriteOptions` (indent,
+  explicit declarations, blank lines between groups; Delphi's
+  `TAntWriterOptions`). `write::quoted` is the string escaper.
+- It follows `uAntWriter` group by group and line by line: declarations,
+  functions, reactions, interactions, events, algebraic rules, objectives,
+  constraints, values and rules, `const`/`var`, units, attachments,
+  annotations, raw sections; the module's display name after `end`. Over
+  the corpus its text is **identical to the Delphi writer's** for every file
+  but in how numbers are spelled (`1e-6` where Delphi writes `1E-6`, §5.2):
+  all 139 files that differ do so only there. Over the 689 BioModels the
+  only other difference is 46 `X notes "";` lines, which Delphi dropped and
+  this keeps (R24).
+- **Round-trip closure holds**, checked with a port of Delphi's
+  `uAntModelCompare` (`tests/common/compare.rs`) that also compares what
+  Delphi's did not: a reaction's generated name, the module's SBO term,
+  modifiers, formal arguments and the raw sections. Spans and symbol order
+  are ignored (the writer groups statements, so the first write reorders a
+  file). Every parseable non-`comp` corpus case (1657) reads back as the same
+  model, both as parsed and after the semantic pass, and so do all 689
+  BioModels; the second write of each equals the third.
+- Comments come back on the item they were written above (tested). Delphi's
+  writer drops the comment of a symbol it writes no statement for (a
+  parameter with no value); so does this.
+- Lines end with `\n` on every platform (R29).
+
 ## 6. Entry points and the error contract
 
 Reading is built (A4); the writers are a sketch until A6 and A7.
@@ -425,7 +453,7 @@ loaded.has_errors()
 let doc = loaded.into_result()?;   // Result<Document, Diagnostics> for callers who want it
 let flat = antimony::flatten::flatten(&doc);               // seam 2: a copy of the main module
 
-antimony::write(&module) -> String                         // A6
+antimony::write_document(&doc) -> String                  // A6; also write_module, WriteOptions
 antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
 ```
 
@@ -471,7 +499,7 @@ antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
 | `parser` | `uAntParser` | §5.4 |
 | `semantics` | `uAntSemantics` | §5.5 |
 | `flatten` | `uAntFlatten` | a copy, as in Delphi (§5.5) |
-| `write` | `uAntWriter` | |
+| `write` | `uAntWriter` | §5.6 |
 | `sbml` | `uAntSBMLWriter`'s mapping | `sbml` feature; built on `sbml-io` |
 | crate root | `uAntFacade` | re-shaped (§6) |
 
@@ -573,8 +601,9 @@ licence and API.
 | R25 | The plan split the parser between A3 and A5 | The whole parser is ported in A3 (§5.4) | It is one unit; A5 keeps the M5 tests and the 1629-case check |
 | R26 | References bound by pointer (`Binding`) | `semantics::resolve(module, name)` (§5.5) | R3; the same rules for built-ins and formal arguments |
 | R27 | Circular rules found by recursion | A loop with an explicit stack (§5.5) | A long chain of rules cannot exhaust the stack; same result and message |
+| R28 | An unlabelled reaction is written with its generated label, `_J1: S1 -> S2`, and reading that back declares a symbol `_J1` the model did not have | `Reaction::name_generated` records that the name was made up, and the writer leaves the label out | Round-trip closure for unlabelled reactions; the author's file comes back as written. The author chose this on 2026-10-14 |
+| R29 | The writer ends lines with the platform line break (CRLF on Windows) | `\n` | The same file on every platform, as R14 |
 
 ## 10. Left open, for the milestone that needs it
 
-- The deep model comparison for round-trip closure (A6), following
-  `uAntModelCompare`: it ignores spans, and treats `nan` as equal to itself.
+- Nothing at present.

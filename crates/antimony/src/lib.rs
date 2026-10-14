@@ -2,10 +2,9 @@
 //! the human-readable language for biochemical models, and convert it to SBML.
 //! Pure Rust with no dependencies, so it also works in WebAssembly.
 //!
-//! **Status: under construction.** Reading is built: the lexer, expressions,
-//! statement parser and semantic pass (milestone A4). The writers and the
-//! rest of the API arrive milestone by milestone (see `PLAN.md`). The design
-//! is recorded in `SPEC.md`.
+//! **Status: under construction.** Reading and writing Antimony are built
+//! (milestone A6); SBML output and the rest of the API arrive milestone by
+//! milestone (see `PLAN.md`). The design is recorded in `SPEC.md`.
 //!
 //! ```
 //! let loaded = antimony::parse("model *m()\n  J1: S1 -> S2; k1*S1\n  S1 = 10; k1 = 0.1\nend");
@@ -14,6 +13,10 @@
 //! assert_eq!(model.reactions[0].reactants[0].species, "S1");
 //! assert!(model.reactions[0].is_reversible());
 //! assert_eq!(model.symbol("S2").unwrap().kind, antimony::model::SymbolKind::Species);
+//!
+//! // Written back, it reads back as the same model.
+//! let text = antimony::write_document(&loaded.document);
+//! assert!(text.contains("J1: S1 -> S2; k1 * S1;"));
 //!
 //! // A typo is a warning, not a failure: the model still loads.
 //! let loaded = antimony::parse("J1: A -> B; k1*typoo\nA = 1; B = 0; k1 = 2");
@@ -51,10 +54,12 @@ pub mod number;
 pub mod parser;
 pub mod semantics;
 pub mod span;
+pub mod write;
 
 pub use diagnostics::{Code, Diagnostic, Diagnostics, Severity};
 pub use semantics::Options;
 pub use span::{Pos, Span};
+pub use write::{WriteOptions, write_document, write_module};
 
 use model::Document;
 

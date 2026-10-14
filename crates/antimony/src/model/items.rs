@@ -186,6 +186,10 @@ pub struct Reaction {
     /// Always set: an unlabelled reaction is named `_J1`, `_J2`, … when it
     /// is read, by its position among all the reactions.
     pub name: String,
+    /// The name was made up when the file was read, not written in it. The
+    /// writer then leaves the label out, so the file comes back as written
+    /// and reading it again makes the same name (SPEC.md R28).
+    pub name_generated: bool,
     pub kind: ReactionKind,
     pub reactants: Vec<Participant>,
     pub products: Vec<Participant>,
@@ -203,6 +207,7 @@ impl Reaction {
     pub fn new(name: impl Into<String>, span: Span) -> Reaction {
         Reaction {
             name: name.into(),
+            name_generated: false,
             kind: ReactionKind::Irreversible,
             reactants: Vec::new(),
             products: Vec::new(),
