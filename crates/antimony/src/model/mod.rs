@@ -10,6 +10,7 @@
 //! and checking them is the semantic pass's job.
 
 mod items;
+mod values;
 
 pub use items::*;
 

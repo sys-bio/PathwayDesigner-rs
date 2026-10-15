@@ -124,7 +124,7 @@ when those tests pass, `cargo clippy` is clean and the crate builds for wasm.
 | A5 ✓ | Functions, events, units, constraints, fbc model, annotations/CV terms | the parser already handles these (ported whole in A3, SPEC R25); A5 ports their tests and fills any gap they show | `uAntM5Tests` passing; the 1629-case set parses. **Done 2026-10-14**: all 38 tests pass with no change to the code; the 1629 cases load with no errors |
 | A6 ✓ | Antimony writer | `uAntWriter` | `uAntWriterTests` passing; round-trip closure over all 1657 parseable non-`comp` corpus cases (deep model comparison, Delphi `uAntModelCompare`). **Done 2026-10-14**: closure holds over the corpus and all 689 BioModels; the text matches Delphi's writer except in number spelling; unlabelled reactions stay unlabelled (SPEC R28) |
 | A7 ✓ | SBML output (`sbml` feature) | `uAntSBMLWriter`'s mapping, built on `sbml-io` | `uAntSBMLTests` passing; output validates with `sbml-io` and python-libsbml; the differential tier (§5) shows zero divergences over the 1629 SBML cases. **Done 2026-10-15**: all 68 tests pass; the 1657 corpus and 689 BioModels outputs are valid in `sbml-io` and libSBML; the differential tier compares SBML element by element and finds none of the 1657 different; three Delphi defects fixed (SPEC R30–R32) |
-| A8 | Facade, docs, BioModels | `uAntFacade` (re-shaped), `doc/api.md` | README with examples; the BioModels tier (§5) runs clean |
+| A8 ✓ | Facade, docs, BioModels | `uAntFacade` (re-shaped), `doc/api.md` | README with examples; the BioModels tier (§5) runs clean. **Done 2026-10-15**: value queries on `Module` and `parse_bytes` (SPEC §6), the crate documentation as the guide and README examples, all run as doc tests; `uAntFacadeTests` ported; the BioModels tier passes on all 708 convertible models, with no libSBML errors and the same diagnostics as Delphi |
 | A9 | Swap into PathwayDesigner | — | `pd-core::antimony` uses the new crate; PathwayDesigner's own Antimony tests pass unchanged; `pd-antimony` deleted; specs updated |
 
 A9 keeps everything PathwayDesigner-specific in the bridge,
@@ -145,7 +145,7 @@ fresh clone still passes `cargo test`.
 | Corpus: 1788 `NNNNN-antimony.ant` files | `…\Antimony_Delphi_Version\SBML Test Suite\NNNNN\` | `ANTIMONY_CORPUS` | parse, round-trip, SBML tiers |
 | Corpus index (milestone sets, `lossy`/`challenge` flags) | `…\Antimony_Delphi_Version\Tests\corpus\index.json` | `ANTIMONY_CORPUS_INDEX` | choose each milestone's acceptance set |
 | Invalid inputs, 12 `.ant` + `.expected` | `…\Antimony_Delphi_Version\Tests\corpus\invalid\` | — | **copied into `crates/antimony/tests/invalid/`** in A0 (the user's own files; `M3.md` there is a session transcript and was not copied) |
-| BioModels, 717 models | `…\Antimony_Delphi_Version\BioModels\<id>\` | `ANTIMONY_BIOMODELS` | A8 tier (Delphi `Tools/biomodels_tier.py`) |
+| BioModels, 717 models | `…\Antimony_Delphi_Version\BioModels\<id>\`, converted to Antimony by `tools/biomodels_to_antimony.py` (708 convert) | `ANTIMONY_BIOMODELS` (the converted folder) | A8 tier, `tests/biomodels.rs` (Delphi `Tools/biomodels_tier.py`) |
 | Reference implementation | `…\Antimony_Delphi_Version\CLI\Win64\Release\ant2sbml.exe` (already built) | `ANTIMONY_ORACLE` | differential tier |
 
 The SBML Test Suite is LGPL and is **not** copied into the repo (the same rule

@@ -90,6 +90,13 @@ pub fn write_sbml(document: &Document) -> String {
     sbml_io::write(&to_sbml(&flatten(document)))
 }
 
+/// A module, which should be the result of [`flatten`] (or
+/// [`flatten_module`](crate::flatten::flatten_module) for one that is not
+/// the main one), as SBML text.
+pub fn write_sbml_module(module: &Module) -> String {
+    sbml_io::write(&to_sbml(module))
+}
+
 /// A module, which should be the result of [`flatten`], as an SBML Level 3
 /// Version 2 document.
 pub fn to_sbml(module: &Module) -> sbml_io::Document {

@@ -152,6 +152,10 @@ pub fn read_error(name: &str, reason: &str) -> String {
     format!("Could not read \"{name}\": {reason}")
 }
 
+/// Not in Delphi, which read a file whole and reported its decoder's
+/// message with `read_error`.
+pub const NOT_UTF8: &str = "The source is not valid UTF-8";
+
 pub fn internal_error(what: &str) -> String {
     format!("Internal error: {what}")
 }

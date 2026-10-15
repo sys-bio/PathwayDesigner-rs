@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4; §5.6, R28–R29 and the end of §10 in A6; §5.7, R30–R32 and the A7 parts of §2, §6, §7 and §8 in A7.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4; §5.6, R28–R29 and the end of §10 in A6; §5.7, R30–R32 and the A7 parts of §2, §6, §7 and §8 in A7; §6 as built, the BioModels tier in §8, and R33–R35 in A8.
 
 ---
 
@@ -46,7 +46,8 @@ Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.
   "0.1", optional = true }`), so publishing this crate requires publishing
   `sbml-io` first.
 - **Dev-dependencies** are allowed for tests and examples, since they never
-  reach a user, but are kept few. A0 has none.
+  reach a user, but are kept few: `serde_json` (the corpus index) and
+  `sbml-io` (reading the oracle's SBML).
 - **Targets:** native (Windows, macOS, Linux) and `wasm32-unknown-unknown`.
   The core therefore never touches the file system, the clock or threads; it
   takes `&str` and returns values. Reading a file is the caller's job.
@@ -491,16 +492,19 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
   `sbml_io::read`, and has no errors in libSBML 5.20.5's full consistency
   check (python-libsbml; the Delphi output has none either). The
   differential tier finds our SBML **equal to Delphi's, element by
-  element**, on all 1657 (§8). Over the 689 BioModels the only differences
-  are R31 (2 models, `root(2, …)`) and R32 (41 models, modifier order).
+  element**, on all 1657 (§8). Over the 708 BioModels (A8) the only differences
+  are R31 (3 models, `root(2, …)`) and R32 (43 models, modifier order).
 
 ## 6. Entry points and the error contract
 
-Reading (A4), the Antimony writer (A6) and SBML output (A7) are built.
+Built: reading (A4), the Antimony writer (A6), SBML output (A7), and the
+facade (A8). The crate-level documentation in `src/lib.rs` is the user's
+guide (Delphi's `doc/api.md`, R35); this section is the design.
 
 ```rust
 let loaded = antimony::parse(source);                      // never fails, never panics
 let loaded = antimony::parse_with(source, &Options { strict: true, ..Default::default() });
+let loaded = antimony::parse_bytes(&bytes, &options);      // a file's bytes; R33
 loaded.document          // the model, as far as it could be read
 loaded.diagnostics       // Diagnostics (§5): the parser's, then the semantic pass's
 loaded.has_errors()
@@ -509,6 +513,16 @@ let flat = antimony::flatten::flatten(&doc);               // seam 2: a copy of 
 
 antimony::write_document(&doc) -> String                  // A6; also write_module, WriteOptions
 antimony::sbml::write_sbml(&doc) -> String                // A7, `sbml` feature; also to_sbml(&module)
+antimony::sbml::write_sbml_module(&module) -> String       // a module that is not the main one
+
+let m = doc.main_module();                                  // the queries (A8), on Module:
+m.species() / floating_species() / boundary_species() / compartments() / parameters()
+m.value(id) -> Option<f64>                                  // raw: None when nothing to compute
+m.concentration(id) / amount(id) / compartment_size(id) / parameter_value(id) -> Option<f64>
+m.stoichiometry(&participant) -> f64                        // 1 when silent
+m.evaluate(&expr) -> Option<f64>                            // through this module's values
+m.symbol(id) / reaction(id) / event(id) / function(id) / unit(id) -> Option<&T>
+symbol.assignment_rule() / rate_rule() -> Option<&Expr>;  participant.stoichiometry_text()
 ```
 
 - **A malformed file is not an error for the caller to unwrap.** It is a
@@ -525,18 +539,42 @@ antimony::sbml::write_sbml(&doc) -> String                // A7, `sbml` feature;
   warnings. `initialise_missing` is Delphi §6.5.1's opt-in fill-in
   (`--init-zero`): off by default, still reported, zero except for a
   compartment, which gets 1.
-- **Queries return `Option`.** Delphi's facade raises `EAntArgumentError` for
-  an id that names nothing; in Rust a lookup by id returns `Option<&T>`, and
-  a lookup by index is a slice index, which panics like any other — the same
-  "this is a bug in the caller" meaning, in Rust's idiom. The Delphi rule
-  that a caller writes no tests for missing values (a species with no value
-  reads 0, a compartment 1, a stoichiometry 1) becomes explicit helper
-  methods in A8, so the raw `Option` is always there for a caller who needs
-  to know the value was absent.
-- **No index-based accessor family.** Delphi's `GetSpeciesCount` /
-  `GetSpeciesId(i)` style exists for its facade; here the model's `Vec`s and
-  iterator methods (`module.species()`, `module.parameters()`) serve
-  instead. A8 decides what else the facade needs.
+- **Delphi's facade, re-shaped.** `TAntimony` is an object that is loaded
+  and then queried; here `parse` returns the model and the queries are
+  methods on `Module` (`src/model/values.rs`). Its three rules become:
+  1. *A caller writes no tests* — kept. The value methods answer with each
+     kind's default where the model is silent: a species 0, a compartment's
+     size 1 (0 would divide every concentration by zero), a parameter 0
+     (the semantic pass warned), a stoichiometry 1. `value` is the raw
+     answer, and the fields keep their `Option`, for a caller who needs to
+     know a value was absent.
+  2. *A bad argument raises* — becomes `None`. An id that is not of the kind
+     asked about (no such symbol, or a species asked for a parameter's
+     value) answers `None`; a lookup by index is the `Vec`'s own `get`, or
+     an index that panics like any other (R8).
+  3. *A query before a load raises* — cannot arise: there is no model before
+     `parse` returns one. A failed load is `Err` from `into_result`.
+- **Values are worked out as Delphi's facade did**: a symbol's assignment
+  rule if it has one (it holds at the start too), else its initial value,
+  evaluated through the values of the symbols it names, ten deep at most
+  (`a = b; b = a` is not a circular rule, so the semantic pass allows it).
+  `time`, a function call or a symbol with no value makes it `None`. A
+  species stores one number, an amount if `substanceOnly`, else a
+  concentration; the other goes through its compartment's size (1 if it
+  names none), and a size of 0 gives a concentration of 0, not infinity.
+- **No index-based accessor family** (R9). `GetSpeciesCount` /
+  `GetSpeciesId(i)` become the iterators; `GetReactantStoichiometry(r, i)`
+  is `m.stoichiometry(&m.reactions[r].reactants[i])`; `GetKineticLaw` is
+  the law's `to_string()`; `GetModelId` is `main_module().name`. Ids never
+  carry the `$` of a boundary species. An unnamed event has no id to look
+  up (Delphi's `GetEventIds` gave `''`); it is found in `events` by
+  position.
+- **Not ported:** `LoadFile` (R33) and `OnResolveImport`, which Delphi
+  declared but never called; it belongs with `import`, when modules are
+  built.
+- **Tests:** `tests/facade.rs` ports `uAntFacadeTests` (27 of 30; the three
+  about exceptions, reuse and missing files have nothing to test here and
+  are listed at its top), plus six of its own.
 
 ## 7. Layout of the code
 
@@ -555,7 +593,8 @@ antimony::sbml::write_sbml(&doc) -> String                // A7, `sbml` feature;
 | `flatten` | `uAntFlatten` | a copy, as in Delphi (§5.5) |
 | `write` | `uAntWriter` | §5.6 |
 | `sbml` | `uAntSBMLWriter`'s mapping | §5.7; `sbml` feature; built on `sbml-io` |
-| crate root | `uAntFacade` | re-shaped (§6) |
+| `model::values` | `uAntFacade`'s query surface | §6; methods on `Module`, `Symbol`, `Participant` |
+| crate root | `uAntFacade` (loading) | re-shaped (§6); the crate documentation is the guide (R35) |
 
 Not ported: `uAntCompat` (a migration shim for Delphi callers; Delphi
 decisions 23–25 do not apply), `Oracle/` (replaced by the differential tier,
@@ -583,7 +622,7 @@ decisions 23–25 do not apply), `Oracle/` (replaced by the differential tier,
   |---|---|---|
   | `ANTIMONY_CORPUS` | the folder holding `NNNNN/NNNNN-antimony.ant` (1788 cases) | A0 |
   | `ANTIMONY_CORPUS_INDEX` | the corpus `index.json` (milestone sets, `lossy`, `challenge`, `expect_reject`) | A3 |
-  | `ANTIMONY_BIOMODELS` | the curated BioModels folder | A8 |
+  | `ANTIMONY_BIOMODELS` | the curated BioModels as Antimony, `<id>.ant`, made by `tools/biomodels_to_antimony.py` | A8 |
   | `ANTIMONY_ORACLE` | the Delphi `ant2sbml.exe` | A3 |
   | `ANTIMONY_SBML_OUT` | a folder to save each corpus case's SBML in, for checking with libSBML | A7 |
 
@@ -631,6 +670,22 @@ decisions 23–25 do not apply), `Oracle/` (replaced by the differential tier,
   corpus test does the same for all 1657 cases. libSBML is run by hand on
   the files `ANTIMONY_SBML_OUT` collects; it is not a test, since it needs
   Python.
+- **The BioModels tier** (built in A8; Delphi `Tools/biomodels_tier.py`)
+  is `tests/biomodels.rs`. The corpus is synthetic — its Antimony was written
+  by libantimony from SBML made to test one feature at a time — so real
+  published models are where prose notes, author lists, CV terms and odd
+  vocabulary turn up. `tools/biomodels_to_antimony.py` converts the curated
+  `<id>/*url.xml` with libantimony: 708 of the 717 convert, as for Delphi
+  (the 9 others libantimony cannot read, or writes as invalid UTF-8). The
+  test checks every one loads with no errors, round-trips (deep comparison;
+  the second write equals the third), and, with `sbml`, gives SBML that
+  passes `sbml_io::validate`, reads back, and is the same after a trip
+  through this crate's Antimony writer. A8 result: all 708 pass; libSBML
+  5.20.5 finds no error in their SBML (`tools/libsbml_check.py` on the files
+  `ANTIMONY_SBML_OUT` collects); their diagnostics (28) match the Delphi
+  oracle's by line and code; with the writer's CV terms deliberately left
+  out, 562 fail. The Delphi tier's one "unsupported" model loads in both
+  implementations now.
 - **CI**: the workspace CI runs `cargo fmt --check`, clippy (native and
   `wasm32-unknown-unknown`, warnings as errors) and `cargo test` over every
   member, which covers this crate's core. Since A7 it also runs clippy
@@ -676,8 +731,11 @@ licence and API.
 | R28 | An unlabelled reaction is written with its generated label, `_J1: S1 -> S2`, and reading that back declares a symbol `_J1` the model did not have | `Reaction::name_generated` records that the name was made up, and the writer leaves the label out | Round-trip closure for unlabelled reactions; the author's file comes back as written. The author chose this on 2026-10-14 |
 | R29 | The writer ends lines with the platform line break (CRLF on Windows) | `\n` | The same file on every platform, as R14 |
 | R30 | A compartment's or parameter's SBML `constant` follows its declaration alone, so `x := 2*k` gives `constant="true"` with an assignment rule (libSBML 20903; an event assignment, 21213) | `constant="false"` when a rule or an event assignment changes it, as well as when declared `var` (§5.7) | Valid SBML. Neither the corpus nor BioModels has such a case, so the differential tier sees no difference |
-| R31 | `root(n, x)` and `log(b, x)` written as `<root/>` or `<log/>` with two ordinary arguments | The first argument as the `<degree>` or `<logbase>` qualifier (§5.7) | That is MathML; `sbml-io` cannot read Delphi's form. BIOMD0000000056 and 195 use `root(2, …)` |
-| R32 | Modifiers derived from a kinetic law sorted by a `TStringList`, in the locale's order (case ignored first: `Mpp` before `MpY`) | Sorted by character code (`MpY` before `Mpp`) | The same on every platform. Order means nothing in SBML; the corpus agrees exactly, and 41 BioModels differ only in this |
+| R31 | `root(n, x)` and `log(b, x)` written as `<root/>` or `<log/>` with two ordinary arguments | The first argument as the `<degree>` or `<logbase>` qualifier (§5.7) | That is MathML; `sbml-io` cannot read Delphi's form. BIOMD0000000056, 195 and 1044 use `root(2, …)` |
+| R32 | Modifiers derived from a kinetic law sorted by a `TStringList`, in the locale's order (case ignored first: `Mpp` before `MpY`) | Sorted by character code (`MpY` before `Mpp`) | The same on every platform. Order means nothing in SBML; the corpus agrees exactly, and 43 BioModels differ in this, and in nothing else but R31 |
+| R33 | `LoadFile` reads a file, reporting `dcFileNotFound` and `dcReadError` (with the decoder's message) | The crate opens no files; `parse_bytes` takes a file's bytes and reports invalid UTF-8 as `dcReadError` at the first bad byte | It runs in a browser, where there is no file system (§2); reading a file, and reporting a missing one, is the caller's part |
+| R34 | The facade's queries raise on a bad index or id, with a message naming the method | `None`, or the `Vec`'s own indexing (§6) | R8: Rust's idiom; there is no method name to report |
+| R35 | `doc/api.md`, a separate reference | The crate-level documentation (`src/lib.rs`) and the README, whose examples are run as doc tests | One place, shown by docs.rs, and checked by `cargo test` |
 
 ## 10. Left open, for the milestone that needs it
 
