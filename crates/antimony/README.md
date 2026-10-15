@@ -5,11 +5,13 @@ the human-readable language for biochemical models, and convert it to
 [SBML](https://sbml.org). Pure Rust with no dependencies, so it also works in
 WebAssembly.
 
-> **Status: under construction, not yet published.** Reading and writing
-> Antimony are built (milestone A6): `antimony::parse` gives a checked model
-> and its diagnostics, and `antimony::write_document` writes it back. SBML
-> output is next (A7). The package will be published as `antimony-rs` (the name
-> `antimony` is taken on crates.io); the library is called `antimony`.
+> **Status: under construction, not yet published.** Reading, writing and
+> SBML output are built (milestone A7): `antimony::parse` gives a checked
+> model and its diagnostics, `antimony::write_document` writes it back, and
+> with the `sbml` feature `antimony::sbml::write_sbml` converts it to SBML.
+> The facade and documentation come next (A8). The package will be
+> published as `antimony-rs` (the name `antimony` is taken on crates.io);
+> the library is called `antimony`.
 
 It is a port of a complete, tested Antimony implementation written in Delphi,
 and is checked against it case by case.
@@ -42,6 +44,7 @@ requires), and expressions as an ordinary owned `enum`.
 
 ```sh
 cargo test
+cargo test --features sbml
 ```
 
 The tests that need the 1788-model test corpus, or the Delphi reference
@@ -54,12 +57,13 @@ with a note when those are not set (see `SPEC.md` §8):
 | `ANTIMONY_CORPUS_INDEX` | the corpus `index.json` |
 | `ANTIMONY_BIOMODELS` | the curated BioModels folder |
 | `ANTIMONY_ORACLE` | the reference converter, `ant2sbml.exe` |
+| `ANTIMONY_SBML_OUT` | a folder to save the corpus as SBML in, for libSBML |
 
 With all three corpus variables set, the differential tier compares this
 crate with the reference implementation over the whole corpus:
 
 ```sh
-cargo run --release --example differential
+cargo run --release --features sbml --example differential
 ```
 
 ## Licence

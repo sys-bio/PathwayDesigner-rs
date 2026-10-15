@@ -2,8 +2,8 @@
 //! implementation, case by case over the corpus.
 //!
 //! ```text
-//! cargo run --release -p antimony-rs --example differential
-//! cargo run --release -p antimony-rs --example differential -- 00001 01234
+//! cargo run --release -p antimony-rs --features sbml --example differential
+//! cargo run --release -p antimony-rs --features sbml --example differential -- 00001 01234
 //! ```
 //!
 //! Needs `ANTIMONY_CORPUS`, `ANTIMONY_CORPUS_INDEX` and `ANTIMONY_ORACLE`
@@ -16,27 +16,20 @@
 //! - **Diagnostics**, every one, by line and code: the oracle's on stderr
 //!   against `antimony::parse`'s. This covers the `comp` cases and the ones
 //!   the oracle rejects as well.
-//! - **The model**, where the oracle wrote SBML and the case is outside the
-//!   `comp` package. The oracle writes SBML, which `sbml-io` reads; this
-//!   crate's side is `antimony::parse` of the same file, flattened. They are
-//!   compared structurally, never as text.
-//!
-//! Until this crate writes SBML (A7) the model comparison is of what reading
-//! decides: which ids are species, compartments and parameters, and each
-//! species' compartment and boundary flag; each reaction's id,
-//! reversibility, participants, stoichiometry and whether it has a law;
-//! which symbols have assignment and rate rules; event ids and their
-//! targets; function definition ids; and the number of algebraic rules.
-//! Every difference is a divergence, except one the Delphi SBML writer is
-//! known to add: a `default_compartment` for species that have none.
+//! - **The SBML**, where the oracle wrote some and the case is outside the
+//!   `comp` package: the oracle's against this crate's `write_sbml` of the
+//!   same file. Both are read with `sbml-io`, so they are compared as
+//!   models, never as text, and then element by element (the model's own
+//!   attributes and annotation, each function, unit, compartment, species,
+//!   parameter, initial assignment, rule, constraint, reaction and event),
+//!   every attribute and every MathML node. The only allowance is whitespace
+//!   in raw notes and annotations. A divergence shows where the two first
+//!   differ.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{env, fs};
-
-use antimony::expr::ExprKind;
-use antimony::model::{Module, Participant, RuleKind, SymbolKind};
 
 /// One case to compare.
 struct Case {
@@ -123,156 +116,125 @@ fn run_oracle(oracle: &str, cache: &Path, case: &Case) -> Oracle {
     Oracle { sbml, diagnostics }
 }
 
-/// A participant as the SBML gives it: species and stoichiometry, either
-/// a number or the id of a named stoichiometry.
-fn ours_participant(p: &Participant) -> String {
-    match &p.stoichiometry {
-        None => format!("1 {}", p.species),
-        Some(e) => match (&e.kind, e.evaluate()) {
-            (ExprKind::Symbol(name), _) => format!("[{name}] {}", p.species),
-            (_, Some(value)) => format!("{value} {}", p.species),
-            _ => format!("({e}) {}", p.species),
-        },
+/// Removes what may differ in form but not in meaning: whitespace in raw
+/// notes and annotations, collapsed and dropped between tags. Delphi
+/// indents both and ends their lines with CRLF.
+fn normalise(model: &mut sbml_io::Model) {
+    fn text(raw: &mut Option<String>) {
+        if let Some(t) = raw {
+            *t = t
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .replace("> <", "><");
+        }
     }
-}
-
-fn theirs_participant(r: &sbml_io::SpeciesReference) -> String {
-    match (&r.id, r.stoichiometry) {
-        (Some(id), _) => format!("[{id}] {}", r.species),
-        (None, value) => format!("{} {}", value.unwrap_or(1.0), r.species),
+    fn meta(m: &mut sbml_io::Meta) {
+        text(&mut m.notes);
+        text(&mut m.annotation);
     }
+    meta(&mut model.meta);
+    model
+        .unit_definitions
+        .iter_mut()
+        .for_each(|u| meta(&mut u.meta));
+    model
+        .compartments
+        .iter_mut()
+        .for_each(|c| meta(&mut c.meta));
+    model.species.iter_mut().for_each(|s| meta(&mut s.meta));
+    model.parameters.iter_mut().for_each(|p| meta(&mut p.meta));
+    model.events.iter_mut().for_each(|e| meta(&mut e.meta));
+    model.reactions.iter_mut().for_each(|r| meta(&mut r.meta));
 }
 
-fn sorted(mut items: Vec<String>) -> Vec<String> {
-    items.sort();
-    items
-}
-
-/// What this crate's parse says, as comparable lines.
-fn ours(module: &Module) -> BTreeMap<String, String> {
+/// A model as comparable lines, one per element, keyed by what identifies
+/// it: its id, a rule's variable, or its position.
+fn elements(model: &sbml_io::Model) -> BTreeMap<String, String> {
     let mut facts = BTreeMap::new();
-    for r in &module.reactions {
-        let side = |ps: &[Participant]| sorted(ps.iter().map(ours_participant).collect());
-        facts.insert(
-            format!("reaction {}", r.name),
-            format!(
-                "reversible={} {:?} -> {:?} law={}",
-                r.is_reversible(),
-                side(&r.reactants),
-                side(&r.products),
-                r.kinetic_law.is_some()
-            ),
-        );
-    }
-    for s in &module.symbols {
-        if let Some(rule) = &s.rule {
-            if rule.expr.is_some() {
-                let kind = match rule.kind {
-                    RuleKind::Assignment => "assignment",
-                    RuleKind::Rate => "rate",
-                };
-                facts.insert(format!("rule {}", s.name), kind.to_string());
-            }
-        }
-    }
-    for e in &module.events {
-        if let Some(name) = &e.name {
-            let targets = sorted(e.assignments.iter().map(|a| a.target.clone()).collect());
-            facts.insert(format!("event {name}"), format!("{targets:?}"));
-        }
-    }
-    for f in &module.functions {
-        facts.insert(format!("function {}", f.name), String::new());
-    }
-    let algebraic = module
-        .algebraic_rules
-        .iter()
-        .filter(|r| r.expr.is_some())
-        .count();
-    facts.insert("algebraic rules".into(), algebraic.to_string());
-    for kind in [
-        SymbolKind::Species,
-        SymbolKind::Compartment,
-        SymbolKind::Parameter,
-    ] {
-        for s in module.symbols_of(kind) {
-            let detail = match kind {
-                SymbolKind::Species => format!(
-                    "species in {} boundary={}",
-                    s.compartment.as_deref().unwrap_or(DEFAULT_COMPARTMENT),
-                    s.is_boundary
-                ),
-                _ => kind.name().to_string(),
-            };
-            facts.insert(format!("symbol {}", s.name), detail);
-        }
-    }
-    facts
-}
-
-/// The compartment the Delphi SBML writer adds for species that have none.
-const DEFAULT_COMPARTMENT: &str = "default_compartment";
-
-/// What the oracle's SBML says, in the same form.
-fn theirs(model: &sbml_io::Model) -> BTreeMap<String, String> {
-    let mut facts = BTreeMap::new();
-    for r in &model.reactions {
-        let side =
-            |rs: &[sbml_io::SpeciesReference]| sorted(rs.iter().map(theirs_participant).collect());
-        let law = r.kinetic_law.as_ref().is_some_and(|k| k.math.is_some());
-        facts.insert(
-            format!("reaction {}", r.id),
-            format!(
-                "reversible={} {:?} -> {:?} law={law}",
-                r.reversible.unwrap_or(false),
-                side(&r.reactants),
-                side(&r.products),
-            ),
-        );
-    }
-    for rule in &model.rules {
-        let kind = match rule {
-            sbml_io::Rule::Assignment { .. } => "assignment",
-            sbml_io::Rule::Rate { .. } => "rate",
-            sbml_io::Rule::Algebraic { .. } => continue,
-        };
-        facts.insert(
-            format!("rule {}", rule.variable().unwrap_or_default()),
-            kind.to_string(),
-        );
-    }
-    for e in &model.events {
-        if let Some(id) = &e.id {
-            let targets = sorted(e.assignments.iter().map(|a| a.variable.clone()).collect());
-            facts.insert(format!("event {id}"), format!("{targets:?}"));
-        }
-    }
+    let mut add = |key: String, value: String| {
+        facts.insert(key, value);
+    };
+    let header = sbml_io::Model {
+        meta: model.meta.clone(),
+        id: model.id.clone(),
+        name: model.name.clone(),
+        conversion_factor: model.conversion_factor.clone(),
+        ..sbml_io::Model::default()
+    };
+    add("model".into(), format!("{header:?}"));
     for f in &model.function_definitions {
-        facts.insert(format!("function {}", f.id), String::new());
+        add(format!("function {}", f.id), format!("{f:?}"));
     }
-    let algebraic = model
-        .rules
-        .iter()
-        .filter(|r| matches!(r, sbml_io::Rule::Algebraic { .. }))
-        .count();
-    facts.insert("algebraic rules".into(), algebraic.to_string());
-    for s in &model.species {
-        facts.insert(
-            format!("symbol {}", s.id),
-            format!(
-                "species in {} boundary={}",
-                s.compartment,
-                s.boundary_condition.unwrap_or(false)
-            ),
-        );
+    for u in &model.unit_definitions {
+        add(format!("unit {}", u.id), format!("{u:?}"));
     }
     for c in &model.compartments {
-        facts.insert(format!("symbol {}", c.id), "compartment".into());
+        add(format!("compartment {}", c.id), format!("{c:?}"));
+    }
+    for s in &model.species {
+        add(format!("species {}", s.id), format!("{s:?}"));
     }
     for p in &model.parameters {
-        facts.insert(format!("symbol {}", p.id), "parameter".into());
+        add(format!("parameter {}", p.id), format!("{p:?}"));
+    }
+    for a in &model.initial_assignments {
+        add(format!("initial assignment {}", a.symbol), format!("{a:?}"));
+    }
+    let mut algebraic = 0;
+    for r in &model.rules {
+        let key = match r.variable() {
+            Some(v) => format!("rule {v}"),
+            None => {
+                algebraic += 1;
+                format!("algebraic rule {algebraic}")
+            }
+        };
+        add(key, format!("{r:?}"));
+    }
+    for (i, c) in model.constraints.iter().enumerate() {
+        add(format!("constraint {}", i + 1), format!("{c:?}"));
+    }
+    for r in &model.reactions {
+        add(format!("reaction {}", r.id), format!("{r:?}"));
+    }
+    for (i, e) in model.events.iter().enumerate() {
+        let key = e.id.clone().unwrap_or_else(|| format!("#{}", i + 1));
+        add(format!("event {key}"), format!("{e:?}"));
     }
     facts
+}
+
+/// Where two descriptions of an element first differ, with some context.
+fn first_difference(a: &str, b: &str) -> (String, String) {
+    let at = a
+        .char_indices()
+        .zip(b.chars())
+        .find(|((_, x), y)| x != y)
+        .map(|((i, _), _)| i)
+        .unwrap_or(a.len().min(b.len()));
+    let window = |s: &str| {
+        let mut start = at.saturating_sub(60);
+        while !s.is_char_boundary(start) {
+            start -= 1;
+        }
+        let mut end = (at + 100).min(s.len());
+        while !s.is_char_boundary(end) {
+            end += 1;
+        }
+        format!("…{}…", &s[start..end])
+    };
+    (window(a), window(b))
+}
+
+/// A model read from SBML text, normalised.
+fn read_model(xml: &str, whose: &str, case: &str) -> sbml_io::Model {
+    let mut model = match sbml_io::read(xml) {
+        Ok(read) => read.document.model.unwrap_or_default(),
+        Err(e) => panic!("{case}: sbml-io cannot read {whose} SBML: {e:?}"),
+    };
+    normalise(&mut model);
+    model
 }
 
 fn main() {
@@ -309,21 +271,21 @@ fn main() {
 
         if let (Some(xml), false) = (&oracle.sbml, case.comp) {
             models += 1;
-            let model = match sbml_io::read(xml) {
-                Ok(read) => read.document.model.unwrap_or_default(),
-                Err(e) => panic!("{}: sbml-io cannot read the oracle's SBML: {e:?}", case.id),
-            };
-            let ours = ours(&antimony::flatten::flatten(&loaded.document));
-            let mut theirs = theirs(&model);
-            let default = format!("symbol {DEFAULT_COMPARTMENT}");
-            if !ours.contains_key(&default) {
-                theirs.remove(&default);
-            }
+            let ours_xml = antimony::sbml::write_sbml(&loaded.document);
+            let ours = elements(&read_model(&ours_xml, "our", &case.id));
+            let theirs = elements(&read_model(xml, "the oracle's", &case.id));
             facts += ours.len().max(theirs.len());
             for key in ours.keys().chain(theirs.keys()) {
                 let (a, b) = (ours.get(key), theirs.get(key));
                 if a != b && !differences.iter().any(|(k, _, _)| k == key) {
-                    differences.push((key.clone(), a.cloned(), b.cloned()));
+                    let (a, b) = match (a, b) {
+                        (Some(a), Some(b)) => {
+                            let (a, b) = first_difference(a, b);
+                            (Some(a), Some(b))
+                        }
+                        _ => (a.cloned(), b.cloned()),
+                    };
+                    differences.push((key.clone(), a, b));
                 }
             }
         }

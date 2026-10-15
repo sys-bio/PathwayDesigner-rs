@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4; §5.6, R28–R29 and the end of §10 in A6.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4; §5.6, R28–R29 and the end of §10 in A6; §5.7, R30–R32 and the A7 parts of §2, §6, §7 and §8 in A7.
 
 ---
 
@@ -40,8 +40,8 @@ Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.
 
 - **The core has no dependencies.** Lexer, parser, semantics and the Antimony
   writer are plain `std`.
-- **The `sbml` feature** (milestone A7) adds `sbml-io` and nothing else. It is
-  declared when A7 starts, not before. Until `sbml-io` is published the
+- **The `sbml` feature** (built in A7) adds `sbml-io` and nothing else, and
+  the crate still builds for wasm32 with it (CI checks both). Until `sbml-io` is published the
   dependency is a path with a version (`{ path = "../sbml-io", version =
   "0.1", optional = true }`), so publishing this crate requires publishing
   `sbml-io` first.
@@ -440,9 +440,63 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
   parameter with no value); so does this.
 - Lines end with `\n` on every platform (R29).
 
+## 5.7 SBML output (built in A7, `sbml` feature)
+
+- `sbml::write_sbml(&Document) -> String` writes the main module, flattened,
+  as SBML Level 3 Version 2 (Delphi decision 11: L3V2 only).
+  `sbml::to_sbml(&Module) -> sbml_io::Document` gives the same as data, for
+  a caller that wants to change it or validate it first; `sbml::to_math`
+  converts one expression to MathML; `xml_escape` and `xml_escape_text` are
+  the escapers; `DEFAULT_COMPARTMENT` is the id of the compartment made for
+  species that name none.
+- It follows `uAntSBMLWriter` element by element, but builds an
+  `sbml_io::Document` instead of writing text (R10): `sbml-io` writes the
+  XML, so the attribute order is `sbml-io`'s (`metaid` first) and lines end
+  with `\n`. The mapping, in brief:
+  - a literal value (a number, or a signed one) is the element's attribute;
+    anything else, `3/2` included, is an initial assignment, so the author's
+    expression is kept;
+  - a species with no compartment goes in `default_compartment` (made with
+    SBO:0000410, unless the model declares one); `substanceOnly` makes the
+    value an amount;
+  - rules are written assignment, then rate, then algebraic; a rule with no
+    expression (`p' = ;`) is left out;
+  - a constraint naming a reaction is a flux bound, which belongs to `fbc`,
+    and is left out;
+  - a named stoichiometry is the species reference's id, with the named
+    symbol's value, constant unless a rule or event changes it;
+  - modifiers are every species the kinetic law uses that is not a reactant
+    or product (rule 21121), in order of name (R32), and an interaction is a
+    modifier with its SBO term and label, replacing the bare one;
+  - an unnamed event is given the id `_E1`, `_E2`, … by position, and its
+    three required flags are always written, `true` unless the source says
+    otherwise;
+  - `time` and `avogadro` are csymbols, `delay` and `rateOf` csymbol calls;
+    `sqrt` and `log10` are a root of degree 2 and a log of base 10; `root`
+    and `log` with two arguments take the first as the degree or base (R31);
+  - a unit definition is built from base units, `^` exponents and a leading
+    multiplier; one it cannot represent is written empty, not wrong;
+  - notes that are already XHTML go out as markup in a `<body>`, prose is
+    escaped in a `<p>`; CV terms, creators and dates go in one RDF
+    annotation, terms sharing a qualifier in one `rdf:Bag`, `bqmodel` or
+    `bqbiol` by subject; a `meta_<id>` metaid is made only where there is
+    something to anchor.
+- Not written, as in Delphi: the `fbc` package (objectives and flux bounds
+  are read and kept, not emitted), SBO terms on the model and its symbols,
+  and the `comp` package (flattening is still a copy of the main module).
+- A compartment or parameter changed by a rule or an event is
+  `constant="false"` even when not declared `var` (R30).
+- **Checked:** every parseable non-`comp` corpus case (1657) and all 689
+  BioModels give SBML that passes `sbml_io::validate`, reads back with
+  `sbml_io::read`, and has no errors in libSBML 5.20.5's full consistency
+  check (python-libsbml; the Delphi output has none either). The
+  differential tier finds our SBML **equal to Delphi's, element by
+  element**, on all 1657 (§8). Over the 689 BioModels the only differences
+  are R31 (2 models, `root(2, …)`) and R32 (41 models, modifier order).
+
 ## 6. Entry points and the error contract
 
-Reading is built (A4); the writers are a sketch until A6 and A7.
+Reading (A4), the Antimony writer (A6) and SBML output (A7) are built.
 
 ```rust
 let loaded = antimony::parse(source);                      // never fails, never panics
@@ -454,7 +508,7 @@ let doc = loaded.into_result()?;   // Result<Document, Diagnostics> for callers 
 let flat = antimony::flatten::flatten(&doc);               // seam 2: a copy of the main module
 
 antimony::write_document(&doc) -> String                  // A6; also write_module, WriteOptions
-antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
+antimony::sbml::write_sbml(&doc) -> String                // A7, `sbml` feature; also to_sbml(&module)
 ```
 
 - **A malformed file is not an error for the caller to unwrap.** It is a
@@ -500,7 +554,7 @@ antimony::to_sbml(&module) -> sbml_io::Document            // A7, `sbml` feature
 | `semantics` | `uAntSemantics` | §5.5 |
 | `flatten` | `uAntFlatten` | a copy, as in Delphi (§5.5) |
 | `write` | `uAntWriter` | §5.6 |
-| `sbml` | `uAntSBMLWriter`'s mapping | `sbml` feature; built on `sbml-io` |
+| `sbml` | `uAntSBMLWriter`'s mapping | §5.7; `sbml` feature; built on `sbml-io` |
 | crate root | `uAntFacade` | re-shaped (§6) |
 
 Not ported: `uAntCompat` (a migration shim for Delphi callers; Delphi
@@ -531,13 +585,14 @@ decisions 23–25 do not apply), `Oracle/` (replaced by the differential tier,
   | `ANTIMONY_CORPUS_INDEX` | the corpus `index.json` (milestone sets, `lossy`, `challenge`, `expect_reject`) | A3 |
   | `ANTIMONY_BIOMODELS` | the curated BioModels folder | A8 |
   | `ANTIMONY_ORACLE` | the Delphi `ant2sbml.exe` | A3 |
+  | `ANTIMONY_SBML_OUT` | a folder to save each corpus case's SBML in, for checking with libSBML | A7 |
 
 - **The corpus index** is read with `serde_json`, a dev-dependency that
   never reaches a user (`tests/common/mod.rs`). Its milestone sets are
   checked against Delphi's counts: 836 core, 1629 M5, 125 `comp`, 10
   challenge, 5 reject, 9 lossy.
 - **The differential tier** (built in A3) is
-  `cargo run --release -p antimony-rs --example differential [case …]`,
+  `cargo run --release -p antimony-rs --features sbml --example differential [case …]`,
   Windows only in practice. It runs `ANTIMONY_ORACLE` (`ant2sbml.exe`) on
   every non-`comp` case, caching its SBML under `target/antimony-oracle/`,
   reads that with `sbml-io` (also a dev-dependency) and compares it
@@ -559,11 +614,28 @@ decisions 23–25 do not apply), `Oracle/` (replaced by the differential tier,
   species without one, is the one difference it allows. A4 result: all 1788
   agree, 818 diagnostics and 17,943 facts over 1657 models compared; with
   the uninitialised-symbol warning deliberately suppressed, 188 cases
-  diverge.
-- **CI**: the workspace CI already runs `cargo fmt --check`, clippy (native
-  and `wasm32-unknown-unknown`, warnings as errors) and `cargo test` over
-  every member, which covers this crate. When the `sbml` feature exists (A7)
-  a step with `--all-features` is added. When the crate moves to its own
+  diverge. **From A7** it compares SBML with SBML: this crate's
+  `write_sbml` and the oracle's output, both read with `sbml-io`, element
+  by element (the model's attributes and annotation, then each function,
+  unit, compartment, species, parameter, initial assignment, rule,
+  constraint, reaction and event), every attribute and every MathML node.
+  The one allowance is whitespace in raw notes and annotations (Delphi
+  indents them and ends their lines with CRLF; 50 cases differ only in
+  that). Modifier order needs no allowance: the corpus agrees exactly. A7
+  result: all 1788 agree, 818 diagnostics and 25,051 elements over 1657
+  models compared; with `^` deliberately written as `*`, 81 cases diverge,
+  with compartments written 2-dimensional 1338, with a creator's given
+  name changed 11.
+- **The SBML tests** (`tests/sbml.rs`, `sbml` feature) check that every
+  document they write passes `sbml_io::validate` and reads back, and the
+  corpus test does the same for all 1657 cases. libSBML is run by hand on
+  the files `ANTIMONY_SBML_OUT` collects; it is not a test, since it needs
+  Python.
+- **CI**: the workspace CI runs `cargo fmt --check`, clippy (native and
+  `wasm32-unknown-unknown`, warnings as errors) and `cargo test` over every
+  member, which covers this crate's core. Since A7 it also runs clippy
+  (native and wasm32) and the tests for this crate with `--all-features`,
+  and checks that `cargo tree` finds no dependency of the core. When the crate moves to its own
   repository it gets its own workflow doing the same.
 
 ## 9. Departures from the Delphi design
@@ -603,6 +675,9 @@ licence and API.
 | R27 | Circular rules found by recursion | A loop with an explicit stack (§5.5) | A long chain of rules cannot exhaust the stack; same result and message |
 | R28 | An unlabelled reaction is written with its generated label, `_J1: S1 -> S2`, and reading that back declares a symbol `_J1` the model did not have | `Reaction::name_generated` records that the name was made up, and the writer leaves the label out | Round-trip closure for unlabelled reactions; the author's file comes back as written. The author chose this on 2026-10-14 |
 | R29 | The writer ends lines with the platform line break (CRLF on Windows) | `\n` | The same file on every platform, as R14 |
+| R30 | A compartment's or parameter's SBML `constant` follows its declaration alone, so `x := 2*k` gives `constant="true"` with an assignment rule (libSBML 20903; an event assignment, 21213) | `constant="false"` when a rule or an event assignment changes it, as well as when declared `var` (§5.7) | Valid SBML. Neither the corpus nor BioModels has such a case, so the differential tier sees no difference |
+| R31 | `root(n, x)` and `log(b, x)` written as `<root/>` or `<log/>` with two ordinary arguments | The first argument as the `<degree>` or `<logbase>` qualifier (§5.7) | That is MathML; `sbml-io` cannot read Delphi's form. BIOMD0000000056 and 195 use `root(2, …)` |
+| R32 | Modifiers derived from a kinetic law sorted by a `TStringList`, in the locale's order (case ignored first: `Mpp` before `MpY`) | Sorted by character code (`MpY` before `Mpp`) | The same on every platform. Order means nothing in SBML; the corpus agrees exactly, and 41 BioModels differ only in this |
 
 ## 10. Left open, for the milestone that needs it
 

@@ -45,6 +45,20 @@ jobs:
       - name: Clippy, wasm32 (every crate must build for the browser)
         run: cargo clippy --workspace --target wasm32-unknown-unknown -- -D warnings
 
+      # The antimony crate's optional features are off in the workspace
+      # build, so they are linted and built for the browser on their own.
+      - name: Clippy, antimony with every feature
+        run: |
+          cargo clippy -p antimony-rs --all-features --all-targets -- -D warnings
+          cargo clippy -p antimony-rs --all-features --target wasm32-unknown-unknown -- -D warnings
+
+      # Its core has no dependencies (crates/antimony/SPEC.md §2).
+      - name: The antimony core has no dependencies
+        run: |
+          cargo tree -p antimony-rs -e normal --prefix none > tree.txt
+          cat tree.txt
+          test "$(wc -l < tree.txt)" -eq 1
+
       - name: Licences and advisories
         uses: EmbarkStudios/cargo-deny-action@v2
 
@@ -55,6 +69,9 @@ jobs:
       # Native tests keep the desktop version possible (SPEC-Rust §14.5).
       - name: Tests
         run: cargo test --workspace
+
+      - name: Tests, antimony with every feature (SBML output)
+        run: cargo test -p antimony-rs --all-features
 
   # The desktop app on macOS (SPEC-Rust §15.1): the menu bar code only builds
   # there, so lint and test it on a Mac runner too.

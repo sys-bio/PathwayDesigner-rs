@@ -2,9 +2,10 @@
 //! the human-readable language for biochemical models, and convert it to SBML.
 //! Pure Rust with no dependencies, so it also works in WebAssembly.
 //!
-//! **Status: under construction.** Reading and writing Antimony are built
-//! (milestone A6); SBML output and the rest of the API arrive milestone by
-//! milestone (see `PLAN.md`). The design is recorded in `SPEC.md`.
+//! **Status: under construction.** Reading and writing Antimony, and SBML
+//! output with the `sbml` feature (`antimony::sbml`), are built (milestone
+//! A7); the rest of the API arrives milestone by milestone (see `PLAN.md`).
+//! The design is recorded in `SPEC.md`.
 //!
 //! ```
 //! let loaded = antimony::parse("model *m()\n  J1: S1 -> S2; k1*S1\n  S1 = 10; k1 = 0.1\nend");
@@ -52,6 +53,8 @@ pub mod messages;
 pub mod model;
 pub mod number;
 pub mod parser;
+#[cfg(feature = "sbml")]
+pub mod sbml;
 pub mod semantics;
 pub mod span;
 pub mod write;
