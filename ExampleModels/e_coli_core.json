@@ -1,0 +1,4811 @@
+{
+  "version": 4,
+  "modelName": "e_coli_core",
+  "compartments": [
+    {
+      "id": "e",
+      "size": 1.0,
+      "dimensions": 3,
+      "x": 299.78573662152166,
+      "y": 327.4443876668247,
+      "w": 1983.2469465791928,
+      "h": 2096.143512671835
+    },
+    {
+      "id": "c",
+      "size": 1.0,
+      "dimensions": 3,
+      "x": 330.8954235861986,
+      "y": 221.33483770759528,
+      "w": 2103.4966723143543,
+      "h": 1919.3609822841906
+    }
+  ],
+  "parameters": [
+    {
+      "variable": "cobra_default_lb",
+      "expression": "-1000"
+    },
+    {
+      "variable": "cobra_default_ub",
+      "expression": "1000"
+    },
+    {
+      "variable": "cobra_0_bound",
+      "expression": "0"
+    },
+    {
+      "variable": "R_ATPM_lower_bound",
+      "expression": "8.39"
+    },
+    {
+      "variable": "R_EX_glc__D_e_lower_bound",
+      "expression": "-10"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "M_glc__D_e",
+      "x": -232.2260806844746,
+      "y": -132.8911068182119,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_gln__L_c",
+      "x": 682.9897927094448,
+      "y": 1024.5707935466394,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_gln__L_e",
+      "x": 220.82869048574537,
+      "y": 1121.8181737019352,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_glu__L_c",
+      "x": 767.3274524502235,
+      "y": 823.1896641688081,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_glu__L_e",
+      "x": 1089.7586384068995,
+      "y": -171.64328362480356,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_glx_c",
+      "x": 827.3851141016048,
+      "y": 489.5963936632438,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_h2o_c",
+      "x": 1069.330166870655,
+      "y": 368.32697927581046,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_h2o_e",
+      "x": 508.3173335413214,
+      "y": 1179.7303722301574,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_h_c",
+      "x": 464.4486577467039,
+      "y": 44.009234409191926,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_h_e",
+      "x": 405.4854613272088,
+      "y": -273.9748726989459,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_icit_c",
+      "x": 801.5694731365504,
+      "y": 946.8254222220644,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_lac__D_c",
+      "x": -357.25719080204595,
+      "y": -110.29342678969888,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_lac__D_e",
+      "x": -264.1921228255882,
+      "y": -421.2875365322566,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_mal__L_c",
+      "x": 282.8493741463751,
+      "y": 142.16059157027377,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_mal__L_e",
+      "x": 1221.409209911118,
+      "y": 282.04269513164996,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_nad_c",
+      "x": -224.5167324172219,
+      "y": 202.5241893316719,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_nadh_c",
+      "x": -220.95729653634697,
+      "y": 16.70225868135693,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_nadp_c",
+      "x": 94.54127576167761,
+      "y": 907.0705261203166,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_nadph_c",
+      "x": 129.35118885578993,
+      "y": 762.3976182668328,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_nh4_c",
+      "x": 810.3539304708138,
+      "y": 1133.0153288496906,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_13dpg_c",
+      "x": -171.99390946613838,
+      "y": 694.9872623451852,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_nh4_e",
+      "x": 228.03954385887786,
+      "y": 1327.5161440027423,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_o2_c",
+      "x": -108.26161852928934,
+      "y": 430.6498366715507,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_2pg_c",
+      "x": 809.171330701736,
+      "y": -199.1912831417301,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_o2_e",
+      "x": 269.6188481669094,
+      "y": 1207.243508989282,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_3pg_c",
+      "x": 98.6236735354579,
+      "y": 478.1399682596197,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_oaa_c",
+      "x": 595.2141983381005,
+      "y": 201.36553211856562,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_pep_c",
+      "x": 618.3259850597403,
+      "y": 329.5803562814085,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_6pgc_c",
+      "x": 768.8643574404596,
+      "y": 712.1970115165173,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_pi_c",
+      "x": 500.83247798618015,
+      "y": 559.3974083702765,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_6pgl_c",
+      "x": 1027.30211219449,
+      "y": 781.8310842232925,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_pi_e",
+      "x": -179.44061409163427,
+      "y": 835.5184415581396,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_ac_c",
+      "x": 503.27579894863356,
+      "y": 265.5017055085279,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_pyr_c",
+      "x": 145.3667503398814,
+      "y": 192.3972150748383,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_pyr_e",
+      "x": 558.7317963142038,
+      "y": -594.3810979205464,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_q8_c",
+      "x": 60.503015640516594,
+      "y": -634.2597017179909,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_q8h2_c",
+      "x": 159.48334554560714,
+      "y": -690.3456534345,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_r5p_c",
+      "x": -365.14623258749316,
+      "y": 365.66630848969567,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_ru5p__D_c",
+      "x": -389.8127849507138,
+      "y": 483.3951501318435,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_ac_e",
+      "x": -305.7598456625143,
+      "y": -209.2754956810515,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_acald_c",
+      "x": -481.02372763468054,
+      "y": 90.60871428896604,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_s7p_c",
+      "x": -650.8529125709786,
+      "y": 421.3552378155943,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_acald_e",
+      "x": -621.8377366680747,
+      "y": 660.2396368146015,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_accoa_c",
+      "x": 541.3398173580447,
+      "y": -154.12798518925814,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_succ_c",
+      "x": 220.095664718874,
+      "y": -312.5671775515068,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_succ_e",
+      "x": -14.747022954032744,
+      "y": -672.6273686690929,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_succoa_c",
+      "x": 63.06903703668177,
+      "y": 99.38424795986954,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_acon_C_c",
+      "x": 1312.6437597433758,
+      "y": 394.87148213793415,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_xu5p__D_c",
+      "x": -644.8579313592118,
+      "y": 548.395211736278,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_actp_c",
+      "x": 1058.534385034303,
+      "y": 178.11726669255683,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_adp_c",
+      "x": 905.4729129495033,
+      "y": 653.3957141604051,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_akg_c",
+      "x": 401.22701637054706,
+      "y": 695.9789808791511,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_akg_e",
+      "x": 1154.0993048018117,
+      "y": 97.90445455807354,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_amp_c",
+      "x": 558.7895553515232,
+      "y": 699.0881209370202,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_atp_c",
+      "x": 696.2363594795306,
+      "y": 597.6940602665472,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_cit_c",
+      "x": 1149.4779490368462,
+      "y": -37.11701951423132,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_co2_c",
+      "x": 246.25117824950775,
+      "y": 334.48864125303976,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_co2_e",
+      "x": 922.4058283843622,
+      "y": -296.73004325699736,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_coa_c",
+      "x": 266.28766412904224,
+      "y": -42.829567261081266,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_dhap_c",
+      "x": -377.01588050565454,
+      "y": 1036.733071742532,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_e4p_c",
+      "x": -270.71497544609014,
+      "y": 617.0965787973389,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_etoh_c",
+      "x": -291.7445666996471,
+      "y": -304.5339850278935,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_etoh_e",
+      "x": -431.088276097158,
+      "y": -256.3251432704756,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_f6p_c",
+      "x": -53.497620189623206,
+      "y": 728.6287847525873,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_fdp_c",
+      "x": 116.29433179630921,
+      "y": 1063.7853880304986,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_for_c",
+      "x": 712.1758203030513,
+      "y": -567.2648543100806,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_for_e",
+      "x": 861.0708395514009,
+      "y": -493.49766937192896,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_fru_e",
+      "x": 320.50341351536014,
+      "y": -141.09920445684682,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_fum_c",
+      "x": 182.10302163683838,
+      "y": -446.52236072238213,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_fum_e",
+      "x": -376.4353863021091,
+      "y": 18.416263841023685,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "e"
+    },
+    {
+      "id": "M_g3p_c",
+      "x": -309.5744775757312,
+      "y": 768.2257418044287,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "M_g6p_c",
+      "x": -47.49298065061461,
+      "y": 858.7386760700392,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "c"
+    },
+    {
+      "id": "_sink_R_EX_ac_e",
+      "x": -622.9144788972362,
+      "y": -230.26736754176093,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_acald_e",
+      "x": -544.0710011704348,
+      "y": 894.5928106627009,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_akg_e",
+      "x": 1375.6125372660936,
+      "y": 236.58478822076157,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_co2_e",
+      "x": 1154.4852249543346,
+      "y": -313.6019567179341,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_etoh_e",
+      "x": -689.4390354267803,
+      "y": 31.67844949812597,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_for_e",
+      "x": 1086.3579595121212,
+      "y": -438.2793077615525,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_fru_e",
+      "x": 114.97019794059986,
+      "y": -253.8828049098629,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_fum_e",
+      "x": -538.5823329080533,
+      "y": 207.36755383929173,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_glc__D_e",
+      "x": -483.6019908246996,
+      "y": -416.2892137608266,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_gln__L_e",
+      "x": -93.429293002643,
+      "y": 1187.5815976240488,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_glu__L_e",
+      "x": 1284.8028283479803,
+      "y": -101.97482003649623,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_h_e",
+      "x": 845.838550856881,
+      "y": -371.31792337592515,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_h2o_e",
+      "x": 349.42533939074787,
+      "y": 1345.8757055227775,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_lac__D_e",
+      "x": -123.87904974457317,
+      "y": -599.8368784845375,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_mal__L_e",
+      "x": 1302.2859685441763,
+      "y": 655.5154599821317,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_nh4_e",
+      "x": -20.899891042241208,
+      "y": 1293.3259202589693,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_o2_e",
+      "x": 708.817530838953,
+      "y": 1287.9645007487798,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_pi_e",
+      "x": -247.1568645341697,
+      "y": 1168.3926501769392,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_pyr_e",
+      "x": 653.4104148473523,
+      "y": -717.302657737541,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink_R_EX_succ_e",
+      "x": -333.200920578884,
+      "y": -559.5952684868043,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "S1",
+      "x": 657.6499145598054,
+      "y": 285.10405626637436,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S2",
+      "x": 1053.0183321228471,
+      "y": 211.56930383009032,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S3",
+      "x": 59.64719928470748,
+      "y": -31.78506223343799,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S4",
+      "x": 927.4208524720398,
+      "y": 178.66390457377997,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S5",
+      "x": 193.32235330195664,
+      "y": 199.6815043590804,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S6",
+      "x": -287.6825129379087,
+      "y": 1.8481668112180856,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S7",
+      "x": 799.1717671420911,
+      "y": 334.9188185137796,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S8",
+      "x": 729.9335890063091,
+      "y": 221.38052629902043,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S9",
+      "x": 248.72132903273433,
+      "y": -69.44946634926754,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S10",
+      "x": 468.033882004783,
+      "y": 244.9982704154257,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S11",
+      "x": 837.9350391072262,
+      "y": 225.52348098046943,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S12",
+      "x": 693.1333179503881,
+      "y": 32.97106684542067,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S13",
+      "x": 339.1489272884836,
+      "y": 365.23653707019895,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S14",
+      "x": 397.62513828510646,
+      "y": -326.91089242188247,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S15",
+      "x": 815.7925299711039,
+      "y": -67.16879082984045,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S16",
+      "x": 241.7970703744383,
+      "y": -482.56306691111405,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S17",
+      "x": 347.6365599718897,
+      "y": -207.43411447584364,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S18",
+      "x": -9.688824250960295,
+      "y": -193.68266862543885,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S19",
+      "x": 73.59340995750597,
+      "y": -301.0256870029021,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S20",
+      "x": 12.494593887291444,
+      "y": -388.67967146111795,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S21",
+      "x": 309.5147863005175,
+      "y": 115.78799914810256,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S22",
+      "x": 642.4258919357899,
+      "y": -428.22767953347847,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S23",
+      "x": 438.9199625376147,
+      "y": -62.24867703536784,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S24",
+      "x": 352.4310009461652,
+      "y": 634.1054324781254,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S25",
+      "x": -40.11552454451612,
+      "y": 378.273291931673,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S26",
+      "x": 784.7338373198158,
+      "y": 588.9460400248407,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S27",
+      "x": 631.5115688556925,
+      "y": 678.0145885116164,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S28",
+      "x": 498.401102431639,
+      "y": 894.7193892040177,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S29",
+      "x": 412.97180105283354,
+      "y": 765.130801305691,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S30",
+      "x": 815.0454692807727,
+      "y": -189.44271247696614,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S31",
+      "x": -135.8563529176384,
+      "y": 314.9108447608102,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S32",
+      "x": 580.8517927501641,
+      "y": 89.66632805887846,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S33",
+      "x": 78.03501989479622,
+      "y": 80.19347752398085,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S34",
+      "x": 234.24905251178035,
+      "y": -256.26249078449626,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h_c"
+    },
+    {
+      "id": "S35",
+      "x": -397.02157110838425,
+      "y": -48.51729488100002,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S36",
+      "x": -169.31509678978378,
+      "y": 84.4387103563748,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S37",
+      "x": 104.5554968341383,
+      "y": 416.6115787768894,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S38",
+      "x": -99.38080663432328,
+      "y": 179.71052269307054,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S39",
+      "x": -300.5719691744194,
+      "y": 307.4056494859559,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S40",
+      "x": -363.49840273937286,
+      "y": 186.70755733478077,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S41",
+      "x": -123.65939264071096,
+      "y": 38.36796777465142,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S42",
+      "x": -213.79957516949176,
+      "y": 183.79601018909995,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S43",
+      "x": 46.67639253650378,
+      "y": -345.8169514643304,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S44",
+      "x": -256.035894360258,
+      "y": 447.182066802598,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S45",
+      "x": -132.54590605803213,
+      "y": -31.201452027686663,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_nadh_c"
+    },
+    {
+      "id": "S46",
+      "x": 674.8174858252002,
+      "y": 761.3021244916413,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S47",
+      "x": 446.19954241460914,
+      "y": 730.2621065862111,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S48",
+      "x": 1041.8870078890534,
+      "y": 654.0955273944237,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S49",
+      "x": 930.8142463203396,
+      "y": 570.870364360571,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S50",
+      "x": 745.8644820123126,
+      "y": 810.7093901636812,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S51",
+      "x": 1038.495675473634,
+      "y": 361.74949584850026,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S52",
+      "x": 938.642243206579,
+      "y": 406.52289457113847,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S53",
+      "x": 486.95143251855814,
+      "y": 573.4967558381223,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S54",
+      "x": 552.6682794723632,
+      "y": 295.6436452123457,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S55",
+      "x": 1000.0548789963314,
+      "y": 811.9406583313256,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S56",
+      "x": 832.8959022670253,
+      "y": 822.176476943243,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_adp_c"
+    },
+    {
+      "id": "S57",
+      "x": 1172.4976253826399,
+      "y": 370.815627461236,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S58",
+      "x": 902.0326136990416,
+      "y": 340.89992864055125,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S59",
+      "x": 1289.4271805505994,
+      "y": 143.18164418277442,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S60",
+      "x": 1181.323900806936,
+      "y": 522.6042987526287,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S61",
+      "x": 773.858269817354,
+      "y": 348.61946126563794,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S62",
+      "x": 1051.0727678167136,
+      "y": 273.76097773790895,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S63",
+      "x": 445.94583580884876,
+      "y": 450.40007184066826,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S64",
+      "x": 1065.629805246806,
+      "y": 6.622943446610236,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S65",
+      "x": 469.1370654576855,
+      "y": -244.38520580474403,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S66",
+      "x": 1140.5362418333382,
+      "y": 130.60846352317122,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S67",
+      "x": 550.9633303185531,
+      "y": 746.8838820119881,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S68",
+      "x": 639.6112368172097,
+      "y": 181.18529057211492,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S69",
+      "x": 807.6091512444849,
+      "y": 736.9967536074371,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S70",
+      "x": 655.8931468196445,
+      "y": 853.779561592476,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S71",
+      "x": 1061.6502768182045,
+      "y": 838.4219713889079,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S72",
+      "x": 755.6594231935171,
+      "y": 980.5249754011801,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    },
+    {
+      "id": "S73",
+      "x": 938.5037536949901,
+      "y": 141.97490720651933,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "M_h2o_c"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "R_PFK",
+      "jx": 479.66447363310266,
+      "jy": 801.4269092038978,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_f6p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S46",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_fdp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S1",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PFL",
+      "jx": 596.2858208639288,
+      "jy": -302.04148103600613,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_accoa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_for_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PGI",
+      "jx": -134.15571234971222,
+      "jy": 950.6619211190955,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_g6p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_f6p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PGK",
+      "jx": 271.29913134325244,
+      "jy": 718.5090250076348,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_3pg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_13dpg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S47",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PGL",
+      "jx": 1141.9149797884784,
+      "jy": 586.779873062284,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_6pgl_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S57",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_6pgc_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ACALD",
+      "jx": -79.40578972909381,
+      "jy": -101.28661902935472,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_acald_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_accoa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S3",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadh_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_AKGt2r",
+      "jx": 925.2527886894843,
+      "jy": 100.68418292300008,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_akg_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_akg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S4",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PGM",
+      "jx": 204.1222726543566,
+      "jy": 57.06464211443781,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_2pg_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_3pg_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PIt2r",
+      "jx": 120.94154146399056,
+      "jy": 359.63870529634795,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S5",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ALCD2x",
+      "jx": -472.33202916634184,
+      "jy": -51.19520785315536,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_etoh_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_acald_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S6",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S35",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ACALDt",
+      "jx": -509.9652440582176,
+      "jy": 321.0907882895598,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_acald_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_acald_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ACKr",
+      "jx": 1000.6674314158327,
+      "jy": 530.9437209705629,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_ac_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_actp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S48",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PPC",
+      "jx": 778.7536505768819,
+      "jy": 319.145635018463,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S58",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S7",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_oaa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ACONTa",
+      "jx": 1293.4198667161518,
+      "jy": 66.62967718220997,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_cit_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_acon_C_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S59",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ACONTb",
+      "jx": 1170.3209674572483,
+      "jy": 735.7848722960091,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_acon_C_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S60",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_icit_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ATPM",
+      "jx": 899.5021616288043,
+      "jy": 421.92923553933934,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h2o_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S49",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S8",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PPCK",
+      "jx": 732.5169629138738,
+      "jy": 438.3235483484056,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_oaa_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_adp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ACt2r",
+      "jx": 110.66076960514735,
+      "jy": -141.32490174990733,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_ac_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_ac_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S9",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PPS",
+      "jx": 489.67874923278436,
+      "jy": 407.8814815339169,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S61",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_amp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S10",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ADK1",
+      "jx": 649.4029573610817,
+      "jy": 756.6416330077568,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_amp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S50",
+          "stoichiometry": 2.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_AKGDH",
+      "jx": -43.8203937397424,
+      "jy": 173.89496023112895,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_akg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S36",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succoa_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ATPS4r",
+      "jx": 904.6780647012788,
+      "jy": 234.69375841915266,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S51",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 4.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S62",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S11",
+          "stoichiometry": 3.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PTAr",
+      "jx": 797.5571417820661,
+      "jy": 83.84750829036776,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_accoa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_actp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PYK",
+      "jx": 737.1826311198859,
+      "jy": 202.60084726584014,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S52",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S12",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_BIOMASS_Ecoli_core_w_GAM",
+      "jx": 247.01125318287316,
+      "jy": 545.6663447421633,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_3pg_c",
+          "stoichiometry": 1.496
+        },
+        {
+          "id": "M_accoa_c",
+          "stoichiometry": 3.7478
+        },
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 59.81
+        },
+        {
+          "id": "M_e4p_c",
+          "stoichiometry": 0.361
+        },
+        {
+          "id": "M_f6p_c",
+          "stoichiometry": 0.0709
+        },
+        {
+          "id": "M_g3p_c",
+          "stoichiometry": 0.129
+        },
+        {
+          "id": "M_g6p_c",
+          "stoichiometry": 0.205
+        },
+        {
+          "id": "M_gln__L_c",
+          "stoichiometry": 0.2557
+        },
+        {
+          "id": "M_glu__L_c",
+          "stoichiometry": 4.9414
+        },
+        {
+          "id": "S63",
+          "stoichiometry": 59.81
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 3.547
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 13.0279
+        },
+        {
+          "id": "M_oaa_c",
+          "stoichiometry": 1.7867
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 0.5191
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 2.8328
+        },
+        {
+          "id": "M_r5p_c",
+          "stoichiometry": 0.8977
+        }
+      ],
+      "products": [
+        {
+          "id": "S53",
+          "stoichiometry": 59.81
+        },
+        {
+          "id": "M_akg_c",
+          "stoichiometry": 4.1182
+        },
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 3.7478
+        },
+        {
+          "id": "S13",
+          "stoichiometry": 59.81
+        },
+        {
+          "id": "S37",
+          "stoichiometry": 3.547
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 13.0279
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 59.81
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PYRt2",
+      "jx": 509.9066238083138,
+      "jy": -432.61757125074416,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S14",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_CO2t",
+      "jx": 707.2017138658339,
+      "jy": -215.48803422494706,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_co2_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_RPE",
+      "jx": -524.952547118899,
+      "jy": 580.860451623696,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_ru5p__D_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_xu5p__D_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_CS",
+      "jx": 871.4974065009701,
+      "jy": -49.26941879620236,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_accoa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S64",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_oaa_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_cit_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S15",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_RPI",
+      "jx": -608.3449105103841,
+      "jy": 307.7747677545591,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_r5p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_ru5p__D_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_SUCCt2_2",
+      "jx": 316.9855095239392,
+      "jy": -677.8712252027906,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_succ_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S16",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_succ_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_CYTBD",
+      "jx": 330.37901188016195,
+      "jy": -426.81452750790976,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S17",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_o2_c",
+          "stoichiometry": 0.5
+        },
+        {
+          "id": "M_q8h2_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S65",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_q8_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_D_LACt2",
+      "jx": -142.96165347534532,
+      "jy": -258.02657526807315,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_lac__D_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S18",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_lac__D_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ENO",
+      "jx": 1024.5537112768109,
+      "jy": 12.649107855469135,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_2pg_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S66",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_SUCCt3",
+      "jx": 6.922256850066944,
+      "jy": -489.2375277217896,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succ_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S19",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succ_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ETOHt2r",
+      "jx": -124.26141299364318,
+      "jy": -384.25154219347854,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_etoh_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_etoh_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S20",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_SUCDi",
+      "jx": 118.81403569976004,
+      "jy": -570.22215519725,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_q8_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succ_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_fum_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_q8h2_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_SUCOAS",
+      "jx": 386.7868807231865,
+      "jy": 247.24446180357398,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succ_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S54",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succoa_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_TALA",
+      "jx": -393.9175361227529,
+      "jy": 614.5024005716268,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_g3p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_s7p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_e4p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_f6p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_THD2",
+      "jx": 8.651368417981864,
+      "jy": 294.08722852912103,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "S38",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S21",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_TKT1",
+      "jx": -521.7973208885326,
+      "jy": 456.44210548357427,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_r5p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_xu5p__D_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_g3p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_s7p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_TKT2",
+      "jx": -450.6105742351428,
+      "jy": 739.6604750646691,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_e4p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_xu5p__D_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_f6p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_g3p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_TPI",
+      "jx": -401.93316516432645,
+      "jy": 917.4728604283148,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_dhap_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_g3p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_ac_e",
+      "jx": -523.4938295087959,
+      "jy": -205.1929930638268,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_ac_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_ac_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_acald_e",
+      "jx": -603.0972773841615,
+      "jy": 792.0146825979318,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_acald_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_acald_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_akg_e",
+      "jx": 1279.227381971693,
+      "jy": 178.92219318419887,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_akg_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_akg_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_co2_e",
+      "jx": 1043.8695978114602,
+      "jy": -308.1001048157713,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_co2_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_co2_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_etoh_e",
+      "jx": -626.6459941864928,
+      "jy": -78.98885272761959,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_etoh_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_etoh_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_for_e",
+      "jx": 985.5707021474707,
+      "jy": -467.60000768819583,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_for_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_for_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_fru_e",
+      "jx": 205.84231402657753,
+      "jy": -195.9692335133369,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fru_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_fru_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_fum_e",
+      "jx": -599.1315957050833,
+      "jy": 134.69098769816446,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fum_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_fum_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_glc__D_e",
+      "jx": -392.5451741441909,
+      "jy": -365.85916992369494,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_glc__D_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_glc__D_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_gln__L_e",
+      "jx": 23.371285692491288,
+      "jy": 1168.8218163404608,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_gln__L_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_gln__L_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_glu__L_e",
+      "jx": 1210.87536515992,
+      "jy": -180.49412572794668,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_glu__L_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_glu__L_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_h_e",
+      "jx": 743.5633229405844,
+      "jy": -344.63329143405525,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_h_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_h2o_e",
+      "jx": 390.00199446998045,
+      "jy": 1237.8509314479652,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h2o_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_h2o_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_lac__D_e",
+      "jx": -199.89182066568168,
+      "jy": -514.8151378052742,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_lac__D_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_lac__D_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_mal__L_e",
+      "jx": 1300.1904823071127,
+      "jy": 520.0201230803782,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_mal__L_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_mal__L_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_nh4_e",
+      "jx": 97.59912830365217,
+      "jy": 1290.273997518309,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_nh4_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_nh4_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_o2_e",
+      "jx": 582.9078087802798,
+      "jy": 1279.242642839385,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_o2_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_o2_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_pi_e",
+      "jx": -182.41138269240858,
+      "jy": 1081.8592495357166,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_pi_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_pi_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_pyr_e",
+      "jx": 540.7941790009248,
+      "jy": -717.0399540775327,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_pyr_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_pyr_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_EX_succ_e",
+      "jx": -222.61779995572397,
+      "jy": -642.1293849451756,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_succ_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink_R_EX_succ_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FBA",
+      "jx": -256.291953862083,
+      "jy": 977.7963487794082,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fdp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_dhap_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_g3p_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FBP",
+      "jx": 383.49325705195344,
+      "jy": 890.7661137038883,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fdp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S67",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_f6p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FORt2",
+      "jx": 677.7945613958605,
+      "jy": -453.4447121190976,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_for_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_for_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S22",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FORt",
+      "jx": 834.7783037954998,
+      "jy": -616.7666068075187,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_for_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_for_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FRD7",
+      "jx": 255.2325969818758,
+      "jy": -568.0845126540794,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fum_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_q8h2_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_q8_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succ_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FRUpts2",
+      "jx": 359.20998479209806,
+      "jy": 382.04051654383113,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fru_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_f6p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FUM",
+      "jx": 635.5131416285169,
+      "jy": -101.0729001505087,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fum_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S68",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_mal__L_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_FUMt2_2",
+      "jx": 6.58691741138832,
+      "jy": -228.61883328580282,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_fum_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 2.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_fum_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S23",
+          "stoichiometry": 2.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_G6PDH2r",
+      "jx": 280.50508204701475,
+      "jy": 840.8497920622428,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_g6p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_6pgl_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S24",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GAPD",
+      "jx": -231.8602552895071,
+      "jy": 462.14562012693114,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_g3p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_13dpg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S25",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S39",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GLCpts",
+      "jx": -5.615768147223058,
+      "jy": 408.83686412761324,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_glc__D_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pep_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_g6p_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GLNS",
+      "jx": 925.9245380584282,
+      "jy": 868.5971391524552,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_glu__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nh4_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S55",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_gln__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S26",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GLNabc",
+      "jx": 622.7164731769897,
+      "jy": 883.371426251663,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_atp_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_gln__L_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S69",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S56",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_gln__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S27",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pi_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GLUDy",
+      "jx": 514.2887118658427,
+      "jy": 999.4456895746878,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_glu__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S70",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_akg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S28",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nh4_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GLUN",
+      "jx": 960.0383292484012,
+      "jy": 1031.4084204527298,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_gln__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S71",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_glu__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nh4_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GLUSy",
+      "jx": 376.0499561808638,
+      "jy": 1038.5098222205309,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_akg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_gln__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S29",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_glu__L_c",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GLUt2r",
+      "jx": 943.6238584805396,
+      "jy": -143.88460777425078,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_glu__L_e",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_h_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_glu__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S30",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_GND",
+      "jx": 63.664192166581245,
+      "jy": 640.5528356683501,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_6pgc_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_ru5p__D_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_H2Ot",
+      "jx": 654.9203717448772,
+      "jy": 1162.8771350393852,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h2o_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S72",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ICDHyr",
+      "jx": 252.579077874803,
+      "jy": 960.4002363623456,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_icit_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_akg_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ICL",
+      "jx": 621.1177770483075,
+      "jy": 457.7124028447736,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_icit_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_glx_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_succ_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_LDH_D",
+      "jx": -380.0773800181508,
+      "jy": 199.02628635914044,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_lac__D_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S31",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S40",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_MALS",
+      "jx": 682.9091021252109,
+      "jy": 47.903289863245796,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_accoa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_glx_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S73",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S32",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_mal__L_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_MALt2_2",
+      "jx": 744.8590291891069,
+      "jy": -85.17872189661307,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_mal__L_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_h_c",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "M_mal__L_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_MDH",
+      "jx": -36.83313219487455,
+      "jy": 40.095734796831564,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_mal__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S33",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S41",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_oaa_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ME1",
+      "jx": -129.43514468968124,
+      "jy": 312.81308439645153,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_mal__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S42",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_ME2",
+      "jx": -9.745221131940404,
+      "jy": 535.8126191231304,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_mal__L_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_NADH16",
+      "jx": 55.57127700961346,
+      "jy": -362.4491516657452,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S34",
+          "stoichiometry": 4.0
+        },
+        {
+          "id": "S43",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_q8_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_h_e",
+          "stoichiometry": 3.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_q8h2_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_NADTRHD",
+      "jx": -145.61568923410806,
+      "jy": 581.5531928296373,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadph_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S44",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nadp_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_NH4t",
+      "jx": 482.8484585907314,
+      "jy": 1319.3502779372213,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_nh4_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_nh4_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_O2t",
+      "jx": -27.73881143861653,
+      "jy": 1020.5013825343146,
+      "kineticLaw": "",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_o2_e",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_o2_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "R_PDH",
+      "jx": 83.49707252001576,
+      "jy": -18.965604717217005,
+      "kineticLaw": "",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "M_coa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_nad_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_pyr_c",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "M_accoa_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "M_co2_c",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S45",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    }
+  ]
+}

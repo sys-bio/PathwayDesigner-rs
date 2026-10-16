@@ -1,0 +1,5393 @@
+{
+  "version": 4,
+  "modelName": "Millard2016 - E. coli central carbon and energy metabolism",
+  "compartments": [
+    {
+      "id": "cell",
+      "size": 1.0,
+      "dimensions": 3,
+      "x": 1341.884545994108,
+      "y": 443.4486416465139,
+      "w": 1965.425381417034,
+      "h": 1849.5063343853515
+    },
+    {
+      "id": "extracellular",
+      "size": 100.0,
+      "dimensions": 3,
+      "x": 1569.221326017933,
+      "y": 464.5191800760612,
+      "w": 1352.4616623092247,
+      "h": 1526.2333567266382
+    },
+    {
+      "id": "cell_periplasm",
+      "size": 0.25,
+      "dimensions": 3,
+      "x": 189.4622512508608,
+      "y": -240.31730339680905,
+      "w": 210.534263850917,
+      "h": 210.13726332239295
+    }
+  ],
+  "parameters": [
+    {
+      "variable": "FEED",
+      "expression": "0.23"
+    },
+    {
+      "variable": "KdADPMg",
+      "expression": "1.27771"
+    },
+    {
+      "variable": "KdATPMg",
+      "expression": "0.0847634"
+    },
+    {
+      "variable": "KdFDPMg",
+      "expression": "5.81"
+    },
+    {
+      "variable": "KmICIT_ACN",
+      "expression": "9.31352"
+    },
+    {
+      "variable": "KmCIT_ACN",
+      "expression": "0.0628882"
+    },
+    {
+      "variable": "KmACO_ACN",
+      "expression": "0.02001"
+    },
+    {
+      "variable": "KeqNDH",
+      "expression": "27.6193"
+    },
+    {
+      "variable": "Keq",
+      "expression": "0.36"
+    },
+    {
+      "variable": "KmF6P",
+      "expression": "0.147"
+    },
+    {
+      "variable": "KmG6P",
+      "expression": "0.28"
+    },
+    {
+      "variable": "KmPEP",
+      "expression": "1.999"
+    },
+    {
+      "variable": "Vmax",
+      "expression": "2.32456"
+    },
+    {
+      "variable": "KmPGN",
+      "expression": "0.515958"
+    },
+    {
+      "variable": "KefrADP",
+      "expression": "0.0735264"
+    },
+    {
+      "variable": "KefrPEP",
+      "expression": "19.98"
+    },
+    {
+      "variable": "KeftADP",
+      "expression": "9.009"
+    },
+    {
+      "variable": "KeftPEP",
+      "expression": "0.26026"
+    },
+    {
+      "variable": "PFK_Keq",
+      "expression": "1998"
+    },
+    {
+      "variable": "KirADP",
+      "expression": "54.945"
+    },
+    {
+      "variable": "KirATP",
+      "expression": "0.000024975"
+    },
+    {
+      "variable": "KirF6P",
+      "expression": "1.84615"
+    },
+    {
+      "variable": "KirFDP",
+      "expression": "0.045954"
+    },
+    {
+      "variable": "KitADP",
+      "expression": "80.08"
+    },
+    {
+      "variable": "KitATP",
+      "expression": "0.014014"
+    },
+    {
+      "variable": "KitF6P",
+      "expression": "0.00856856"
+    },
+    {
+      "variable": "KitFDP",
+      "expression": "50.5505"
+    },
+    {
+      "variable": "KmrADP",
+      "expression": "0.690009"
+    },
+    {
+      "variable": "KmrATPMg",
+      "expression": "0.0000812187"
+    },
+    {
+      "variable": "KmrF6P",
+      "expression": "0.0000205205"
+    },
+    {
+      "variable": "KmrFDP",
+      "expression": "10.01"
+    },
+    {
+      "variable": "KmtADP",
+      "expression": "2.002"
+    },
+    {
+      "variable": "KmtATPMg",
+      "expression": "3.34334"
+    },
+    {
+      "variable": "KmtF6P",
+      "expression": "32.967"
+    },
+    {
+      "variable": "KmtFDP",
+      "expression": "9.99"
+    },
+    {
+      "variable": "L0",
+      "expression": "14.0851"
+    },
+    {
+      "variable": "PFK_Vmax",
+      "expression": "0.185253"
+    },
+    {
+      "variable": "Wr",
+      "expression": "0.0237041"
+    },
+    {
+      "variable": "Wt",
+      "expression": "0.146735"
+    },
+    {
+      "variable": "n",
+      "expression": "4"
+    },
+    {
+      "variable": "FBA_Keq",
+      "expression": "0.18981"
+    },
+    {
+      "variable": "KmDAP",
+      "expression": "0.13001"
+    },
+    {
+      "variable": "KmFDP",
+      "expression": "0.12012"
+    },
+    {
+      "variable": "KmGAP",
+      "expression": "0.13001"
+    },
+    {
+      "variable": "FBA_KmPEP",
+      "expression": "0.5"
+    },
+    {
+      "variable": "FBA_Vmax",
+      "expression": "21.6978"
+    },
+    {
+      "variable": "TPI_Keq",
+      "expression": "0.270203"
+    },
+    {
+      "variable": "TPI_KmDAP",
+      "expression": "0.01"
+    },
+    {
+      "variable": "TPI_KmGAP",
+      "expression": "1.89301"
+    },
+    {
+      "variable": "TPI_Vmax",
+      "expression": "24.1843"
+    },
+    {
+      "variable": "GDH_Keq",
+      "expression": "20"
+    },
+    {
+      "variable": "KmBPG",
+      "expression": "0.2"
+    },
+    {
+      "variable": "GDH_KmGAP",
+      "expression": "2.47265"
+    },
+    {
+      "variable": "KmNAD",
+      "expression": "0.0110454"
+    },
+    {
+      "variable": "KmNADH",
+      "expression": "3.69797"
+    },
+    {
+      "variable": "KmP",
+      "expression": "0.017"
+    },
+    {
+      "variable": "GDH_Vmax",
+      "expression": "8.66573"
+    },
+    {
+      "variable": "PGK_Keq",
+      "expression": "99.9925"
+    },
+    {
+      "variable": "KmADPMg",
+      "expression": "0.085416"
+    },
+    {
+      "variable": "KmATPMg",
+      "expression": "3.47737"
+    },
+    {
+      "variable": "PGK_KmBPG",
+      "expression": "0.0113296"
+    },
+    {
+      "variable": "KmPGA3",
+      "expression": "2.45722"
+    },
+    {
+      "variable": "PGK_Vmax",
+      "expression": "16.1089"
+    },
+    {
+      "variable": "GPM_Keq",
+      "expression": "0.565818"
+    },
+    {
+      "variable": "KmPGA2",
+      "expression": "1.9153"
+    },
+    {
+      "variable": "GPM_KmPGA3",
+      "expression": "0.115"
+    },
+    {
+      "variable": "GPM_Vmax",
+      "expression": "10.9934"
+    },
+    {
+      "variable": "ENO_Keq",
+      "expression": "3"
+    },
+    {
+      "variable": "ENO_KmPEP",
+      "expression": "0.1"
+    },
+    {
+      "variable": "ENO_KmPGA2",
+      "expression": "0.1"
+    },
+    {
+      "variable": "ENO_Vmax",
+      "expression": "11.7189"
+    },
+    {
+      "variable": "KefrFDP",
+      "expression": "0.449149"
+    },
+    {
+      "variable": "KefrG6P",
+      "expression": "0.158746"
+    },
+    {
+      "variable": "KefrGL6P",
+      "expression": "0.150482"
+    },
+    {
+      "variable": "KefrR5P",
+      "expression": "9.33254"
+    },
+    {
+      "variable": "KefrRU5P",
+      "expression": "1.53591"
+    },
+    {
+      "variable": "KefrS7P",
+      "expression": "0.0785955"
+    },
+    {
+      "variable": "KefrX5P",
+      "expression": "0.677374"
+    },
+    {
+      "variable": "KeftATP",
+      "expression": "3.69117"
+    },
+    {
+      "variable": "KeftSUCCOA",
+      "expression": "8.26406"
+    },
+    {
+      "variable": "PYK_KirADP",
+      "expression": "0.517585"
+    },
+    {
+      "variable": "PYK_KirATP",
+      "expression": "96.0333"
+    },
+    {
+      "variable": "KirPEP",
+      "expression": "0.181056"
+    },
+    {
+      "variable": "KirPYR",
+      "expression": "15.1403"
+    },
+    {
+      "variable": "KirPyrATP",
+      "expression": "230.781"
+    },
+    {
+      "variable": "PYK_KitADP",
+      "expression": "0.224911"
+    },
+    {
+      "variable": "PYK_KitATP",
+      "expression": "0.039564"
+    },
+    {
+      "variable": "KitPEP",
+      "expression": "0.465672"
+    },
+    {
+      "variable": "KitPYR",
+      "expression": "0.2499"
+    },
+    {
+      "variable": "KitPyrATP",
+      "expression": "11.3691"
+    },
+    {
+      "variable": "KmrADPMg",
+      "expression": "0.326144"
+    },
+    {
+      "variable": "KmrPEP",
+      "expression": "5.56368e-7"
+    },
+    {
+      "variable": "KmtADPMg",
+      "expression": "0.054678"
+    },
+    {
+      "variable": "KmtPEP",
+      "expression": "0.11475"
+    },
+    {
+      "variable": "PYK_L0",
+      "expression": "50.4818"
+    },
+    {
+      "variable": "PYK_Vmax",
+      "expression": "0.74716"
+    },
+    {
+      "variable": "PYK_n",
+      "expression": "4"
+    },
+    {
+      "variable": "KdG6P",
+      "expression": "0.192"
+    },
+    {
+      "variable": "KdGL6P",
+      "expression": "0.02"
+    },
+    {
+      "variable": "ZWF_Keq",
+      "expression": "60000000000"
+    },
+    {
+      "variable": "ZWF_KmG6P",
+      "expression": "0.118525"
+    },
+    {
+      "variable": "KmGL6P",
+      "expression": "0.328629"
+    },
+    {
+      "variable": "KmNADP",
+      "expression": "0.0274"
+    },
+    {
+      "variable": "KmNADPH",
+      "expression": "0.0168"
+    },
+    {
+      "variable": "ZWF_Vmax",
+      "expression": "0.2658"
+    },
+    {
+      "variable": "PGL_Keq",
+      "expression": "42.7572"
+    },
+    {
+      "variable": "KiG6P",
+      "expression": "2.0001"
+    },
+    {
+      "variable": "PGL_KmGL6P",
+      "expression": "0.022977"
+    },
+    {
+      "variable": "PGL_KmPGN",
+      "expression": "9.99"
+    },
+    {
+      "variable": "PGL_Vmax",
+      "expression": "11.5967"
+    },
+    {
+      "variable": "KdHCO3",
+      "expression": "58.8951"
+    },
+    {
+      "variable": "KdHCO3NADPH",
+      "expression": "9.7257"
+    },
+    {
+      "variable": "KdNADP",
+      "expression": "0.116989"
+    },
+    {
+      "variable": "KdNADPH",
+      "expression": "0.00340034"
+    },
+    {
+      "variable": "KdRu5P",
+      "expression": "0.0440044"
+    },
+    {
+      "variable": "KefATP",
+      "expression": "0.0650065"
+    },
+    {
+      "variable": "KefFbP",
+      "expression": "0.0129987"
+    },
+    {
+      "variable": "KefNADPATP",
+      "expression": "0.139986"
+    },
+    {
+      "variable": "KefNADPFbP",
+      "expression": "0.00519948"
+    },
+    {
+      "variable": "GND_Keq",
+      "expression": "49.962"
+    },
+    {
+      "variable": "KmHCO3",
+      "expression": "6.41899"
+    },
+    {
+      "variable": "GND_KmNADP",
+      "expression": "0.049"
+    },
+    {
+      "variable": "GND_KmNADPH",
+      "expression": "68.3828"
+    },
+    {
+      "variable": "GND_KmPGN",
+      "expression": "0.093"
+    },
+    {
+      "variable": "KmRU5P",
+      "expression": "45.1977"
+    },
+    {
+      "variable": "GND_Vmax",
+      "expression": "4.08105"
+    },
+    {
+      "variable": "RPE_Keq",
+      "expression": "1.5015"
+    },
+    {
+      "variable": "RPE_KmRU5P",
+      "expression": "0.872522"
+    },
+    {
+      "variable": "KmX5P",
+      "expression": "0.893607"
+    },
+    {
+      "variable": "RPE_Vmax",
+      "expression": "6.00103"
+    },
+    {
+      "variable": "RPI_Keq",
+      "expression": "0.330093"
+    },
+    {
+      "variable": "KmE4P",
+      "expression": "0.67067"
+    },
+    {
+      "variable": "KmR5P",
+      "expression": "3.09715"
+    },
+    {
+      "variable": "RPI_KmRU5P",
+      "expression": "4.40263"
+    },
+    {
+      "variable": "RPI_Vmax",
+      "expression": "8"
+    },
+    {
+      "variable": "X5P_GAP_TKT_Keq",
+      "expression": "1.001"
+    },
+    {
+      "variable": "kcat",
+      "expression": "40"
+    },
+    {
+      "variable": "F6P_E4P_TKT_Keq",
+      "expression": "0.5005"
+    },
+    {
+      "variable": "F6P_E4P_TKT_kcat",
+      "expression": "40.0002"
+    },
+    {
+      "variable": "S7P_R5P_TKT_Keq",
+      "expression": "0.33033"
+    },
+    {
+      "variable": "S7P_R5P_TKT_kcat",
+      "expression": "199.979"
+    },
+    {
+      "variable": "F6P_GAP_TAL_Keq",
+      "expression": "0.11011"
+    },
+    {
+      "variable": "F6P_GAP_TAL_kcat",
+      "expression": "119.992"
+    },
+    {
+      "variable": "S7P_E4P_TAL_Keq",
+      "expression": "26.6266"
+    },
+    {
+      "variable": "S7P_E4P_TAL_kcat",
+      "expression": "99.9991"
+    },
+    {
+      "variable": "KirAMP",
+      "expression": "0.00122122"
+    },
+    {
+      "variable": "KirAMPFDP",
+      "expression": "0.256256"
+    },
+    {
+      "variable": "FBP_KirF6P",
+      "expression": "1.12112"
+    },
+    {
+      "variable": "KirF6PMg",
+      "expression": "0.384615"
+    },
+    {
+      "variable": "FBP_KirFDP",
+      "expression": "1.35327"
+    },
+    {
+      "variable": "KirFDPMg",
+      "expression": "0.75924"
+    },
+    {
+      "variable": "KirFDPMgMg",
+      "expression": "0.356356"
+    },
+    {
+      "variable": "KirP",
+      "expression": "3.16316"
+    },
+    {
+      "variable": "KirPF6P",
+      "expression": "6.60538"
+    },
+    {
+      "variable": "KirPF6PMg",
+      "expression": "48.4484"
+    },
+    {
+      "variable": "KirPMg",
+      "expression": "0.856"
+    },
+    {
+      "variable": "KitAMP",
+      "expression": "0.000255"
+    },
+    {
+      "variable": "KitAMPFDP",
+      "expression": "690"
+    },
+    {
+      "variable": "FBP_KitF6P",
+      "expression": "0.304"
+    },
+    {
+      "variable": "KitF6PMg",
+      "expression": "315"
+    },
+    {
+      "variable": "FBP_KitFDP",
+      "expression": "0.043101"
+    },
+    {
+      "variable": "KitFDPMg",
+      "expression": "0.00642"
+    },
+    {
+      "variable": "KitFDPMgMg",
+      "expression": "100"
+    },
+    {
+      "variable": "KitP",
+      "expression": "0.642"
+    },
+    {
+      "variable": "KitPF6P",
+      "expression": "0.00689"
+    },
+    {
+      "variable": "KitPF6PMg",
+      "expression": "16.5"
+    },
+    {
+      "variable": "KitPMg",
+      "expression": "539"
+    },
+    {
+      "variable": "FBP_KmrFDP",
+      "expression": "0.0636141"
+    },
+    {
+      "variable": "KmrMg",
+      "expression": "0.039039"
+    },
+    {
+      "variable": "FBP_KmtFDP",
+      "expression": "0.00001"
+    },
+    {
+      "variable": "KmtMg",
+      "expression": "55.055"
+    },
+    {
+      "variable": "FBP_L0",
+      "expression": "0.000815"
+    },
+    {
+      "variable": "FBP_Vmax",
+      "expression": "0.215583"
+    },
+    {
+      "variable": "FBP_n",
+      "expression": "4"
+    },
+    {
+      "variable": "KdrOAA",
+      "expression": "4.35404"
+    },
+    {
+      "variable": "KdrPEP",
+      "expression": "655.591"
+    },
+    {
+      "variable": "KdtOAA",
+      "expression": "17.9127"
+    },
+    {
+      "variable": "KdtPEP",
+      "expression": "0.0121991"
+    },
+    {
+      "variable": "KefrACCOA",
+      "expression": "0.140029"
+    },
+    {
+      "variable": "KefrASP",
+      "expression": "0.389183"
+    },
+    {
+      "variable": "KefrCIT",
+      "expression": "34.4277"
+    },
+    {
+      "variable": "KefrCYS",
+      "expression": "0.000448843"
+    },
+    {
+      "variable": "PPC_KefrFDP",
+      "expression": "9.99126"
+    },
+    {
+      "variable": "KefrFDPACCOA",
+      "expression": "0.0156251"
+    },
+    {
+      "variable": "KefrFUM",
+      "expression": "2.7475"
+    },
+    {
+      "variable": "KefrMAL",
+      "expression": "0.23002"
+    },
+    {
+      "variable": "KefrSUC",
+      "expression": "22.9834"
+    },
+    {
+      "variable": "KeftACCOA",
+      "expression": "1.27598"
+    },
+    {
+      "variable": "KeftASP",
+      "expression": "27.4729"
+    },
+    {
+      "variable": "KeftCIT",
+      "expression": "0.521945"
+    },
+    {
+      "variable": "KeftCYS",
+      "expression": "0.977374"
+    },
+    {
+      "variable": "KeftFDP",
+      "expression": "13.2064"
+    },
+    {
+      "variable": "KeftFDPACCOA",
+      "expression": "47.7563"
+    },
+    {
+      "variable": "KeftFUM",
+      "expression": "9.76119"
+    },
+    {
+      "variable": "KeftMAL",
+      "expression": "0.737283"
+    },
+    {
+      "variable": "KeftSUC",
+      "expression": "107.18"
+    },
+    {
+      "variable": "PPC_Keq",
+      "expression": "149.705"
+    },
+    {
+      "variable": "KmrHCO3",
+      "expression": "0.00219811"
+    },
+    {
+      "variable": "KmrOAA",
+      "expression": "13.0469"
+    },
+    {
+      "variable": "KmrP",
+      "expression": "0.663356"
+    },
+    {
+      "variable": "PPC_KmrPEP",
+      "expression": "3.20089"
+    },
+    {
+      "variable": "KmtHCO3",
+      "expression": "0.00220031"
+    },
+    {
+      "variable": "KmtOAA",
+      "expression": "6.80995"
+    },
+    {
+      "variable": "KmtP",
+      "expression": "0.285131"
+    },
+    {
+      "variable": "PPC_KmtPEP",
+      "expression": "5.12497"
+    },
+    {
+      "variable": "PPC_L0",
+      "expression": "6.37209e-6"
+    },
+    {
+      "variable": "PPC_Vmax",
+      "expression": "21.439"
+    },
+    {
+      "variable": "PPC_n",
+      "expression": "4.00319"
+    },
+    {
+      "variable": "PCK_Keq",
+      "expression": "1.88166"
+    },
+    {
+      "variable": "KmADP",
+      "expression": "0.04997"
+    },
+    {
+      "variable": "KmATP",
+      "expression": "0.0600418"
+    },
+    {
+      "variable": "PCK_KmHCO3",
+      "expression": "2.6319"
+    },
+    {
+      "variable": "KmOAA",
+      "expression": "0.66966"
+    },
+    {
+      "variable": "PCK_KmPEP",
+      "expression": "0.0699833"
+    },
+    {
+      "variable": "PCK_Vmax",
+      "expression": "8.08777"
+    },
+    {
+      "variable": "KdAMP",
+      "expression": "1480"
+    },
+    {
+      "variable": "KdATPMgPPS",
+      "expression": "0.0549"
+    },
+    {
+      "variable": "KdMg",
+      "expression": "36.9"
+    },
+    {
+      "variable": "KdP",
+      "expression": "346"
+    },
+    {
+      "variable": "KdPEP",
+      "expression": "95.7"
+    },
+    {
+      "variable": "KdPYR",
+      "expression": "2740"
+    },
+    {
+      "variable": "KefADP",
+      "expression": "0.0283"
+    },
+    {
+      "variable": "KefAKG",
+      "expression": "0.274"
+    },
+    {
+      "variable": "PPS_KefATP",
+      "expression": "0.000628"
+    },
+    {
+      "variable": "KefOAA",
+      "expression": "0.796"
+    },
+    {
+      "variable": "PPS_Keq",
+      "expression": "200000"
+    },
+    {
+      "variable": "KmAMP",
+      "expression": "0.000384"
+    },
+    {
+      "variable": "PPS_KmATPMg",
+      "expression": "0.0549"
+    },
+    {
+      "variable": "PPS_KmP",
+      "expression": "84.4"
+    },
+    {
+      "variable": "PPS_KmPEP",
+      "expression": "20.7"
+    },
+    {
+      "variable": "KmPYR",
+      "expression": "0.229"
+    },
+    {
+      "variable": "PPS_Vmax",
+      "expression": "0.0163772"
+    },
+    {
+      "variable": "W",
+      "expression": "10"
+    },
+    {
+      "variable": "alpha",
+      "expression": "38900"
+    },
+    {
+      "variable": "MAD_KefrACCOA",
+      "expression": "1.83336"
+    },
+    {
+      "variable": "MAD_KefrASP",
+      "expression": "0.362142"
+    },
+    {
+      "variable": "KefrATP",
+      "expression": "88.9752"
+    },
+    {
+      "variable": "KefrCOA",
+      "expression": "0.268"
+    },
+    {
+      "variable": "MAD_KeftACCOA",
+      "expression": "0.197"
+    },
+    {
+      "variable": "MAD_KeftASP",
+      "expression": "0.583"
+    },
+    {
+      "variable": "MAD_KeftATP",
+      "expression": "0.26"
+    },
+    {
+      "variable": "KeftCOA",
+      "expression": "0.268"
+    },
+    {
+      "variable": "KirNAD",
+      "expression": "0.636457"
+    },
+    {
+      "variable": "KitNAD",
+      "expression": "0.990398"
+    },
+    {
+      "variable": "KmrMAL",
+      "expression": "0.212913"
+    },
+    {
+      "variable": "MAD_KmrMg",
+      "expression": "0.191871"
+    },
+    {
+      "variable": "KmrMn",
+      "expression": "0.272568"
+    },
+    {
+      "variable": "KmrNAD",
+      "expression": "1.36636"
+    },
+    {
+      "variable": "KmtMAL",
+      "expression": "0.093"
+    },
+    {
+      "variable": "MAD_KmtMg",
+      "expression": "2.37681"
+    },
+    {
+      "variable": "KmtMn",
+      "expression": "0.410198"
+    },
+    {
+      "variable": "KmtNAD",
+      "expression": "0.108"
+    },
+    {
+      "variable": "MAD_L0",
+      "expression": "19.9"
+    },
+    {
+      "variable": "MAD_Vmax",
+      "expression": "6.64269"
+    },
+    {
+      "variable": "MAD_n",
+      "expression": "4"
+    },
+    {
+      "variable": "PDH_Keq",
+      "expression": "3138.16"
+    },
+    {
+      "variable": "KmACCOA",
+      "expression": "10.174"
+    },
+    {
+      "variable": "KmCOA",
+      "expression": "0.00500461"
+    },
+    {
+      "variable": "PDH_KmHCO3",
+      "expression": "0.00545112"
+    },
+    {
+      "variable": "PDH_KmNAD",
+      "expression": "0.00999"
+    },
+    {
+      "variable": "PDH_KmNADH",
+      "expression": "6.63512"
+    },
+    {
+      "variable": "PDH_KmPYR",
+      "expression": "2"
+    },
+    {
+      "variable": "PDH_Vmax",
+      "expression": "961.706"
+    },
+    {
+      "variable": "KdACCOA0",
+      "expression": "0.699309"
+    },
+    {
+      "variable": "KdcsCIT",
+      "expression": "7.38128"
+    },
+    {
+      "variable": "KdcsCOA",
+      "expression": "0.00174282"
+    },
+    {
+      "variable": "KdcsOAA",
+      "expression": "0.154601"
+    },
+    {
+      "variable": "GLT_Keq",
+      "expression": "83067.1"
+    },
+    {
+      "variable": "Ki1AKG",
+      "expression": "0.0150083"
+    },
+    {
+      "variable": "Ki1NADH",
+      "expression": "0.000330313"
+    },
+    {
+      "variable": "Ki2AKG",
+      "expression": "0.256252"
+    },
+    {
+      "variable": "Ki2NADH",
+      "expression": "0.0504"
+    },
+    {
+      "variable": "KiATP",
+      "expression": "0.579939"
+    },
+    {
+      "variable": "KmACCOA0",
+      "expression": "0.119974"
+    },
+    {
+      "variable": "KmOAA0",
+      "expression": "0.00123458"
+    },
+    {
+      "variable": "KmcsCIT",
+      "expression": "1.15715"
+    },
+    {
+      "variable": "KmcsCOA",
+      "expression": "0.000096344"
+    },
+    {
+      "variable": "GLT_Vmax",
+      "expression": "57.0584"
+    },
+    {
+      "variable": "ACN_1_Keq",
+      "expression": "0.384503"
+    },
+    {
+      "variable": "ACN_1_Vmax",
+      "expression": "9.72413"
+    },
+    {
+      "variable": "ACN_2_Keq",
+      "expression": "3.49183"
+    },
+    {
+      "variable": "ACN_2_Vmax",
+      "expression": "9.86571"
+    },
+    {
+      "variable": "ICD_Keq",
+      "expression": "28.1631"
+    },
+    {
+      "variable": "KmAKG",
+      "expression": "0.038038"
+    },
+    {
+      "variable": "KmICIT",
+      "expression": "0.010989"
+    },
+    {
+      "variable": "ICD_KmNADP",
+      "expression": "0.005994"
+    },
+    {
+      "variable": "ICD_KmNADPH",
+      "expression": "0.000683333"
+    },
+    {
+      "variable": "ICD_kcat",
+      "expression": "2461.97"
+    },
+    {
+      "variable": "KdAKG",
+      "expression": "14.9386"
+    },
+    {
+      "variable": "LPD_KmAKG",
+      "expression": "0.020002"
+    },
+    {
+      "variable": "LPD_KmCOA",
+      "expression": "0.0760076"
+    },
+    {
+      "variable": "LPD_KmNAD",
+      "expression": "0.0980098"
+    },
+    {
+      "variable": "LPD_Vmax",
+      "expression": "0.0684413"
+    },
+    {
+      "variable": "LPD_alpha",
+      "expression": "16.4304"
+    },
+    {
+      "variable": "SK_Keq",
+      "expression": "1.15994"
+    },
+    {
+      "variable": "SK_KmADP",
+      "expression": "0.00868475"
+    },
+    {
+      "variable": "SK_KmATP",
+      "expression": "0.102321"
+    },
+    {
+      "variable": "SK_KmCOA",
+      "expression": "0.255019"
+    },
+    {
+      "variable": "SK_KmP",
+      "expression": "0.914709"
+    },
+    {
+      "variable": "KmSUC",
+      "expression": "0.800744"
+    },
+    {
+      "variable": "KmSUCCOA",
+      "expression": "0.0085"
+    },
+    {
+      "variable": "SK_Vmax",
+      "expression": "76.8163"
+    },
+    {
+      "variable": "KefFUM",
+      "expression": "0.067048"
+    },
+    {
+      "variable": "KefSUC",
+      "expression": "0.0322425"
+    },
+    {
+      "variable": "SDH_Keq",
+      "expression": "2250"
+    },
+    {
+      "variable": "KmFUM",
+      "expression": "1.36019"
+    },
+    {
+      "variable": "KmQ",
+      "expression": "0.00160718"
+    },
+    {
+      "variable": "KmQH2",
+      "expression": "0.00611663"
+    },
+    {
+      "variable": "SDH_KmSUC",
+      "expression": "0.805727"
+    },
+    {
+      "variable": "SDH_Vmax",
+      "expression": "1.56184"
+    },
+    {
+      "variable": "FUMA_Keq",
+      "expression": "4.99966"
+    },
+    {
+      "variable": "FUMA_KmFUM",
+      "expression": "0.6"
+    },
+    {
+      "variable": "KmMAL",
+      "expression": "0.7"
+    },
+    {
+      "variable": "FUMA_Vmax",
+      "expression": "53.3414"
+    },
+    {
+      "variable": "MQO_Keq",
+      "expression": "9"
+    },
+    {
+      "variable": "MQO_KmMAL",
+      "expression": "0.435"
+    },
+    {
+      "variable": "MQO_KmOAA",
+      "expression": "75.8036"
+    },
+    {
+      "variable": "MQO_KmQ",
+      "expression": "0.0414"
+    },
+    {
+      "variable": "MQO_KmQH2",
+      "expression": "8.77942"
+    },
+    {
+      "variable": "MQO_Vmax",
+      "expression": "4.62283"
+    },
+    {
+      "variable": "MDH_Keq",
+      "expression": "100000"
+    },
+    {
+      "variable": "KiNAD",
+      "expression": "0.0233122"
+    },
+    {
+      "variable": "KiNADH",
+      "expression": "0.000196981"
+    },
+    {
+      "variable": "KiOAA",
+      "expression": "2.46446"
+    },
+    {
+      "variable": "MDH_KmMAL",
+      "expression": "0.86"
+    },
+    {
+      "variable": "MDH_KmNAD",
+      "expression": "0.64"
+    },
+    {
+      "variable": "MDH_KmNADH",
+      "expression": "0.003"
+    },
+    {
+      "variable": "MDH_KmOAA",
+      "expression": "0.001"
+    },
+    {
+      "variable": "MDH_Vmax",
+      "expression": "6.11492"
+    },
+    {
+      "variable": "KdICITsuc",
+      "expression": "0.00489074"
+    },
+    {
+      "variable": "ACEA_KdPEP",
+      "expression": "1.05105"
+    },
+    {
+      "variable": "KdPEPglx",
+      "expression": "0.0358555"
+    },
+    {
+      "variable": "KdPEPicit",
+      "expression": "0.164263"
+    },
+    {
+      "variable": "KdPGA3",
+      "expression": "0.8"
+    },
+    {
+      "variable": "KdSUC",
+      "expression": "0.53053"
+    },
+    {
+      "variable": "ACEA_Keq",
+      "expression": "8.8088"
+    },
+    {
+      "variable": "KmGLX",
+      "expression": "0.13013"
+    },
+    {
+      "variable": "ACEA_KmICIT",
+      "expression": "0.063063"
+    },
+    {
+      "variable": "ACEA_KmSUC",
+      "expression": "0.58941"
+    },
+    {
+      "variable": "ACEA_Vmax",
+      "expression": "1.52595"
+    },
+    {
+      "variable": "ACEB_Keq",
+      "expression": "230000"
+    },
+    {
+      "variable": "ACEB_KmACCOA",
+      "expression": "0.009"
+    },
+    {
+      "variable": "ACEB_KmCOA",
+      "expression": "10.5652"
+    },
+    {
+      "variable": "ACEB_KmGLX",
+      "expression": "0.021"
+    },
+    {
+      "variable": "ACEB_KmMAL",
+      "expression": "15.0572"
+    },
+    {
+      "variable": "ACEB_Vmax",
+      "expression": "0.352769"
+    },
+    {
+      "variable": "ACEK_1_Keq",
+      "expression": "888"
+    },
+    {
+      "variable": "k",
+      "expression": "1.25457"
+    },
+    {
+      "variable": "ACEK_2_Keq",
+      "expression": "400"
+    },
+    {
+      "variable": "ACEK_2_k",
+      "expression": "0.0332"
+    },
+    {
+      "variable": "EDD_Keq",
+      "expression": "1000"
+    },
+    {
+      "variable": "KmKDPG",
+      "expression": "0.318316"
+    },
+    {
+      "variable": "EDD_KmPGN",
+      "expression": "0.6"
+    },
+    {
+      "variable": "EDD_Vmax",
+      "expression": "0.111359"
+    },
+    {
+      "variable": "EDA_Keq",
+      "expression": "0.5"
+    },
+    {
+      "variable": "EDA_KmGAP",
+      "expression": "86.678"
+    },
+    {
+      "variable": "EDA_KmKDPG",
+      "expression": "0.06"
+    },
+    {
+      "variable": "EDA_KmPYR",
+      "expression": "10"
+    },
+    {
+      "variable": "EDA_Vmax",
+      "expression": "0.0775241"
+    },
+    {
+      "variable": "NADH_req_Vmax",
+      "expression": "23.0735"
+    },
+    {
+      "variable": "PNT_req_Keq",
+      "expression": "0.181891"
+    },
+    {
+      "variable": "PNT_req_k",
+      "expression": "2.49441"
+    },
+    {
+      "variable": "ADK_Keq",
+      "expression": "0.962758"
+    },
+    {
+      "variable": "ADK_k",
+      "expression": "0.242256"
+    },
+    {
+      "variable": "ATP_syn_Vmax",
+      "expression": "108.733"
+    },
+    {
+      "variable": "ATP_syn_Keq",
+      "expression": "49.8315"
+    },
+    {
+      "variable": "CYA_Keq",
+      "expression": "2591.19"
+    },
+    {
+      "variable": "CYA_k",
+      "expression": "0.00414418"
+    },
+    {
+      "variable": "KaeiiaP",
+      "expression": "0.180981"
+    },
+    {
+      "variable": "DOS_Keq",
+      "expression": "674.242"
+    },
+    {
+      "variable": "DOS_k",
+      "expression": "0.00828"
+    },
+    {
+      "variable": "ACK_Keq",
+      "expression": "174"
+    },
+    {
+      "variable": "KmACE",
+      "expression": "7"
+    },
+    {
+      "variable": "KmACP",
+      "expression": "0.16"
+    },
+    {
+      "variable": "ACK_KmADP",
+      "expression": "0.5"
+    },
+    {
+      "variable": "ACK_KmATP",
+      "expression": "0.07"
+    },
+    {
+      "variable": "ACK_Vmax",
+      "expression": "7.23"
+    },
+    {
+      "variable": "ACS_KmACE",
+      "expression": "0.07"
+    },
+    {
+      "variable": "ACS_KmATP",
+      "expression": "0.1"
+    },
+    {
+      "variable": "ACS_KmCOA",
+      "expression": "0.01"
+    },
+    {
+      "variable": "ACS_Vmax",
+      "expression": "7.3"
+    },
+    {
+      "variable": "PTA_Keq",
+      "expression": "0.0053952"
+    },
+    {
+      "variable": "KiACCOA",
+      "expression": "0.2"
+    },
+    {
+      "variable": "KiACP",
+      "expression": "0.2"
+    },
+    {
+      "variable": "KiCOA",
+      "expression": "0.029"
+    },
+    {
+      "variable": "KiP",
+      "expression": "13.54"
+    },
+    {
+      "variable": "PTA_KmACP",
+      "expression": "0.7"
+    },
+    {
+      "variable": "PTA_KmP",
+      "expression": "6.1"
+    },
+    {
+      "variable": "PTA_Vmax",
+      "expression": "2.7"
+    },
+    {
+      "variable": "PTS_0_KmPEP",
+      "expression": "0.6"
+    },
+    {
+      "variable": "PTS_0_KmPYR",
+      "expression": "1"
+    },
+    {
+      "variable": "kF",
+      "expression": "12000"
+    },
+    {
+      "variable": "kR",
+      "expression": "8000"
+    },
+    {
+      "variable": "k1",
+      "expression": "200000"
+    },
+    {
+      "variable": "k2",
+      "expression": "8000"
+    },
+    {
+      "variable": "PTS_2_k1",
+      "expression": "61000"
+    },
+    {
+      "variable": "PTS_2_k2",
+      "expression": "47000"
+    },
+    {
+      "variable": "PTS_3_k1",
+      "expression": "11000"
+    },
+    {
+      "variable": "PTS_3_k2",
+      "expression": "4000"
+    },
+    {
+      "variable": "PTS_4_KmG6P",
+      "expression": "2125.91"
+    },
+    {
+      "variable": "KmGLC",
+      "expression": "0.02"
+    },
+    {
+      "variable": "PTS_4_kF",
+      "expression": "4000"
+    },
+    {
+      "variable": "PTS_4_kR",
+      "expression": "0.00001"
+    },
+    {
+      "variable": "CYTBO_Vmax",
+      "expression": "8.54045"
+    },
+    {
+      "variable": "CYTBO_Keq",
+      "expression": "12.067"
+    },
+    {
+      "variable": "SQR_Keq",
+      "expression": "0.94033"
+    },
+    {
+      "variable": "SQR_Vmax",
+      "expression": "3.41617"
+    },
+    {
+      "variable": "NDHII_Vmax",
+      "expression": "30.8306"
+    },
+    {
+      "variable": "GROWTH_Vmax",
+      "expression": "9.74137"
+    },
+    {
+      "variable": "GROWTH_KmG6P",
+      "expression": "1.20911"
+    },
+    {
+      "variable": "GROWTH_KmE4P",
+      "expression": "1.63298"
+    },
+    {
+      "variable": "GROWTH_KmPGA3",
+      "expression": "0.0764619"
+    },
+    {
+      "variable": "GROWTH_KmOAA",
+      "expression": "0.0248351"
+    },
+    {
+      "variable": "GROWTH_KmAKG",
+      "expression": "5.11989"
+    },
+    {
+      "variable": "GROWTH_KmPYR",
+      "expression": "0.00463904"
+    },
+    {
+      "variable": "GROWTH_KmR5P",
+      "expression": "0.021234"
+    },
+    {
+      "variable": "GROWTH_KmPEP",
+      "expression": "0.457734"
+    },
+    {
+      "variable": "GROWTH_KmGAP",
+      "expression": "0.024854"
+    },
+    {
+      "variable": "GROWTH_KmF6P",
+      "expression": "0.366423"
+    },
+    {
+      "variable": "GROWTH_KmNADPH",
+      "expression": "3.59774"
+    },
+    {
+      "variable": "GROWTH_KmACCOA",
+      "expression": "0.0494404"
+    },
+    {
+      "variable": "GROWTH_KmNAD",
+      "expression": "2.82239"
+    },
+    {
+      "variable": "GROWTH_KmATP",
+      "expression": "0.0468266"
+    },
+    {
+      "variable": "ATP_MAINTENANCE_Vmax",
+      "expression": "1.30166"
+    },
+    {
+      "variable": "ATP_MAINTENANCE_Keq",
+      "expression": "3.63369"
+    },
+    {
+      "variable": "XCH_GLC_Vmax",
+      "expression": "100"
+    },
+    {
+      "variable": "Km",
+      "expression": "10"
+    },
+    {
+      "variable": "PIT_Vmax",
+      "expression": "7.146"
+    },
+    {
+      "variable": "KmPp",
+      "expression": "0.025"
+    },
+    {
+      "variable": "PIT_Kr",
+      "expression": "0.1"
+    },
+    {
+      "variable": "PIT_KmP",
+      "expression": "12.18"
+    },
+    {
+      "variable": "XCH_P_Vmax",
+      "expression": "100"
+    },
+    {
+      "variable": "XCH_P_Km",
+      "expression": "10"
+    },
+    {
+      "variable": "XCH_ACE1_Vmax",
+      "expression": "100"
+    },
+    {
+      "variable": "XCH_ACE1_Km",
+      "expression": "10"
+    },
+    {
+      "variable": "_ACE_OUT_k1",
+      "expression": "0.00005556"
+    },
+    {
+      "variable": "XCH_ACE2_Vmax",
+      "expression": "100"
+    },
+    {
+      "variable": "XCH_ACE2_Km",
+      "expression": "10"
+    },
+    {
+      "variable": "KGl6Phydrol",
+      "expression": "0.000167"
+    },
+    {
+      "variable": "KeqGl6Phydrol",
+      "expression": "42.8"
+    }
+  ],
+  "assignmentRules": [
+    {
+      "variable": "MgADP",
+      "expression": "MG*ADP/(KdADPMg + MG)"
+    },
+    {
+      "variable": "MgATP",
+      "expression": "MG*ATP/(KdATPMg + MG)"
+    },
+    {
+      "variable": "MgFDP",
+      "expression": "MG*FDP/(KdFDPMg + MG)"
+    }
+  ],
+  "species": [
+    {
+      "id": "ACCOA",
+      "x": 1259.3501018737181,
+      "y": 45.99046293537086,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.154743005197164,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ACO",
+      "x": 656.9242954692629,
+      "y": 928.6969702216127,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0321498018175313,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ACP",
+      "x": 1297.5764811459353,
+      "y": -85.53185876417895,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0143909273594558,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "AKG",
+      "x": 1273.5827512097842,
+      "y": 712.8766649451974,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.59787032384441,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "BPG",
+      "x": 1737.957117339472,
+      "y": 868.559095996499,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0654105657862152,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "CIT",
+      "x": 590.1627857235077,
+      "y": 189.00437981794337,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0895304736844159,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "DAP",
+      "x": 1633.9367043089044,
+      "y": -433.3045255461618,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.437094067658024,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "E4P",
+      "x": 1656.7414949499296,
+      "y": -90.52390404880606,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.131299932172739,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "F6P",
+      "x": 1442.2230645506825,
+      "y": -121.23074586190972,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.261766478740896,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "FDP",
+      "x": 1465.898531273267,
+      "y": -271.2059119533525,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.281808159864253,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "FUM",
+      "x": 1855.380833569388,
+      "y": 495.96207188802043,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.213114978422209,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "G6P",
+      "x": 1648.4126171865887,
+      "y": 701.4689910356107,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.861129502441293,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "GAP",
+      "x": 1565.6911387236473,
+      "y": 24.949690282703052,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.117183109596569,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "GL6P",
+      "x": 1156.633749348375,
+      "y": 1320.2018088391897,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00326165203359758,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "GLX",
+      "x": 1538.6872542625658,
+      "y": 806.063077261697,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00881041031115986,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ICIT",
+      "x": 1148.3966006173005,
+      "y": 1191.5016961981332,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.105782426191547,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "KDPG",
+      "x": 827.8275969750723,
+      "y": 904.0644603821461,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0868176890659311,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "MAL",
+      "x": 1338.9221861742321,
+      "y": 185.40378125914123,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.03215312348775,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "NAD",
+      "x": 1260.5711265552704,
+      "y": 837.7165793373246,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.4115436522776,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "NADH",
+      "x": 1399.4736718218587,
+      "y": 796.157411140433,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.158456348418614,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "NADP",
+      "x": 1520.4071679596768,
+      "y": 972.3032136182677,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.16783720710787,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "NADPH",
+      "x": 1454.7304262621867,
+      "y": 1076.291622756566,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0891627925196171,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "OAA",
+      "x": 932.336304695554,
+      "y": 150.09298786308597,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.127839589734497,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "PEP",
+      "x": 1084.9062305547213,
+      "y": 192.65567528590262,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.997038344330946,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "PGA2",
+      "x": 671.2785535216703,
+      "y": -52.96317848776487,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.378297104706903,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "PGA3",
+      "x": 1008.7019373212838,
+      "y": 440.5465081435656,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.696274165244089,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "PGN",
+      "x": 988.0254752180142,
+      "y": 1142.2984040939846,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.131599781202154,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "PYR",
+      "x": 1344.018328045706,
+      "y": 526.205515056501,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.236891381334918,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "Q",
+      "x": 735.7580320505017,
+      "y": 668.0656917909791,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.326117384176523,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "QH2",
+      "x": 783.5036467039424,
+      "y": 523.642722657301,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.673882615474956,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "R5P",
+      "x": 1214.345924910225,
+      "y": -172.38474859879273,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.106841687532834,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "RU5P",
+      "x": 979.4110855655028,
+      "y": -26.82506554113898,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.341826588051515,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "S7P",
+      "x": 1755.0006801662391,
+      "y": -379.9447529078169,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.141985142359057,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "SUC",
+      "x": 1161.4003210234064,
+      "y": 1071.0392814690572,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.216055294883695,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "SUCCOA",
+      "x": 931.2918417503838,
+      "y": 999.444043495662,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0410877780107645,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "X5P",
+      "x": 983.9574049353515,
+      "y": -354.5050942047805,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.506017991063706,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ei",
+      "x": 581.9082665979009,
+      "y": 705.3467878819769,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00033401303458514,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "eiP",
+      "x": 654.667579366613,
+      "y": 794.7387242152722,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00638116273837147,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "eiia",
+      "x": 1976.3269282691424,
+      "y": 527.1321854827141,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0142018557253279,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "eiiaP",
+      "x": 1912.5002206404713,
+      "y": 620.7358095933979,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.48056854395108,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "eiicb",
+      "x": 2072.013896392763,
+      "y": 810.4175594466218,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.000047190967217532,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "eiicbP",
+      "x": 1963.6854822780044,
+      "y": 761.5896990591422,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.000342621394230619,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "hpr",
+      "x": 957.4568752554444,
+      "y": 345.3364439425412,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.000191211795334012,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "hprP",
+      "x": 912.9581894058616,
+      "y": 267.43829015638033,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00525081181407641,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "icd",
+      "x": 1791.973905814659,
+      "y": 1118.166419522896,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.000542743814193054,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "icdP",
+      "x": 1802.4056997847333,
+      "y": 997.3500812370042,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0514572567075189,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "tal",
+      "x": 1939.6134731416712,
+      "y": -127.35690811582998,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00278094383903305,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "talC3",
+      "x": 1933.3721946297233,
+      "y": -270.29262559750026,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0572190561261228,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "tkt",
+      "x": 1187.4826731235794,
+      "y": -424.32148807310773,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0138307829063354,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "tktC2",
+      "x": 1299.7429138357888,
+      "y": -385.9185331864146,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0561692170121894,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ADP",
+      "x": 1509.7983520677324,
+      "y": 541.608317843678,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.598314702968157,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "AMP",
+      "x": 1975.5164962699434,
+      "y": 218.37588043271217,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.186252612968725,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ATP",
+      "x": 1671.8370565319112,
+      "y": 468.4884503943645,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 2.57220146109274,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "CAMP",
+      "x": 2163.680726832551,
+      "y": 445.88857108861197,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.923131385715857,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "COA",
+      "x": 1204.2992093548985,
+      "y": 307.9080845269444,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.5,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "extracellular"
+    },
+    {
+      "id": "HCO3",
+      "x": 1074.908704989928,
+      "y": 682.3472969940912,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.4,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "extracellular"
+    },
+    {
+      "id": "P",
+      "x": 1808.1148325994122,
+      "y": 335.37027251972455,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 9.7639478565112,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "MG",
+      "x": 2216.124001874852,
+      "y": 737.6926103042057,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "cell"
+    },
+    {
+      "id": "MgADP",
+      "x": 2077.4324038952873,
+      "y": 500.7631351475285,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.26268256405256,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "MgATP",
+      "x": 2019.931101197764,
+      "y": 1131.4830642678571,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 2.37120966755768,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "extracellular"
+    },
+    {
+      "id": "MgFDP",
+      "x": 1558.4819045398635,
+      "y": -99.26511640119531,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0413815212722838,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ASP",
+      "x": 2030.9584844899662,
+      "y": 112.71353253953583,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.17,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "cell"
+    },
+    {
+      "id": "CYS",
+      "x": 687.5147263074207,
+      "y": 1068.0393018989703,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.085,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "cell"
+    },
+    {
+      "id": "MN",
+      "x": 154.1951193254023,
+      "y": -297.38593505800554,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.3,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "cell_periplasm"
+    },
+    {
+      "id": "Hin",
+      "x": 714.3343914163324,
+      "y": 410.2029121874287,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0000316227766,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "cell"
+    },
+    {
+      "id": "H2O",
+      "x": 429.1718552855911,
+      "y": 608.9056359919118,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "cell"
+    },
+    {
+      "id": "O2",
+      "x": 469.7380520188138,
+      "y": 269.7505330295337,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.21,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "cell"
+    },
+    {
+      "id": "FAD",
+      "x": 1131.7060593977287,
+      "y": 446.723826568406,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.253914296785258,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "FADH2",
+      "x": 1190.9494774156472,
+      "y": 661.7300427585648,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.746085703291575,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ACEx",
+      "x": 1878.0210078511093,
+      "y": 50.189617824184836,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.000186707816309202,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "GLCx",
+      "x": 1901.7935166826633,
+      "y": 1179.6358584393802,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00633336972696918,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "extracellular"
+    },
+    {
+      "id": "Px",
+      "x": 962.9904948633209,
+      "y": -250.59749828725788,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 10.0,
+      "isBoundary": true,
+      "isConstant": true,
+      "compartment": "extracellular"
+    },
+    {
+      "id": "ACEx_0",
+      "x": 2175.4521571725454,
+      "y": 191.9840674410421,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.000186687071641801,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "extracellular"
+    },
+    {
+      "id": "Hout",
+      "x": 685.0336634031345,
+      "y": 295.63854735288555,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0000537448236126923,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "GLCp",
+      "x": 1674.5777153156241,
+      "y": 1170.509045108728,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.00403336972696918,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "Pp",
+      "x": 763.3797644297231,
+      "y": -132.84386890227196,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 9.99942809822305,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cell"
+    },
+    {
+      "id": "ACEp",
+      "x": 2108.545919616541,
+      "y": -39.5265157864995,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.000186697443975502,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "extracellular"
+    },
+    {
+      "id": "_source_GLC_feed",
+      "x": 2120.9633087379407,
+      "y": 923.5721402665168,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "_sink__ACE_OUT",
+      "x": 2210.9179626437335,
+      "y": 369.63901799768746,
+      "w": 28.0,
+      "h": 28.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "S3",
+      "x": 2009.728161259686,
+      "y": 498.555859629682,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S4",
+      "x": 1653.6057466384646,
+      "y": -14.201436499191857,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S5",
+      "x": 1469.5304443023117,
+      "y": 130.7862830640786,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S6",
+      "x": 1385.0794327623753,
+      "y": 622.1965869297068,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S7",
+      "x": 1878.9663266779785,
+      "y": 949.4534742154393,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S8",
+      "x": 1341.2304230932548,
+      "y": 496.75299470149196,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S9",
+      "x": 2081.9767844640983,
+      "y": 422.98239026145615,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S10",
+      "x": 1790.3559873815288,
+      "y": 158.2013494995254,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S11",
+      "x": 1288.3594343697016,
+      "y": 172.1356052008261,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S12",
+      "x": 1701.2673129045238,
+      "y": 229.59135261241727,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S13",
+      "x": 1649.210347380391,
+      "y": 310.5048171457929,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S14",
+      "x": 1163.9181501568023,
+      "y": 137.39266926473664,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "P"
+    },
+    {
+      "id": "S15",
+      "x": 1443.5255515494932,
+      "y": 131.81361584630616,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S16",
+      "x": 1467.2424244837048,
+      "y": 896.6730588830839,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S17",
+      "x": 1478.6324477454143,
+      "y": 421.9403894897762,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S18",
+      "x": 1662.1492613201922,
+      "y": 895.367265312212,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S19",
+      "x": 1340.9664898564824,
+      "y": 343.3319970930511,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S20",
+      "x": 1902.5317323553395,
+      "y": 501.4875288976167,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S21",
+      "x": 1908.3120335938697,
+      "y": 618.5990672927713,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S22",
+      "x": 149.33229957888594,
+      "y": -208.20086874284178,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S23",
+      "x": 1402.8092189098406,
+      "y": 762.258765719686,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S24",
+      "x": 1559.1649677994178,
+      "y": 1068.8695949439325,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S25",
+      "x": 1949.3297538499144,
+      "y": 408.9086215286985,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S26",
+      "x": 1367.6531403832066,
+      "y": 650.4650216544254,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S27",
+      "x": 2102.820743929339,
+      "y": 597.0079350488808,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S28",
+      "x": 1542.398776653137,
+      "y": 230.67787448913032,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S29",
+      "x": 1762.911263900813,
+      "y": 296.8996218380646,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S30",
+      "x": 1643.6132554471942,
+      "y": 403.7782777451598,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ATP"
+    },
+    {
+      "id": "S31",
+      "x": 1430.280295018812,
+      "y": 94.13038057841362,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S32",
+      "x": 1427.0635988898741,
+      "y": 836.8246199571141,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S33",
+      "x": 1351.8052861267774,
+      "y": 460.15373528102356,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S34",
+      "x": 1153.0926779817123,
+      "y": 375.2482295670688,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S35",
+      "x": 1634.08684407861,
+      "y": 315.30174984769405,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S36",
+      "x": 1195.4721730159697,
+      "y": 752.4206757209964,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S37",
+      "x": 1651.2928468502405,
+      "y": 938.0608318547764,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S38",
+      "x": 1889.4262389174473,
+      "y": 422.86042775959464,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S39",
+      "x": 1082.3327216483376,
+      "y": 562.0770911119333,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S40",
+      "x": 1546.69005147028,
+      "y": 249.51244358049178,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    },
+    {
+      "id": "S41",
+      "x": 1691.3103513062983,
+      "y": 569.6971124797327,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ADP"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "PGI",
+      "jx": 1438.3479542377222,
+      "jy": 110.66573712755417,
+      "kineticLaw": "cell*Function_for_PGI(F6P, G6P, Keq, KmF6P, KmG6P, KmPEP, PEP, Vmax, PGN, KmPGN)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PEP"
+        },
+        {
+          "id": "PGN"
+        }
+      ]
+    },
+    {
+      "id": "PFK",
+      "jx": 1414.5337401667,
+      "jy": 5.518609293276626,
+      "kineticLaw": "cell*Function_for_PFK(ATP, F6P, FDP, KefrADP, KefrPEP, KeftADP, KeftPEP, PFK_Keq, KirADP, KirATP, KirF6P, KirFDP, KitADP, KitATP, KitF6P, KitFDP, KmrADP, KmrATPMg, KmrF6P, KmrFDP, KmtADP, KmtATPMg, KmtF6P, KmtFDP, L0, MgADP, MgATP, PEP, PFK_Vmax, Wr, Wt, n)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S15",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S31",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "FDP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PEP"
+        },
+        {
+          "id": "MgADP"
+        },
+        {
+          "id": "MgATP"
+        }
+      ]
+    },
+    {
+      "id": "FBA",
+      "jx": 1614.6440348964366,
+      "jy": -317.5377604340712,
+      "kineticLaw": "cell*Function_for_FBA(DAP, FDP, GAP, FBA_Keq, KmDAP, KmFDP, KmGAP, FBA_KmPEP, PEP, FBA_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "FDP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "DAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PEP"
+        }
+      ]
+    },
+    {
+      "id": "TPI",
+      "jx": 1686.0679138938742,
+      "jy": -245.92448167308658,
+      "kineticLaw": "cell*Function_for_TPI(DAP, GAP, TPI_Keq, TPI_KmDAP, TPI_KmGAP, TPI_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "DAP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "GDH",
+      "jx": 1769.0040292357614,
+      "jy": 714.9774264897484,
+      "kineticLaw": "cell*Function_for_GDH(BPG, GAP, GDH_Keq, KmBPG, GDH_KmGAP, KmNAD, KmNADH, KmP, NAD, NADH, P, GDH_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "BPG",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PGK",
+      "jx": 1402.7767113800733,
+      "jy": 923.4857248144045,
+      "kineticLaw": "cell*Function_for_PGK(BPG, PGK_Keq, KmADPMg, KmATPMg, PGK_KmBPG, KmPGA3, MgADP, MgATP, PGA3, PGK_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S32",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "BPG",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S16",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PGA3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "MgADP"
+        },
+        {
+          "id": "MgATP"
+        }
+      ]
+    },
+    {
+      "id": "GPM",
+      "jx": 678.0279614152173,
+      "jy": 71.87553981645034,
+      "kineticLaw": "cell*Function_for_GPM(GPM_Keq, KmPGA2, GPM_KmPGA3, PGA2, PGA3, GPM_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "PGA3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PGA2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ENO",
+      "jx": 854.4215474227885,
+      "jy": -59.69028170140973,
+      "kineticLaw": "cell*Function_for_ENO(ENO_Keq, ENO_KmPEP, ENO_KmPGA2, PEP, PGA2, ENO_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "PGA2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PYK",
+      "jx": 1271.8108166943293,
+      "jy": 418.911949914467,
+      "kineticLaw": "cell*Function_for_PYK(ADP, FDP, G6P, GL6P, KefrFDP, KefrG6P, KefrGL6P, KefrR5P, KefrRU5P, KefrS7P, KefrX5P, KeftATP, KeftSUCCOA, PYK_KirADP, PYK_KirATP, KirPEP, KirPYR, KirPyrATP, PYK_KitADP, PYK_KitATP, KitPEP, KitPYR, KitPyrATP, KmrADPMg, KmrPEP, KmtADPMg, KmtPEP, PYK_L0, MgADP, MgATP, PEP, PYR, R5P, RU5P, S7P, SUCCOA, PYK_Vmax, X5P, PYK_n)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S33",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S17",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "FDP"
+        },
+        {
+          "id": "G6P"
+        },
+        {
+          "id": "GL6P"
+        },
+        {
+          "id": "MgADP"
+        },
+        {
+          "id": "MgATP"
+        },
+        {
+          "id": "R5P"
+        },
+        {
+          "id": "RU5P"
+        },
+        {
+          "id": "S7P"
+        },
+        {
+          "id": "SUCCOA"
+        },
+        {
+          "id": "X5P"
+        }
+      ]
+    },
+    {
+      "id": "ZWF",
+      "jx": 1497.0157927437492,
+      "jy": 1209.431484080024,
+      "kineticLaw": "cell*Function_for_ZWF(G6P, GL6P, KdG6P, KdGL6P, ZWF_Keq, ZWF_KmG6P, KmGL6P, KmNADP, KmNADPH, NADP, NADPH, ZWF_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GL6P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADPH",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PGL",
+      "jx": 1054.91500866529,
+      "jy": 1212.8754609048988,
+      "kineticLaw": "cell*Function_for_PGL(G6P, GL6P, PGL_Keq, KiG6P, PGL_KmGL6P, PGL_KmPGN, PGN, PGL_Vmax)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GL6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PGN",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "G6P"
+        }
+      ]
+    },
+    {
+      "id": "GND",
+      "jx": 1177.3517372769634,
+      "jy": 953.1683031389738,
+      "kineticLaw": "cell*Function_for_GND(ATP, FDP, HCO3, KdHCO3, KdHCO3NADPH, KdNADP, KdNADPH, KdRu5P, KefATP, KefFbP, KefNADPATP, KefNADPFbP, GND_Keq, KmHCO3, GND_KmNADP, GND_KmNADPH, GND_KmPGN, KmRU5P, NADP, NADPH, PGN, RU5P, GND_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "NADP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PGN",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "NADPH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "RU5P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "HCO3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "S18"
+        },
+        {
+          "id": "FDP"
+        }
+      ]
+    },
+    {
+      "id": "RPE",
+      "jx": 860.223739244331,
+      "jy": -264.81841453332515,
+      "kineticLaw": "cell*Function_for_RPE(RPE_Keq, RPE_KmRU5P, KmX5P, RU5P, RPE_Vmax, X5P)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "RU5P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "X5P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "RPI",
+      "jx": 1040.2495768190538,
+      "jy": -159.4981115243232,
+      "kineticLaw": "cell*Function_for_RPI(E4P, RPI_Keq, KmE4P, KmR5P, RPI_KmRU5P, R5P, RU5P, RPI_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "RU5P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "R5P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "E4P"
+        }
+      ]
+    },
+    {
+      "id": "X5P_GAP_TKT",
+      "jx": 1131.6781020884177,
+      "jy": -288.522577117528,
+      "kineticLaw": "cell*Function_for_X5P_GAP_TKT(GAP, X5P_GAP_TKT_Keq, X5P, kcat, tkt, tktC2)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "tkt",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "X5P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "tktC2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "F6P_E4P_TKT",
+      "jx": 1329.7575380790806,
+      "jy": -266.74257884849663,
+      "kineticLaw": "cell*Function_for_F6P_E4P_TKT(E4P, F6P, F6P_E4P_TKT_Keq, F6P_E4P_TKT_kcat, tkt, tktC2)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "E4P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "tktC2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "tkt",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "S7P_R5P_TKT",
+      "jx": 1426.3670209111528,
+      "jy": -427.28602645356136,
+      "kineticLaw": "cell*Function_for_S7P_R5P_TKT(S7P_R5P_TKT_Keq, R5P, S7P, S7P_R5P_TKT_kcat, tkt, tktC2)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "R5P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "tktC2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S7P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "tkt",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "F6P_GAP_TAL",
+      "jx": 1793.40063606667,
+      "jy": -92.35198173368464,
+      "kineticLaw": "cell*Function_for_F6P_GAP_TAL(F6P, GAP, F6P_GAP_TAL_Keq, F6P_GAP_TAL_kcat, tal, talC3)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "talC3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "tal",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "S7P_E4P_TAL",
+      "jx": 1824.9894616546517,
+      "jy": -232.6899598386077,
+      "kineticLaw": "cell*Function_for_S7P_E4P_TAL(E4P, S7P_E4P_TAL_Keq, S7P, S7P_E4P_TAL_kcat, tal, talC3)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S7P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "tal",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "E4P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "talC3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "FBP",
+      "jx": 1574.524878450806,
+      "jy": -190.55697240213294,
+      "kineticLaw": "cell*Function_for_FBP(AMP, F6P, FDP, KdFDPMg, KirAMP, KirAMPFDP, FBP_KirF6P, KirF6PMg, FBP_KirFDP, KirFDPMg, KirFDPMgMg, KirP, KirPF6P, KirPF6PMg, KirPMg, KitAMP, KitAMPFDP, FBP_KitF6P, KitF6PMg, FBP_KitFDP, KitFDPMg, KitFDPMgMg, KitP, KitPF6P, KitPF6PMg, KitPMg, FBP_KmrFDP, KmrMg, FBP_KmtFDP, KmtMg, FBP_L0, MG, MgFDP, P, FBP_Vmax, FBP_n)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "FDP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S4",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "AMP"
+        },
+        {
+          "id": "MG"
+        },
+        {
+          "id": "MgFDP"
+        }
+      ]
+    },
+    {
+      "id": "PPC",
+      "jx": 1079.455750218547,
+      "jy": 66.77284815935971,
+      "kineticLaw": "cell*Function_for_PPC(ACCOA, ASP, CIT, CYS, FDP, FUM, HCO3, KdrOAA, KdrPEP, KdtOAA, KdtPEP, KefrACCOA, KefrASP, KefrCIT, KefrCYS, PPC_KefrFDP, KefrFDPACCOA, KefrFUM, KefrMAL, KefrSUC, KeftACCOA, KeftASP, KeftCIT, KeftCYS, KeftFDP, KeftFDPACCOA, KeftFUM, KeftMAL, KeftSUC, PPC_Keq, KmrHCO3, KmrOAA, KmrP, PPC_KmrPEP, KmtHCO3, KmtOAA, KmtP, PPC_KmtPEP, PPC_L0, MAL, OAA, P, PEP, SUC, PPC_Vmax, PPC_n)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "HCO3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "OAA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S5",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "ACCOA"
+        },
+        {
+          "id": "CIT"
+        },
+        {
+          "id": "FDP"
+        },
+        {
+          "id": "FUM"
+        },
+        {
+          "id": "MAL"
+        },
+        {
+          "id": "SUC"
+        },
+        {
+          "id": "ASP"
+        },
+        {
+          "id": "CYS"
+        }
+      ]
+    },
+    {
+      "id": "PCK",
+      "jx": 1071.5272107229953,
+      "jy": 337.2077964613963,
+      "kineticLaw": "cell*Function_for_PCK(ADP, HCO3, PCK_Keq, KmADP, KmATP, PCK_KmHCO3, KmOAA, PCK_KmPEP, MgADP, MgATP, OAA, PEP, PCK_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S19",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "OAA",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S34",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "HCO3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "MgADP"
+        },
+        {
+          "id": "MgATP"
+        }
+      ]
+    },
+    {
+      "id": "PPS",
+      "jx": 1677.4113189610025,
+      "jy": 236.41582032813437,
+      "kineticLaw": "cell*Function_for_PPS(ADP, AKG, AMP, ATP, KdADPMg, KdAMP, KdATPMg, KdATPMgPPS, KdMg, KdP, KdPEP, KdPYR, KefADP, KefAKG, PPS_KefATP, KefOAA, PPS_Keq, KmAMP, PPS_KmATPMg, PPS_KmP, PPS_KmPEP, KmPYR, MG, MgADP, MgATP, OAA, P, PEP, PYR, PPS_Vmax, W, alpha)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S20",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "AMP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "S35"
+        },
+        {
+          "id": "AKG"
+        },
+        {
+          "id": "OAA"
+        },
+        {
+          "id": "MG"
+        },
+        {
+          "id": "MgADP"
+        },
+        {
+          "id": "MgATP"
+        }
+      ]
+    },
+    {
+      "id": "MAD",
+      "jx": 1501.8807910623966,
+      "jy": 691.56698227081,
+      "kineticLaw": "cell*Function_for_MAD(ACCOA, ASP, ATP, COA, MAD_KefrACCOA, MAD_KefrASP, KefrATP, KefrCOA, MAD_KeftACCOA, MAD_KeftASP, MAD_KeftATP, KeftCOA, KirNAD, KitNAD, KmrMAL, MAD_KmrMg, KmrMn, KmrNAD, KmtMAL, MAD_KmtMg, KmtMn, KmtNAD, MAD_L0, MAL, MG, MN, NAD, MAD_Vmax, MAD_n)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MAL",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "HCO3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "S21"
+        },
+        {
+          "id": "ACCOA"
+        },
+        {
+          "id": "COA"
+        },
+        {
+          "id": "MG"
+        },
+        {
+          "id": "ASP"
+        },
+        {
+          "id": "MN"
+        }
+      ]
+    },
+    {
+      "id": "PDH",
+      "jx": 1216.5885953320596,
+      "jy": 555.8988285969111,
+      "kineticLaw": "cell*Function_for_PDH(ACCOA, COA, HCO3, PDH_Keq, KmACCOA, KmCOA, PDH_KmHCO3, PDH_KmNAD, PDH_KmNADH, PDH_KmPYR, NAD, NADH, PYR, PDH_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "COA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ACCOA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "HCO3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "GLT",
+      "jx": 903.9398989230574,
+      "jy": 44.9608988440245,
+      "kineticLaw": "cell*Function_for_GLT(ACCOA, AKG, ATP, CIT, COA, KdACCOA0, KdcsCIT, KdcsCOA, KdcsOAA, GLT_Keq, Ki1AKG, Ki1NADH, Ki2AKG, Ki2NADH, KiATP, KmACCOA0, KmOAA0, KmcsCIT, KmcsCOA, NADH, OAA, GLT_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACCOA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "OAA",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "CIT",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "COA",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "S22"
+        },
+        {
+          "id": "AKG"
+        },
+        {
+          "id": "NADH"
+        }
+      ]
+    },
+    {
+      "id": "ACN_1",
+      "jx": 511.2218375913594,
+      "jy": 562.6057245145053,
+      "kineticLaw": "cell*Function_for_ACN_1(ACO, CIT, ICIT, ACN_1_Keq, KmACO_ACN, KmCIT_ACN, KmICIT_ACN, ACN_1_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "CIT",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ACO",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "ICIT"
+        }
+      ]
+    },
+    {
+      "id": "ACN_2",
+      "jx": 860.1047154878971,
+      "jy": 1142.0622882769098,
+      "kineticLaw": "cell*Function_for_ACN_2(ACO, CIT, ICIT, ACN_2_Keq, KmACO_ACN, KmCIT_ACN, KmICIT_ACN, ACN_2_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACO",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ICIT",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "CIT"
+        }
+      ]
+    },
+    {
+      "id": "ICD",
+      "jx": 1302.4141007751932,
+      "jy": 1057.4366073880574,
+      "kineticLaw": "cell*Function_for_ICD(AKG, ICIT, ICD_Keq, KmAKG, KmICIT, ICD_KmNADP, ICD_KmNADPH, NADP, NADPH, icd, ICD_kcat)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ICIT",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "AKG",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADPH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "HCO3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "icd"
+        }
+      ]
+    },
+    {
+      "id": "LPD",
+      "jx": 1039.0074835800103,
+      "jy": 910.2109015397274,
+      "kineticLaw": "cell*Function_for_LPD(AKG, COA, KdAKG, LPD_KmAKG, LPD_KmCOA, LPD_KmNAD, NAD, LPD_Vmax, LPD_alpha)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "COA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "AKG",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "SUCCOA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "HCO3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "SK",
+      "jx": 1120.726395072148,
+      "jy": 802.5511921712874,
+      "kineticLaw": "cell*Function_for_SK(ADP, ATP, COA, SK_Keq, SK_KmADP, SK_KmATP, SK_KmCOA, SK_KmP, KmSUC, KmSUCCOA, P, SUC, SUCCOA, SK_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S36",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "SUCCOA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S6",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S23",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "COA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "SUC",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "SDH",
+      "jx": 1382.5291902053766,
+      "jy": 662.2419823509578,
+      "kineticLaw": "cell*Function_for_SDH(FUM, KefFUM, KefSUC, SDH_Keq, KmFUM, KmQ, KmQH2, SDH_KmSUC, FAD, FADH2, SUC, SDH_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "FAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "SUC",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "FUM",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "FADH2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "FUMA",
+      "jx": 1825.5090665668781,
+      "jy": 183.57694594812327,
+      "kineticLaw": "cell*Function_for_FUMA(FUM, FUMA_Keq, FUMA_KmFUM, KmMAL, MAL, FUMA_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "FUM",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "MAL",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "MQO",
+      "jx": 874.4765983946124,
+      "jy": 377.3227588411043,
+      "kineticLaw": "cell*Function_for_MQO(MQO_Keq, MQO_KmMAL, MQO_KmOAA, MQO_KmQ, MQO_KmQH2, MAL, OAA, Q, QH2, MQO_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MAL",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Q",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "OAA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "QH2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "MDH",
+      "jx": 830.4018243140204,
+      "jy": 261.2689372745956,
+      "kineticLaw": "cell*Function_for_MDH(MDH_Keq, KiNAD, KiNADH, KiOAA, MDH_KmMAL, MDH_KmNAD, MDH_KmNADH, MDH_KmOAA, MAL, NAD, NADH, OAA, MDH_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "QH2",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "OAA",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "MAL",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Q",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "NAD"
+        },
+        {
+          "id": "NADH"
+        }
+      ]
+    },
+    {
+      "id": "ACEA",
+      "jx": 1324.908780626962,
+      "jy": 1204.5258446382732,
+      "kineticLaw": "cell*Function_for_ACEA(GLX, ICIT, KdICITsuc, ACEA_KdPEP, KdPEPglx, KdPEPicit, KdPGA3, KdSUC, ACEA_Keq, KmGLX, ACEA_KmICIT, ACEA_KmSUC, PEP, PGA3, SUC, ACEA_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ICIT",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GLX",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "SUC",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PEP"
+        },
+        {
+          "id": "PGA3"
+        }
+      ]
+    },
+    {
+      "id": "ACEB",
+      "jx": 1230.108921258387,
+      "jy": 173.44107541104248,
+      "kineticLaw": "cell*Function_for_ACEB(ACCOA, COA, GLX, ACEB_Keq, ACEB_KmACCOA, ACEB_KmCOA, ACEB_KmGLX, ACEB_KmMAL, MAL, ACEB_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACCOA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "GLX",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "COA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "MAL",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ACEK_1",
+      "jx": 1681.5449775413024,
+      "jy": 1022.8240820794516,
+      "kineticLaw": "cell*Function_for_ACEK_1(ADP, ATP, ACEK_1_Keq, icd, icdP, k)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S24",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "icd",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S37",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "icdP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ACEK_2",
+      "jx": 1911.5031862755272,
+      "jy": 1015.1101462251207,
+      "kineticLaw": "cell*Function_for_ACEK_2(ACEK_2_Keq, P, icd, icdP, ACEK_2_k)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "icdP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "icd",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S7",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "EDD",
+      "jx": 877.8021551136652,
+      "jy": 978.3827734659093,
+      "kineticLaw": "cell*Function_for_EDD(KDPG, EDD_Keq, KmKDPG, EDD_KmPGN, PGN, EDD_Vmax)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "PGN",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "KDPG",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "EDA",
+      "jx": 1103.2454944811866,
+      "jy": 530.6370891907494,
+      "kineticLaw": "cell*Function_for_EDA(GAP, KDPG, EDA_Keq, EDA_KmGAP, EDA_KmKDPG, EDA_KmPYR, PYR, EDA_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "KDPG",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "NADH_req",
+      "jx": 867.4110404826073,
+      "jy": 750.5119374898054,
+      "kineticLaw": "Function_for_NDH1(NADH_req_Vmax, Hin, Hout, NADH, Q, NAD, QH2, KeqNDH)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Q",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Hin",
+          "stoichiometry": 4.0
+        }
+      ],
+      "products": [
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "QH2",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Hout",
+          "stoichiometry": 4.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "Hin"
+        },
+        {
+          "id": "Hout"
+        }
+      ]
+    },
+    {
+      "id": "PNT_req",
+      "jx": 1611.6657798953295,
+      "jy": 897.8770352798844,
+      "kineticLaw": "cell*Function_for_PNT(PNT_req_Keq, NAD, NADH, NADP, NADPH, PNT_req_k)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADPH",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ADK",
+      "jx": 1975.3220789244986,
+      "jy": 395.9921440503021,
+      "kineticLaw": "cell*Function_for_ADK(ADP, AMP, ATP, ADK_Keq, ADK_k)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "AMP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S25",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S38",
+          "stoichiometry": 2.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ATP_syn",
+      "jx": 992.4357241294065,
+      "jy": 566.3817208383201,
+      "kineticLaw": "Function_for_ATP_SYN(ATP_syn_Vmax, Hin, Hout, ADP, P, ATP, ATP_syn_Keq)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S39",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S8",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Hout",
+          "stoichiometry": 4.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S26",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Hin",
+          "stoichiometry": 4.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "Hin"
+        },
+        {
+          "id": "Hout"
+        }
+      ]
+    },
+    {
+      "id": "CYA",
+      "jx": 2177.6395654310572,
+      "jy": 567.2146161866302,
+      "kineticLaw": "cell*Function_for_CYA(ATP, CAMP, CYA_Keq, P, CYA_k, eiiaP, KaeiiaP)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "S27",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "CAMP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S9",
+          "stoichiometry": 2.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "eiiaP"
+        }
+      ]
+    },
+    {
+      "id": "DOS",
+      "jx": 2095.261686070442,
+      "jy": 323.06909052725894,
+      "kineticLaw": "cell*Function_for_DOS(AMP, CAMP, DOS_Keq, DOS_k)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "CAMP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "AMP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ACK",
+      "jx": 1557.9674576089358,
+      "jy": 160.22179395364785,
+      "kineticLaw": "cell*Function_for_ACK(ACEx, ACP, ADP, ATP, ACK_Keq, KmACE, KmACP, ACK_KmADP, ACK_KmATP, ACK_Vmax, cell)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S40",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ACEx",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S28",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ACS",
+      "jx": 1729.221314895207,
+      "jy": 86.54444964635061,
+      "kineticLaw": "cell*Function_for_ACS(ACEx, ATP, COA, ACS_KmACE, ACS_KmATP, ACS_KmCOA, ACS_Vmax, cell)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACEx",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S29",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "COA",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ACCOA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "AMP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S10",
+          "stoichiometry": 2.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PTA",
+      "jx": 1154.3307977137456,
+      "jy": -49.34409783611332,
+      "kineticLaw": "cell*Function_for_PTA(ACCOA, ACP, COA, PTA_Keq, KiACCOA, KiACP, KiCOA, KiP, PTA_KmACP, PTA_KmP, P, PTA_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACCOA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S11",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "COA",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "ACP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PTS_0",
+      "jx": 907.4828898145148,
+      "jy": 634.5756942268398,
+      "kineticLaw": "cell*Function_for_PTS_0(PTS_0_KmPEP, PTS_0_KmPYR, PEP, PYR, ei, eiP, kF, kR)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ei",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "eiP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PTS_1",
+      "jx": 641.866042609172,
+      "jy": 554.5677251842073,
+      "kineticLaw": "cell*(k1*hpr*eiP - k2*hprP*ei)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "hpr",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "eiP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "hprP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "ei",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PTS_2",
+      "jx": 1578.428558031745,
+      "jy": 325.96320236473025,
+      "kineticLaw": "cell*(PTS_2_k1*eiia*hprP - PTS_2_k2*eiiaP*hpr)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "eiia",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "hprP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "eiiaP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "hpr",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PTS_3",
+      "jx": 2055.9078955025943,
+      "jy": 669.398316437631,
+      "kineticLaw": "cell*(PTS_3_k1*eiicb*eiiaP - PTS_3_k2*eiicbP*eiia)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "eiicb",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "eiiaP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "eiicbP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "eiia",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PTS_4",
+      "jx": 1885.8090715578535,
+      "jy": 860.7599184156574,
+      "kineticLaw": "Function_for_PTS_4(G6P, GLCp, PTS_4_KmG6P, KmGLC, cell, eiicb, eiicbP, PTS_4_kF, PTS_4_kR)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GLCp",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "eiicbP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "eiicb",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "GLC_feed",
+      "jx": 2044.4639486503927,
+      "jy": 1011.3673462247356,
+      "kineticLaw": "extracellular*Function_for_GLC_FEED(FEED, cell, extracellular)",
+      "isReversible": false,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "_source_GLC_feed",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GLCx",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "CYTBO",
+      "jx": 539.9962010828054,
+      "jy": 408.2932898788126,
+      "kineticLaw": "Function_for_CYTBO(CYTBO_Vmax, Hin, Hout, CYTBO_Keq, O2, QH2, Q)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "QH2",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "Hin",
+          "stoichiometry": 8.0
+        },
+        {
+          "id": "O2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "Q",
+          "stoichiometry": 2.0
+        },
+        {
+          "id": "Hout",
+          "stoichiometry": 8.0
+        },
+        {
+          "id": "H2O",
+          "stoichiometry": 2.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "Hin"
+        },
+        {
+          "id": "Hout"
+        }
+      ]
+    },
+    {
+      "id": "SQR",
+      "jx": 917.8713756815376,
+      "jy": 509.15159733244514,
+      "kineticLaw": "cell*Function_for_SQR(FADH2, Q, FAD, QH2, SQR_Keq, SQR_Vmax)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "FADH2",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Q",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "FAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "QH2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "NDHII",
+      "jx": 925.7208505803935,
+      "jy": 834.7591085256059,
+      "kineticLaw": "cell*Function_for_NDH2(NDHII_Vmax, NADH, Q, NAD, QH2, KeqNDH)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Q",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "QH2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "GROWTH",
+      "jx": 1421.496998473709,
+      "jy": 336.9850024292167,
+      "kineticLaw": "cell*Function_for_GROWTH(GROWTH_Vmax, G6P, E4P, PGA3, OAA, AKG, PYR, R5P, PEP, GAP, F6P, NADPH, ACCOA, NAD, ATP, GROWTH_KmG6P, GROWTH_KmE4P, GROWTH_KmPGA3, GROWTH_KmOAA, GROWTH_KmAKG, GROWTH_KmPYR, GROWTH_KmR5P, GROWTH_KmPEP, GROWTH_KmGAP, GROWTH_KmF6P, GROWTH_KmNADPH, GROWTH_KmACCOA, GROWTH_KmNAD, GROWTH_KmATP)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "G6P",
+          "stoichiometry": 116.0
+        },
+        {
+          "id": "E4P",
+          "stoichiometry": 204.0
+        },
+        {
+          "id": "PGA3",
+          "stoichiometry": 845.0
+        },
+        {
+          "id": "OAA",
+          "stoichiometry": 1010.0
+        },
+        {
+          "id": "AKG",
+          "stoichiometry": 610.0
+        },
+        {
+          "id": "PYR",
+          "stoichiometry": 1601.0
+        },
+        {
+          "id": "R5P",
+          "stoichiometry": 507.0
+        },
+        {
+          "id": "PEP",
+          "stoichiometry": 293.0
+        },
+        {
+          "id": "GAP",
+          "stoichiometry": 73.0
+        },
+        {
+          "id": "F6P",
+          "stoichiometry": 40.0
+        },
+        {
+          "id": "NADPH",
+          "stoichiometry": 10169.0
+        },
+        {
+          "id": "ACCOA",
+          "stoichiometry": 2118.0
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 2004.0
+        },
+        {
+          "id": "S30",
+          "stoichiometry": 30508.0
+        }
+      ],
+      "products": [
+        {
+          "id": "NADP",
+          "stoichiometry": 10169.0
+        },
+        {
+          "id": "COA",
+          "stoichiometry": 2118.0
+        },
+        {
+          "id": "NADH",
+          "stoichiometry": 2004.0
+        },
+        {
+          "id": "ADP",
+          "stoichiometry": 30508.0
+        },
+        {
+          "id": "S12",
+          "stoichiometry": 30508.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "ATP_MAINTENANCE",
+      "jx": 1780.2517016700979,
+      "jy": 583.4606946974496,
+      "kineticLaw": "cell*Function_for_ATP_MAINTENANCE(ATP_MAINTENANCE_Vmax, ADP, P, ATP, ATP_MAINTENANCE_Keq)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ATP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S41",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "S13",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "XCH_GLC",
+      "jx": 1738.5107834221717,
+      "jy": 1268.297980265596,
+      "kineticLaw": "Function_for_XCH_RMM(XCH_GLC_Vmax, GLCx, GLCp, Km)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GLCx",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "GLCp",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "PIT",
+      "jx": 773.6735197613191,
+      "jy": 125.18478028852556,
+      "kineticLaw": "Function_for_PIT(PIT_Vmax, Hout, Hin, Pp, KmPp, PIT_Kr, P, PIT_KmP)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Pp",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Hout",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "S14",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Hin",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "Hout"
+        },
+        {
+          "id": "Hin"
+        }
+      ]
+    },
+    {
+      "id": "XCH_P",
+      "jx": 878.253699180338,
+      "jy": -200.60987882185782,
+      "kineticLaw": "Function_for_XCH_RMM(XCH_P_Vmax, Px, Pp, XCH_P_Km)",
+      "isReversible": true,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Px",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "Pp",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "XCH_ACE1",
+      "jx": 2000.7983759708188,
+      "jy": 3.9649668343773072,
+      "kineticLaw": "Function_for_XCH_RMM(XCH_ACE1_Vmax, ACEx, ACEp, XCH_ACE1_Km)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACEx",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ACEp",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "_ACE_OUT",
+      "jx": 2193.5380909665855,
+      "jy": 282.57994229185397,
+      "kineticLaw": "extracellular*_ACE_OUT_k1*ACEx_0",
+      "isReversible": false,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACEx_0",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "_sink__ACE_OUT",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "XCH_ACE2",
+      "jx": 2145.547281804972,
+      "jy": 81.22534889831967,
+      "kineticLaw": "Function_for_XCH_RMM(XCH_ACE2_Vmax, ACEp, ACEx_0, XCH_ACE2_Km)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "ACEp",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "ACEx_0",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    },
+    {
+      "id": "GL6P_HYDROLYSIS",
+      "jx": 1263.6606967177443,
+      "jy": 1334.4106055990328,
+      "kineticLaw": "cell*Function_for_GL6P_HYDROLYSIS(KGl6Phydrol, GL6P, PGN, KeqGl6Phydrol)",
+      "isReversible": true,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GL6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PGN",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": []
+    }
+  ]
+}
