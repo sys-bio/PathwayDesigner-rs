@@ -243,6 +243,27 @@ impl Inspector {
                         "0 = default",
                     );
                     ui.end_row();
+
+                    // Ticked only if every selected box is shown. The default
+                    // compartment is never drawn, so it has no box to show.
+                    let m = view.model();
+                    let boxes: Vec<_> = compartments
+                        .iter()
+                        .filter_map(|id| m.find_compartment(id))
+                        .filter(|c| !c.is_default())
+                        .collect();
+                    let mut shown = !boxes.is_empty() && boxes.iter().all(|c| !c.hidden);
+                    ui.label("Show box");
+                    if ui
+                        .add_enabled(!boxes.is_empty(), egui::Checkbox::without_text(&mut shown))
+                        .on_hover_text(
+                            "Untick to hide the box; the compartment and its species stay",
+                        )
+                        .changed()
+                    {
+                        view.set_compartment_hidden(!shown);
+                    }
+                    ui.end_row();
                 });
             if let Some(e) = &self.rename_error {
                 ui.label(RichText::new(e).color(ERROR).small());
@@ -519,8 +540,14 @@ impl Inspector {
         let valid = field == Field::CompartmentId
             || !d.dirty
             || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite);
+        // An id can be long; a number is short.
+        let width = if field == Field::CompartmentId {
+            f32::INFINITY
+        } else {
+            90.0
+        };
         let edit = egui::TextEdit::singleline(&mut d.text)
-            .desired_width(90.0)
+            .desired_width(width)
             .hint_text(hint)
             .text_color_opt((!valid).then_some(ERROR));
         let r = ui.add_enabled(enabled, edit);

@@ -350,6 +350,21 @@ impl DiagramView {
         Ok(self.record_if_changed("Rename Compartment", before))
     }
 
+    /// Shows or hides the boxes of the selected compartments (S §7.9). The
+    /// default compartment is never drawn, so it is left alone.
+    pub fn set_compartment_hidden(&mut self, hidden: bool) -> ViewResponse {
+        let desc = if hidden {
+            "Hide Compartment"
+        } else {
+            "Show Compartment"
+        };
+        self.on_selected_compartments(desc, |c| {
+            if !c.is_default() {
+                c.hidden = hidden;
+            }
+        })
+    }
+
     /// Runs `change` on every selected compartment: one undo step, if anything
     /// changed.
     fn on_selected_compartments(

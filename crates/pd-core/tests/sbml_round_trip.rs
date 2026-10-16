@@ -303,4 +303,13 @@ fn compartment_boxes_and_styles_come_back() {
     assert_eq!(b.style.fill_color, a.style.fill_color);
     assert_eq!(b.style.border_width, 3.0);
     assert_eq!(back.find_species(&s).unwrap().compartment, id);
+    assert!(!b.hidden);
+
+    // A hidden box comes back hidden, in its place.
+    m.find_compartment_mut(&id).unwrap().hidden = true;
+    let back = sbml::import(&sbml::export(&m).xml, &OPTS).unwrap().model;
+    let b = back.find_compartment(&id).unwrap();
+    assert!(b.hidden);
+    assert_eq!(b.frame, m.find_compartment(&id).unwrap().frame);
+    assert_eq!(b.style.fill_color, Rgba::rgb(0xEE, 0xEE, 0xFF));
 }

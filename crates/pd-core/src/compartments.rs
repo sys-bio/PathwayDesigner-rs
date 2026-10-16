@@ -28,7 +28,11 @@ pub fn innermost_at(model: &Model, p: Pt) -> Option<Id> {
     model
         .compartments
         .iter()
-        .filter_map(|c| c.frame.filter(|f| f.contains(p)).map(|f| (c, f.area())))
+        .filter_map(|c| {
+            c.drawn_frame()
+                .filter(|f| f.contains(p))
+                .map(|f| (c, f.area()))
+        })
         .fold(
             None,
             |best: Option<(&crate::model::Compartment, f64)>, (c, a)| match best {
@@ -41,9 +45,11 @@ pub fn innermost_at(model: &Model, p: Pt) -> Option<Id> {
 
 /// Puts each of these species in the compartment it sits in (S §7.9). Aliases
 /// and null nodes are left alone: a species' compartment follows its primary.
-/// With no compartment on the diagram, nothing changes.
+/// With no compartment on the diagram, nothing changes. A species in a
+/// compartment whose box is hidden keeps it unless it lands in a box that is
+/// shown.
 pub fn reassign(model: &mut Model, ids: &[Id]) {
-    if !model.compartments.iter().any(|c| c.frame.is_some()) {
+    if !model.compartments.iter().any(|c| c.drawn_frame().is_some()) {
         return;
     }
     for id in ids {
@@ -53,7 +59,16 @@ pub fn reassign(model: &mut Model, ids: &[Id]) {
         if s.is_alias() || s.is_null_node {
             continue;
         }
-        let into = innermost_at(model, s.center).unwrap_or_default();
+        let into = match innermost_at(model, s.center) {
+            Some(c) => c,
+            None if model
+                .find_compartment(&s.compartment)
+                .is_some_and(|c| c.hidden) =>
+            {
+                continue;
+            }
+            None => Id::default(),
+        };
         model.find_species_mut(id).expect("found above").compartment = into;
     }
 }
@@ -108,7 +123,10 @@ pub fn contents(model: &Model, frame: &Frame) -> Contents {
         compartments: model
             .compartments
             .iter()
-            .filter(|c| c.frame.is_some_and(|f| frame.encloses(&f) && f != *frame))
+            .filter(|c| {
+                c.drawn_frame()
+                    .is_some_and(|f| frame.encloses(&f) && f != *frame)
+            })
             .map(|c| c.id.clone())
             .collect(),
     }
@@ -120,7 +138,7 @@ pub fn nesting(model: &Model) -> Vec<(Id, Id)> {
     let framed: Vec<(&Id, Frame)> = model
         .compartments
         .iter()
-        .filter_map(|c| c.frame.map(|f| (&c.id, f)))
+        .filter_map(|c| c.drawn_frame().map(|f| (&c.id, f)))
         .collect();
     framed
         .iter()

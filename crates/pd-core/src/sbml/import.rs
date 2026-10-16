@@ -214,7 +214,7 @@ impl Builder {
                     continue;
                 };
                 let (w, h) = (b.dimensions.width, b.dimensions.height);
-                let style = g
+                let look = g
                     .meta
                     .annotation
                     .as_deref()
@@ -228,8 +228,11 @@ impl Builder {
                         width: w,
                         height: h,
                     });
-                    if let Some(s) = style {
-                        c.style = s;
+                    if let Some(look) = look {
+                        if let Some(s) = look.style {
+                            c.style = s;
+                        }
+                        c.hidden = look.hidden;
                     }
                 }
             }

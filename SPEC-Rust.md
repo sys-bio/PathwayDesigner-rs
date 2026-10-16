@@ -342,7 +342,8 @@ of them, or with a width or height below 1, is not drawn yet, and gets a box fit
 around its species when opened. A document with a drawn compartment is version 4.
 `Models/compartment_1.json` is its sample file. Opening a version 3 file that has
 compartments fits boxes, so saving it writes version 4: drawing compartments needs
-their boxes.
+their boxes. A compartment whose box is hidden (S §7.9) has `"hidden": true`, and
+keeps its `x`, `y`, `w` and `h`; a shown one leaves `hidden` out.
 
 ---
 
@@ -863,8 +864,10 @@ Instead:
 **Compartments (S §7.9)** are written as compartment glyphs with their box. A custom
 style goes in a note on the glyph: `<pd:compartment xmlns:pd="…/ns/sbml-layout/1"
 fill="#F0F6EAFF" border="#7FA36BFF" borderWidth="3"/>`, with only the fields that
-are set. Import gives each compartment the box of its glyph and the note's style.
-Compartments without a glyph are fitted around their species.
+are set; a hidden box (S §7.9) is still written as a glyph, with `hidden="true"` in
+the note. Import gives each compartment the box of its glyph and the note's style,
+and hides the box if the note says so. Compartments without a glyph are fitted
+around their species.
 
 **Free text (S §7.8)** is written as a text glyph with a `text` attribute and its
 box (the text's layout width and height), and no graphical object or origin of
@@ -1030,9 +1033,10 @@ reference's guard against editing the model by mistake while filling in controls
   has a hover text.
 - egui's AccessKit integration (the eframe `accesskit` feature) MUST be turned on, so
   menus, panels and dialogs are visible to screen readers.
-- The canvas can't be read by assistive tools. Add a **model tree panel**: species and
-  reactions as a list that can be navigated with the keyboard, and whose selection is
-  shared with the canvas. It also helps everyone find their way around large networks.
+- The canvas can't be read by assistive tools. Add a **model tree panel**: species,
+  reactions and compartments as lists that can be navigated with the keyboard, and
+  whose selection is shared with the canvas. (Compartments were added so that one
+  whose box is hidden can still be selected, S §7.9.) It also helps everyone find their way around large networks.
   Selecting in the tree never moves the diagram: stepping through the list with
   the arrow keys would otherwise scroll it at every step, and the selected item
   would be hard to follow. (Earlier builds centred the clicked item.)

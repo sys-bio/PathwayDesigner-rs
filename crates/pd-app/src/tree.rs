@@ -1,6 +1,6 @@
-//! The model tree (SPEC-Rust §11.3): species and reactions as lists that can
-//! be read by screen readers and used from the keyboard, sharing the
-//! selection with the canvas.
+//! The model tree (SPEC-Rust §11.3): species, reactions and compartments as
+//! lists that can be read by screen readers and used from the keyboard,
+//! sharing the selection with the canvas.
 //!
 //! The usual list conventions:
 //! - **click** selects one item;
@@ -59,10 +59,29 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState) {
         })
         .collect();
 
+    // Listed here too because a hidden box can't be clicked (S §7.9).
+    let compartments: Vec<Row> = m
+        .compartments
+        .iter()
+        .map(|c| Row {
+            target: Target::Compartment(c.id.clone()),
+            label: if c.is_default() {
+                format!("{} (not drawn)", c.id)
+            } else if c.hidden {
+                format!("{} (hidden)", c.id)
+            } else {
+                c.id.clone()
+            },
+            tip: None,
+            selected: c.selected,
+        })
+        .collect();
+
     let mut picked = None;
     for (title, rows, salt) in [
         ("Species", &species, "tree-species"),
         ("Reactions", &reactions, "tree-reactions"),
+        ("Compartments", &compartments, "tree-compartments"),
     ] {
         egui::CollapsingHeader::new(format!("{title} ({})", rows.len()))
             .id_salt(salt)

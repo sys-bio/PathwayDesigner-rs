@@ -100,7 +100,7 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     let mut framed: Vec<(&Compartment, Frame)> = model
         .compartments
         .iter()
-        .filter_map(|c| c.frame.map(|f| (c, f)))
+        .filter_map(|c| c.drawn_frame().map(|f| (c, f)))
         .collect();
     framed.sort_by(|a, b| b.1.area().total_cmp(&a.1.area()));
     for (c, f) in &framed {
@@ -195,7 +195,7 @@ pub fn content_bounds(model: &Model) -> (Pt, Pt) {
         grow(a);
         grow(b);
     }
-    for f in model.compartments.iter().filter_map(|c| c.frame) {
+    for f in model.compartments.iter().filter_map(|c| c.drawn_frame()) {
         grow(f.min());
         grow(f.max());
     }

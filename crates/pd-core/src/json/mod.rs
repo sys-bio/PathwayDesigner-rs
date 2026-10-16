@@ -185,6 +185,9 @@ struct FileCompartment {
     w: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     h: Option<f64>,
+    /// Version 4: its box is not shown (S §7.9). Left out when it is.
+    #[serde(default, skip_serializing_if = "is_false")]
+    hidden: bool,
 }
 
 /// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
@@ -391,6 +394,7 @@ impl FileModel {
                     }),
                     _ => None,
                 },
+                hidden: c.hidden,
                 selected: false,
             })
             .collect();
@@ -637,6 +641,7 @@ impl FileModel {
                     y: c.frame.map(|f| f.center.y),
                     w: c.frame.map(|f| f.width),
                     h: c.frame.map(|f| f.height),
+                    hidden: c.hidden,
                 })
                 .collect(),
             parameters: m
@@ -993,6 +998,13 @@ mod tests {
             m.find_compartment(&id).unwrap().frame
         );
         assert_eq!(back.find_compartment("hidden").unwrap().frame, None);
+        assert!(!text.contains("\"hidden\": "), "a shown box says nothing");
+        // A hidden box keeps its place.
+        m.find_compartment_mut(&id).unwrap().hidden = true;
+        let back = from_json(&to_json(&m)).unwrap().model;
+        let c = back.find_compartment(&id).unwrap();
+        assert!(c.hidden);
+        assert_eq!(c.frame, m.find_compartment(&id).unwrap().frame);
         assert!(
             !text
                 .split("\"hidden\"")

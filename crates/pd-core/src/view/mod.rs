@@ -459,7 +459,7 @@ impl DiagramView {
             t.selected = species && reactions;
         }
         for c in &mut self.model.compartments {
-            c.selected = species && reactions && c.frame.is_some();
+            c.selected = species && reactions && c.drawn_frame().is_some();
         }
         ViewResponse {
             repaint: true,
@@ -867,7 +867,7 @@ impl DiagramView {
         let mut carried_texts: Vec<Id> = Vec::new();
         let mut carried_junctions: Vec<Id> = Vec::new();
         for c in m.selected_compartments() {
-            let Some(f) = c.frame else { continue };
+            let Some(f) = c.drawn_frame() else { continue };
             let inside = crate::compartments::contents(m, &f);
             comp_ids.push(c.id.clone());
             comp_ids.extend(inside.compartments);
@@ -958,7 +958,7 @@ impl DiagramView {
         // Undo of a plain move restores positions only; a drag that moves more
         // needs a snapshot taken now (S §9.2). With compartments on the
         // diagram a move may change a species' compartment.
-        let framed = m.compartments.iter().any(|c| c.frame.is_some());
+        let framed = m.compartments.iter().any(|c| c.drawn_frame().is_some());
         let before = (!handles.is_empty() || !smooth.is_empty() || !texts.is_empty() || framed)
             .then(|| Box::new(m.clone()));
         NodeDrag {
@@ -1284,7 +1284,7 @@ impl DiagramView {
         // one selects what is in it.
         let band = crate::model::Frame::from_corners(a, b);
         for c in &mut self.model.compartments {
-            if c.frame.is_some_and(|f| band.encloses(&f)) {
+            if c.drawn_frame().is_some_and(|f| band.encloses(&f)) {
                 c.selected = true;
             }
         }

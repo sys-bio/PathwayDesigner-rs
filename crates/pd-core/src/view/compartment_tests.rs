@@ -242,3 +242,79 @@ fn a_junction_inside_a_dragged_compartment_moves_with_it() {
     crate::bezier::apply_smooth_handles(&mut again, "R3");
     assert_eq!(again.find_reaction("R3"), v.model().find_reaction("R3"));
 }
+
+#[test]
+fn a_hidden_box_is_not_drawn_or_hit_and_keeps_its_species() {
+    use crate::render::{draw::Shown, svg::model_to_svg};
+    let mut v = view();
+    let c = draw_around_a(&mut v);
+    v.set_tool(Tool::AddCompartment);
+    drag(&mut v, pt(200.0, -100.0), pt(400.0, 100.0));
+    let other = v.model().compartments.last().unwrap().id.clone();
+    // Each box drawn is one fill of the compartment colour.
+    let boxes = |v: &DiagramView| {
+        model_to_svg(v.model(), 1.0, Shown::ALL)
+            .matches("fill=\"#F0F6EA\"")
+            .count()
+    };
+    assert_eq!(boxes(&v), 2);
+
+    v.select_item(&Target::Compartment(c.clone()), false);
+    v.set_compartment_hidden(true);
+    assert_eq!(v.undo_description(), Some("Hide Compartment"));
+    let hidden = v.model().find_compartment(&c).unwrap();
+    assert!(hidden.frame.is_some() && hidden.drawn_frame().is_none());
+    assert_eq!(boxes(&v), 1, "only the other one is drawn");
+    // Still selected, its corners can't be dragged either.
+    let before = frame(&v, &c);
+    drag(&mut v, pt(-100.0, -100.0), pt(-150.0, -150.0));
+    assert_eq!(frame(&v, &c), before);
+
+    // Its border is not there to click, and Select All leaves it out.
+    v.handle(&ViewEvent::Cancel);
+    drag(&mut v, pt(-100.0, 0.0), pt(-100.0, 0.0));
+    assert!(v.selected_compartment_ids().is_empty());
+    v.select_all();
+    assert_eq!(v.selected_compartment_ids(), std::slice::from_ref(&other));
+
+    // Its species keeps it when moved, unless it lands in a box that is shown.
+    v.handle(&ViewEvent::Cancel);
+    drag(&mut v, pt(0.0, 0.0), pt(0.0, 300.0));
+    assert_eq!(comp_of(&v, "S1"), c);
+    drag(&mut v, pt(0.0, 300.0), pt(250.0, 50.0));
+    assert_eq!(comp_of(&v, "S1"), other);
+
+    // Shown again where it was; undo hides it again.
+    v.select_item(&Target::Compartment(c.clone()), false);
+    v.set_compartment_hidden(false);
+    assert_eq!(v.undo_description(), Some("Show Compartment"));
+    assert_eq!(
+        v.model().find_compartment(&c).unwrap().drawn_frame(),
+        Some(frame(&v, &c))
+    );
+    v.undo();
+    assert!(v.model().find_compartment(&c).unwrap().hidden);
+}
+
+#[test]
+fn renamed_to_the_default_compartment_its_box_goes() {
+    let mut v = view();
+    let c = draw_around_a(&mut v);
+    v.rename_compartment(&c, "defaultCompartment").unwrap();
+    let d = v.model().find_compartment("defaultCompartment").unwrap();
+    assert_eq!(
+        d.drawn_frame(),
+        None,
+        "the default compartment is never drawn"
+    );
+    assert_eq!(comp_of(&v, "S1"), "defaultCompartment");
+    // Hiding or showing it changes nothing.
+    v.select_item(&Target::Compartment("defaultCompartment".into()), false);
+    v.set_compartment_hidden(true);
+    assert!(
+        !v.model()
+            .find_compartment("defaultCompartment")
+            .unwrap()
+            .hidden
+    );
+}

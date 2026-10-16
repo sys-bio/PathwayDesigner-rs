@@ -363,6 +363,9 @@ pub struct Compartment {
     pub style: VisualStyle,
     /// Where it is drawn. `None` until it is placed.
     pub frame: Option<Frame>,
+    /// Its box is not shown (S §7.9): the compartment, its species and its
+    /// volume stay, and `frame` is kept for when it is shown again.
+    pub hidden: bool,
     /// Transient: not saved.
     pub selected: bool,
 }
@@ -375,6 +378,7 @@ impl Compartment {
             dimensions: 3,
             style: VisualStyle::default(),
             frame: None,
+            hidden: false,
             selected: false,
         }
     }
@@ -382,6 +386,13 @@ impl Compartment {
     /// True for `defaultCompartment` (any case), which is never drawn.
     pub fn is_default(&self) -> bool {
         self.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT)
+    }
+
+    /// The box as it is on the diagram: `None` for one not placed yet, a
+    /// hidden one, and the default compartment (S §3.5, §7.9). Everything
+    /// that draws, hits, carries or decides membership goes by this.
+    pub fn drawn_frame(&self) -> Option<Frame> {
+        self.frame.filter(|_| !self.hidden && !self.is_default())
     }
 }
 

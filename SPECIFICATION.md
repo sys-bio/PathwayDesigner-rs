@@ -184,8 +184,10 @@ sets one MUST clear the other.
 ### 3.5 Compartment, Parameter, AssignmentRule
 
 - **Compartment**: `id`, `size` (the volume; default 1), `dimensions` (default 3),
-  `style`, and the box it is drawn as (§7.9). The id `defaultCompartment` is special:
-  it is never shown as a "real" compartment, and never drawn.
+  `style`, the box it is drawn as, and whether that box is hidden (§7.9). The id
+  `defaultCompartment` is special: it is never shown as a "real" compartment, and
+  never drawn, even with a box (renaming a drawn compartment to it removes its box
+  from the diagram).
 - **Parameter**: `variable`, `expression` (a string, usually a number such as `0.1`).
 - **AssignmentRule**: `variable`, `expression` (string).
 
@@ -919,6 +921,17 @@ A model with no drawn compartments never has its species' compartments changed.
 - The rubber band selects a compartment only when it encloses the whole box. Select
   All selects compartments too.
 - **Delete** removes the compartment; its species stay, in the default compartment.
+- **Hiding the box.** The Compartment group's **Show box** tick box hides a
+  compartment's box without removing anything: the compartment, its id (which rate
+  laws may use), its volume and its species stay. A hidden box is not drawn, in the
+  window or in exported pictures, and is as if it had no box: it can't be clicked
+  or resized, Select All and the rubber band leave it out, it carries nothing when
+  something else is dragged, and it takes in no species. A species in it keeps it
+  when moved, unless it lands in a box that is shown. The box keeps its place, so
+  ticking Show box again puts it back where it was. The left panel's model tree
+  lists every compartment, a hidden one as `C1 (hidden)` and the default one as
+  `defaultCompartment (not drawn)`, so a hidden one can still be selected. The
+  default compartment has no box to show, so Show box is off for it.
 - **Right-click:** Delete Compartment (keeps its species).
 - The right panel's **Compartment** group (§13.3): Id, Volume, Fill, Border, Border
   width. A new id must be a valid SId not used by anything else (changing only its
@@ -1478,7 +1491,8 @@ changes on New, Open and Quit. The reference has none of these.
 From top to bottom: the **Species** inspector group, the **Antimony** text panel
 with its *Load Antimony* and *Get Antimony* buttons, the **Reaction** inspector
 group (§8.1), the **Compartment** group (§7.9: Id, Volume, Fill, Border, Border
-width, for one selected compartment; the colours for every selected one), and the
+width, for one selected compartment; the colours, and Show box, for every selected
+one), and the
 **Text** group (§7.8). The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,
 Italic), Align (Left, Center, Right), Colour and Wrap width. All but the words and

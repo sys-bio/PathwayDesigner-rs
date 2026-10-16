@@ -60,7 +60,7 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
         }
     }
     for c in model.selected_compartments() {
-        let Some(f) = c.frame else { continue };
+        let Some(f) = c.drawn_frame() else { continue };
         if let Some(i) = compartment_corners(&f)
             .iter()
             .position(|q| q.distance(p) <= handle_tol)
@@ -105,7 +105,7 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
     let mut framed: Vec<_> = model
         .compartments
         .iter()
-        .filter_map(|c| c.frame.map(|f| (c, f)))
+        .filter_map(|c| c.drawn_frame().map(|f| (c, f)))
         .collect();
     framed.sort_by(|a, b| a.1.area().total_cmp(&b.1.area()));
     for (c, f) in framed {
