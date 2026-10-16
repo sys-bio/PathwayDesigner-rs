@@ -7,7 +7,7 @@ license.workspace = true
 
 # No egui, no I/O, no platform crates (SPEC-Rust §2, rule 1).
 [dependencies]
-pd-antimony.workspace = true
+antimony-rs.workspace = true
 sbml-io.workspace = true
 # Reads PathwayDesigner's own note in SBML layout annotations (sbml/shape.rs).
 roxmltree = "0.21"

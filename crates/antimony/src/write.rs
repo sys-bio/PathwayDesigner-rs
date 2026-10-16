@@ -459,13 +459,21 @@ impl Writer<'_> {
     }
 
     /// `const a, b;` and `var x;`, one statement each, as libantimony writes.
+    /// A `$` written on something that is not a species (`$x = 4`) is kept
+    /// as `const $x`; on a species the declaration carries it.
     fn qualifiers(&mut self, module: &Module) {
-        let names = |constness: Constness| -> Vec<&str> {
+        let names = |constness: Constness| -> Vec<String> {
             module
                 .symbols
                 .iter()
                 .filter(|s| s.constness == constness)
-                .map(|s| s.name.as_str())
+                .map(|s| {
+                    if s.is_boundary && s.kind != SymbolKind::Species {
+                        format!("${}", s.name)
+                    } else {
+                        s.name.clone()
+                    }
+                })
                 .collect()
         };
         let (consts, vars) = (names(Constness::Const), names(Constness::Var));
@@ -490,6 +498,13 @@ impl Writer<'_> {
     fn attachments(&mut self, module: &Module) {
         let mut wrote = false;
         for s in &module.symbols {
+            // A species' or compartment's place is in its declaration.
+            if let Some(c) = &s.compartment {
+                if !matches!(s.kind, SymbolKind::Species | SymbolKind::Compartment) {
+                    self.line(&format!("{} in {c};", s.name));
+                    wrote = true;
+                }
+            }
             if let Some(units) = &s.units {
                 self.line(&format!("{} has {units};", s.name));
                 wrote = true;

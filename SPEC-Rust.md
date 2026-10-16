@@ -64,17 +64,18 @@ PathwayDesigner/                (the repository root is the Cargo workspace, §1
       expr/                     S §8.3 — lexer, parser, syntax tree, list of identifiers
       undo/                     S §9 — commands and history
       layout/                   S §10 — force-directed layout (run in steps) and the Deckard handle pass
-      antimony                  S §11.2, §11.3 — the bridge: maps pd-antimony's description
-                                onto the model (import) and back (export)
+      antimony                  S §11.2, §11.3 — the bridge: maps the antimony crate's model
+                                onto the diagram (import), and writes the diagram as Antimony
+                                (export)
       sbml/                     S §11.5 — L3V1 core + Layout writer, MathML; reader (F-1)
       text/                     text width from the bundled font (§5.4)
       view/                     view state, hit testing, the interaction state machine,
                                 editing commands (S §5–§7)
       render/                   the Renderer trait and the drawing passes (S §5.2),
                                 plus SvgRenderer (§9)
-    pd-antimony/                Antimony text ⇄ a plain description of a model. No other
-                                dependencies and nothing about PathwayDesigner, so a complete
-                                Antimony crate can replace it (§8.2)
+    antimony/                   the whole Antimony language: text to a model of it, with
+                                diagnostics, and back; SBML output behind a feature. No
+                                dependencies and nothing about PathwayDesigner (§8.2)
     pd-export/                  graphics output: SVG to PNG (resvg), and pd-core's SVG and PDF. No egui. Builds for wasm32 too
     pd-app/                     eframe/egui shell: menus, toolbars, inspector, panels,
                                 dialogs, EguiRenderer, platform adapters (§10)
@@ -685,31 +686,40 @@ This is more code than using libSBML and libAntimony. It was chosen because:
 - Modifier sync (S §8.4) runs **immediately, as a normal function call**. Because no
   external library is involved, there is nothing to load and nothing to wait for.
 
-### 8.2 Antimony (`pd-antimony` and `pd-core::antimony`)
+### 8.2 Antimony (the `antimony` crate and `pd-core::antimony`)
 
-**Two parts, so the reader can be replaced.** The plan is to move to a crate that
-supports all of Antimony. To make that a contained change:
+**Two parts.**
 
-- **`pd-antimony`** is a crate of its own with no dependencies. It reads Antimony
-  text into a plain `Description` (compartments, species, reactions, assignments,
-  rules, with expressions kept as written text and their offsets) and writes a
-  `Description` back as text. It knows nothing about PathwayDesigner.
-- **`pd-core::antimony`** is the bridge. It turns a `Description` into a `Model`
-  and back, and holds everything specific to PathwayDesigner: case resolution,
-  implied parameters, the catalytic rewrite, modifiers from the rate law, null
-  nodes, random placement, and parsing expressions with `pd-core::expr`.
+- **`antimony`** (package `antimony-rs`, `crates/antimony`) is a crate of its own,
+  written to be published and used without PathwayDesigner: a port of a complete
+  Antimony implementation, checked against it case by case. It reads all of the
+  language into a model of it (species, reactions, rules, events, functions, units,
+  annotations, …) with diagnostics that carry a line and column, and writes Antimony
+  and SBML. Its design is in `crates/antimony/SPEC.md`. It knows nothing about
+  PathwayDesigner and has no dependencies; pd-core does not turn on its `sbml`
+  feature, since pd-core has its own SBML bridge (§8.3).
+- **`pd-core::antimony`** is the bridge. It turns the crate's model into a diagram
+  `Model`, and writes a diagram as Antimony text, and holds everything specific to
+  PathwayDesigner: case resolution, implied parameters, the catalytic rewrite,
+  modifiers from the rate law, null nodes, random placement, warnings for what a
+  diagram cannot hold, parsing expressions with `pd-core::expr`, and the layout of
+  the text it writes (S §11.3).
 
-To use a complete Antimony crate, remove `pd-antimony` and change the bridge to
-read the new crate's output. The panel, the view and the tests don't change.
+Until A9 of the crate's plan (2026-10-15) the reader was a small crate of its own,
+`pd-antimony`, which understood only the statements a diagram holds. The bridge's
+tests did not change in the swap, but for one input: a `model` block with no `end`,
+which that reader accepted and Antimony does not.
 
-**Import.** The rules are S §11.2, implemented completely:
+**Import.** The rules are S §11.2, over the whole language:
 
-- **Statements:** `model name … end` (and `model name()`), `compartment`,
-  `species`/`var` (with `$`, `in`, `=` and lists separated by commas), reactions with
-  an optional `id:` and stoichiometry, `->` with `=>` accepted as the same thing,
-  `x = expr`, and `x := expr`.
-- **Comments and separators:** `//` and `#` comments. Statements end with `;` or a
-  new line.
+- **Statements:** anything Antimony allows reads without an error. What a diagram
+  holds is used: `model name … end`, compartments, species (with `$`, `in` and
+  values), reactions with an optional `id:` and stoichiometry, `->` and `=>` (the
+  same thing in a diagram), `x = expr`, `x := expr`, and `const`/`var`, which are
+  read through. A `$` on a name that is not otherwise a species (`$B = 4`) makes a
+  boundary species, as it always has here.
+- **Comments and separators:** `//`, `#` and `/* … */` comments. Statements end
+  with `;` or a new line.
 - **What the import does:** create parameters that are used but never assigned;
   resolve ids typed in a different case to the declared spelling; apply the catalytic
   rewrite when the preference is on; detect modifiers; create null nodes; place nodes
@@ -717,9 +727,16 @@ read the new crate's output. The panel, the view and the tests don't change.
 - **Errors** come back as a list of `{line, column, message}`. None of them stop the
   app. Show them next to the text in the Antimony panel (§11.1). On any error the
   current model MUST stay unchanged.
-- **Unsupported Antimony** (events, functions, modules, units, and so on) gives a
-  **warning** saying the statement was skipped, not a hard failure. This leaves room to
-  move towards full Antimony later (S §16.2 F-10).
+- **What a diagram cannot hold** (functions, units, events, rate rules, algebraic
+  rules, constraints, objectives, interactions, other models in the file, names,
+  notes and annotations, units on symbols) gives a **warning** saying it was skipped,
+  not a failure (S §16.2 F-10). The crate's own warnings are passed on too, except
+  that a name used without a value is not one: here it is a parameter or species
+  at 0, by design.
+- **What still gives an error:** text that is not Antimony, a species' value or a
+  compartment's size that is an expression rather than a number, two reactions
+  with one name, and a rate law that `pd-core::expr` cannot read (it has no `%` or
+  `? :`).
 
 **Export.** S §11.3 exactly. Write only `->`, and wrap the output in `model <name>` …
 `end`. Numbers are formatted the same way on every platform (fixes D-14).

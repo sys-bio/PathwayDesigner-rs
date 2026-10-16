@@ -588,6 +588,33 @@ fn layout_block_is_skipped_and_preserved() {
 // --- Added in the Rust port ---------------------------------------------------------
 
 #[test]
+fn a_qualifier_may_carry_a_value() {
+    // libantimony accepts these; Delphi did not (SPEC.md R36).
+    let parsed = clean("const k1 = 0.5;\nvar k = 3, j = 2;\nconst S1 in C = 3;");
+    assert_eq!(parsed.sym("k1").constness, Constness::Const);
+    assert_eq!(text(&parsed.sym("k1").initial_value), "0.5");
+    assert_eq!(parsed.sym("k").constness, Constness::Var);
+    assert_eq!(text(&parsed.sym("j").initial_value), "2");
+    assert_eq!(parsed.sym("S1").compartment.as_deref(), Some("C"));
+    assert_eq!(text(&parsed.sym("S1").initial_value), "3");
+}
+
+#[test]
+fn a_dollar_assignment_is_a_const_one() {
+    // libantimony reads `$B = 4` as `const B; B = 4` (SPEC.md R36).
+    let parsed = clean("$B = 4;");
+    let b = parsed.sym("B");
+    assert_eq!((b.constness, b.is_boundary), (Constness::Const, true));
+    assert_eq!(text(&b.initial_value), "4");
+    // Used in a reaction, it is a boundary species.
+    let parsed = clean("$B = 4;\nJ1: $B -> C; k*B;");
+    assert_eq!(parsed.sym("B").kind, SymbolKind::Species);
+    assert!(parsed.sym("B").is_boundary);
+    // An unnamed reaction may still begin with `$`.
+    assert_eq!(clean("$A -> B; k;").rxn(0).reactants[0].species, "A");
+}
+
+#[test]
 fn constraints_and_chained_ranges() {
     let parsed = clean("constraint c0: R16 >= 0\n-10 <= J2 < 10\nJ1 <= 1000");
     let constraints = &parsed.main().constraints;

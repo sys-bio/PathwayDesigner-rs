@@ -121,7 +121,7 @@ the tests don't use it.
 | [`pd-core`](crates/pd-core) | The model, geometry, drawing, interaction, undo, layout, and the JSON, Antimony and SBML bridges. No user interface or platform code, so all of it is tested without a window. |
 | [`pd-app`](crates/pd-app) | The egui application, for the browser and the desktop. |
 | [`pd-export`](crates/pd-export) | Graphics output: SVG, PNG (through resvg) and PDF. |
-| [`pd-antimony`](crates/pd-antimony) | Reads and writes Antimony text. |
+| [`antimony`](crates/antimony) | Reads and writes Antimony, all of the language, and converts it to SBML. Written to be reusable on its own, and checked case by case against a complete reference implementation. See its [README](crates/antimony/README.md). |
 | [`sbml-io`](crates/sbml-io) | Reads and writes SBML as plain Rust data. Written to be reusable on its own: Level 2 and 3 core plus Layout, pure Rust, with everything it doesn't understand kept for a lossless round trip. See its [README](crates/sbml-io/README.md). |
 
 ## Building and testing

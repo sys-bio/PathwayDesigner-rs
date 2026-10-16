@@ -262,6 +262,17 @@ fn annotation_is_re_emitted_verbatim() {
 // --- Added in the Rust port -------------------------------------------------------
 
 #[test]
+fn qualifiers_with_values_round_trip() {
+    // `$B = 4` is written `B = 4; const $B;`, and `k in C` on something
+    // that is not a species keeps its compartment (SPEC.md R36).
+    let text = w("$B = 4;\nconst k1 = 0.5;\nvar S1 in C = 3;");
+    assert!(text.contains("const $B, k1;"), "{text}");
+    assert!(text.contains("S1 in C;"), "{text}");
+    assert_round_trips("$B = 4;\nconst k1 = 0.5;\nvar S1 in C = 3;");
+    assert_round_trips("$B = 4;\nJ1: $B -> D; k1*B;");
+}
+
+#[test]
 fn an_unlabelled_reaction_stays_unlabelled() {
     // Delphi wrote the generated `_J1:` label, and reading that back added a
     // symbol `_J1` the model did not have (SPEC.md R28).

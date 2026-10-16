@@ -501,6 +501,13 @@ impl<'a> Parser<'a> {
                 self.parse_symbol_statement();
                 return;
             }
+            TokenKind::Dollar
+                if self.kind(1) == TokenKind::Identifier
+                    && (self.kind(2) == TokenKind::Assign || self.is_keyword(2, Keyword::In)) =>
+            {
+                self.parse_dollar_declaration();
+                return;
+            }
             TokenKind::Dollar | TokenKind::Number | TokenKind::LParen | TokenKind::Minus => {
                 // An unnamed reaction may begin with `$`, a coefficient or a
                 // bracketed one; a bare flux bound with a number
@@ -925,7 +932,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// `const c, k1;` and `var x, y;`.
+    /// `const c, k1;` and `var x, y;`, where an item may also say where it
+    /// is and what it is worth, as libantimony allows: `const k1 = 0.5`,
+    /// `var S1 in C = 3` (Delphi rejected these; SPEC.md R36).
     fn parse_qualifier_declaration(&mut self) {
         let constness = if self.is_keyword(0, Keyword::Const) {
             Constness::Const
@@ -933,9 +942,22 @@ impl<'a> Parser<'a> {
             Constness::Var
         };
         self.next();
+        self.parse_qualified_items(constness);
+    }
+
+    /// `$x = 4` and `$x in C = 4`: libantimony reads the `$` as `const`,
+    /// so this is `const $x = 4` (SPEC.md R36).
+    fn parse_dollar_declaration(&mut self) {
+        self.parse_qualified_items(Constness::Const);
+    }
+
+    /// The items of a `const` or `var` declaration: `[$]name [in c] [= value]`.
+    fn parse_qualified_items(&mut self, constness: Constness) {
         loop {
-            // `const $S1` is redundant but legal.
-            self.try_consume(TokenKind::Dollar);
+            // A `$` on a species is redundant with `const`. On anything else
+            // it is kept, so a later use as a species makes a boundary one
+            // and the writer can write it back.
+            let dollar = self.try_consume(TokenKind::Dollar);
             if self.kind(0) != TokenKind::Identifier {
                 self.expected_identifier();
                 self.resynchronise();
@@ -945,8 +967,19 @@ impl<'a> Parser<'a> {
             let at = self.declare_symbol(&token.text, token.span);
             let symbol = self.symbol_mut(at);
             symbol.constness = constness;
-            if constness == Constness::Const && symbol.kind == SymbolKind::Species {
+            if dollar || (constness == Constness::Const && symbol.kind == SymbolKind::Species) {
                 symbol.is_boundary = true;
+            }
+            if self.try_consume_keyword(Keyword::In) {
+                if self.kind(0) == TokenKind::Identifier {
+                    let compartment = self.parse_symbol_ref().0;
+                    self.symbol_mut(at).compartment = Some(compartment);
+                } else {
+                    self.expected_identifier();
+                }
+            }
+            if self.try_consume(TokenKind::Assign) {
+                self.set_value(at);
             }
             if !self.try_consume(TokenKind::Comma) {
                 break;

@@ -1,19 +1,17 @@
 //! Antimony import and export (S §11.2, §11.3, SPEC-Rust §8.2).
 //!
-//! The bridge between `pd-antimony`, which reads and writes Antimony text as a
-//! plain [`Description`], and the diagram [`Model`]. Everything specific to
+//! The bridge between the `antimony` crate, which reads Antimony text into a
+//! model of the language, and the diagram [`Model`]. Everything specific to
 //! PathwayDesigner lives here: case resolution, implied parameters, the
-//! catalytic rewrite, modifiers from the rate law, null nodes and random
-//! placement. To use a complete Antimony crate instead of `pd-antimony`, only
-//! this module needs to change.
+//! catalytic rewrite, modifiers from the rate law, null nodes, random
+//! placement, warnings for what a diagram cannot hold, and the layout of the
+//! text it writes.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
-use pd_antimony::{
-    Assignment as AssignmentText, Compartment as CompartmentText, Description,
-    Reaction as ReactionText, Species as SpeciesText, Term, Text, line_column,
-};
-pub use pd_antimony::{Diagnostic, Severity};
+use antimony::model::{Module, Participant as Term, Symbol, SymbolKind};
+use antimony::{Code, Span};
 
 use crate::expr;
 use crate::geometry::{Pt, pt};
@@ -43,19 +41,79 @@ pub struct Imported {
     pub warnings: Vec<Diagnostic>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Severity {
+    /// The text can't be used.
+    Error,
+    /// Something was skipped; the rest is fine.
+    Warning,
+}
+
+/// A problem in the text, with a 1-based line and column (0 when it has no
+/// place in the text).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Diagnostic {
+    pub severity: Severity,
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+}
+
+impl std::fmt::Display for Diagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "line {}, column {}: {}",
+            self.line, self.column, self.message
+        )
+    }
+}
+
+impl Diagnostic {
+    fn at(severity: Severity, span: Span, message: impl Into<String>) -> Self {
+        Self {
+            severity,
+            line: span.start.line as usize,
+            column: span.start.column as usize,
+            message: message.into(),
+        }
+    }
+}
+
 /// Reads Antimony text into a new model (S §11.2). Any error means no model:
 /// the caller leaves the current diagram as it is.
 pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnostic>> {
-    let parsed = pd_antimony::parse(src);
-    if parsed.has_errors() {
-        return Err(parsed.errors().cloned().collect());
+    let loaded = antimony::parse(src);
+    let errors: Vec<Diagnostic> = loaded
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == antimony::Severity::Error)
+        .map(|d| Diagnostic::at(Severity::Error, d.span, d.message.clone()))
+        .collect();
+    if !errors.is_empty() {
+        return Err(errors);
     }
-    let warnings: Vec<Diagnostic> = parsed.warnings().cloned().collect();
+    // A name used and never given a value is a parameter at 0, or a species
+    // at 0, by design (S §11.2), so the crate's warnings about that are not
+    // passed on.
+    let mut warnings: Vec<Diagnostic> = loaded
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            d.severity == antimony::Severity::Warning
+                && !matches!(d.code, Code::UninitialisedSymbol | Code::ImplicitParameter)
+        })
+        .map(|d| Diagnostic::at(Severity::Warning, d.span, d.message.clone()))
+        .collect();
+    let document = &loaded.document;
+    let module = document.main_module();
+    warnings.extend(skipped(document, module));
     let mut b = Builder {
         src,
+        module,
         errors: Vec::new(),
     };
-    let model = b.build(&parsed.description, opts);
+    let model = b.build(opts);
     if b.errors.is_empty() {
         Ok(Imported { model, warnings })
     } else {
@@ -63,78 +121,178 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
     }
 }
 
-/// Writes the model as Antimony (S §11.3): aliases and null nodes left out,
-/// numbers with a `.` whatever the locale.
-pub fn export(model: &Model) -> String {
-    let mut d = Description {
-        name: Some(model.model_name.clone()),
-        ..Description::default()
+/// A warning for each thing in the text that the diagram cannot hold: the
+/// import goes ahead without it (SPEC-Rust §8.2).
+fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    let mut skip = |span: Span, what: &str| {
+        out.push(Diagnostic::at(
+            Severity::Warning,
+            span,
+            format!("{what} aren't supported; this one was skipped"),
+        ));
     };
-    d.compartments = model
+    for m in &document.modules {
+        if !std::ptr::eq(m, module) {
+            skip(m.span, "Other models in the file");
+        }
+    }
+    for f in &module.functions {
+        skip(f.span, "'function' statements");
+    }
+    for u in &module.units {
+        skip(u.span, "'unit' statements");
+    }
+    for e in &module.events {
+        skip(e.span, "Events");
+    }
+    for s in &module.symbols {
+        if let Some(rule) = s.rate_rule() {
+            skip(rule.span, "Rate rules");
+        }
+        if s.display_name.is_some()
+            || s.notes.is_some()
+            || !s.cv_terms.is_empty()
+            || s.sbo_term.is_some()
+        {
+            skip(s.span, "Names, notes and annotations");
+        }
+        if s.units.is_some() || s.conversion_factor.is_some() {
+            skip(s.span, "Units and conversion factors");
+        }
+    }
+    for r in &module.algebraic_rules {
+        skip(r.span, "Algebraic rules");
+    }
+    for c in &module.constraints {
+        skip(c.span, "Constraints");
+    }
+    for o in &module.objectives {
+        skip(o.span, "Objectives");
+    }
+    for i in &module.interactions {
+        skip(i.span, "Interactions");
+    }
+    out.sort_by_key(|d| (d.line, d.column));
+    out
+}
+
+/// Writes the model as Antimony (S §11.3): aliases and null nodes left out,
+/// numbers with a `.` whatever the locale. One statement per line, indented
+/// by two spaces, in sections introduced by `// …` comments: compartments,
+/// species, reactions, parameters, initial values, then assignment rules.
+/// A reaction without a rate law is written with the rate `v`, and the arrow
+/// is always `->`.
+pub fn export(model: &Model) -> String {
+    let name = Some(model.model_name.as_str())
+        .filter(|n| is_identifier(n))
+        .unwrap_or("anonymous");
+    let compartments: Vec<String> = model
         .compartments
         .iter()
         .filter(|c| !c.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT))
-        .map(|c| CompartmentText {
-            id: c.id.clone(),
-            size: Some(Text::new(number(c.size))),
-        })
+        .map(|c| format!("compartment {} = {};", c.id, number(c.size)))
         .collect();
-    let primaries = model
+    let primaries: Vec<&SpeciesNode> = model
         .species()
         .iter()
-        .filter(|s| !s.is_alias() && !s.is_null_node);
-    d.species = primaries
-        .map(|s| SpeciesText {
-            id: s.id.clone(),
-            boundary: s.is_boundary,
-            compartment: (!s.compartment.is_empty()
-                && !s.compartment.eq_ignore_ascii_case(DEFAULT_COMPARTMENT))
-            .then(|| s.compartment.clone()),
-            initial: Some(Text::new(number(s.initial_value))),
+        .filter(|s| !s.is_alias() && !s.is_null_node)
+        .collect();
+    let species: Vec<String> = primaries
+        .iter()
+        .map(|s| {
+            let mut line = format!("species {}{}", if s.is_boundary { "$" } else { "" }, s.id);
+            if !s.compartment.is_empty() && !s.compartment.eq_ignore_ascii_case(DEFAULT_COMPARTMENT)
+            {
+                let _ = write!(line, " in {}", s.compartment);
+            }
+            line.push(';');
+            line
         })
         .collect();
-    let term = |p: &Participant| {
-        let node = model.find_species(&p.species)?;
-        if node.is_null_node {
-            return None;
-        }
-        let primary = model.find_species(node.primary_id()).unwrap_or(node);
-        Some(Term {
-            stoichiometry: p.stoichiometry,
-            species: primary.id.clone(),
-            boundary: primary.is_boundary,
-        })
+    // `[n ]A + [n ]B`, through aliases to the species, null nodes left out.
+    let side = |list: &[Participant]| {
+        list.iter()
+            .filter_map(|p| {
+                let node = model.find_species(&p.species)?;
+                if node.is_null_node {
+                    return None;
+                }
+                let primary = model.find_species(node.primary_id()).unwrap_or(node);
+                let n = if p.stoichiometry == 1.0 {
+                    String::new()
+                } else {
+                    format!("{} ", p.stoichiometry)
+                };
+                Some(format!(
+                    "{n}{}{}",
+                    if primary.is_boundary { "$" } else { "" },
+                    primary.id
+                ))
+            })
+            .collect::<Vec<_>>()
+            .join(" + ")
     };
-    d.reactions = model
+    let reactions: Vec<String> = model
         .reactions()
         .iter()
-        .map(|r| ReactionText {
-            id: Some(r.id.clone()),
-            reactants: r.reactants.iter().filter_map(term).collect(),
-            products: r.products.iter().filter_map(term).collect(),
-            rate: (!r.kinetic_law.trim().is_empty()).then(|| Text::new(r.kinetic_law.trim())),
-            line: 0,
+        .map(|r| {
+            let law = r.kinetic_law.trim();
+            let rate = if law.is_empty() { "v" } else { law };
+            format!(
+                "{}: {} -> {}; {rate};",
+                r.id,
+                side(&r.reactants),
+                side(&r.products)
+            )
         })
         .collect();
-    d.assignments = model
+    let parameters: Vec<String> = model
         .parameters
         .iter()
-        .map(|p| AssignmentText {
-            variable: p.variable.clone(),
-            expression: Text::new(p.expression.trim()),
-            line: 0,
-        })
+        .map(|p| format!("{} = {};", p.variable, p.expression.trim()))
         .collect();
-    d.rules = model
+    let initial: Vec<String> = primaries
+        .iter()
+        .map(|s| format!("{} = {};", s.id, number(s.initial_value)))
+        .collect();
+    let rules: Vec<String> = model
         .assignment_rules
         .iter()
-        .map(|r| AssignmentText {
-            variable: r.variable.clone(),
-            expression: Text::new(r.expression.trim()),
-            line: 0,
-        })
+        .map(|r| format!("{} := {};", r.variable, r.expression.trim()))
         .collect();
-    pd_antimony::write(&d)
+
+    let mut out = format!("model {name}\n");
+    let mut first = true;
+    for (title, lines) in [
+        ("Compartments", compartments),
+        ("Species", species),
+        ("Reactions", reactions),
+        ("Parameters", parameters),
+        ("Initial values", initial),
+        ("Assignment rules", rules),
+    ] {
+        if lines.is_empty() {
+            continue;
+        }
+        if !first {
+            out.push('\n');
+        }
+        first = false;
+        let _ = writeln!(out, "  // {title}");
+        for line in lines {
+            let _ = writeln!(out, "  {line}");
+        }
+    }
+    out.push_str("end\n");
+    out
+}
+
+fn is_identifier(s: &str) -> bool {
+    let mut b = s.bytes();
+    b.next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == b'_')
+        && b.all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 
 /// A number as Antimony text: shortest form, `.` as the decimal separator.
@@ -155,51 +313,60 @@ struct SpeciesInfo {
 
 struct Builder<'a> {
     src: &'a str,
+    module: &'a Module,
     errors: Vec<Diagnostic>,
 }
 
 impl Builder<'_> {
-    fn error(&mut self, offset: usize, message: impl Into<String>) {
-        let (line, column) = line_column(self.src, offset);
-        self.errors.push(Diagnostic {
-            severity: Severity::Error,
-            line,
-            column,
-            message: message.into(),
-        });
+    fn error(&mut self, span: Span, message: impl Into<String>) {
+        self.errors
+            .push(Diagnostic::at(Severity::Error, span, message));
     }
 
-    /// A number written in the text, or an error.
-    fn number(&mut self, t: &Text, what: &str) -> Option<f64> {
-        match t.text.trim().parse::<f64>() {
+    /// The text an expression was written as.
+    fn text(&self, e: &antimony::expr::Expr) -> String {
+        e.span.slice_of(self.src).trim().to_owned()
+    }
+
+    /// A number written in the text, or an error. A sign is part of the
+    /// number; anything more is an expression, which a diagram's species or
+    /// compartment can't hold.
+    fn number(&mut self, e: &antimony::expr::Expr, what: &str) -> Option<f64> {
+        let text = self.text(e);
+        match text.parse::<f64>() {
             Ok(v) if v.is_finite() => Some(v),
             _ => {
-                self.error(
-                    t.offset,
-                    format!("{what} must be a number, not '{}'", t.text.trim()),
-                );
+                self.error(e.span, format!("{what} must be a number, not '{text}'"));
                 None
             }
         }
     }
 
     /// An expression, parsed: the AST, or an error at the right place.
-    fn expression(&mut self, t: &Text) -> Option<expr::Ast> {
-        match expr::parse(&t.text) {
+    fn expression(&mut self, e: &antimony::expr::Expr) -> Option<expr::Ast> {
+        match expr::parse(&self.text(e)) {
             Ok(ast) => Some(ast),
-            Err(e) => {
-                self.error(t.offset + e.span.start, e.message);
+            Err(err) => {
+                let written = e.span.slice_of(self.src);
+                let at = e.span.start.offset + written.len() - written.trim_start().len()
+                    + err.span.start;
+                let pos = antimony::span::LineIndex::new(self.src).pos(self.src, at);
+                self.error(Span::from_pos(pos, 1), err.message);
                 None
             }
         }
     }
 
-    fn build(&mut self, d: &Description, opts: &ImportOptions) -> Model {
+    fn build(&mut self, opts: &ImportOptions) -> Model {
+        let module = self.module;
         let mut model = Model::new();
-        model.model_name = d.name.clone().unwrap_or_else(|| "anonymous".to_owned());
+        model.model_name = module
+            .name
+            .clone()
+            .unwrap_or_else(|| "anonymous".to_owned());
 
-        // Species: declared ones first, then those only used in reactions.
-        // Names typed in another case resolve to the declared spelling.
+        // Species, in the order the text first mentions them. Names typed in
+        // another case resolve to the first spelling.
         let mut species: Vec<SpeciesInfo> = Vec::new();
         let mut by_lower: HashMap<String, usize> = HashMap::new();
         let mut resolve = |id: &str, boundary: bool, species: &mut Vec<SpeciesInfo>| -> String {
@@ -215,24 +382,22 @@ impl Builder<'_> {
             species[i].boundary |= boundary;
             species[i].id.clone()
         };
-        for s in &d.species {
-            let id = resolve(&s.id, s.boundary, &mut species);
-            let initial = s
-                .initial
-                .as_ref()
-                .and_then(|t| self.number(t, "A species' initial value"));
-            let info = species
-                .iter_mut()
-                .find(|x| x.id == id)
-                .expect("just resolved");
+        // A `$` on a name that is not a species (`$B = 4`, which Antimony
+        // reads as `const B`) has always meant a boundary species here.
+        let species_like = module.symbols.iter().filter(|s| {
+            s.kind == SymbolKind::Species || (s.is_boundary && s.kind == SymbolKind::Parameter)
+        });
+        for s in species_like {
+            let id = resolve(&s.name, s.is_boundary, &mut species);
             if let Some(c) = &s.compartment {
+                let info = species
+                    .iter_mut()
+                    .find(|x| x.id == id)
+                    .expect("just resolved");
                 info.compartment = c.clone();
             }
-            if let Some(v) = initial {
-                info.initial = v;
-            }
         }
-        let reactions: Vec<(Side, Side)> = d
+        let reactions: Vec<(Side, Side)> = module
             .reactions
             .iter()
             .map(|r| {
@@ -241,8 +406,8 @@ impl Builder<'_> {
                         .iter()
                         .map(|t| {
                             (
-                                resolve(&t.species, t.boundary, &mut species),
-                                t.stoichiometry,
+                                resolve(&t.species, t.is_boundary, &mut species),
+                                module.stoichiometry(t),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -252,62 +417,70 @@ impl Builder<'_> {
             .collect();
 
         // Compartments.
-        let mut compartments: Vec<Compartment> = Vec::new();
-        for c in &d.compartments {
-            let mut comp = Compartment::new(c.id.clone());
-            if let Some(size) = c
-                .size
-                .as_ref()
-                .and_then(|t| self.number(t, "A compartment's size"))
-            {
-                comp.size = size;
-            }
-            compartments.push(comp);
-        }
+        let mut compartments: Vec<Compartment> = module
+            .compartments()
+            .map(|c| Compartment::new(c.name.clone()))
+            .collect();
 
-        // `x = expr`: a species' initial value, a compartment's size, or a parameter.
+        // `x = expr`, in the order written: a species' initial value, a
+        // compartment's size, or a parameter.
+        let mut assignments: Vec<(&Symbol, &antimony::expr::Expr)> = module
+            .symbols
+            .iter()
+            .filter_map(|s| Some((s, s.initial_value.as_ref()?)))
+            .collect();
+        assignments.sort_by_key(|(_, e)| e.span.start.offset);
         let mut parameters: Vec<Parameter> = Vec::new();
-        for a in &d.assignments {
-            if let Some(&i) = by_lower.get(&a.variable.to_ascii_lowercase()) {
-                if let Some(v) = self.number(&a.expression, "A species' initial value") {
+        for (s, value) in assignments {
+            let compartment = compartments
+                .iter()
+                .position(|c| c.id.eq_ignore_ascii_case(&s.name));
+            let as_species = (s.kind != SymbolKind::Compartment)
+                .then(|| by_lower.get(&s.name.to_ascii_lowercase()).copied())
+                .flatten();
+            if let Some(i) = as_species {
+                if let Some(v) = self.number(value, "A species' initial value") {
                     species[i].initial = v;
                 }
-            } else if let Some(c) = compartments
-                .iter()
-                .position(|c| c.id.eq_ignore_ascii_case(&a.variable))
-            {
-                if let Some(v) = self.number(&a.expression, "A compartment's size") {
+            } else if let Some(c) = compartment {
+                if let Some(v) = self.number(value, "A compartment's size") {
                     compartments[c].size = v;
                 }
             } else {
-                self.expression(&a.expression);
-                let value = a.expression.text.trim().to_owned();
-                match parameters.iter_mut().find(|p| p.variable == a.variable) {
-                    Some(p) => p.expression = value,
+                self.expression(value);
+                let text = self.text(value);
+                match parameters.iter_mut().find(|p| p.variable == s.name) {
+                    Some(p) => p.expression = text,
                     None => parameters.push(Parameter {
-                        variable: a.variable.clone(),
-                        expression: value,
+                        variable: s.name.clone(),
+                        expression: text,
                     }),
                 }
             }
         }
-        let rules: Vec<AssignmentRule> = d
-            .rules
+        // `x := expr`, in the order written.
+        let mut rule_exprs: Vec<(&Symbol, &antimony::expr::Expr)> = module
+            .symbols
             .iter()
-            .map(|r| {
-                self.expression(&r.expression);
+            .filter_map(|s| Some((s, s.assignment_rule()?)))
+            .collect();
+        rule_exprs.sort_by_key(|(_, e)| e.span.start.offset);
+        let rules: Vec<AssignmentRule> = rule_exprs
+            .into_iter()
+            .map(|(s, e)| {
+                self.expression(e);
                 AssignmentRule {
-                    variable: r.variable.clone(),
-                    expression: r.expression.text.trim().to_owned(),
+                    variable: s.name.clone(),
+                    expression: self.text(e),
                 }
             })
             .collect();
 
         // Rate laws, tidied by the expression parser.
-        let laws: Vec<Option<expr::Ast>> = d
+        let laws: Vec<Option<expr::Ast>> = module
             .reactions
             .iter()
-            .map(|r| r.rate.as_ref().and_then(|t| self.expression(t)))
+            .map(|r| r.kinetic_law.as_ref().and_then(|e| self.expression(e)))
             .collect();
 
         // A name in a rate law that is nothing else is a parameter, 0.
@@ -348,23 +521,31 @@ impl Builder<'_> {
             }
         }
 
-        // Reactions.
-        let declared: Vec<&str> = d.reactions.iter().filter_map(|r| r.id.as_deref()).collect();
+        // Reactions. One the text leaves unnamed is named `R1`, `R2`, …,
+        // stepping past the names the text uses.
+        let declared: Vec<&str> = module
+            .reactions
+            .iter()
+            .filter(|r| !r.name_generated)
+            .map(|r| r.name.as_str())
+            .collect();
         let mut next_generated = 1;
-        for ((r, (reactants, products)), law) in d.reactions.iter().zip(reactions).zip(laws) {
-            let id = match &r.id {
-                Some(id) => id.clone(),
-                None => loop {
+        for ((r, (reactants, products)), law) in module.reactions.iter().zip(reactions).zip(laws) {
+            let id = if r.name_generated {
+                loop {
                     let id = format!("R{next_generated}");
                     next_generated += 1;
                     if !declared.contains(&id.as_str()) && !model.is_id_used(&id) {
                         break id;
                     }
-                },
+                }
+            } else {
+                r.name.clone()
             };
             if model.find_reaction(&id).is_some() {
-                let offset = self.src.lines().take(r.line - 1).map(|l| l.len() + 1).sum();
-                self.error(offset, format!("a second reaction is called '{id}'"));
+                let mut line = r.span;
+                line.start.column = 1;
+                self.error(line, format!("a second reaction is called '{id}'"));
                 continue;
             }
             self.add_reaction(&mut model, &id, reactants, products, law, opts);
@@ -609,9 +790,73 @@ mod tests {
     }
 
     #[test]
+    fn what_the_diagram_cant_hold_is_skipped_with_a_warning() {
+        let i = import(
+            "function f(x)\n  x^2\nend\nunit mM = 1e-3 mole/litre\nE1: at (time > 5): S1 = 3\nS1 is \"glucose\"\nA -> B; k",
+            &ON,
+        )
+        .unwrap();
+        let lines: Vec<usize> = i.warnings.iter().map(|w| w.line).collect();
+        assert_eq!(lines, [1, 4, 5, 6], "{:?}", i.warnings);
+        assert_eq!(i.model.reactions().len(), 1);
+    }
+
+    #[test]
+    fn const_is_read_through() {
+        let m = ok("const k1 = 0.5\nconst species S = 2", &ON);
+        assert_eq!(m.find_parameter("k1").unwrap().expression, "0.5");
+        assert_eq!(m.find_species("S").unwrap().initial_value, 2.0);
+    }
+
+    #[test]
+    fn parameters_keep_the_order_they_were_written() {
+        let m = ok("const a, b\nR1: X -> Y; a*b\nb = 1\na = 2", &ON);
+        let names: Vec<&str> = m.parameters.iter().map(|p| p.variable.as_str()).collect();
+        assert_eq!(names, ["b", "a"]);
+    }
+
+    #[test]
+    fn a_rate_law_the_diagram_cant_read_points_into_it() {
+        // Antimony allows `%`; the diagram's expressions do not.
+        let e = import("R1: A -> B; k % 2", &ON).unwrap_err();
+        assert_eq!((e[0].line, e[0].column), (1, 15), "{e:?}");
+    }
+
+    #[test]
+    fn a_model_without_its_end_is_an_error() {
+        // The reader before the antimony crate accepted it; libantimony
+        // does not.
+        let e = import("model m\n  A -> B; k", &ON).unwrap_err();
+        assert_eq!(e[0].line, 2, "{e:?}");
+    }
+
+    #[test]
+    fn a_dollar_marks_a_boundary_species() {
+        // `$B = 4` is `const B; B = 4` to libantimony; in a diagram the `$`
+        // has always meant a boundary species.
+        let m = ok("$B = 4\nk = 1", &ON);
+        let b = m.find_species("B").unwrap();
+        assert!(b.is_boundary && b.initial_value == 4.0);
+        assert!(m.find_parameter("B").is_none());
+        assert!(m.find_species("k").is_none(), "k is a parameter");
+    }
+
+    #[test]
+    fn any_antimony_file_imports() {
+        // Functions, events and annotations are skipped; the rest is drawn.
+        let m = ok(
+            "model *m()\n  function mm(s, v, k)\n    v*s/(k + s)\n  end\n  compartment c = 1;\n  species S in c, P in c;\n  J1: S => P; mm(S, Vm, Km);\n  S = 10; P = 0; Vm = 1; Km = 0.5;\n  E1: at time > 5: S = 10;\n  S is \"substrate\";\nend",
+            &ON,
+        );
+        assert_eq!(ids(&m), ["S", "P"]);
+        assert_eq!(m.find_species("S").unwrap().initial_value, 10.0);
+        assert_eq!(reaction(&m, "J1").kinetic_law, "mm(S, Vm, Km)");
+    }
+
+    #[test]
     fn export_follows_s_11_3() {
         let mut m = ok(
-            "model demo\ncompartment cell = 2\nspecies $A in cell = 1.5\nR1: 2 A -> B; k1*A\nR2: B -> ; \nk1 = 0.1\nT := A + B",
+            "model demo\ncompartment cell = 2\nspecies $A in cell = 1.5\nR1: 2 A -> B; k1*A\nR2: B -> ; \nk1 = 0.1\nT := A + B\nend",
             &ON,
         );
         m.add_alias("A", pt(0.0, 0.0));

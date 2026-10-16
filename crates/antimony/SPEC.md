@@ -14,7 +14,7 @@ what the *language* is (Delphi decision 19).
 
 Section numbers written "Delphi §n" refer to the Delphi `SPECIFICATION.md`.
 
-Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4; §5.6, R28–R29 and the end of §10 in A6; §5.7, R30–R32 and the A7 parts of §2, §6, §7 and §8 in A7; §6 as built, the BioModels tier in §8, and R33–R35 in A8.
+Written 2026-10-13 in milestone A0; §5.1, §5.2 and R14–R17 added in A1; §5.3 and R18–R21 in A2; §3.3's model as built, §5.4, the corpus index and differential tier in §8, and R22–R25 in A3; §5.5, §6 as built and R26–R27 in A4; the A5 note in §5.4; §5.6, R28–R29 and the end of §10 in A6; §5.7, R30–R32 and the A7 parts of §2, §6, §7 and §8 in A7; §6 as built, the BioModels tier in §8, and R33–R35 in A8; R36 in A9.
 
 ---
 
@@ -736,6 +736,7 @@ licence and API.
 | R33 | `LoadFile` reads a file, reporting `dcFileNotFound` and `dcReadError` (with the decoder's message) | The crate opens no files; `parse_bytes` takes a file's bytes and reports invalid UTF-8 as `dcReadError` at the first bad byte | It runs in a browser, where there is no file system (§2); reading a file, and reporting a missing one, is the caller's part |
 | R34 | The facade's queries raise on a bad index or id, with a message naming the method | `None`, or the `Vec`'s own indexing (§6) | R8: Rust's idiom; there is no method name to report |
 | R35 | `doc/api.md`, a separate reference | The crate-level documentation (`src/lib.rs`) and the README, whose examples are run as doc tests | One place, shown by docs.rs, and checked by `cargo test` |
+| R36 | `const`, `var` and `$` declare only: `const k1 = 0.5`, `var k = 3` and `$B = 4` are syntax errors | An item of `const` or `var` may have `in c` and `= value`, and a statement `$x = value` (or `$x in c …`) is `const $x = value`, as libantimony reads it. A `$` on something that is not a species is kept (`is_boundary`), so a later use as a species makes a boundary one, and the writer writes it back as `const $x`; it also writes `x in c;` for a symbol that is not a species or compartment, which it used to drop | libantimony accepts all three, and the language reference outranks the Delphi version (Delphi decision 19). Found when the crate's first user met `$B = 4` |
 
 ## 10. Left open, for the milestone that needs it
 

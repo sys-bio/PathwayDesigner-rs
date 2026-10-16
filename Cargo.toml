@@ -2,7 +2,6 @@
 resolver = "3"
 members = [
     "crates/antimony",
-    "crates/pd-antimony",
     "crates/pd-core",
     "crates/pd-export",
     "crates/pd-app",
@@ -15,7 +14,8 @@ edition = "2024"
 license = "MIT"
 
 [workspace.dependencies]
-pd-antimony = { path = "crates/pd-antimony" }
+# The Antimony crate's package is `antimony-rs`; its library is `antimony`.
+antimony-rs = { path = "crates/antimony" }
 pd-core = { path = "crates/pd-core" }
 pd-export = { path = "crates/pd-export" }
 sbml-io = { path = "crates/sbml-io" }
