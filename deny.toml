@@ -26,3 +26,14 @@ multiple-versions = "allow"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+
+[advisories]
+# Unmaintained, not vulnerable: zvariant, zvariant_derive and zbus_names were
+# merged into zbus 6. They come in only through eframe's Linux screen-reader
+# support (accesskit_unix -> atspi -> zbus 5). Remove these when eframe moves
+# to an accesskit that uses zbus 6.
+ignore = [
+    { id = "RUSTSEC-2026-0370", reason = "zvariant merged into zbus 6; only via eframe's accesskit_unix" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names merged into zbus 6; only via eframe's accesskit_unix" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive merged into zbus 6; only via eframe's accesskit_unix" },
+]
