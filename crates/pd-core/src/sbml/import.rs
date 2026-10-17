@@ -233,6 +233,7 @@ impl Builder {
                             c.style = s;
                         }
                         c.hidden = look.hidden;
+                        c.style.no_border = look.no_border;
                     }
                 }
             }
@@ -344,6 +345,7 @@ impl Builder {
                 let node = self.model.find_species_mut(species).expect("checked above");
                 (node.center, node.width, node.height) = (center, w, h);
                 (node.shape, node.border_dash) = (look.shape, look.border_dash);
+                node.style.no_border = look.no_border;
                 glyph_node.insert(g.id.clone(), species.to_owned());
                 continue;
             }
@@ -366,6 +368,7 @@ impl Builder {
             let node = self.model.find_species_mut(&id).expect("just added");
             (node.width, node.height) = (w, h);
             (node.shape, node.border_dash) = (look.shape, look.border_dash);
+            node.style.no_border = look.no_border;
             glyph_node.insert(g.id.clone(), id);
         }
         // A species' name is outside its node when the note says so, or when

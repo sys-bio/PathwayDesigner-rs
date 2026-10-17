@@ -200,14 +200,38 @@ pub fn compartment_label_box(c: &Compartment, f: &Frame) -> (Pt, Pt) {
     (a, a + pt(w, m.ascent - m.descent))
 }
 
-/// The fill, border colour and border width a compartment is drawn with.
+/// The fill, border colour and border width a compartment is drawn with; a
+/// width of 0 for no border.
 pub fn compartment_colours(c: &Compartment) -> (Rgba, Rgba, f64) {
     let style = custom(&c.style);
+    let width = if c.style.no_border {
+        0.0
+    } else {
+        pick_width(style.map(|s| s.border_width), COMPARTMENT_BORDER_WIDTH)
+    };
     (
         pick(style.map(|s| s.fill_color), COMPARTMENT_FILL),
         pick(style.map(|s| s.border_color), COMPARTMENT_BORDER),
-        pick_width(style.map(|s| s.border_width), COMPARTMENT_BORDER_WIDTH),
+        width,
     )
+}
+
+/// The border width a species is drawn with, before a boundary species'
+/// thicker border; 0 for no border (S §5.3).
+pub fn species_border_width(s: &SpeciesNode) -> f64 {
+    if s.style.no_border {
+        0.0
+    } else {
+        pick_width(
+            custom(&s.style).map(|st| st.border_width),
+            DEFAULT_LINE_WIDTH,
+        )
+    }
+}
+
+/// The width a reaction's lines are drawn with, when it isn't selected.
+pub fn reaction_line_width(r: &Reaction) -> f64 {
+    pick_width(custom(&r.style).map(|s| s.line_width), DEFAULT_LINE_WIDTH)
 }
 
 /// Where a selected text's wrap handle is: the middle of its box's right
@@ -360,9 +384,8 @@ impl Drawer<'_> {
     // ----- Pass 2: reaction legs and arrowheads (S §5.5) --------------------
 
     fn line_stroke(&self, r: &Reaction) -> Stroke {
-        let style = custom(&r.style);
         let mut color = line_colour(r);
-        let mut width = pick_width(style.map(|s| s.line_width), DEFAULT_LINE_WIDTH);
+        let mut width = reaction_line_width(r);
         if self.selected(r.selected) {
             width *= SELECTED_LINE_FACTOR;
             color = self.opts.selected_reaction;
@@ -544,7 +567,7 @@ impl Drawer<'_> {
         let alias = node.is_alias() && self.opts.show_alias_indicator;
         let style = custom(&node.style);
         let (fill, border_color) = species_colours(node, self.opts.show_alias_indicator);
-        let mut border_width = pick_width(style.map(|s| s.border_width), DEFAULT_LINE_WIDTH);
+        let mut border_width = species_border_width(node);
         if node.is_boundary {
             border_width *= BOUNDARY_BORDER_FACTOR;
         }
@@ -568,8 +591,10 @@ impl Drawer<'_> {
             Some(pts) => {
                 let mut pts: Vec<SPt> = pts.into_iter().map(|p| self.to_screen(p)).collect();
                 out.polygon(&pts, fill);
-                pts.push(pts[0]);
-                out.polyline(&pts, stroke);
+                if border_width > 0.0 {
+                    pts.push(pts[0]);
+                    out.polyline(&pts, stroke);
+                }
             }
             None => {
                 let radius = if node.shape == NodeShape::Rectangle {
@@ -578,7 +603,8 @@ impl Drawer<'_> {
                     NODE_CORNER_RADIUS
                 };
                 let rect = self.rect(node.center, node.width / 2.0, node.height / 2.0);
-                out.round_rect(rect, self.len(radius), Some(fill), Some(stroke));
+                let stroke = (border_width > 0.0).then_some(stroke);
+                out.round_rect(rect, self.len(radius), Some(fill), stroke);
             }
         }
 
@@ -716,7 +742,7 @@ impl Drawer<'_> {
                     .min(f.height / 2.0),
             ),
             Some(fill),
-            Some(Stroke::solid(self.len(width), border)),
+            (width > 0.0).then(|| Stroke::solid(self.len(width), border)),
         );
         let size = COMPARTMENT_LABEL_SIZE * self.opts.zoom;
         if size >= MIN_LABEL_SIZE_PX {
@@ -1465,6 +1491,47 @@ mod tests {
         assert!(calls.iter().any(
             |c| matches!(c, Call::Text(at, s, _, _) if s == "S1" && close(*at, spt(0.0, 0.0)))
         ));
+    }
+
+    #[test]
+    fn no_border_draws_no_outline() {
+        let mut m = uni_uni();
+        let fill_only = |calls: &[Call]| {
+            calls
+                .iter()
+                .filter(|c| matches!(c, Call::RoundRect(_, Some(f), None) if *f == SPECIES_FILL))
+                .count()
+        };
+        assert_eq!(fill_only(&draw(&m, &DrawOptions::default())), 0);
+        m.find_species_mut("S1").unwrap().style.no_border = true;
+        let calls = draw(&m, &DrawOptions::default());
+        assert_eq!(fill_only(&calls), 1, "S1 filled, not outlined");
+        // A shape drawn as a polygon: filled, with no closed line round it.
+        let lines = |m: &Model| {
+            draw(m, &DrawOptions::default())
+                .iter()
+                .filter(|c| matches!(c, Call::Polyline(p, _) if p.len() > 4))
+                .count()
+        };
+        m.find_species_mut("S1").unwrap().shape = NodeShape::Hexagon;
+        assert_eq!(lines(&m), 0);
+        m.find_species_mut("S1").unwrap().style.no_border = false;
+        assert_eq!(lines(&m), 1);
+        // A compartment.
+        let mut c = Compartment::new("cell");
+        c.frame = Some(Frame {
+            center: pt(200.0, 0.0),
+            width: 600.0,
+            height: 200.0,
+        });
+        c.style.no_border = true;
+        m.compartments.push(c);
+        let calls = draw(&m, &DrawOptions::default());
+        assert!(
+            calls
+                .iter()
+                .any(|c| matches!(c, Call::RoundRect(_, Some(f), None) if *f == COMPARTMENT_FILL))
+        );
     }
 
     #[test]

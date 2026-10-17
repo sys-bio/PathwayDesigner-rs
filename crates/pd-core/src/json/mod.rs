@@ -36,12 +36,17 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 6 if a species has its name outside or an item follows
-/// a saved style, 5 if one has a
+/// (SPEC-Rust §4.2): 6 if a species has its name outside, a species or
+/// compartment has no border, or an item follows a saved style, 5 if one has a
 /// shape other than the rounded rectangle or a border style other than
 /// automatic, 4 if it has free text or a drawn compartment, 3 otherwise.
 pub fn needed_version(model: &Model) -> u32 {
-    if model.species().iter().any(|s| s.label_offset.is_some()) || crate::styles::any_links(model) {
+    let no_border = model.species().iter().any(|s| s.style.no_border)
+        || model.compartments.iter().any(|c| c.style.no_border);
+    if model.species().iter().any(|s| s.label_offset.is_some())
+        || no_border
+        || crate::styles::any_links(model)
+    {
         FORMAT_VERSION
     } else if model
         .species()
@@ -171,6 +176,9 @@ struct FileSavedStyle {
     /// Species, reactions and compartments: their style object.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style: Option<FileStyle>,
+    /// Species and compartments: no border, as on the item.
+    #[serde(default, skip_serializing_if = "is_false")]
+    no_border: bool,
     /// Species: as on a species.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     shape: Option<String>,
@@ -257,6 +265,9 @@ struct FileCompartment {
     /// Version 6: the saved style it follows (S §8.6).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style_name: Option<String>,
+    /// Version 6: no border (S §7.9). Left out when it has one.
+    #[serde(default, skip_serializing_if = "is_false")]
+    no_border: bool,
 }
 
 /// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
@@ -312,6 +323,9 @@ struct FileSpecies {
     /// Version 6: the saved style it follows (S §8.6).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style_name: Option<String>,
+    /// Version 6: no border (S §5.3). Left out when it has one.
+    #[serde(default, skip_serializing_if = "is_false")]
+    no_border: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -472,7 +486,10 @@ impl FileModel {
                 id: c.id,
                 size: c.size,
                 dimensions: c.dimensions,
-                style: style_from_file(c.style),
+                style: VisualStyle {
+                    no_border: c.no_border,
+                    ..style_from_file(c.style)
+                },
                 // All four, and a size of at least 1, or not drawn yet.
                 frame: match (c.x, c.y, c.w, c.h) {
                     (Some(x), Some(y), Some(w), Some(h)) if w >= 1.0 && h >= 1.0 => Some(Frame {
@@ -554,7 +571,10 @@ impl FileModel {
                 is_null_node: s.is_null_node,
                 locked: s.locked,
                 selected: false,
-                style: style_from_file(s.style),
+                style: VisualStyle {
+                    no_border: s.no_border,
+                    ..style_from_file(s.style)
+                },
                 style_name: s.style_name,
             };
             if let Err(dup) = model.push_species(node) {
@@ -699,6 +719,7 @@ fn styles_from_file(list: Vec<FileSavedStyle>, warnings: &mut Vec<String>) -> Ve
                     // As a species keeps it (S §8.5): the junction is a reaction's.
                     style: VisualStyle {
                         junction_visible: true,
+                        no_border: f.no_border,
                         ..style_from_file(f.style)
                     },
                     shape: f
@@ -719,7 +740,10 @@ fn styles_from_file(list: Vec<FileSavedStyle>, warnings: &mut Vec<String>) -> Ve
                 style: style_from_file(f.style),
             },
             StyleKind::Compartment => Look::Compartment {
-                style: style_from_file(f.style),
+                style: VisualStyle {
+                    no_border: f.no_border,
+                    ..style_from_file(f.style)
+                },
             },
             StyleKind::Text => Look::Text {
                 font: TextFont {
@@ -861,6 +885,7 @@ fn style_from_file(s: Option<FileStyle>) -> VisualStyle {
             font_size: s.font_size,
             junction_color: s.junction_color,
             junction_visible: s.junction_visible,
+            no_border: false,
         },
     }
 }
@@ -886,6 +911,7 @@ impl FileModel {
                     h: c.frame.map(|f| f.height),
                     hidden: c.hidden,
                     style_name: c.style_name.clone(),
+                    no_border: c.style.no_border,
                 })
                 .collect(),
             parameters: m
@@ -927,6 +953,7 @@ impl FileModel {
                     label_dx: s.label_offset.map(|o| o.x),
                     label_dy: s.label_offset.map(|o| o.y),
                     style_name: s.style_name.clone(),
+                    no_border: s.style.no_border,
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -973,6 +1000,7 @@ fn saved_style_to_file(st: &SavedStyle) -> FileSavedStyle {
         name: st.name.clone(),
         kind: st.kind().key().to_owned(),
         style: None,
+        no_border: false,
         shape: None,
         border_dash: None,
         label_outside: false,
@@ -994,6 +1022,7 @@ fn saved_style_to_file(st: &SavedStyle) -> FileSavedStyle {
             size,
         } => {
             f.style = custom_style_to_file(&style);
+            f.no_border = style.no_border;
             f.shape = (shape != NodeShape::default()).then(|| shape.key().to_owned());
             f.border_dash =
                 (border_dash != BorderDash::default()).then(|| border_dash.key().to_owned());
@@ -1002,7 +1031,10 @@ fn saved_style_to_file(st: &SavedStyle) -> FileSavedStyle {
         }
         // As a reaction's own (fix D-8): a hidden junction is kept.
         Look::Reaction { style } => f.style = reaction_style_to_file(&style),
-        Look::Compartment { style } => f.style = custom_style_to_file(&style),
+        Look::Compartment { style } => {
+            f.style = custom_style_to_file(&style);
+            f.no_border = style.no_border;
+        }
         Look::Text {
             font,
             align,

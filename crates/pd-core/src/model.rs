@@ -56,6 +56,10 @@ pub struct VisualStyle {
     pub junction_color: Rgba,
     /// A display toggle. Changing it does not make the style custom.
     pub junction_visible: bool,
+    /// Species and compartments: no border at all (S §5.3), whatever
+    /// `border_width` says. Added in the Rust version; applies even without
+    /// `has_custom_style`, and is saved outside the style object.
+    pub no_border: bool,
 }
 
 impl Default for VisualStyle {
@@ -71,6 +75,7 @@ impl Default for VisualStyle {
             font_size: 0.0,
             junction_color: Rgba::DEFAULT,
             junction_visible: true,
+            no_border: false,
         }
     }
 }

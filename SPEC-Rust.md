@@ -354,6 +354,12 @@ inside, with a warning. A document in which any species has its name outside is
 version 6; otherwise it is written as version 5, 4 or 3 as before.
 `Models/label_1.json` is the sample file.
 
+**Version 6: no border (S §3.6).** A species or compartment may have
+`"noBorder": true`: it is drawn with no border. It is an item key, beside `style`,
+because inside the style object `borderWidth` 0 means "the default" to every
+reader. Left out otherwise; a document in which a species or compartment has it is
+version 6. A saved style of those kinds carries it the same way.
+
 **Version 6: saved styles (S §8.6).** A species, reaction, compartment or text may
 have `styleName`: the saved style it follows. A top-level `styles` array, after
 `texts`, left out when empty, holds the styles some item follows (a style nothing
@@ -903,7 +909,7 @@ Instead:
 
 **Species shapes (S §5.10) and border styles (S §5.3)** go in a note on the
 species glyph, written only when one is not the default:
-`<pd:species xmlns:pd="…/ns/sbml-layout/1" shape="ellipse" border="solid"
+`<pd:species xmlns:pd="…/ns/sbml-layout/1" shape="ellipse" border="solid" noBorder="true"
 label="outside"/>`, with only the attributes that are set. Import gives each node
 its glyph's shape and border style (an alias has its own glyph, so its own). SBML
 Layout has neither, so other tools draw a box with a solid border. A name outside

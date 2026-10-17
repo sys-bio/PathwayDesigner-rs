@@ -2,7 +2,7 @@
 //! Style / Paste Style.
 
 use super::*;
-use crate::model::{BorderDash, NodeShape, Rgba};
+use crate::model::{BorderDash, NodeShape, Rgba, StyleKind};
 use crate::render::constants::LABEL;
 
 /// S1 at (0,0) and S2 at (300,0), 80 × 36, and a null node.
@@ -248,4 +248,127 @@ fn the_edit_menu_copies_the_one_thing_selected() {
     v.select_item(&Target::Species("_null".into()), false);
     assert_eq!(v.selection_count(), 0);
     assert_eq!(v.copy_style(&Target::Species("_null".into())), None);
+}
+
+#[test]
+fn the_panel_values_are_what_is_drawn() {
+    use crate::render::constants::{COMPARTMENT_BORDER_WIDTH, DEFAULT_LINE_WIDTH, LABEL_FONT_SIZE};
+    use crate::render::draw::{
+        compartment_colours, label_size, reaction_line_width, species_border_width,
+    };
+    let mut v = view();
+    let s1 = v.model().find_species("S1").unwrap();
+    assert_eq!(species_border_width(s1), DEFAULT_LINE_WIDTH);
+    assert_eq!(label_size(s1), LABEL_FONT_SIZE);
+    select(&mut v, &["S1"]);
+    v.set_border_width("S1", 3.0);
+    v.set_font_size(16.0);
+    let s1 = v.model().find_species("S1").unwrap();
+    assert_eq!((species_border_width(s1), label_size(s1)), (3.0, 16.0));
+    let r = crate::model::Reaction::new("R9", pt(0.0, 0.0));
+    assert_eq!(reaction_line_width(&r), DEFAULT_LINE_WIDTH);
+    let c = crate::model::Compartment::new("cell");
+    assert_eq!(compartment_colours(&c).2, COMPARTMENT_BORDER_WIDTH);
+}
+
+#[test]
+fn a_border_width_of_0_means_no_border() {
+    use crate::render::draw::{compartment_colours, species_border_width};
+    let mut v = view();
+    select(&mut v, &["S1"]);
+    v.set_border_width("S1", 3.0);
+    v.set_border_width("S1", 0.0);
+    let s1 = v.model().find_species("S1").unwrap();
+    assert!(s1.style.no_border);
+    assert_eq!(species_border_width(s1), 0.0);
+    assert_eq!(s1.style.border_width, 3.0, "kept for when it has one again");
+    // Undo brings the border back; a width gives it one again.
+    v.undo();
+    assert_eq!(
+        species_border_width(v.model().find_species("S1").unwrap()),
+        3.0
+    );
+    v.set_border_width("S1", 0.0);
+    v.set_border_width("S1", 2.0);
+    let s1 = v.model().find_species("S1").unwrap();
+    assert!(!s1.style.no_border);
+    assert_eq!(species_border_width(s1), 2.0);
+    // A compartment too.
+    let mut c = crate::model::Compartment::new("cell");
+    c.frame = Some(crate::model::Frame {
+        center: pt(0.0, 0.0),
+        width: 400.0,
+        height: 200.0,
+    });
+    v.model.compartments.push(c);
+    v.set_compartment_border_width("cell", 0.0);
+    let c = v.model().find_compartment("cell").unwrap();
+    assert_eq!(compartment_colours(c).2, 0.0);
+    v.set_compartment_border_width("cell", 4.0);
+    assert_eq!(
+        compartment_colours(v.model().find_compartment("cell").unwrap()).2,
+        4.0
+    );
+}
+
+#[test]
+fn copy_style_and_saved_styles_carry_no_border() {
+    let mut v = view();
+    select(&mut v, &["S1"]);
+    v.set_border_width("S1", 0.0);
+    v.copy_style(&Target::Species("S1".into()));
+    select(&mut v, &["S2"]);
+    v.paste_style();
+    assert!(v.model().find_species("S2").unwrap().style.no_border);
+    // A saved style keeps it, in the file too.
+    v.save_style(&Target::Species("S1".into()), "Bare").unwrap();
+    let text = crate::json::to_json(v.model());
+    let back = crate::json::from_json(&text).unwrap();
+    assert!(back.warnings.is_empty());
+    let look = crate::styles::find(&back.model, StyleKind::Species, "Bare")
+        .unwrap()
+        .look;
+    assert!(matches!(look, crate::model::Look::Species { style, .. } if style.no_border));
+    assert_eq!(
+        back.model.find_species("S1").unwrap().style_name.as_deref(),
+        Some("Bare")
+    );
+}
+
+#[test]
+fn no_border_is_saved_only_when_used_and_needs_version_6() {
+    let mut v = view();
+    select(&mut v, &["S1"]);
+    v.set_border_width("S1", 3.0);
+    let text = crate::json::to_json(v.model());
+    assert!(text.contains("\"version\": 3") && !text.contains("noBorder"));
+    v.set_border_width("S1", 0.0);
+    let mut c = crate::model::Compartment::new("cell");
+    c.style.no_border = true;
+    c.frame = Some(crate::model::Frame {
+        center: pt(0.0, 0.0),
+        width: 400.0,
+        height: 200.0,
+    });
+    v.model.compartments.push(c);
+    let text = crate::json::to_json(v.model());
+    assert!(text.contains("\"version\": 6"));
+    assert_eq!(text.matches("\"noBorder\": true").count(), 2);
+    let back = crate::json::from_json(&text).unwrap().model;
+    let s1 = back.find_species("S1").unwrap();
+    assert!(s1.style.no_border);
+    assert_eq!(s1.style.border_width, 3.0);
+    assert!(!back.find_species("S2").unwrap().style.no_border);
+    assert!(back.find_compartment("cell").unwrap().style.no_border);
+    // And SBML, by PathwayDesigner's notes.
+    let out = crate::sbml::export(&back);
+    assert_eq!(out.xml.matches("noBorder=\"true\"").count(), 2);
+    let opts = crate::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let m = crate::sbml::import(&out.xml, &opts).unwrap().model;
+    assert!(m.find_species("S1").unwrap().style.no_border);
+    assert!(!m.find_species("S2").unwrap().style.no_border);
+    assert!(m.find_compartment("cell").unwrap().style.no_border);
 }

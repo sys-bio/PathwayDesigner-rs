@@ -91,6 +91,9 @@ pub fn compartment_note(c: &Compartment) -> Option<String> {
             ));
         }
     }
+    if c.style.no_border {
+        attrs.push_str(r#" noBorder="true""#);
+    }
     if c.hidden {
         attrs.push_str(" hidden=\"true\"");
     }
@@ -116,6 +119,9 @@ pub fn species_note(s: &SpeciesNode) -> Option<String> {
     if s.label_offset.is_some() {
         attrs.push_str(r#" label="outside""#);
     }
+    if s.style.no_border {
+        attrs.push_str(r#" noBorder="true""#);
+    }
     (!attrs.is_empty()).then(|| format!("\n<pd:species xmlns:pd=\"{NS}\"{attrs}/>\n"))
 }
 
@@ -126,6 +132,7 @@ pub struct SpeciesLook {
     pub shape: NodeShape,
     pub border_dash: BorderDash,
     pub label_outside: bool,
+    pub no_border: bool,
 }
 
 /// What a species glyph's note gives, or `None` without one.
@@ -145,6 +152,7 @@ pub fn read_species(annotation: &str) -> Option<SpeciesLook> {
             .and_then(BorderDash::from_key)
             .unwrap_or_default(),
         label_outside: note.attribute("label") == Some("outside"),
+        no_border: note.attribute("noBorder") == Some("true"),
     })
 }
 
@@ -154,6 +162,7 @@ pub struct CompartmentLook {
     /// `None` when the note gives no style.
     pub style: Option<VisualStyle>,
     pub hidden: bool,
+    pub no_border: bool,
 }
 
 /// What a compartment glyph's note says, or `None` without one.
@@ -180,6 +189,7 @@ pub fn read_compartment(annotation: &str) -> Option<CompartmentLook> {
             ..VisualStyle::default()
         }),
         hidden: note.attribute("hidden") == Some("true"),
+        no_border: note.attribute("noBorder") == Some("true"),
     })
 }
 

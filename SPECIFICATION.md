@@ -211,6 +211,7 @@ Every species, reaction and compartment has an optional style override.
 | `lineWidth` | reaction | 0 |
 | `junctionColor` | reaction | 0 |
 | `junctionVisible` | reaction | default **true** |
+| `noBorder` | species, compartment | default false. *Added in the Rust version:* no border at all, whatever `borderWidth` says, and even without `hasCustomStyle`. Saved as an item key, not in the style object (SPEC-Rust §4.2), since there `borderWidth` 0 already means the default. |
 
 The sentinels MUST be applied **per field**. A custom style that sets only the fill
 colour still uses the default border colour and width. This is what keeps old files
@@ -1133,13 +1134,13 @@ fields are enabled only when exactly one species is selected.
 |---|---|---|
 | Fill colour swatch | all selected species | Opens the colour picker (§8.2). Sets `fillColor` and `hasCustomStyle`. |
 | Border colour swatch | all selected species | Sets `borderColor`. |
-| Border width (number) | single species | Applied when the field loses focus. Sets `borderWidth` and `hasCustomStyle`. |
+| Border width (number) | single species | Applied when the field loses focus. Sets `borderWidth` and `hasCustomStyle`. Shows the width drawn (1.5 by default). **0 means no border** (`noBorder`, §3.6; the width is kept for when it gets one again); any other width gives it one. Rust version: the reference treated 0 as the default. |
 | Width, Height (numbers) | all selected species | Applied when the field loses focus (§7.10). |
 | Fit to Name (button) | all selected species | §7.10. |
 | Shape (list) | all selected species | §5.10. Shows "Mixed" when they differ. |
 | Border style (list) | all selected species | Automatic, Solid or Dashed (§5.3). Shows "Mixed" when they differ. |
 | Label colour swatch | all selected species | Opens the colour picker. Sets `labelColor` and `hasCustomStyle`. Added in the Rust version. |
-| Font size (number) | all selected species | The label's size, 0 = the default 12. Applied when the field loses focus. Sets `fontSize` and `hasCustomStyle`. Added in the Rust version. |
+| Font size (number) | all selected species | The label's size, shown as drawn (12 by default). Applied when the field loses focus; 0 or less is refused. Sets `fontSize` and `hasCustomStyle`. Added in the Rust version. |
 | Name (list) | all selected species | Inside or Outside the node (§5.11). Shows "Mixed" when they differ. Added in the Rust version. |
 | Concentration (number) | single species | `initialValue`, applied when the field loses focus |
 | Boundary species (checkbox) | selected species | `isBoundary`, applied at once |
@@ -1149,7 +1150,7 @@ fields are enabled only when exactly one species is selected.
 | Control | Applies to | Behaviour |
 |---|---|---|
 | Line colour swatch | all selected reactions | Sets `lineColor` and `hasCustomStyle`. |
-| Line width (number) | single reaction | Sets `lineWidth` and `hasCustomStyle`. |
+| Line width (number) | single reaction | Sets `lineWidth` and `hasCustomStyle`. Shows the width drawn (1.5 by default); 0 or less is refused. |
 | Show junction (checkbox) | all selected reactions | Sets `junctionVisible`. The box is ticked only if **every** selected reaction shows its junction. |
 | Kinetic law (text) | single reaction | Applied when the field loses focus. Then runs modifier sync (§8.4). |
 
@@ -1747,7 +1748,8 @@ the Species and Reaction groups; there was no room left for more.)*
 
 - **Properties** shows the groups for what is selected, and only those, in this
   order: the **Species** group, the **Reaction** group (§8.1), the **Compartment**
-  group (§7.9: Id, Volume, Fill, Border, Border width, for one selected compartment;
+  group (§7.9: Id, Volume, Fill, Border, Border width (as drawn, 2 by default; 0
+  for no border, as for species), for one selected compartment;
   the colours, and Show box, for every selected one), and the **Text** group (§7.8).
   With nothing selected it shows a one-line hint instead.
 - **Antimony** has the Antimony text with its *Load Antimony* and *Get Antimony*

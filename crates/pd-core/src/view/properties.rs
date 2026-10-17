@@ -237,8 +237,12 @@ impl DiagramView {
         if !(width.is_finite() && width >= 0.0) {
             return ViewResponse::default();
         }
+        // 0: no border (S §5.3); its width is kept for when it gets one.
         self.style_edit_one(id, true, |s| {
-            s.border_width = width;
+            s.no_border = width == 0.0;
+            if width > 0.0 {
+                s.border_width = width;
+            }
             s.has_custom_style = true;
         })
     }
@@ -464,9 +468,11 @@ impl DiagramView {
             return ViewResponse::default();
         }
         let before = self.model.clone();
+        // 0: no border (S §7.9); its width is kept for when it gets one.
         if let Some(c) = self.model.find_compartment_mut(id) {
-            c.style.border_width = width;
+            c.style.no_border = width == 0.0;
             if width > 0.0 {
+                c.style.border_width = width;
                 c.style.has_custom_style = true;
             }
         }

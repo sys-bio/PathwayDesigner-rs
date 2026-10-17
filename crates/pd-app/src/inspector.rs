@@ -11,6 +11,7 @@ use pd_core::expr;
 use pd_core::json::colour::{from_hex, to_hex};
 use pd_core::model::{BorderDash, NodeShape, Rgba, StyleKind, TextAlign, Typeface};
 use pd_core::render::constants::PICKER_SWATCHES;
+use pd_core::render::draw;
 use pd_core::view::{ColourField, DiagramView};
 
 use crate::renderer::color;
@@ -205,13 +206,8 @@ impl Inspector {
                         ui.end_row();
 
                         ui.label("Border width");
-                        self.number(
-                            ui,
-                            view,
-                            Field::BorderWidth,
-                            one_species.is_some(),
-                            "0 = default",
-                        );
+                        self.number(ui, view, Field::BorderWidth, one_species.is_some(), "")
+                            .on_hover_text("0 for no border");
                         ui.end_row();
 
                         // Solid or dashed, for every selected species (S §5.3).
@@ -245,7 +241,7 @@ impl Inspector {
 
                         // The label's size, for every selected species (S §8.1).
                         ui.label("Font size");
-                        self.number(ui, view, Field::FontSize, true, "0 = default");
+                        self.number(ui, view, Field::FontSize, true, "");
                         ui.end_row();
 
                         // Inside the node or beside it, for every selected
@@ -367,13 +363,7 @@ impl Inspector {
                         self.swatch(ui, view, ColourField::Line);
                         ui.end_row();
                         ui.label("Line width");
-                        self.number(
-                            ui,
-                            view,
-                            Field::LineWidth,
-                            one_reaction.is_some(),
-                            "0 = default",
-                        );
+                        self.number(ui, view, Field::LineWidth, one_reaction.is_some(), "");
                         ui.end_row();
 
                         ui.label("Show junction");
@@ -420,8 +410,9 @@ impl Inspector {
                             view,
                             Field::CompartmentBorderWidth,
                             one_compartment.is_some(),
-                            "0 = default",
-                        );
+                            "",
+                        )
+                        .on_hover_text("0 for no border");
                         ui.end_row();
 
                         // Ticked only if every selected box is shown. The default
@@ -646,22 +637,18 @@ impl Inspector {
         };
         match field {
             Field::Concentration => species().map(|s| s.initial_value.to_string()),
+            // What is drawn: the default unless set, 0 for no border.
             Field::BorderWidth => m
                 .find_species(target)
-                .map(|s| s.style.border_width.to_string()),
+                .map(|s| size_text(draw::species_border_width(s))),
             Field::SpeciesWidth => m.find_species(target).map(|s| size_text(s.width)),
             Field::SpeciesHeight => m.find_species(target).map(|s| size_text(s.height)),
-            Field::FontSize => m.find_species(target).map(|s| {
-                let size = if s.style.has_custom_style {
-                    s.style.font_size
-                } else {
-                    0.0
-                };
-                size_text(size)
-            }),
+            Field::FontSize => m
+                .find_species(target)
+                .map(|s| size_text(draw::label_size(s))),
             Field::LineWidth => m
                 .find_reaction(target)
-                .map(|r| r.style.line_width.to_string()),
+                .map(|r| size_text(draw::reaction_line_width(r))),
             Field::KineticLaw => m.find_reaction(target).map(|r| r.kinetic_law.clone()),
             Field::TextSize => m.find_text(target).map(|t| t.size.to_string()),
             Field::TextWrap => m.find_text(target).map(|t| t.wrap_width.to_string()),
@@ -669,7 +656,7 @@ impl Inspector {
             Field::Volume => m.find_compartment(target).map(|c| c.size.to_string()),
             Field::CompartmentBorderWidth => m
                 .find_compartment(target)
-                .map(|c| c.style.border_width.to_string()),
+                .map(|c| size_text(draw::compartment_colours(c).2)),
         }
         .unwrap_or_default()
     }
@@ -702,10 +689,11 @@ impl Inspector {
             (Field::SpeciesHeight, Some(v)) => {
                 view.set_species_size(None, Some(v));
             }
-            (Field::FontSize, Some(v)) => {
+            // 0 would be read as "the default"; a label or line needs a size.
+            (Field::FontSize, Some(v)) if v > 0.0 => {
                 view.set_font_size(v);
             }
-            (Field::LineWidth, Some(v)) => {
+            (Field::LineWidth, Some(v)) if v > 0.0 => {
                 view.set_line_width(&target, v);
             }
             (Field::KineticLaw, _) => {
