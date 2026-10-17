@@ -15,24 +15,34 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::geometry::pt;
 use crate::model::{
     AssignmentRule, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE,
-    Frame, Model, Parameter, Participant, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign,
-    TextFont, TextItem, Typeface, VisualStyle,
+    Frame, Model, NodeShape, Parameter, Participant, Reaction, ReactionMode, Rgba, SpeciesNode,
+    TextAlign, TextFont, TextItem, Typeface, VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must.
-pub const FORMAT_VERSION: u32 = 4;
+pub const FORMAT_VERSION: u32 = 5;
+
+/// The version that brought free text and drawn compartments.
+pub const TEXT_VERSION: u32 = 4;
 
 /// The version the Delphi app reads, and what is written when nothing newer
 /// is needed.
 pub const DELPHI_VERSION: u32 = 3;
 
-/// The version `model` must be saved as: 4 if it has free text or a drawn
-/// compartment (SPEC-Rust §4.2), 3 otherwise.
+/// The version `model` must be saved as, the oldest that holds it
+/// (SPEC-Rust §4.2): 5 if a species has a shape other than the rounded
+/// rectangle, 4 if it has free text or a drawn compartment, 3 otherwise.
 pub fn needed_version(model: &Model) -> u32 {
-    if model.texts().is_empty() && model.compartments.iter().all(|c| c.frame.is_none()) {
-        DELPHI_VERSION
-    } else {
+    if model
+        .species()
+        .iter()
+        .any(|s| s.shape != NodeShape::default())
+    {
         FORMAT_VERSION
+    } else if !model.texts().is_empty() || model.compartments.iter().any(|c| c.frame.is_some()) {
+        TEXT_VERSION
+    } else {
+        DELPHI_VERSION
     }
 }
 
@@ -227,6 +237,10 @@ struct FileSpecies {
     locked: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style: Option<FileStyle>,
+    /// Version 5: what it is drawn as (S §5.10). Left out for the rounded
+    /// rectangle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shape: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -418,11 +432,22 @@ impl FileModel {
         // All species first; aliases are resolved in a second pass, so an
         // alias may come before its primary in the file.
         for s in self.species {
+            let shape = match s.shape.as_deref() {
+                None => NodeShape::default(),
+                Some(key) => NodeShape::from_key(key).unwrap_or_else(|| {
+                    warnings.push(format!(
+                        "Species `{}` has the unknown shape `{key}`; it is drawn as a rounded rectangle.",
+                        s.id
+                    ));
+                    NodeShape::default()
+                }),
+            };
             let node = SpeciesNode {
                 id: s.id,
                 center: pt(s.x, s.y),
                 width: s.w,
                 height: s.h,
+                shape,
                 initial_value: s.initial_value,
                 is_boundary: s.is_boundary,
                 is_constant: s.is_constant,
@@ -677,6 +702,7 @@ impl FileModel {
                     is_null_node: s.is_null_node,
                     locked: s.locked,
                     style: custom_style_to_file(&s.style),
+                    shape: (s.shape != NodeShape::default()).then(|| s.shape.key().to_owned()),
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -1032,7 +1058,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 5, "species": [ { "id": "A", "shape": "ellipse" } ] }"#;
+        let text = r#"{ "version": 6, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);

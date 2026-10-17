@@ -47,6 +47,7 @@ impl DiagramView {
                     format!("{}: {}", r.id, r.kinetic_law)
                 })
             }
+            Target::SpeciesCorner(..) => None,
             Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
                 let c = self.model.find_compartment(id)?;
                 Some(format!("{}: volume {}", c.id, format_value(c.size)))

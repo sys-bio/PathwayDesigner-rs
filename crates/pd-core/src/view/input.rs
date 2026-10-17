@@ -157,5 +157,8 @@ pub enum Target {
     Compartment(Id),
     /// A corner handle of a selected compartment, clockwise from the top left.
     CompartmentCorner(Id, usize),
+    /// A corner handle of a selected species, clockwise from the top left
+    /// (S §7.10).
+    SpeciesCorner(Id, usize),
     Empty,
 }

@@ -313,6 +313,13 @@ impl Builder {
             };
             let (w, h) = (bb.dimensions.width, bb.dimensions.height);
             let center = pt(bb.position.x + w / 2.0, bb.position.y + h / 2.0);
+            // Its shape, from PathwayDesigner's note (S §5.10).
+            let shape = g
+                .meta
+                .annotation
+                .as_deref()
+                .and_then(super::shape::read_species)
+                .unwrap_or_default();
             let species = g
                 .species
                 .as_deref()
@@ -330,6 +337,7 @@ impl Builder {
             if placed.insert(species.to_owned()) {
                 let node = self.model.find_species_mut(species).expect("checked above");
                 (node.center, node.width, node.height) = (center, w, h);
+                node.shape = shape;
                 glyph_node.insert(g.id.clone(), species.to_owned());
                 continue;
             }
@@ -351,6 +359,7 @@ impl Builder {
             };
             let node = self.model.find_species_mut(&id).expect("just added");
             (node.width, node.height) = (w, h);
+            node.shape = shape;
             glyph_node.insert(g.id.clone(), id);
         }
         (glyph_node, nulls)

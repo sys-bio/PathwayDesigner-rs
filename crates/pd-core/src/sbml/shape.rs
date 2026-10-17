@@ -21,7 +21,8 @@
 
 use crate::json::colour::{from_hex, to_hex};
 use crate::model::{
-    Compartment, Reaction, ReactionMode, Rgba, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
+    Compartment, NodeShape, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign, TextFont,
+    TextItem, Typeface, VisualStyle,
 };
 
 /// The namespace of PathwayDesigner's note.
@@ -94,6 +95,32 @@ pub fn compartment_note(c: &Compartment) -> Option<String> {
         attrs.push_str(" hidden=\"true\"");
     }
     (!attrs.is_empty()).then(|| format!("\n<pd:compartment xmlns:pd=\"{NS}\"{attrs}/>\n"))
+}
+
+/// The note for a species glyph: the shape it is drawn as, or `None` for
+/// the rounded rectangle (S §5.10). SBML Layout has no shapes.
+///
+/// ```xml
+/// <pd:species xmlns:pd="…" shape="ellipse"/>
+/// ```
+pub fn species_note(s: &SpeciesNode) -> Option<String> {
+    (s.shape != NodeShape::default()).then(|| {
+        format!(
+            "\n<pd:species xmlns:pd=\"{NS}\" shape=\"{}\"/>\n",
+            s.shape.key()
+        )
+    })
+}
+
+/// The shape a species glyph's note gives, or `None` without one (or with a
+/// shape this version doesn't know).
+pub fn read_species(annotation: &str) -> Option<NodeShape> {
+    let wrapped = format!("<a>{annotation}</a>");
+    let doc = roxmltree::Document::parse(&wrapped).ok()?;
+    let note = doc
+        .descendants()
+        .find(|n| n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "species")?;
+    note.attribute("shape").and_then(NodeShape::from_key)
 }
 
 /// What a compartment glyph's note says.

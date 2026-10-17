@@ -335,6 +335,15 @@ writer leaves out keys at their default (except `size`, `x`, `y` and `text`):
 
 `Models/text_1.json` is the version 4 sample file.
 
+**Version 5: species shapes (S §5.10).** A species may have `shape`: one of
+`"rectangle"`, `"ellipse"`, `"circle"` or `"hexagon"`; left out for the rounded
+rectangle. A document in which any species has a shape is version 5; otherwise it
+is written as version 4 or 3 as before, so a model that doesn't use shapes can
+still be opened by the Delphi app or an older Rust version. A shape this version
+doesn't know is read as the rounded rectangle, with a warning. An older Rust
+version opening a version 5 file sees that it is newer and makes Save behave as
+Save As (§4).
+
 **Version 4: drawn compartments (S §7.9).** Each entry of `compartments` may have
 `x`, `y`, `w` and `h`: the box's centre and size, as for a species. All four are
 written for a drawn compartment and left out otherwise. A compartment missing any
@@ -861,6 +870,11 @@ Instead:
    about units, which these models don't declare. python-libsbml is a
    development-only dependency and is never shipped (§12).
 
+**Species shapes (S §5.10)** go in a note on the species glyph, written only for a
+shape other than the rounded rectangle: `<pd:species xmlns:pd="…/ns/sbml-layout/1"
+shape="ellipse"/>`. Import gives each node its glyph's shape (an alias has its own
+glyph, so its own shape). SBML Layout has no shapes, so other tools draw a box.
+
 **Compartments (S §7.9)** are written as compartment glyphs with their box. A custom
 style goes in a note on the glyph: `<pd:compartment xmlns:pd="…/ns/sbml-layout/1"
 fill="#F0F6EAFF" border="#7FA36BFF" borderWidth="3"/>`, with only the fields that
@@ -991,13 +1005,13 @@ Sharing a settings file with the Delphi app is not needed.
 ## 11. User interface
 
 Same layout as S §13: a single window, menu bar, toolbars, canvas, right-hand panel
-(Species inspector, Antimony panel, Reaction inspector) and status bar.
+(the Properties and Antimony tabs, S §13.3) and status bar.
 
 | S §13 element | egui |
 |---|---|
 | Main menu (S §13.1), with Save / Save As (S §13.1 SHOULD) | Menu bar in a `TopBottomPanel`. The undo and redo items show what they will undo or redo (S §9.1) |
 | Top toolbar and left tool palette (S §13.2) | Image buttons with SVG icons (`egui_extras` image loaders; convert `Icons/*.png` to SVG). The current mode is shown selected, and buttons are enabled or disabled from `selection()`. Every button has a hover text |
-| Right panel | A `SidePanel` the user can resize. The Antimony panel uses a multi-line `TextEdit` with error markers in the margin (§8.2) |
+| Right panel | A `SidePanel` the user can resize, with two tabs (S §13.3). Properties shows only the inspector groups for the selection. The Antimony tab uses a multi-line `TextEdit` with error markers in the margin (§8.2) |
 | Context menu (S §13.4) | `Response::context_menu` for the target that was hit. Lock/Unlock works (D-16) |
 | Colour picker (S §8.2) | A popup next to the swatch: an 8 × 5 grid of swatches, a preview and a `#RRGGBB` text field. Take the style snapshot when it **opens**, and record one StyleEdit undo step when a colour is applied |
 | Status bar | Counts, the file-access mode on the web, and the zoom control at the right (S §13.5) |

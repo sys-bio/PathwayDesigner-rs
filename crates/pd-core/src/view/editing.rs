@@ -441,6 +441,7 @@ impl DiagramView {
             Target::Handle(h) => Target::Leg(h.reaction),
             Target::TextWrap(id) => Target::Text(id),
             Target::CompartmentCorner(id, _) => Target::Compartment(id),
+            Target::SpeciesCorner(id, _) => Target::Species(id),
             t => t,
         };
         match &target {
@@ -471,6 +472,7 @@ impl DiagramView {
             Target::Handle(_)
             | Target::TextWrap(_)
             | Target::CompartmentCorner(..)
+            | Target::SpeciesCorner(..)
             | Target::Empty => {
                 return ViewResponse::default();
             }

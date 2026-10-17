@@ -12,7 +12,7 @@
 //! | reactant | species → junction | outer (species side) | inner (junction side) |
 //! | product  | junction → species | inner (junction side) | outer (species side) |
 
-use crate::geometry::{CubicBezier, Pt, bezier_rect_crossing, normalize, perp};
+use crate::geometry::{CubicBezier, Pt, normalize, perp};
 use crate::model::{Model, Participant, Reaction, Role, SpeciesNode};
 use crate::render::constants::{
     ARROW_TIP_INSET, FAN_SPREAD, HANDLE_FRACTION, PRODUCT_LINE_GAP, REACTANT_GAP,
@@ -127,8 +127,8 @@ pub struct DrawnLeg {
 /// gap short of the border, with the arrowhead tip at the 3-unit inset,
 /// pointing along the curve's tangent there.
 pub fn cut_leg(curve: &CubicBezier, node: &SpeciesNode, role: Role) -> DrawnLeg {
-    let (hw, hh) = (node.width / 2.0, node.height / 2.0);
-    let t = bezier_rect_crossing(curve, node.center, hw, hh);
+    // Cut where the curve leaves the shape that is drawn (S §5.10).
+    let t = crate::geometry::bezier_crossing(curve, |p| crate::node_shape::contains(node, p));
     let (left, right) = curve.split(t);
     if role == Role::Reactant {
         let mut c = right;
@@ -270,7 +270,7 @@ pub fn store_auto_handles(model: &mut Model, id: &str, role: Role, index: usize)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::{point_in_rect, pt};
+    use crate::geometry::{bezier_rect_crossing, point_in_rect, pt};
     use crate::model::ReactionMode;
 
     fn close(a: Pt, b: Pt) -> bool {

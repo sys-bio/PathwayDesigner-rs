@@ -6,7 +6,8 @@
 use super::DiagramView;
 use crate::expr;
 use crate::model::{
-    Compartment, Id, Model, RenameError, Rgba, TextAlign, TextItem, Typeface, VisualStyle,
+    Compartment, Id, Model, NodeShape, RenameError, Rgba, TextAlign, TextItem, Typeface,
+    VisualStyle,
 };
 use crate::render::constants::LABEL;
 use crate::render::draw::compartment_colours;
@@ -348,6 +349,83 @@ impl DiagramView {
         let before = self.model.clone();
         self.model.rename_compartment(id, new)?;
         Ok(self.record_if_changed("Rename Compartment", before))
+    }
+
+    /// Sets the width, the height, or both, of every selected species (null
+    /// nodes aside), each about its centre, never below the smallest size. A
+    /// circle takes either for both. One undo step (S §7.10).
+    pub fn set_species_size(&mut self, width: Option<f64>, height: Option<f64>) -> ViewResponse {
+        use crate::render::constants::MIN_SPECIES_SIZE;
+        let before = self.model.clone();
+        for s in self.model.species_mut() {
+            if !s.selected || s.is_null_node {
+                continue;
+            }
+            if let Some(w) = width.filter(|w| w.is_finite()) {
+                s.width = w.max(MIN_SPECIES_SIZE);
+                if s.shape == NodeShape::Circle {
+                    s.height = s.width;
+                }
+            }
+            if let Some(h) = height.filter(|h| h.is_finite()) {
+                s.height = h.max(MIN_SPECIES_SIZE);
+                if s.shape == NodeShape::Circle {
+                    s.width = s.height;
+                }
+            }
+        }
+        self.record_if_changed("Resize Species", before)
+    }
+
+    /// Draws every selected species (null nodes aside) as `shape`. Made a
+    /// circle, a species takes the larger of its width and height both ways,
+    /// so its name still fits. One undo step (S §5.10).
+    pub fn set_species_shape(&mut self, shape: NodeShape) -> ViewResponse {
+        let before = self.model.clone();
+        for s in self.model.species_mut() {
+            if !s.selected || s.is_null_node {
+                continue;
+            }
+            s.shape = shape;
+            if shape == NodeShape::Circle {
+                let d = s.width.max(s.height);
+                (s.width, s.height) = (d, d);
+            }
+        }
+        self.record_if_changed("Change Shape", before)
+    }
+
+    /// The shape every selected species (null nodes aside) has, if they all
+    /// have the same one.
+    pub fn selected_species_shape(&self) -> Option<NodeShape> {
+        let mut shapes = self
+            .model
+            .species()
+            .iter()
+            .filter(|s| s.selected && !s.is_null_node)
+            .map(|s| s.shape);
+        let first = shapes.next()?;
+        shapes.all(|s| s == first).then_some(first)
+    }
+
+    /// Fit to Name: each selected species (null nodes aside) is made as wide
+    /// as its name and a small margin each side, in whole units; the height
+    /// stays. One undo
+    /// step (S §7.10).
+    pub fn fit_species_to_names(&mut self) -> ViewResponse {
+        use crate::render::constants::MIN_SPECIES_SIZE;
+        let before = self.model.clone();
+        for s in self.model.species_mut() {
+            if s.selected && !s.is_null_node {
+                s.width = crate::render::draw::width_for_name(s)
+                    .ceil()
+                    .max(MIN_SPECIES_SIZE);
+                if s.shape == NodeShape::Circle {
+                    s.height = s.width;
+                }
+            }
+        }
+        self.record_if_changed("Fit to Name", before)
     }
 
     /// Shows or hides the boxes of the selected compartments (S §7.9). The

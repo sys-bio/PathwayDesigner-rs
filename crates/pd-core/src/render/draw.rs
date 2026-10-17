@@ -4,12 +4,10 @@
 //! anything that depends on the selection when drawing for output (S §11.6).
 
 use crate::bezier::{Ctrl, cut_leg, leg_curve};
-use crate::geometry::{
-    Pt, filled_arrowhead, normalize, pt, rect_boundary_intersect, world_to_screen,
-};
+use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
-    Compartment, Frame, Model, Reaction, ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem,
-    VisualStyle,
+    Compartment, Frame, Model, NodeShape, Reaction, ReactionMode, Rgba, Role, SpeciesNode,
+    TextFont, TextItem, VisualStyle,
 };
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
@@ -137,6 +135,26 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
             d.bezier_handles(reaction, r);
         }
     }
+}
+
+/// A selected species' four corner handles, at the corners of its
+/// selection halo, clockwise from the top left (S §7.10).
+pub fn species_corners(s: &SpeciesNode) -> [Pt; 4] {
+    let (hw, hh) = (s.width / 2.0 + HALO_OUTSET, s.height / 2.0 + HALO_OUTSET);
+    let c = s.center;
+    [
+        pt(c.x - hw, c.y - hh),
+        pt(c.x + hw, c.y - hh),
+        pt(c.x + hw, c.y + hh),
+        pt(c.x - hw, c.y + hh),
+    ]
+}
+
+/// The width that fits a species' name: the label, as drawn, and
+/// [`FIT_MARGIN`] each side (S §7.10).
+pub fn width_for_name(s: &SpeciesNode) -> f64 {
+    let size = pick_width(custom(&s.style).map(|st| st.font_size), LABEL_FONT_SIZE);
+    text_width(s.primary_id(), size) + 2.0 * FIT_MARGIN
 }
 
 /// A compartment's four corner handles, clockwise from the top left
@@ -499,19 +517,31 @@ impl Drawer<'_> {
         if node.is_boundary {
             border_width *= BOUNDARY_BORDER_FACTOR;
         }
-        let rect = self.rect(node.center, node.width / 2.0, node.height / 2.0);
-        out.round_rect(
-            rect,
-            self.len(NODE_CORNER_RADIUS),
-            Some(fill),
-            Some(Stroke {
-                width: self.len(border_width),
-                color: border_color,
-                // An alias keeps its dashed border even with a custom style.
-                dash: if alias { self.dash(ALIAS_DASH) } else { None },
-                round_cap: false,
-            }),
-        );
+        let stroke = Stroke {
+            width: self.len(border_width),
+            color: border_color,
+            // An alias keeps its dashed border even with a custom style.
+            dash: if alias { self.dash(ALIAS_DASH) } else { None },
+            round_cap: false,
+        };
+        match crate::node_shape::outline(node) {
+            // Filled, then outlined as a closed line (S §5.10).
+            Some(pts) => {
+                let mut pts: Vec<SPt> = pts.into_iter().map(|p| self.to_screen(p)).collect();
+                out.polygon(&pts, fill);
+                pts.push(pts[0]);
+                out.polyline(&pts, stroke);
+            }
+            None => {
+                let radius = if node.shape == NodeShape::Rectangle {
+                    0.0
+                } else {
+                    NODE_CORNER_RADIUS
+                };
+                let rect = self.rect(node.center, node.width / 2.0, node.height / 2.0);
+                out.round_rect(rect, self.len(radius), Some(fill), Some(stroke));
+            }
+        }
 
         let size = pick_width(style.map(|s| s.font_size), LABEL_FONT_SIZE) * self.opts.zoom;
         if size >= MIN_LABEL_SIZE_PX {
@@ -609,6 +639,15 @@ impl Drawer<'_> {
                 node.height / 2.0 + HALO_OUTSET,
             );
             out.round_rect(rect, self.len(HALO_CORNER_RADIUS), None, Some(stroke));
+            // Its corners resize it (S §7.10).
+            for p in species_corners(node) {
+                out.round_rect(
+                    self.rect(p, HANDLE_RADIUS, HANDLE_RADIUS),
+                    0.0,
+                    Some(HANDLE_FILL),
+                    Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
+                );
+            }
         }
     }
 
@@ -749,9 +788,10 @@ impl Drawer<'_> {
 }
 
 /// The point where a line from `node`'s centre towards `toward` crosses its
-/// border (rounded corners ignored, S §5.5).
+/// border, for the shape it is drawn as (rounded corners ignored, S §5.5,
+/// §5.10).
 pub fn border(node: &SpeciesNode, toward: Pt) -> Pt {
-    rect_boundary_intersect(node.center, node.width / 2.0, node.height / 2.0, toward)
+    crate::node_shape::border(node, toward)
 }
 
 /// Where a reactant leg starts: the reactant gap outside the border, on the
@@ -815,6 +855,8 @@ mod tests {
     #[derive(Default)]
     struct Recorder {
         calls: Vec<Call>,
+        /// Each rounded rectangle's corner radius, in the order drawn.
+        radii: Vec<f32>,
     }
 
     #[derive(Debug, Clone, PartialEq)]
@@ -831,10 +873,11 @@ mod tests {
         fn round_rect(
             &mut self,
             r: SRect,
-            _radius: f32,
+            radius: f32,
             fill: Option<Rgba>,
             stroke: Option<Stroke>,
         ) {
+            self.radii.push(radius);
             self.calls.push(Call::RoundRect(r, fill, stroke));
         }
         fn circle(&mut self, c: SPt, radius: f32, fill: Option<Rgba>, stroke: Option<Stroke>) {
@@ -912,6 +955,68 @@ mod tests {
     }
 
     #[test]
+    fn each_shape_is_drawn_as_its_outline() {
+        let mut m = Model::new();
+        for (i, shape) in NodeShape::ALL.into_iter().enumerate() {
+            let id = m.add_species(pt(200.0 * i as f64, 0.0), 80.0, 40.0);
+            m.find_species_mut(&id).unwrap().shape = shape;
+        }
+        let calls = draw(&m, &DrawOptions::default());
+        let fill = SPECIES_FILL;
+        let rects = calls
+            .iter()
+            .filter(|c| matches!(c, Call::RoundRect(_, Some(f), _) if *f == fill))
+            .count();
+        let polygons: Vec<usize> = calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::Polygon(p, f) if *f == fill => Some(p.len()),
+                _ => None,
+            })
+            .collect();
+        let outlines: Vec<usize> = calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::Polyline(p, s) if s.color == SPECIES_BORDER => Some(p.len()),
+                _ => None,
+            })
+            .collect();
+        // The two rectangles as rectangles, the second with square corners;
+        // the ellipse, circle and hexagon as a filled polygon and a closed
+        // outline.
+        assert_eq!(rects, 2);
+        let mut rec = Recorder::default();
+        draw_model(&m, &DrawOptions::default(), &mut rec);
+        let radii: Vec<f32> = rec
+            .calls
+            .iter()
+            .filter(|c| matches!(c, Call::RoundRect(..)))
+            .zip(&rec.radii)
+            .filter(|(c, _)| matches!(c, Call::RoundRect(_, Some(f), _) if *f == fill))
+            .map(|(_, r)| *r)
+            .collect();
+        assert_eq!(radii, [NODE_CORNER_RADIUS as f32, 0.0]);
+        assert_eq!(polygons, [64, 64, 6]);
+        assert_eq!(outlines, [65, 65, 7]);
+    }
+
+    #[test]
+    fn a_line_ends_on_the_shape_drawn() {
+        // A product at 45 degrees: the ellipse's border is nearer its centre
+        // than the box's corner.
+        let mut node = SpeciesNode::new("B", pt(0.0, 0.0));
+        node.width = 80.0;
+        node.height = 80.0;
+        let from = pt(-200.0, -200.0);
+        let boxed = leg_end(&node, from).0;
+        node.shape = NodeShape::Circle;
+        let round = leg_end(&node, from).0;
+        assert!(round.distance(node.center) < boxed.distance(node.center) - 10.0);
+        let edge = border(&node, from);
+        assert!((edge.distance(node.center) - 40.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn draw_order_follows_s_5_2() {
         let mut m = uni_uni();
         m.find_species_mut("S1").unwrap().selected = true;
@@ -944,8 +1049,9 @@ mod tests {
         assert_eq!(
             kinds,
             [
-                "bg", "leg", "leg", "leg", "node", "label", "node", "label", "halo", "junction",
-                "text", "halo", "handle"
+                // A selected species' halo has its four corner handles (S §7.10).
+                "bg", "leg", "leg", "leg", "node", "label", "node", "label", "halo", "handle",
+                "handle", "handle", "handle", "junction", "text", "halo", "handle"
             ]
         );
     }

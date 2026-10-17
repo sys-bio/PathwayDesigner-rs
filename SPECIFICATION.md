@@ -134,7 +134,8 @@ world coordinates.
 |---|---|---|---|
 | `id` | string | generated | Biochemical identifier, also the label of a primary node. |
 | `center` | point | — | World coordinates of the centre. |
-| `width`, `height` | number | 80 × 36 | Null nodes are 28 × 28. |
+| `width`, `height` | number | 80 × 36 | Null nodes are 28 × 28. Can be changed (§7.10). |
+| `shape` | NodeShape | rounded rectangle | What it is drawn as (§5.10). Ignored for null nodes. Added in the Rust version. |
 | `initialValue` | number | 0 | Initial concentration. |
 | `isBoundary` | bool | false | |
 | `isConstant` | bool | false | |
@@ -448,6 +449,38 @@ For each modifier of a reaction:
 
 ---
 
+### 5.10 Species shapes
+
+*Added in the Rust version; the reference drew every species as a rounded
+rectangle.* Each species (primary or alias; null nodes aside) is drawn as one of:
+
+| Shape | Drawn as |
+|---|---|
+| **Rounded rectangle** | The box with corners rounded by 8 (§5.3). The default. |
+| **Rectangle** | The box with square corners. |
+| **Ellipse** | The ellipse that fills the box. |
+| **Circle** | An ellipse whose width and height are kept equal (below). |
+| **Hexagon** | Points at the middle of the left and right sides and flat top and bottom, filling the box; the slanted edges start a quarter of the width in from each side. |
+
+- **Fill, border, alias dashes and label** are drawn as for the rounded rectangle,
+  on the shape's outline. The selection halo and its corner handles (§7.10) stay
+  the box around it.
+- **Lines end on the shape.** A reaction leg, a modifier arc and a Bézier leg stop
+  where they cross the outline that is drawn (for a rounded rectangle, the box, as
+  in §5.5), so arrowheads touch an ellipse or a hexagon, not the box around it.
+  Clicking still uses the box (§6.2).
+- **Choosing a shape:** the **Shape** list in the Species group (§13.3), for every
+  selected species, one undo step. A species made a circle takes the larger of its
+  width and height both ways, so its name still fits.
+- **A circle stays round:** resizing it by a corner always keeps its proportions,
+  Shift or not; either size field sets both; Fit to Name sets both to the width.
+- A new alias takes its primary's shape, as it takes its size; each can then be
+  changed on its own.
+- **Files.** JSON version 5 (SPEC-Rust §4.2), written only when some species has a
+  shape other than the rounded rectangle, so other models are still written as
+  version 3 or 4. In SBML, PathwayDesigner's note on the species glyph
+  (SPEC-Rust §8.3). Antimony has no layout.
+
 ## 6. Interaction model
 
 ### 6.1 Modes
@@ -471,6 +504,9 @@ Entering AddSpecies or AddReaction clears the selection.
 Candidates are tried in this order, and the **first** hit wins:
 
 1. **Bézier handle** of a *selected* Bézier reaction, within **8 screen px**.
+   After it, in the Rust version: a selected text's wrap handle (§7.8), a selected
+   compartment's corner (§7.9), then a **selected species' corner** (§7.10), each
+   within 8 screen px.
 2. **Junction** of any reaction (at its effective position), within **8 screen px**.
 3. **Species**: the **topmost** node (last in list order) whose rectangle contains the
    point.
@@ -972,6 +1008,36 @@ A model with no drawn compartments never has its species' compartments changed.
 box, and PathwayDesigner's note for a custom style (SPEC-Rust §8.3). Antimony has
 no layout: imported compartments get fitted boxes.
 
+### 7.10 Resizing species
+
+*Added in the Rust version; the reference drew every species 80 × 36.* Every
+species has its own width and height (§3.2), which files have always stored; they
+can now be changed. A null node keeps its size.
+
+- **Corner handles.** Every selected species (null nodes aside) has a square handle
+  at each corner of its selection halo. Dragging one resizes **every selected
+  species by the same amount**, each about **its own centre**: each side moves by
+  the pointer's movement, so the width changes by twice the horizontal movement and
+  the height by twice the vertical one. Reactions stay attached, since the centres
+  don't move. Sizes from a drag are whole units.
+- **Shift keeps proportions.** With Shift held (pressing or letting go of it during
+  the drag counts at once), each species is scaled by the factor the dragged one
+  grows by, the larger of its width and height factors, so each keeps its own
+  proportions.
+- No species gets smaller than **10** either way. **Esc** during the drag puts the
+  sizes back. A drag is one undo step, *Resize Species*.
+- **Width** and **Height** fields in the Species group (§13.3) set every selected
+  species' width or height, applied when the field loses focus; they show the first
+  selected species' size. One undo step each.
+- **Fit to Name** (a button in the Species group) makes each selected species as
+  wide as its name, at its label size, plus **10** each side, rounded up to a
+  whole unit; the height stays. One
+  undo step.
+- The cursor over a handle is a diagonal resize arrow, as for compartments.
+- **Files.** Sizes are saved as they always were (`w`, `h` in JSON, in every
+  version, SPEC-Rust §4.2; the glyph's box in SBML), so a resized model is still
+  written in the version it would otherwise be.
+
 ---
 
 ## 8. Properties, styling and kinetic laws
@@ -990,6 +1056,9 @@ fields are enabled only when exactly one species is selected.
 | Fill colour swatch | all selected species | Opens the colour picker (§8.2). Sets `fillColor` and `hasCustomStyle`. |
 | Border colour swatch | all selected species | Sets `borderColor`. |
 | Border width (number) | single species | Applied when the field loses focus. Sets `borderWidth` and `hasCustomStyle`. |
+| Width, Height (numbers) | all selected species | Applied when the field loses focus (§7.10). |
+| Fit to Name (button) | all selected species | §7.10. |
+| Shape (list) | all selected species | §5.10. Shows "Mixed" when they differ. |
 | Concentration (number) | single species | `initialValue`, applied when the field loses focus |
 | Boundary species (checkbox) | selected species | `isBoundary`, applied at once |
 
@@ -1517,12 +1586,20 @@ changes on New, Open and Quit. The reference has none of these.
 
 ### 13.3 Right panel
 
-From top to bottom: the **Species** inspector group, the **Antimony** text panel
-with its *Load Antimony* and *Get Antimony* buttons, the **Reaction** inspector
-group (§8.1), the **Compartment** group (§7.9: Id, Volume, Fill, Border, Border
-width, for one selected compartment; the colours, and Show box, for every selected
-one), and the
-**Text** group (§7.8). The Text group has the words of the one
+Two tabs at the top: **Properties** and **Antimony**. *(Before 0.1.7 the panel
+showed every group at once, most of them disabled, with the Antimony text between
+the Species and Reaction groups; there was no room left for more.)*
+
+- **Properties** shows the groups for what is selected, and only those, in this
+  order: the **Species** group, the **Reaction** group (§8.1), the **Compartment**
+  group (§7.9: Id, Volume, Fill, Border, Border width, for one selected compartment;
+  the colours, and Show box, for every selected one), and the **Text** group (§7.8).
+  With nothing selected it shows a one-line hint instead.
+- **Antimony** has the Antimony text with its *Load Antimony* and *Get Antimony*
+  buttons, and its errors below. The panel switches to this tab when a file opened
+  or imported as Antimony has errors, so that they can be seen.
+
+The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,
 Italic), Align (Left, Center, Right), Colour and Wrap width. All but the words and
 the wrap width apply to every selected text.

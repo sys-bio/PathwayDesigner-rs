@@ -119,12 +119,24 @@ pub(crate) enum Dialog {
     Export(crate::export::ExportKind, crate::export::ExportSettings),
 }
 
+/// The right panel's tabs (S §13.3).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum RightTab {
+    /// The inspector: the groups for what is selected.
+    #[default]
+    Properties,
+    /// The Antimony text, with Load Antimony and Get Antimony.
+    Antimony,
+}
+
 pub struct PathwayApp {
     pub(crate) ctx: egui::Context,
     pub(crate) view: DiagramView,
     canvas: CanvasState,
     inspector: Inspector,
     pub(crate) antimony: AntimonyPanel,
+    /// Which of the right panel's tabs is shown.
+    pub(crate) right_tab: RightTab,
     prefs: Preferences,
     pub(crate) dialog: Option<Dialog>,
     pub(crate) files: Files,
@@ -190,6 +202,7 @@ impl PathwayApp {
             canvas: CanvasState::default(),
             inspector: Inspector::default(),
             antimony: AntimonyPanel::default(),
+            right_tab: RightTab::default(),
             prefs: Preferences::load(cc.storage),
             dialog: None,
             files: Files::default(),
@@ -1222,13 +1235,21 @@ impl eframe::App for PathwayApp {
             .resizable(true)
             .default_size(280.0)
             .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (tab, name) in [
+                        (RightTab::Properties, "Properties"),
+                        (RightTab::Antimony, "Antimony"),
+                    ] {
+                        ui.selectable_value(&mut self.right_tab, tab, name);
+                    }
+                });
+                ui.separator();
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.add_enabled_ui(!busy, |ui| {
-                        let antimony = &mut self.antimony;
-                        self.inspector.show(ui, &mut self.view, |ui, view| {
-                            ui.heading("Antimony");
-                            antimony_action = antimony.show(ui, view, &opts);
-                        });
+                    ui.add_enabled_ui(!busy, |ui| match self.right_tab {
+                        RightTab::Properties => self.inspector.show(ui, &mut self.view),
+                        RightTab::Antimony => {
+                            antimony_action = self.antimony.show(ui, &mut self.view, &opts);
+                        }
                     });
                 });
             });
@@ -1647,5 +1668,28 @@ k = 0.1"
                 "{id} followed the pointer after release"
             );
         }
+    }
+
+    #[test]
+    fn the_right_panel_has_two_tabs_and_shows_errors() {
+        let mut h = Harness::new();
+        assert_eq!(h.app.right_tab, RightTab::Properties);
+        h.click(h.widget("Antimony"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Antimony);
+        assert!(h.access.is_some());
+        h.widget("Load Antimony");
+        h.click(h.widget("Properties"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Properties);
+
+        // An Antimony file with errors shows them, on the Antimony tab.
+        h.app.file_event(crate::files::FileEvent::Opened {
+            purpose: crate::files::Purpose::ImportAntimony,
+            name: "bad.ant".into(),
+            text: "J1: S1 => ~~~ ;".into(),
+            target: None,
+        });
+        assert_eq!(h.app.right_tab, RightTab::Antimony);
     }
 }

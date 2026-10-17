@@ -76,6 +76,8 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut CanvasState) 
     }
 
     let space = ui.input(|i| i.key_down(Key::Space)) && !ui.ctx().egui_wants_keyboard_input();
+    // Shift during a species resize keeps proportions (S §7.10).
+    result.merge(view.set_shift_held(ui.input(|i| i.modifiers.shift)));
     let multi_touch = ui.input(|i| i.multi_touch().is_some());
     let panning = response.dragged_by(PointerButton::Middle)
         || (space && response.dragged_by(PointerButton::Primary))
@@ -280,9 +282,11 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 MenuAction::DeleteCompartment(id.clone()),
             );
         }
-        Target::Handle(_) | Target::TextWrap(_) | Target::CompartmentCorner(..) | Target::Empty => {
-            ui.close()
-        }
+        Target::Handle(_)
+        | Target::TextWrap(_)
+        | Target::CompartmentCorner(..)
+        | Target::SpeciesCorner(..)
+        | Target::Empty => ui.close(),
     }
     chosen
 }
@@ -427,8 +431,10 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
         Some(Target::TextWrap(_)) => CursorIcon::ResizeHorizontal,
         Some(Target::Compartment(_)) => CursorIcon::Grab,
         // Top-left and bottom-right corners, then the other two.
-        Some(Target::CompartmentCorner(_, 0 | 2)) => CursorIcon::ResizeNwSe,
-        Some(Target::CompartmentCorner(..)) => CursorIcon::ResizeNeSw,
+        Some(Target::CompartmentCorner(_, 0 | 2) | Target::SpeciesCorner(_, 0 | 2)) => {
+            CursorIcon::ResizeNwSe
+        }
+        Some(Target::CompartmentCorner(..) | Target::SpeciesCorner(..)) => CursorIcon::ResizeNeSw,
         Some(Target::Leg(_)) => CursorIcon::PointingHand,
         _ => CursorIcon::Default,
     }

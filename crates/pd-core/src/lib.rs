@@ -14,6 +14,7 @@ pub mod geometry;
 pub mod json;
 pub mod layout;
 pub mod model;
+pub mod node_shape;
 pub mod passes;
 pub mod render;
 pub mod sbml;

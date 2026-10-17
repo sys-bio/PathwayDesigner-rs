@@ -2,7 +2,7 @@
 //!
 //! Candidates are tried in order and the first hit wins: a handle of a
 //! selected Bézier reaction, the wrap handle of a selected text, a corner of a
-//! selected compartment, the topmost text, a junction, the topmost species, a
+//! selected compartment, a corner of a selected species, the topmost text, a junction, the topmost species, a
 //! reaction leg, then a compartment's border or name (innermost first). Text
 //! is drawn above everything, so it is hit first; compartments are drawn
 //! below everything, and only their edge and name select them, so a click
@@ -17,7 +17,7 @@ use crate::render::constants::{
 };
 use crate::render::draw::{
     compartment_corners, compartment_label_box, effective_junction, effective_mode, leg_end,
-    leg_start, wrap_handle,
+    leg_start, species_corners, wrap_handle,
 };
 use crate::textbox::text_box;
 use crate::view::input::{HandleId, Target};
@@ -66,6 +66,18 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
             .position(|q| q.distance(p) <= handle_tol)
         {
             return Target::CompartmentCorner(c.id.clone(), i);
+        }
+    }
+    for s in model
+        .species()
+        .iter()
+        .filter(|s| s.selected && !s.is_null_node)
+    {
+        if let Some(i) = species_corners(s)
+            .iter()
+            .position(|q| q.distance(p) <= handle_tol)
+        {
+            return Target::SpeciesCorner(s.id.clone(), i);
         }
     }
     let in_box = |t: &&crate::model::TextItem| {

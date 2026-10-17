@@ -165,6 +165,7 @@ impl PathwayApp {
                     self.warnings = vec![format!(
                         "{name} has errors, listed in the Antimony panel. The diagram wasn't changed."
                     )];
+                    self.right_tab = crate::app::RightTab::Antimony;
                     false
                 }
             }
@@ -301,6 +302,7 @@ impl PathwayApp {
                 } else {
                     self.warnings =
                         vec![format!("{name} has errors, listed in the Antimony panel.")];
+                    self.right_tab = crate::app::RightTab::Antimony;
                 }
             }
             FileEvent::Opened {

@@ -22,6 +22,8 @@ mod interaction_tests;
 mod interchange;
 mod properties;
 #[cfg(test)]
+mod resize_tests;
+#[cfg(test)]
 mod text_tests;
 mod tooltip;
 
@@ -71,6 +73,8 @@ pub struct DiagramView {
     pub default_smooth: bool,
     undo: UndoHistory,
     gesture: Gesture,
+    /// Shift is held: a species resize keeps proportions (S §7.10).
+    shift_held: bool,
     tool: Tool,
     /// Species picked so far with an add-reaction tool.
     pending: Pending,
@@ -103,6 +107,7 @@ enum Gesture {
     Handle(HandleDrag),
     TextWrap(TextWrapDrag),
     Resize(ResizeDrag),
+    SpeciesResize(SpeciesResizeDrag),
     /// The Compartment tool: a box being drawn, corners in world coordinates.
     NewCompartment {
         start: Pt,
@@ -185,6 +190,25 @@ struct ResizeDrag {
     delta: Pt,
 }
 
+/// Dragging a selected species' corner resizes every selected species by
+/// the same amount, each about its centre; with Shift, each keeps its
+/// proportions (S §7.10).
+#[derive(Clone, Debug)]
+struct SpeciesResizeDrag {
+    start: Pt,
+    /// The species whose corner is dragged, and which corner.
+    anchor: Id,
+    corner: usize,
+    /// Every species resized, and its size before the drag.
+    orig: Vec<(Id, f64, f64)>,
+    before: Box<Model>,
+    delta: Pt,
+}
+
+/// Which way a corner moves as a box grows: x and y, clockwise from the top
+/// left.
+const CORNER_SIGNS: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
 /// Dragging a text's wrap handle sets the width its lines wrap at (S §7.8).
 #[derive(Clone, Debug)]
 struct TextWrapDrag {
@@ -229,6 +253,7 @@ impl DiagramView {
             default_smooth: true,
             undo: UndoHistory::new(),
             gesture: Gesture::Idle,
+            shift_held: false,
             tool: Tool::Select,
             pending: Pending::default(),
             hover: None,
@@ -598,6 +623,24 @@ impl DiagramView {
                     self.gesture = Gesture::Nodes(self.begin_node_drag(world));
                 }
             }
+            Target::SpeciesCorner(id, corner) => {
+                self.shift_held = modifiers.shift;
+                let orig: Vec<(Id, f64, f64)> = self
+                    .model
+                    .species()
+                    .iter()
+                    .filter(|s| s.selected && !s.is_null_node)
+                    .map(|s| (s.id.clone(), s.width, s.height))
+                    .collect();
+                self.gesture = Gesture::SpeciesResize(SpeciesResizeDrag {
+                    start: world,
+                    anchor: id,
+                    corner,
+                    orig,
+                    before: Box::new(self.model.clone()),
+                    delta: Pt::ZERO,
+                });
+            }
             Target::CompartmentCorner(id, corner) => {
                 if let Some(orig) = self.model.find_compartment(&id).and_then(|c| c.frame) {
                     self.gesture = Gesture::Resize(ResizeDrag {
@@ -698,6 +741,11 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_resize(&drag);
             }
+            Gesture::SpeciesResize(drag) => {
+                drag.delta = world - drag.start;
+                let drag = drag.clone();
+                self.apply_species_resize(&drag);
+            }
             Gesture::NewCompartment { current, .. } => *current = world,
             Gesture::RubberBand { current, .. } => *current = pos,
         }
@@ -720,6 +768,12 @@ impl DiagramView {
             Gesture::NewCompartment { start, current } => {
                 return self.finish_new_compartment(start, current);
             }
+            Gesture::SpeciesResize(drag) if drag.delta == Pt::ZERO => None,
+            Gesture::SpeciesResize(drag) => Some(Command::Snapshot {
+                desc: "Resize Species",
+                before: drag.before,
+                after: Box::new(self.model.clone()),
+            }),
             Gesture::Resize(drag) if drag.delta == Pt::ZERO => None,
             Gesture::Resize(drag) => {
                 let now = self.model.find_compartment(&drag.id).and_then(|c| c.frame);
@@ -847,6 +901,10 @@ impl DiagramView {
             Gesture::Resize(mut drag) => {
                 drag.delta = Pt::ZERO;
                 self.apply_resize(&drag);
+            }
+            Gesture::SpeciesResize(mut drag) => {
+                drag.delta = Pt::ZERO;
+                self.apply_species_resize(&drag);
             }
             Gesture::RubberBand { .. } | Gesture::NewCompartment { .. } => {}
         }
@@ -1085,6 +1143,67 @@ impl DiagramView {
 
     /// The dragged corner follows the pointer; the opposite one stays. Never
     /// smaller than the smallest box.
+    /// Whether Shift is held, from the app every frame: pressing or letting
+    /// go of it during a species resize switches between keeping and not
+    /// keeping proportions at once.
+    pub fn set_shift_held(&mut self, held: bool) -> ViewResponse {
+        if self.shift_held == held {
+            return ViewResponse::default();
+        }
+        self.shift_held = held;
+        if let Gesture::SpeciesResize(drag) = &self.gesture {
+            let drag = drag.clone();
+            self.apply_species_resize(&drag);
+            return ViewResponse {
+                repaint: true,
+                ..ViewResponse::default()
+            };
+        }
+        ViewResponse::default()
+    }
+
+    /// Each species of the drag at its size before it, grown by twice the
+    /// pointer's movement (each side moves by it, the centre stays); with
+    /// Shift, scaled by the factor that the dragged species grows by, so each
+    /// keeps its proportions. Never below [`MIN_SPECIES_SIZE`].
+    fn apply_species_resize(&mut self, drag: &SpeciesResizeDrag) {
+        use crate::render::constants::MIN_SPECIES_SIZE;
+        let (sx, sy) = CORNER_SIGNS[drag.corner];
+        let grow = pt(2.0 * sx * drag.delta.x, 2.0 * sy * drag.delta.y);
+        let Some(&(_, w0, h0)) = drag.orig.iter().find(|(id, _, _)| *id == drag.anchor) else {
+            return;
+        };
+        let factor = ((w0 + grow.x) / w0).max((h0 + grow.y) / h0);
+        for (id, w, h) in &drag.orig {
+            let (w, h) = (*w, *h);
+            let circle = self
+                .model
+                .find_species(id)
+                .is_some_and(|s| s.shape == crate::model::NodeShape::Circle);
+            let size = if drag.delta == Pt::ZERO {
+                (w, h)
+            } else if self.shift_held || circle {
+                // A circle always keeps its proportions.
+                let f = factor.max(MIN_SPECIES_SIZE / w).max(MIN_SPECIES_SIZE / h);
+                (w * f, h * f)
+            } else {
+                (
+                    (w + grow.x).max(MIN_SPECIES_SIZE),
+                    (h + grow.y).max(MIN_SPECIES_SIZE),
+                )
+            };
+            // Whole units, so the sizes read cleanly in the panel and the file.
+            let size = if drag.delta == Pt::ZERO {
+                size
+            } else {
+                (size.0.round(), size.1.round())
+            };
+            if let Some(s) = self.model.find_species_mut(id) {
+                (s.width, s.height) = size;
+            }
+        }
+    }
+
     fn apply_resize(&mut self, drag: &ResizeDrag) {
         use crate::compartments::MIN_SIZE;
         let corners = crate::render::draw::compartment_corners(&drag.orig);
@@ -1370,6 +1489,11 @@ impl DiagramView {
             Target::Text(id) | Target::TextWrap(id) => {
                 if let Some(t) = self.model.find_text_mut(id) {
                     t.selected = !(add && t.selected);
+                }
+            }
+            Target::SpeciesCorner(id, _) => {
+                if let Some(s) = self.model.find_species_mut(id) {
+                    s.selected = !(add && s.selected);
                 }
             }
             Target::Compartment(id) | Target::CompartmentCorner(id, _) => {

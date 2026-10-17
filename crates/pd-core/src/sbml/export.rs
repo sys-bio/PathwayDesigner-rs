@@ -416,12 +416,15 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
     for s in model.species() {
         let id = ids.unique(format!("sg_{}", s.id));
         glyph_of.insert(&s.id, id.clone());
-        l.species_glyphs.push(sb::SpeciesGlyph {
+        let mut glyph = sb::SpeciesGlyph {
             id: id.clone(),
             species: (!s.is_null_node).then(|| s.primary_id().to_owned()),
             bounding_box: Some(bbox(s)),
             ..Default::default()
-        });
+        };
+        // Its shape, in PathwayDesigner's note (S §5.10).
+        glyph.meta.annotation = super::shape::species_note(s);
+        l.species_glyphs.push(glyph);
         if !s.is_null_node {
             l.text_glyphs.push(sb::TextGlyph {
                 id: ids.unique(format!("tg_{}", s.id)),

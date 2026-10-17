@@ -223,7 +223,12 @@ pub const BORDER_CROSSING_STEPS: u32 = 24;
 /// there never leaves an empty piece. If both ends are on the same side the
 /// answer is meaningless, but still in that range.
 pub fn bezier_rect_crossing(curve: &CubicBezier, c: Pt, hw: f64, hh: f64) -> f64 {
-    let inside = |t: f64| point_in_rect(curve.eval(t), c, hw, hh);
+    bezier_crossing(curve, |p| point_in_rect(p, c, hw, hh))
+}
+
+/// As [`bezier_rect_crossing`], for any region `inside` says a point is in.
+pub fn bezier_crossing(curve: &CubicBezier, inside_at: impl Fn(Pt) -> bool) -> f64 {
+    let inside = |t: f64| inside_at(curve.eval(t));
     let start_inside = inside(0.0);
     let (mut lo, mut hi) = (0.0, 1.0);
     for _ in 0..BORDER_CROSSING_STEPS {

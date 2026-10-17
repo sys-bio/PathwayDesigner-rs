@@ -82,6 +82,8 @@ pub struct SpeciesNode {
     pub center: Pt,
     pub width: f64,
     pub height: f64,
+    /// What it is drawn as (S §5.10). A null node is always a small circle.
+    pub shape: NodeShape,
     pub initial_value: f64,
     pub is_boundary: bool,
     pub is_constant: bool,
@@ -98,6 +100,57 @@ pub struct SpeciesNode {
     pub style: VisualStyle,
 }
 
+/// What a species is drawn as (S §5.10).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum NodeShape {
+    /// Rounded corners: the reference's only shape, and the default.
+    #[default]
+    RoundedRect,
+    /// Square corners.
+    Rectangle,
+    Ellipse,
+    /// An ellipse whose width and height are kept equal.
+    Circle,
+    /// Points at the left and right, flat top and bottom.
+    Hexagon,
+}
+
+impl NodeShape {
+    pub const ALL: [NodeShape; 5] = [
+        NodeShape::RoundedRect,
+        NodeShape::Rectangle,
+        NodeShape::Ellipse,
+        NodeShape::Circle,
+        NodeShape::Hexagon,
+    ];
+
+    /// Its name in the panel.
+    pub fn label(self) -> &'static str {
+        match self {
+            NodeShape::RoundedRect => "Rounded rectangle",
+            NodeShape::Rectangle => "Rectangle",
+            NodeShape::Ellipse => "Ellipse",
+            NodeShape::Circle => "Circle",
+            NodeShape::Hexagon => "Hexagon",
+        }
+    }
+
+    /// Its name in files (JSON and SBML notes).
+    pub fn key(self) -> &'static str {
+        match self {
+            NodeShape::RoundedRect => "roundedRect",
+            NodeShape::Rectangle => "rectangle",
+            NodeShape::Ellipse => "ellipse",
+            NodeShape::Circle => "circle",
+            NodeShape::Hexagon => "hexagon",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<NodeShape> {
+        NodeShape::ALL.into_iter().find(|s| s.key() == key)
+    }
+}
+
 impl SpeciesNode {
     /// A plain species of the default size.
     pub fn new(id: impl Into<Id>, center: Pt) -> Self {
@@ -106,6 +159,7 @@ impl SpeciesNode {
             center,
             width: DEFAULT_SPECIES_WIDTH,
             height: DEFAULT_SPECIES_HEIGHT,
+            shape: NodeShape::default(),
             initial_value: 0.0,
             is_boundary: false,
             is_constant: false,
@@ -729,14 +783,15 @@ impl Model {
     pub fn add_alias(&mut self, primary: &str, center: Pt) -> Option<Id> {
         let source = self.find_species(primary)?;
         let primary_id = source.primary_id().to_owned();
-        let (width, height) = match self.find_species(&primary_id) {
-            Some(p) => (p.width, p.height),
-            None => (source.width, source.height),
+        let (width, height, shape) = match self.find_species(&primary_id) {
+            Some(p) => (p.width, p.height, p.shape),
+            None => (source.width, source.height, source.shape),
         };
         let id = self.generate_id('S');
         let mut node = SpeciesNode::new(id.clone(), center);
         node.width = width;
         node.height = height;
+        node.shape = shape;
         node.alias_of = Some(primary_id);
         self.push_species(node).expect("generated ids are unused");
         Some(id)

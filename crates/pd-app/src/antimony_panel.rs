@@ -145,7 +145,8 @@ impl AntimonyPanel {
         let edit = egui::TextEdit::multiline(&mut self.text)
             .id(id)
             .code_editor()
-            .desired_rows(10)
+            // It has its own tab, so it can be tall; errors go below it.
+            .desired_rows(24)
             .desired_width(f32::INFINITY)
             .hint_text("S1 -> S2; k1*S1\nk1 = 0.1")
             .layouter(&mut layouter);
