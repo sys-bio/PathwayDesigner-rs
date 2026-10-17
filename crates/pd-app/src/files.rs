@@ -57,6 +57,8 @@ pub enum Filter {
     Svg,
     Png,
     Pdf,
+    /// Saved styles (S §8.6): a style list, or a diagram for its styles.
+    Styles,
 }
 
 impl Filter {
@@ -77,6 +79,7 @@ impl Filter {
             Filter::Svg => &[("SVG image", &["svg"])],
             Filter::Png => &[("PNG image", &["png"])],
             Filter::Pdf => &[("PDF document", &["pdf"])],
+            Filter::Styles => &[("PathwayDesigner styles or diagram", &["json"])],
         }
     }
 }
@@ -112,6 +115,10 @@ pub enum Purpose {
     ExportPdf,
     /// A file dropped on the window: open it, after the unsaved-changes prompt.
     Drop,
+    /// Read saved styles into My Styles (S §8.6).
+    ImportStyles,
+    /// Write My Styles.
+    ExportStyles,
 }
 
 /// A finished file operation.
@@ -252,6 +259,7 @@ impl Files {
             Purpose::ExportSvg => Filter::Svg,
             Purpose::ExportPng => Filter::Png,
             Purpose::ExportPdf => Filter::Pdf,
+            Purpose::ExportStyles => Filter::Styles,
             _ => Filter::Json,
         };
         spawn(async move {

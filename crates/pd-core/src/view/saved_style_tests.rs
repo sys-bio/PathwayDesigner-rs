@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::model::{
-    BorderDash, Compartment, Frame, NodeShape, Participant, Rgba, StyleKind, TextAlign,
+    BorderDash, Compartment, Frame, NodeShape, Participant, Rgba, SavedStyle, StyleKind, TextAlign,
 };
 use crate::view::StyleError;
 
@@ -122,13 +122,11 @@ fn apply_style_gives_the_look_to_the_selected_items_of_its_kind() {
     let r1 = v.model().find_reaction("R1").unwrap().clone();
     v.apply_style(StyleKind::Species, "Enzyme");
     assert_eq!(v.undo_description(), Some("Apply Style"));
-    let s1 = v.model().find_species("S1").unwrap().clone();
+    let s1 = crate::styles::look_of(v.model(), StyleKind::Species, "S1").unwrap();
     for id in ["S2", "S3"] {
-        let s = v.model().find_species(id).unwrap();
-        assert_eq!(
-            (s.style, s.shape, s.border_dash),
-            (s1.style, s1.shape, s1.border_dash)
-        );
+        // They draw as S1 does.
+        let look = crate::styles::look_of(v.model(), StyleKind::Species, id).unwrap();
+        assert!(crate::styles::same_look(look, s1), "{id}");
         assert_eq!(link(&v, &sp(id)).as_deref(), Some("Enzyme"));
     }
     assert_eq!(
@@ -754,4 +752,154 @@ fn looks_that_draw_the_same_compare_equal() {
         ..VisualStyle::default()
     };
     assert_eq!(custom.canonical(), custom);
+}
+
+// ----- Exporting and importing styles (step 3) --------------------------------
+
+#[test]
+fn importing_styles_never_replaces_mine() {
+    let mut v = with_enzyme();
+    let exported = crate::json::styles_to_json(v.my_styles());
+    // Into an app with no styles: all added.
+    let mut w = view();
+    let (styles, _) = crate::json::styles_from_json(&exported).unwrap();
+    let r = w.import_my_styles(styles.clone());
+    assert_eq!((r.added, r.already), (1, 0));
+    assert_eq!(w.my_styles(), v.my_styles());
+    // Again: already there.
+    let r = w.import_my_styles(styles);
+    assert_eq!((r.added, r.already), (0, 1));
+    assert_eq!(w.my_styles().len(), 1);
+    // Another "Enzyme", with another look: added as "Enzyme 2", once.
+    select(&mut v, &[sp("S1")]);
+    v.set_species_shape(NodeShape::Hexagon);
+    let other = SavedStyle {
+        name: "Enzyme".into(),
+        look: crate::styles::look_of(v.model(), StyleKind::Species, "S1").unwrap(),
+    };
+    let r = w.import_my_styles(vec![other.clone()]);
+    assert_eq!(r.added, 1);
+    assert_eq!(
+        r.renamed,
+        vec![("Enzyme".to_string(), "Enzyme 2".to_string())]
+    );
+    let r = w.import_my_styles(vec![other.clone()]);
+    assert_eq!((r.added, r.already), (0, 1), "not Enzyme 3");
+    let enzyme = crate::styles::find_in(w.my_styles(), StyleKind::Species, "Enzyme").unwrap();
+    assert_eq!(enzyme.look, v.my_styles()[0].look, "mine is untouched");
+    // A name only the model has is taken too.
+    let mut x = with_enzyme();
+    x.remove_from_my_styles(StyleKind::Species, "Enzyme");
+    let r = x.import_my_styles(vec![other]);
+    assert_eq!(
+        r.renamed,
+        vec![("Enzyme".to_string(), "Enzyme 2".to_string())]
+    );
+    // Each kind has its own names.
+    let reaction = SavedStyle {
+        name: "Enzyme".into(),
+        look: crate::model::Look::Reaction {
+            style: crate::model::VisualStyle::default(),
+        },
+    };
+    let r = w.import_my_styles(vec![reaction]);
+    assert!(r.renamed.is_empty() && r.added == 1);
+}
+
+#[test]
+fn a_model_file_gives_its_styles() {
+    let v = styled();
+    let model_file = crate::json::to_json(v.model());
+    let (styles, warnings) = crate::json::styles_from_json(&model_file).unwrap();
+    assert!(warnings.is_empty());
+    assert_eq!(styles, v.model().styles);
+    // A file with none gives none.
+    let (styles, _) = crate::json::styles_from_json(&crate::json::to_json(view().model())).unwrap();
+    assert!(styles.is_empty());
+}
+
+#[test]
+fn an_alias_takes_its_masters_look_and_the_other_way_round() {
+    use crate::render::draw::species_colours;
+    let mut v = view();
+    let a = v.model.add_alias("S1", pt(0.0, 200.0)).unwrap();
+    let drawn = |v: &DiagramView, id: &str| {
+        let s = v.model().find_species(id).unwrap();
+        let dashed = match s.border_dash {
+            BorderDash::Automatic => s.is_alias(),
+            d => d == BorderDash::Dashed,
+        };
+        (species_colours(s, true), dashed)
+    };
+    // The master's default look: the alias is drawn as the master is, not
+    // purple and dashed.
+    assert_ne!(drawn(&v, "S1"), drawn(&v, &a));
+    v.copy_style(&sp("S1"));
+    select(&mut v, &[sp(&a)]);
+    v.paste_style();
+    assert_eq!(drawn(&v, "S1"), drawn(&v, &a));
+    // A custom fill: the border comes too.
+    v.undo();
+    select(&mut v, &[sp("S1")]);
+    v.apply_colour(ColourField::Fill, Rgba::rgb(0xCC, 0, 0));
+    v.copy_style(&sp("S1"));
+    select(&mut v, &[sp(&a)]);
+    v.paste_style();
+    assert_eq!(drawn(&v, "S1"), drawn(&v, &a));
+    // An alias's look given to a primary: purple and dashed.
+    let b = v.model.add_alias("S2", pt(300.0, 200.0)).unwrap();
+    v.copy_style(&sp(&b));
+    select(&mut v, &[sp("S3")]);
+    v.paste_style();
+    assert_eq!(drawn(&v, &b), drawn(&v, "S3"));
+    // Between two primaries, the defaults stay defaults: nothing new to save.
+    let plain = view();
+    let mut w = plain;
+    w.copy_style(&sp("S1"));
+    select(&mut w, &[sp("S2")]);
+    w.paste_style();
+    assert_eq!(
+        w.model().find_species("S2").unwrap().style,
+        crate::model::VisualStyle::default()
+    );
+    assert_eq!(
+        crate::json::needed_version(w.model()),
+        crate::json::needed_version(view().model()),
+        "the version doesn't go up"
+    );
+    // A saved style from the master: on the alias it looks like the master,
+    // and the alias follows it.
+    let mut v = view();
+    let a = v.model.add_alias("S1", pt(0.0, 200.0)).unwrap();
+    v.save_style(&sp("S1"), "Plain").unwrap();
+    select(&mut v, &[sp(&a)]);
+    v.apply_style(StyleKind::Species, "Plain");
+    assert_eq!(drawn(&v, "S1"), drawn(&v, &a));
+    assert_eq!(link(&v, &sp(&a)).as_deref(), Some("Plain"));
+    assert_eq!(link(&v, &sp("S1")).as_deref(), Some("Plain"));
+}
+
+#[test]
+fn styles_read_from_a_file_are_kept_as_drawn() {
+    // A species style that leaves everything to the defaults, as an older
+    // file may hold it.
+    let text = r#"{ "version": 6, "styles": [ { "name": "Plain", "kind": "species" } ] }"#;
+    let (styles, warnings) = crate::json::styles_from_json(text).unwrap();
+    assert!(warnings.is_empty());
+    let crate::model::Look::Species {
+        style,
+        border_dash,
+        alias,
+        ..
+    } = styles[0].look
+    else {
+        panic!("a species style");
+    };
+    use crate::render::constants::{SPECIES_BORDER, SPECIES_FILL};
+    assert_eq!(
+        (style.fill_color, style.border_color),
+        (SPECIES_FILL, SPECIES_BORDER)
+    );
+    assert_eq!(border_dash, BorderDash::Solid);
+    assert!(!alias);
 }

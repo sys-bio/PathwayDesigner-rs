@@ -23,6 +23,10 @@ pub enum StylesAction {
     Rename(StyleKind, String),
     /// Say something in the status bar.
     Notice(String),
+    /// Export My Styles… to a file.
+    Export,
+    /// Import Styles… from a file.
+    Import,
 }
 
 /// Each kind's heading.
@@ -62,6 +66,30 @@ fn one_selected(view: &DiagramView, kind: StyleKind) -> Option<Target> {
 /// Shows the tab. Returns what the app must do, if anything.
 pub fn show(ui: &mut egui::Ui, view: &mut DiagramView) -> Option<StylesAction> {
     let mut action = None;
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(
+                !view.my_styles().is_empty(),
+                egui::Button::new("Export My Styles…"),
+            )
+            .on_hover_text("Save My Styles to a file, to share them or use them elsewhere")
+            .on_disabled_hover_text("My Styles is empty")
+            .clicked()
+        {
+            action = Some(StylesAction::Export);
+        }
+        if ui
+            .button("Import Styles…")
+            .on_hover_text(
+                "Add the styles in a styles file, or a diagram's, to My Styles; \
+                 none of yours are replaced",
+            )
+            .clicked()
+        {
+            action = Some(StylesAction::Import);
+        }
+    });
+    ui.add_space(4.0);
     let all: Vec<(StyleKind, Vec<StyleEntry>)> = StyleKind::ALL
         .into_iter()
         .map(|k| (k, view.style_entries(k)))
@@ -71,7 +99,7 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView) -> Option<StylesAction> {
             "No saved styles yet. Right-click something on the diagram and choose \
              Save Style… to keep its look under a name.",
         );
-        return None;
+        return action;
     }
     ui.label(
         egui::RichText::new(

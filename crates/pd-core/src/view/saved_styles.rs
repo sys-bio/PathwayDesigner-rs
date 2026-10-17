@@ -39,6 +39,17 @@ impl std::fmt::Display for StyleError {
 
 impl std::error::Error for StyleError {}
 
+/// What Import Styles did.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImportReport {
+    /// Styles added to My Styles, renamed ones included.
+    pub added: usize,
+    /// Styles My Styles already had, with the same look: skipped.
+    pub already: usize,
+    /// Styles added under a new name, because the name was taken: (from, to).
+    pub renamed: Vec<(String, String)>,
+}
+
 impl DiagramView {
     // ----- My Styles ----------------------------------------------------------
 
@@ -67,6 +78,46 @@ impl DiagramView {
     pub fn remove_from_my_styles(&mut self, kind: StyleKind, name: &str) {
         self.my_styles
             .retain(|s| !(s.kind() == kind && s.name == name));
+    }
+
+    /// Import Styles (S §8.6): adds `styles` to My Styles. One that is already
+    /// there, with the same look, is skipped; one whose name its kind has,
+    /// with another look, in My Styles or the model, is added under the first
+    /// free name "Name 2", "Name 3"…, so nothing is replaced. Not an undo step.
+    pub fn import_my_styles(&mut self, styles: Vec<SavedStyle>) -> ImportReport {
+        let mut report = ImportReport::default();
+        for st in styles {
+            let kind = st.kind();
+            // The first name that is free, or that My Styles has with this
+            // very look (already imported, perhaps renamed).
+            let mut name = st.name.clone();
+            let mut n = 1;
+            let already = loop {
+                if styles::find_in(&self.my_styles, kind, &name)
+                    .is_some_and(|m| styles::same_look(m.look, st.look))
+                {
+                    break true;
+                }
+                if self.look_named(kind, &name).is_none() {
+                    break false;
+                }
+                n += 1;
+                name = format!("{} {n}", st.name);
+            };
+            if already {
+                report.already += 1;
+                continue;
+            }
+            if name != st.name {
+                report.renamed.push((st.name.clone(), name.clone()));
+            }
+            self.my_styles.push(SavedStyle {
+                name,
+                look: st.look,
+            });
+            report.added += 1;
+        }
+        report
     }
 
     // ----- Reading ------------------------------------------------------------
@@ -128,7 +179,10 @@ impl DiagramView {
             return Err(StyleError::EmptyName);
         }
         let (kind, id) = style_target(item).ok_or(StyleError::NoItem)?;
-        let look = styles::look_of(&self.model, kind, &id).ok_or(StyleError::NoItem)?;
+        // Kept as drawn, so it looks the same on a primary and an alias.
+        let look = styles::look_of(&self.model, kind, &id)
+            .map(styles::resolved)
+            .ok_or(StyleError::NoItem)?;
         if self.look_named(kind, name).is_some() {
             return Err(StyleError::NameTaken(name.to_owned()));
         }
@@ -173,7 +227,9 @@ impl DiagramView {
     /// copy changes too, if there is one. One undo step.
     pub fn update_style(&mut self, name: &str, item: &Target) -> Result<ViewResponse, StyleError> {
         let (kind, id) = style_target(item).ok_or(StyleError::NoItem)?;
-        let look = styles::look_of(&self.model, kind, &id).ok_or(StyleError::NoItem)?;
+        let look = styles::look_of(&self.model, kind, &id)
+            .map(styles::resolved)
+            .ok_or(StyleError::NoItem)?;
         let style = SavedStyle {
             name: name.to_owned(),
             look,

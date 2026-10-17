@@ -764,6 +764,8 @@ fn styles_from_file(list: Vec<FileSavedStyle>, warnings: &mut Vec<String>) -> Ve
                         .unwrap_or_default(),
                     label_outside: f.label_outside,
                     size,
+                    // Saved styles are kept as drawn on a primary.
+                    alias: false,
                 }
             }
             StyleKind::Reaction => Look::Reaction {
@@ -797,9 +799,10 @@ fn styles_from_file(list: Vec<FileSavedStyle>, warnings: &mut Vec<String>) -> Ve
                 color: f.color,
             },
         };
+        // As drawn, as saved styles are kept (S §8.6).
         out.push(SavedStyle {
             name,
-            look: look.canonical(),
+            look: crate::styles::resolved(look),
         });
     }
     out
@@ -1053,6 +1056,7 @@ fn saved_style_to_file(st: &SavedStyle) -> FileSavedStyle {
             border_dash,
             label_outside,
             size,
+            alias: _,
         } => {
             f.style = custom_style_to_file(&style);
             f.no_border = style.no_border;

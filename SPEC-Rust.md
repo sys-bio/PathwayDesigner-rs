@@ -375,8 +375,10 @@ kind uses, each left out at its default:
 | text | `size`, `typeface`, `bold`, `italic`, `align`, `color` |
 
 A list of styles on its own (My Styles, kept under the preference key
-`pathwayDesigner.styles`) is `{"version": 6, "styles": [...]}`, each style as
-above. Looks are read into a standard form (S §8.6).
+`pathwayDesigner.styles`, and the file Export My Styles… writes) is
+`{"version": 6, "styles": [...]}`, each style as above. A diagram has the same
+`styles` key, so Import Styles… reads either. Looks are read into a standard form
+(S §8.6).
 
 Keys that don't belong to the kind are ignored. A style of a kind this version
 doesn't know, with no name, with a name its kind already has, or with

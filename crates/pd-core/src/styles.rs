@@ -7,7 +7,10 @@
 //! claims a look the item doesn't have: [`drop_stale_links`] runs after every
 //! edit.
 
-use crate::model::{Look, Model, NodeShape, SavedStyle, SpeciesNode, StyleKind, VisualStyle};
+use crate::model::{
+    BorderDash, Look, Model, NodeShape, SavedStyle, SpeciesNode, StyleKind, VisualStyle,
+};
+use crate::render::constants::{ALIAS_BORDER, ALIAS_FILL, SPECIES_BORDER, SPECIES_FILL};
 use crate::render::draw::default_label_offset;
 
 /// How the item `id` of `kind` looks, in standard form, or `None` if there
@@ -51,22 +54,76 @@ fn species_look(s: &SpeciesNode) -> Look {
         border_dash: s.border_dash,
         label_outside: s.label_offset.is_some(),
         size: s.label_offset.map(|_| (s.width, s.height)),
+        alias: s.is_alias(),
     }
+}
+
+/// The look as it is drawn, with nothing left to a default that differs
+/// between a primary species and an alias: the fill and border colour drawn,
+/// and the border solid or dashed (S §8.5). An alias's defaults are those
+/// drawn with the alias indicator on. Other looks are as they are.
+pub fn resolved(look: Look) -> Look {
+    let Look::Species {
+        style,
+        shape,
+        border_dash,
+        label_outside,
+        size,
+        alias,
+    } = look.canonical()
+    else {
+        return look.canonical();
+    };
+    let (fill, border) = if alias {
+        (ALIAS_FILL, ALIAS_BORDER)
+    } else {
+        (SPECIES_FILL, SPECIES_BORDER)
+    };
+    let own = |c: crate::model::Rgba, default| if c.is_default() { default } else { c };
+    Look::Species {
+        style: VisualStyle {
+            has_custom_style: true,
+            fill_color: own(style.fill_color, fill),
+            border_color: own(style.border_color, border),
+            ..style
+        },
+        shape,
+        border_dash: match border_dash {
+            BorderDash::Automatic if alias => BorderDash::Dashed,
+            BorderDash::Automatic => BorderDash::Solid,
+            d => d,
+        },
+        label_outside,
+        size,
+        alias: false,
+    }
+}
+
+/// True if two looks draw the same, wherever their defaults come from.
+pub fn same_look(a: Look, b: Look) -> bool {
+    resolved(a) == resolved(b)
 }
 
 /// Gives `look` to the item `id`, if it is of the look's kind (Paste Style,
 /// S §8.5). A species keeps its own size unless the look has one (its name
 /// outside), and one made a circle takes its larger side both ways; a name
 /// already outside keeps its place, one taken outside starts by the node. A
-/// null node is left alone. Doesn't touch the item's link.
+/// look from a primary given to an alias, or the other way round, is first
+/// [`resolved`], so the alias looks like the primary (S §8.5). A null node is
+/// left alone. Doesn't touch the item's link.
 pub fn give_look(model: &mut Model, id: &str, look: &Look) {
-    match *look {
+    let look = match (*look, model.find_species(id)) {
+        (Look::Species { alias, .. }, Some(s)) if alias != s.is_alias() => resolved(*look),
+        _ => *look,
+    };
+    match look {
         Look::Species {
             style,
             shape,
             border_dash,
             label_outside,
             size,
+            alias: _,
         } => {
             let Some(s) = model.find_species_mut(id).filter(|s| !s.is_null_node) else {
                 return;
@@ -197,7 +254,7 @@ pub fn drop_stale_links(model: &mut Model) -> bool {
                 continue;
             };
             let holds = find(model, kind, &name)
-                .is_some_and(|st| look_of(model, kind, &id) == Some(st.look));
+                .is_some_and(|st| look_of(model, kind, &id).is_some_and(|l| same_look(l, st.look)));
             if !holds {
                 stale.push((kind, id));
             }
@@ -248,6 +305,7 @@ pub fn entries(model: &Model, mine: &[SavedStyle], kind: StyleKind) -> Vec<Style
                 look: s.look,
                 in_model: true,
                 in_mine: my.is_some(),
+                // Saved styles are all kept as drawn, so they compare as they are.
                 differs: my.is_some_and(|m| m.look != s.look),
                 users: users(model, kind, &s.name).len(),
             }

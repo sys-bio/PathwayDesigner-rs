@@ -147,6 +147,9 @@ pub enum Look {
         border_dash: BorderDash,
         label_outside: bool,
         size: Option<(f64, f64)>,
+        /// Taken from an alias: what it leaves to "the default" (fill, border
+        /// colour, an automatic border style) is an alias's default (S §5.3).
+        alias: bool,
     },
     /// Line colour and width, junction colour and whether it is shown; not its
     /// mode (straight, Bézier or linear), which is geometry.
@@ -173,12 +176,14 @@ impl Look {
                 border_dash,
                 label_outside,
                 size,
+                alias,
             } => Look::Species {
                 style: style.canonical(),
                 shape,
                 border_dash,
                 label_outside,
                 size,
+                alias,
             },
             Look::Reaction { style } => Look::Reaction {
                 style: style.canonical(),

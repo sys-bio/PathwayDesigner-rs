@@ -1423,6 +1423,14 @@ impl eframe::App for PathwayApp {
                 });
             }
             Some(crate::styles_panel::StylesAction::Notice(text)) => self.notice = Some(text),
+            Some(crate::styles_panel::StylesAction::Export) => self.export_styles(),
+            Some(crate::styles_panel::StylesAction::Import) => {
+                self.files.open(
+                    &self.ctx,
+                    crate::files::Purpose::ImportStyles,
+                    crate::files::Filter::Styles,
+                );
+            }
             None => {}
         }
         match antimony_action {
@@ -1521,6 +1529,19 @@ mod tests {
                 .map(|(_, n)| n)
                 .find(|n| n.label() == Some(label))
                 .unwrap_or_else(|| panic!("no widget labelled {label:?}"));
+            let b = node.bounds().expect("laid out");
+            Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
+        }
+
+        /// The centre of the text `text` (a label's words are its value).
+        fn text(&self, text: &str) -> Pos2 {
+            let tree = self.access.as_ref().expect("accesskit is on");
+            let node = tree
+                .nodes
+                .iter()
+                .map(|(_, n)| n)
+                .find(|n| n.value() == Some(text))
+                .unwrap_or_else(|| panic!("no text {text:?}"));
             let b = node.bounds().expect("laid out");
             Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
         }
@@ -1840,6 +1861,96 @@ k = 0.1"
                 "{id} followed the pointer after release"
             );
         }
+    }
+
+    #[test]
+    fn styles_are_imported_shown_and_applied_from_the_styles_tab() {
+        use pd_core::model::{Look, NodeShape, SavedStyle, StyleKind, VisualStyle};
+        let mut h = Harness::new();
+        h.click(h.widget("Styles"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Styles);
+        h.widget("Import Styles…");
+        h.widget("Export My Styles…");
+
+        // A styles file with one species style, kept as drawn, as saved
+        // styles are.
+        let style = SavedStyle {
+            name: "Enzyme".into(),
+            look: pd_core::styles::resolved(Look::Species {
+                style: VisualStyle::default(),
+                shape: NodeShape::Hexagon,
+                border_dash: Default::default(),
+                label_outside: false,
+                size: None,
+                alias: false,
+            }),
+        };
+        let text = pd_core::json::styles_to_json(std::slice::from_ref(&style));
+        h.app.right_tab = RightTab::Properties;
+        h.app.file_event(crate::files::FileEvent::Opened {
+            purpose: crate::files::Purpose::ImportStyles,
+            name: "styles.json".into(),
+            text: text.clone(),
+            target: None,
+        });
+        assert_eq!(h.app.view.my_styles(), std::slice::from_ref(&style));
+        assert_eq!(h.app.right_tab, RightTab::Styles, "shows what came in");
+        assert!(
+            h.app
+                .notice
+                .as_deref()
+                .unwrap()
+                .starts_with("Imported 1 style from styles.json")
+        );
+        // Again: nothing new.
+        h.app.file_event(crate::files::FileEvent::Opened {
+            purpose: crate::files::Purpose::ImportStyles,
+            name: "styles.json".into(),
+            text,
+            target: None,
+        });
+        assert_eq!(h.app.view.my_styles().len(), 1);
+        assert!(
+            h.app
+                .notice
+                .as_deref()
+                .unwrap()
+                .contains("Imported 0 styles from styles.json; 1 style was already in My Styles")
+        );
+
+        // A click on the style gives it to the selected species.
+        let id = h.app.view.model().species()[0].id.clone();
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Species(id.clone()), false);
+        h.run(vec![]);
+        h.click(h.text("Enzyme"));
+        h.run(vec![]);
+        let s = h.app.view.model().find_species(&id).unwrap();
+        assert_eq!(s.shape, NodeShape::Hexagon);
+        assert_eq!(s.style_name.as_deref(), Some("Enzyme"));
+        assert_eq!(h.app.view.style_names(StyleKind::Species), ["Enzyme"]);
+
+        // Something that isn't JSON is a warning.
+        h.app.file_event(crate::files::FileEvent::Opened {
+            purpose: crate::files::Purpose::ImportStyles,
+            name: "notes.txt".into(),
+            text: "hello".into(),
+            target: None,
+        });
+        assert_eq!(h.app.warnings.len(), 1);
+        assert_eq!(h.app.view.my_styles().len(), 1);
+        // Exporting says where it went.
+        h.app.file_event(crate::files::FileEvent::Saved {
+            purpose: crate::files::Purpose::ExportStyles,
+            name: "my-styles.json".into(),
+            target: None,
+        });
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("Exported My Styles to my-styles.json")
+        );
     }
 
     #[test]

@@ -1249,6 +1249,15 @@ text can be copied to others of the same kind, as a format painter does.
   (use Fit to Name, §7.10, after); one made a circle takes its larger side both ways.
   A null node is left alone. It is shown disabled until a style has been copied and
   something of that kind is selected.
+- **Between a primary and an alias.** An alias's defaults differ from a primary's
+  (purple, dashed, §5.3), so a look left to the defaults would not carry over. When
+  a primary's look is pasted on an alias, or an alias's on a primary, the parts it
+  leaves to the default (fill, border colour, an automatic border style) are
+  first filled in as they are drawn on the item copied, so the alias looks just
+  like its primary (or the primary like the alias). The alias defaults are those
+  drawn with the alias indicator on. Between two primaries, or two aliases, the
+  look is pasted as it is, so the defaults stay defaults and the file needs nothing
+  new.
 - Ctrl+Alt rather than Ctrl+Shift: Chrome keeps Ctrl+Shift+C for its developer
   tools, so a web page can't use it.
 - The copied look lasts until the next Copy Style or the end of the session; it
@@ -1313,6 +1322,11 @@ model.
   My Styles keeps its copy. One undo step, *Delete Style*. **Remove from My
   Styles** leaves every model alone; it is not an undo step, like other
   preferences.
+- **Saved styles keep the look as drawn**: fill and border colour as drawn, and
+  the border solid or dashed, never "the default" (see §8.5, between a primary and
+  an alias). So a style saved from a primary gives an alias the primary's look,
+  and the other way round, and the alias follows it. A style read from a file is
+  kept the same way.
 - **Looks are compared in a standard form**, so two that draw the same are the
   same: a style that isn't custom has no colours or widths, and a custom one whose
   values are all "use the default" is the same as one that isn't custom (a hidden
@@ -1326,7 +1340,19 @@ model.
   hand) is unlinked quietly. SBML and Antimony don't keep styles.
 - **My Styles** are kept with the preferences (§12), in the browser for that
   browser and site. Two windows of the app share them; the last one to save wins.
-- **Still to come** (§16.2 F-6): exporting and importing styles to a file.
+- **Export My Styles…** (a button at the top of the Styles tab) writes My Styles
+  to a file, `my-styles.json` by default (a style list, SPEC-Rust §4.2), to share
+  them or move them to another computer or browser. Disabled while My Styles is
+  empty.
+- **Import Styles…** (beside it) adds the styles in such a file to My Styles. It
+  also takes a diagram (`.json`): its saved styles are imported. **Nothing of
+  yours is replaced**: a style My Styles already has, with the same look, is
+  skipped; one whose name its kind already has (in My Styles or the model) with
+  another look is added as "Name 2" (or the next free number). The status bar says
+  how many were added, how many were already there and which were renamed, and
+  the Styles tab is shown. A style the file holds that this version can't read is
+  skipped with a warning; a file that isn't one is a warning. Not an undo step,
+  like other changes to My Styles.
 
 ---
 
@@ -1786,8 +1812,9 @@ the Species and Reaction groups; there was no room left for more.)*
 - **Antimony** has the Antimony text with its *Load Antimony* and *Get Antimony*
   buttons, and its errors below. The panel switches to this tab when a file opened
   or imported as Antimony has errors, so that they can be seen.
-- **Styles** lists the saved styles of the model and of My Styles, by kind, each
-  with a picture of its look (§8.6). With none, it says how to save one.
+- **Styles** has *Export My Styles…* and *Import Styles…* at the top, then the
+  saved styles of the model and of My Styles, by kind, each with a picture of its
+  look (§8.6). With none, it says how to save one.
 
 The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,
@@ -2132,7 +2159,7 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | F-3 | **Font size and label colour controls** | The model already stores `fontSize` and `labelColor`. Only the UI is missing. **Done: §8.1**, with Copy Style and Paste Style (§8.5). |
 | F-4 | **Node shapes** | Rectangle, ellipse, circle and polygon. Border intersection and hit testing must handle each shape. **Done: §5.10** (rectangle, ellipse, circle, hexagon; hit testing keeps the box), with resizing (§7.10). |
 | F-5 | **Label positioning** | Inside, above, below, left or right of the node. **Done: §5.11**, as a name inside or outside the node, dragged anywhere outside it. |
-| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. **Saved styles in the model, My Styles and the Styles tab: done, §8.6**; exporting and importing styles next. |
+| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. **Saved styles: done, §8.6** (in the model, My Styles, the Styles tab, exporting and importing styles). Diagram-wide themes still to come. |
 | F-7 | **Arrange in a circle** | Put the selected nodes on a circle. |
 | F-8 | **Human-readable layout format** | Convert between the JSON format and a text format for layout ("Alcuin"). The reference lexer already has keywords for it (`layout`, `at`, `size`, `style`, `bezier`, `cp`, …). |
 | F-9 | **Several documents** | Tabs or several windows. |

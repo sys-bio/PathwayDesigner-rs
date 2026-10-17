@@ -319,6 +319,12 @@ impl PathwayApp {
                 }
             }
             FileEvent::Opened {
+                purpose: Purpose::ImportStyles,
+                name,
+                text,
+                ..
+            } => self.import_styles(&name, &text),
+            FileEvent::Opened {
                 purpose: Purpose::Drop,
                 name,
                 text,
@@ -339,6 +345,13 @@ impl PathwayApp {
                 ..
             } => {
                 self.notice = Some(format!("Exported {name}"));
+            }
+            FileEvent::Saved {
+                purpose: Purpose::ExportStyles,
+                name,
+                ..
+            } => {
+                self.notice = Some(format!("Exported My Styles to {name}"));
             }
             FileEvent::Saved {
                 purpose: Purpose::ExportSbml,
@@ -371,6 +384,59 @@ impl PathwayApp {
             FileEvent::Cancelled => {
                 self.after_save = None;
                 self.export_messages.clear();
+            }
+        }
+    }
+
+    /// Export My Styles… (S §8.6): writes My Styles as a style list.
+    pub(crate) fn export_styles(&mut self) {
+        let text = pd_core::json::styles_to_json(self.view.my_styles());
+        self.files.save(
+            &self.ctx,
+            Purpose::ExportStyles,
+            "my-styles.json".to_owned(),
+            text.into_bytes(),
+            None,
+            true,
+        );
+    }
+
+    /// Import Styles… (S §8.6): adds the styles in `text`, a style list or a
+    /// diagram, to My Styles, and says what happened.
+    fn import_styles(&mut self, name: &str, text: &str) {
+        match pd_core::json::styles_from_json(text) {
+            Err(e) => {
+                self.warnings = vec![format!("{name} couldn't be read as styles: {e}.")];
+            }
+            Ok((styles, warnings)) => {
+                self.warnings = warnings;
+                if styles.is_empty() {
+                    self.notice = Some(format!("{name} has no saved styles"));
+                    return;
+                }
+                let r = self.view.import_my_styles(styles);
+                let count = |n: usize| match n {
+                    1 => "1 style".to_owned(),
+                    n => format!("{n} styles"),
+                };
+                let mut said = format!("Imported {} from {name}", count(r.added));
+                if r.already > 0 {
+                    let verb = if r.already == 1 { "was" } else { "were" };
+                    said.push_str(&format!(
+                        "; {} {verb} already in My Styles",
+                        count(r.already)
+                    ));
+                }
+                if !r.renamed.is_empty() {
+                    let names: Vec<String> = r
+                        .renamed
+                        .iter()
+                        .map(|(from, to)| format!("{from} as {to}"))
+                        .collect();
+                    said.push_str(&format!("; added {}", names.join(", ")));
+                }
+                self.notice = Some(said);
+                self.right_tab = crate::app::RightTab::Styles;
             }
         }
     }

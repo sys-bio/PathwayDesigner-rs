@@ -49,7 +49,7 @@ pub use arrange::Arrange;
 pub use hit::hit_test;
 pub use input::{Button, HandleId, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
 pub use properties::{ColourField, sync_modifiers};
-pub use saved_styles::StyleError;
+pub use saved_styles::{ImportReport, StyleError};
 
 /// The rubber band's fill: its colour at 20 % (S §5.9).
 const RUBBER_BAND_FILL_ALPHA: u8 = 51;
