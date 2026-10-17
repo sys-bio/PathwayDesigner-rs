@@ -114,6 +114,14 @@ pub(crate) enum Dialog {
         error: Option<String>,
         focus: bool,
     },
+    /// Asks for a new name for a saved style (S §8.6).
+    RenameStyle {
+        kind: pd_core::model::StyleKind,
+        old: String,
+        text: String,
+        error: Option<String>,
+        focus: bool,
+    },
     /// Asks for a new id for a species.
     Rename {
         id: String,
@@ -140,6 +148,8 @@ pub(crate) enum RightTab {
     Properties,
     /// The Antimony text, with Load Antimony and Get Antimony.
     Antimony,
+    /// The saved styles of the model and of My Styles (S §8.6).
+    Styles,
 }
 
 pub struct PathwayApp {
@@ -244,6 +254,7 @@ impl PathwayApp {
         app.view.show_null_species = app.prefs.show_null_species;
         app.view.selected_reaction_colour = app.prefs.selected_reaction;
         app.view.show_modifiers = app.prefs.show_modifiers;
+        app.view.set_my_styles(crate::my_styles::load(cc.storage));
         app.perform(Action::OpenSample(START_SAMPLE));
         app.notice = None;
         // Changes lost last time (a closed tab, a crash): offer them back.
@@ -1118,6 +1129,41 @@ impl PathwayApp {
                     }
                 }
             }
+            Dialog::RenameStyle {
+                kind,
+                old,
+                text,
+                error,
+                focus,
+            } => {
+                let mut submit = false;
+                let modal = egui::Modal::new(egui::Id::new("rename-style")).show(ctx, |ui| {
+                    ui.heading("Rename style");
+                    ui.add_space(4.0);
+                    let edit = ui.add(egui::TextEdit::singleline(text).desired_width(240.0));
+                    if std::mem::take(focus) {
+                        edit.request_focus();
+                    }
+                    if edit.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                        submit = true;
+                    }
+                    if let Some(e) = error {
+                        ui.colored_label(egui::Color32::from_rgb(0xCC, 0x33, 0x00), e.as_str());
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        submit |= ui.button("OK").clicked();
+                        close |= ui.button("Cancel").clicked();
+                    });
+                });
+                close |= modal.should_close();
+                if submit {
+                    match self.view.rename_style(*kind, old, text) {
+                        Ok(_) => close = true,
+                        Err(e) => *error = Some(format!("Can't rename: {e}.")),
+                    }
+                }
+            }
             Dialog::SaveStyle {
                 target,
                 text,
@@ -1311,6 +1357,7 @@ impl eframe::App for PathwayApp {
         // View ▸ Modifier lines changes the view directly.
         self.prefs.show_modifiers = self.view.show_modifiers;
         self.prefs.save(storage);
+        crate::my_styles::save(self.view.my_styles(), storage);
         self.autosave(storage);
         #[cfg(not(target_arch = "wasm32"))]
         self.recent.save(storage);
@@ -1338,6 +1385,7 @@ impl eframe::App for PathwayApp {
         });
         let opts = self.import_options();
         let mut antimony_action = None;
+        let mut styles_action = None;
         egui::Panel::right("inspector")
             .resizable(true)
             .default_size(280.0)
@@ -1346,6 +1394,7 @@ impl eframe::App for PathwayApp {
                     for (tab, name) in [
                         (RightTab::Properties, "Properties"),
                         (RightTab::Antimony, "Antimony"),
+                        (RightTab::Styles, "Styles"),
                     ] {
                         ui.selectable_value(&mut self.right_tab, tab, name);
                     }
@@ -1357,9 +1406,25 @@ impl eframe::App for PathwayApp {
                         RightTab::Antimony => {
                             antimony_action = self.antimony.show(ui, &mut self.view, &opts);
                         }
+                        RightTab::Styles => {
+                            styles_action = crate::styles_panel::show(ui, &mut self.view);
+                        }
                     });
                 });
             });
+        match styles_action {
+            Some(crate::styles_panel::StylesAction::Rename(kind, old)) => {
+                self.dialog = Some(Dialog::RenameStyle {
+                    kind,
+                    text: old.clone(),
+                    old,
+                    error: None,
+                    focus: true,
+                });
+            }
+            Some(crate::styles_panel::StylesAction::Notice(text)) => self.notice = Some(text),
+            None => {}
+        }
         match antimony_action {
             Some(PanelAction::Imported) => {
                 self.warnings.clear();

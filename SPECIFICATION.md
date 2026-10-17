@@ -1257,37 +1257,66 @@ text can be copied to others of the same kind, as a format painter does.
 ### 8.6 Saved styles
 
 *Added in the Rust version* (§16.2 F-6, first part). A look, as Copy Style takes
-it (§8.5), can be saved in the model under a name and given to other items of the
-same kind, which then **follow** it: changing the style changes them all.
+it (§8.5), can be saved under a name and given to other items of the same kind,
+which then **follow** it: changing the style changes them all. Styles are kept in
+two places: **in the model**, so a model given to someone else carries the styles
+it uses, and in **My Styles**, kept with the app (§12), so they can be used in any
+model.
 
 - **A saved style** is a name, a kind (species, reaction, compartment or text) and
   the look (the table in §8.5). Names are unique within a kind, so a species style
   and a reaction style may share one. Leading and trailing spaces are dropped; an
   empty name is refused.
 - **Save Style…** (the item's context menu) asks for a name, saves the item's look
-  under it and makes the item follow it. A name its kind already has is refused, in
-  the dialog. One undo step, *Save Style*.
-- **Applying** a style: **Apply Style ▸** in the item's context menu, or the
-  **Style** list at the top of each group of the Properties panel (§8.1), lists
-  the model's styles of that kind; the panel's list also shows the one the
-  selected items follow ("None", or "Mixed" when they differ). Choosing one
-  gives its look to every selected item of that kind, as Paste Style does (a
-  species keeps its size unless the style has its name outside; null nodes are left
-  alone), and makes them follow it. One undo step, *Apply Style*.
+  under it, in the model and in My Styles, and makes the item follow it. A name its
+  kind already has, in either, is refused, in the dialog. One undo step, *Save
+  Style* (undo takes it out of the model; My Styles keeps it).
+- **Which styles are offered.** For each kind: the model's styles, in the order
+  they were saved, then those of My Styles the model doesn't have. When both have
+  a style of the same name with different looks (a model from someone else), **the
+  model's look is used in that model**, so opening a model never changes it; the
+  Styles tab says they differ.
+- **Applying** a style: **Apply Style ▸** in the item's context menu, the
+  **Style** list at the top of each group of the Properties panel (§8.1), or a
+  click on it in the **Styles** tab (§13.3). The panel's list also shows the one
+  the selected items follow ("None", or "Mixed" when they differ). Applying gives
+  its look to every selected item of that kind, as Paste Style does (a species
+  keeps its size unless the style has its name outside; null nodes are left
+  alone), and makes them follow it; a style only in My Styles is copied into the
+  model first. One undo step, *Apply Style*. With nothing of that kind selected,
+  the status bar says to select something.
 - **Following.** An item follows its style **while it looks like it**. Any edit
   that changes its look some other way (a colour, a width, the shape, Paste Style
   of another look, or for a style with the name outside, resizing it) makes it
   stop following; it keeps its look. Undo brings the link back with the look.
   Moving it, renaming it, moving its name, or changing what isn't part of the look
   (its size with the name inside, its value) leaves it following.
-- **Change Style to Match This ▸** (the item's context menu, below Apply Style)
-  lists the model's styles of the item's kind; choosing one gives that style the
-  item's look, and every item that follows it changes to match; the item follows
-  it too. One undo step, *Change Style*. (It was first called "Update Style",
-  which users took to mean Apply: it works the other way round.)
-- **Rename and delete** (commands for the Styles list, step 2): renaming keeps the
-  items following it under the new name; deleting it leaves its items with their
-  look, following nothing. One undo step each.
+- **Change Style to Match This ▸** (the item's context menu, below Apply Style;
+  in the Styles tab, *Change Style to Match Selected*, with exactly one item of the
+  kind selected) lists the styles of the item's kind; choosing one gives that style
+  the item's look, and every item that follows it changes to match; the item
+  follows it too. The model gets the style if it hadn't it; My Styles' copy, if
+  there is one, changes too. One undo step, *Change Style*. (It was first called
+  "Update Style", which users took to mean Apply: it works the other way round.)
+- **The Styles tab** (§13.3) lists the styles of each kind, each with a small
+  picture of the look, its name, where it is kept ("this model", "My Styles",
+  both, or "this model; differs from My Styles") and how many items follow it. A
+  click applies it. Its right-click menu: *Apply to Selected*, *Change Style to
+  Match Selected*, *Select Items Using It*, *Rename…*, *Keep in My Styles* (a
+  style only in the model, as from someone else's file), *Replace My Style with
+  This One* (when they differ), *Delete from This Model*, *Remove from My
+  Styles*.
+- **Rename…** renames it in the model and in My Styles, wherever it is; items
+  following it follow it under the new name. A name its kind has in either is
+  refused. The model's part is one undo step, *Rename Style*.
+- **Delete from This Model** leaves its items with their look, following nothing;
+  My Styles keeps its copy. One undo step, *Delete Style*. **Remove from My
+  Styles** leaves every model alone; it is not an undo step, like other
+  preferences.
+- **Looks are compared in a standard form**, so two that draw the same are the
+  same: a style that isn't custom has no colours or widths, and a custom one whose
+  values are all "use the default" is the same as one that isn't custom (a hidden
+  junction alone is saved as a style object, fix D-8).
 - **Files.** The model file keeps the styles **some item follows**, and each item's
   `styleName` (JSON version 6, SPEC-Rust §4.2); a style nothing follows is not
   written, so it is gone the next time the file is opened. Items always keep their
@@ -1295,8 +1324,9 @@ same kind, which then **follow** it: changing the style changes them all.
   Opening a file, an item that follows a style the file doesn't have is unlinked,
   with a warning; one that doesn't look like its style (the file was edited by
   hand) is unlinked quietly. SBML and Antimony don't keep styles.
-- **Still to come** (§16.2 F-6): the styles kept with the app ("My Styles") and a
-  Styles tab to manage them, then exporting and importing styles to a file.
+- **My Styles** are kept with the preferences (§12), in the browser for that
+  browser and site. Two windows of the app share them; the last one to save wins.
+- **Still to come** (§16.2 F-6): exporting and importing styles to a file.
 
 ---
 
@@ -1701,6 +1731,7 @@ OK and when the application exits.
 | **Convert catalytic reactions** | true | During Antimony import, `A -> A + B` becomes `-> B` with `A` as a modifier (§11.2). If this setting changes and an Antimony source has been imported, that source is imported **again** so the change takes effect. (The user SHOULD be warned that this throws away edits made since the import.) |
 | **Show null species** | true | Draw null nodes and the legs that touch them (§5.4). |
 | **Selected reaction colour** | `#1144CC` | The colour a selected reaction's lines, arrowheads and modifier arcs are drawn in (§5.5), with a Reset button. Added in the Rust version. Never used in exports. |
+| **My Styles** | none | The saved styles kept with the app (§8.6), changed from the Styles tab and Save Style…, not from the dialog. Added in the Rust version. |
 
 The preferences dialog is a modal window with one tab, holding two checkboxes, the
 selected reaction colour and OK/Cancel buttons.
@@ -1742,7 +1773,7 @@ changes on New, Open and Quit. The reference has none of these.
 
 ### 13.3 Right panel
 
-Two tabs at the top: **Properties** and **Antimony**. *(Before 0.1.7 the panel
+Three tabs at the top: **Properties**, **Antimony** and **Styles** (§8.6). *(Before 0.1.7 the panel
 showed every group at once, most of them disabled, with the Antimony text between
 the Species and Reaction groups; there was no room left for more.)*
 
@@ -1755,6 +1786,8 @@ the Species and Reaction groups; there was no room left for more.)*
 - **Antimony** has the Antimony text with its *Load Antimony* and *Get Antimony*
   buttons, and its errors below. The panel switches to this tab when a file opened
   or imported as Antimony has errors, so that they can be seen.
+- **Styles** lists the saved styles of the model and of My Styles, by kind, each
+  with a picture of its look (§8.6). With none, it says how to save one.
 
 The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,
@@ -2099,7 +2132,7 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | F-3 | **Font size and label colour controls** | The model already stores `fontSize` and `labelColor`. Only the UI is missing. **Done: §8.1**, with Copy Style and Paste Style (§8.5). |
 | F-4 | **Node shapes** | Rectangle, ellipse, circle and polygon. Border intersection and hit testing must handle each shape. **Done: §5.10** (rectangle, ellipse, circle, hexagon; hit testing keeps the box), with resizing (§7.10). |
 | F-5 | **Label positioning** | Inside, above, below, left or right of the node. **Done: §5.11**, as a name inside or outside the node, dragged anywhere outside it. |
-| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. **Saved styles in the model: done, §8.6**; My Styles and the Styles tab next. |
+| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. **Saved styles in the model, My Styles and the Styles tab: done, §8.6**; exporting and importing styles next. |
 | F-7 | **Arrange in a circle** | Put the selected nodes on a circle. |
 | F-8 | **Human-readable layout format** | Convert between the JSON format and a text format for layout ("Alcuin"). The reference lexer already has keywords for it (`layout`, `at`, `size`, `style`, `bezier`, `cp`, …). |
 | F-9 | **Several documents** | Tabs or several windows. |

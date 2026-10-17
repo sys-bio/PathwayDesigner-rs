@@ -62,6 +62,29 @@ pub struct VisualStyle {
     pub no_border: bool,
 }
 
+impl VisualStyle {
+    /// The same look in one standard form, so looks that draw the same
+    /// compare equal: without `has_custom_style` the other fields don't
+    /// count, so they are cleared; with it but every field "use the default",
+    /// it is the same as without it (a hidden junction is saved that way, fix
+    /// D-8). `junction_visible` and `no_border` count either way.
+    pub fn canonical(self) -> Self {
+        let plain = VisualStyle {
+            junction_visible: self.junction_visible,
+            no_border: self.no_border,
+            ..VisualStyle::default()
+        };
+        if !self.has_custom_style {
+            return plain;
+        }
+        let same_as_plain = VisualStyle {
+            has_custom_style: false,
+            ..self
+        } == plain;
+        if same_as_plain { plain } else { self }
+    }
+}
+
 impl Default for VisualStyle {
     fn default() -> Self {
         Self {
@@ -141,6 +164,32 @@ pub enum Look {
 }
 
 impl Look {
+    /// The same look in one standard form (see [`VisualStyle::canonical`]).
+    pub fn canonical(self) -> Self {
+        match self {
+            Look::Species {
+                style,
+                shape,
+                border_dash,
+                label_outside,
+                size,
+            } => Look::Species {
+                style: style.canonical(),
+                shape,
+                border_dash,
+                label_outside,
+                size,
+            },
+            Look::Reaction { style } => Look::Reaction {
+                style: style.canonical(),
+            },
+            Look::Compartment { style } => Look::Compartment {
+                style: style.canonical(),
+            },
+            t @ Look::Text { .. } => t,
+        }
+    }
+
     pub fn kind(&self) -> StyleKind {
         match self {
             Look::Species { .. } => StyleKind::Species,

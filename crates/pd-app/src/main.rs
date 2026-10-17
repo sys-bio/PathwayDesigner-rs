@@ -12,11 +12,13 @@ mod fonts;
 mod inspector;
 #[cfg(target_os = "macos")]
 mod macos_menu;
+mod my_styles;
 mod prefs;
 #[cfg(not(target_arch = "wasm32"))]
 mod recent;
 mod renderer;
 mod samples;
+mod styles_panel;
 mod tree;
 #[cfg(target_arch = "wasm32")]
 mod web;

@@ -10,9 +10,13 @@
 use crate::model::{Look, Model, NodeShape, SavedStyle, SpeciesNode, StyleKind, VisualStyle};
 use crate::render::draw::default_label_offset;
 
-/// How the item `id` of `kind` looks, or `None` if there is no such item (or
-/// it is a null node, which has no look of its own).
+/// How the item `id` of `kind` looks, in standard form, or `None` if there
+/// is no such item (or it is a null node, which has no look of its own).
 pub fn look_of(model: &Model, kind: StyleKind, id: &str) -> Option<Look> {
+    raw_look(model, kind, id).map(Look::canonical)
+}
+
+fn raw_look(model: &Model, kind: StyleKind, id: &str) -> Option<Look> {
     Some(match kind {
         StyleKind::Species => {
             let s = model.find_species(id).filter(|s| !s.is_null_node)?;
@@ -213,4 +217,113 @@ pub fn any_links(model: &Model) -> bool {
             .iter()
             .any(|id| link(model, kind, id).is_some())
     })
+}
+
+/// One line of the Styles list for a kind (S §8.6): a style of the model,
+/// of My Styles (the app's own), or of both under one name.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StyleEntry {
+    pub name: String,
+    /// The model's look when the model has it, otherwise My Styles' look.
+    pub look: Look,
+    pub in_model: bool,
+    pub in_mine: bool,
+    /// Both have it, with different looks: in this model the model's wins.
+    pub differs: bool,
+    /// How many items of the model follow it.
+    pub users: usize,
+}
+
+/// The styles of `kind` to choose from: the model's, in the order they were
+/// saved, then those of My Styles (`mine`) the model doesn't have.
+pub fn entries(model: &Model, mine: &[SavedStyle], kind: StyleKind) -> Vec<StyleEntry> {
+    let mut out: Vec<StyleEntry> = model
+        .styles
+        .iter()
+        .filter(|s| s.kind() == kind)
+        .map(|s| {
+            let my = find_in(mine, kind, &s.name);
+            StyleEntry {
+                name: s.name.clone(),
+                look: s.look,
+                in_model: true,
+                in_mine: my.is_some(),
+                differs: my.is_some_and(|m| m.look != s.look),
+                users: users(model, kind, &s.name).len(),
+            }
+        })
+        .collect();
+    for m in mine.iter().filter(|m| m.kind() == kind) {
+        if find(model, kind, &m.name).is_none() {
+            out.push(StyleEntry {
+                name: m.name.clone(),
+                look: m.look,
+                in_model: false,
+                in_mine: true,
+                differs: false,
+                users: 0,
+            });
+        }
+    }
+    out
+}
+
+/// The style `name` of `kind` in a list of styles.
+pub fn find_in<'a>(list: &'a [SavedStyle], kind: StyleKind, name: &str) -> Option<&'a SavedStyle> {
+    list.iter().find(|s| s.kind() == kind && s.name == name)
+}
+
+/// Adds `style` to a list, or replaces the one of its kind and name.
+pub fn put(list: &mut Vec<SavedStyle>, style: SavedStyle) {
+    match list
+        .iter_mut()
+        .find(|s| s.kind() == style.kind() && s.name == style.name)
+    {
+        Some(s) => *s = style,
+        None => list.push(style),
+    }
+}
+
+/// A tiny model that shows `look`, for the Styles list: a species named
+/// "A"; a reaction from A to B; a compartment's box; a text "Text".
+pub fn preview(look: &Look) -> Model {
+    use crate::geometry::pt;
+    let mut m = Model::new();
+    match look.kind() {
+        StyleKind::Species => {
+            let mut s = SpeciesNode::new("A", pt(0.0, 0.0));
+            s.width = 50.0;
+            s.height = 26.0;
+            m.push_species(s).expect("an empty model");
+            give_look(&mut m, "A", look);
+        }
+        StyleKind::Reaction => {
+            for (id, x) in [("A", -60.0), ("B", 60.0)] {
+                let mut s = SpeciesNode::new(id, pt(x, 0.0));
+                (s.width, s.height) = (24.0, 20.0);
+                m.push_species(s).expect("an empty model");
+            }
+            let mut r = crate::model::Reaction::new("R", pt(0.0, 0.0));
+            r.reactants.push(crate::model::Participant::new("A", 1.0));
+            r.products.push(crate::model::Participant::new("B", 1.0));
+            m.push_reaction(r).expect("an empty model");
+            give_look(&mut m, "R", look);
+        }
+        StyleKind::Compartment => {
+            let mut c = crate::model::Compartment::new("c");
+            c.frame = Some(crate::model::Frame {
+                center: pt(0.0, 0.0),
+                width: 90.0,
+                height: 40.0,
+            });
+            m.compartments.push(c);
+            give_look(&mut m, "c", look);
+        }
+        StyleKind::Text => {
+            m.push_text(crate::model::TextItem::new("T", pt(0.0, 0.0), "Text"))
+                .expect("an empty model");
+            give_look(&mut m, "T", look);
+        }
+    }
+    m
 }

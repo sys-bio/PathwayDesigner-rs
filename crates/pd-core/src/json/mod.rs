@@ -133,6 +133,27 @@ pub fn to_json(model: &Model) -> String {
     text
 }
 
+/// A list of saved styles on its own (My Styles, S §8.6): `{"version": 6,
+/// "styles": [...]}`, each style as in a model file (SPEC-Rust §4.2).
+pub fn styles_to_json(styles: &[SavedStyle]) -> String {
+    let file = FileStyleList {
+        version: Some(FORMAT_VERSION),
+        styles: styles.iter().map(saved_style_to_file).collect(),
+    };
+    let mut text = serde_json::to_string_pretty(&file).expect("the file structs always serialise");
+    text.push('\n');
+    text
+}
+
+/// Reads a list of saved styles, with warnings for those skipped.
+pub fn styles_from_json(text: &str) -> Result<(Vec<SavedStyle>, Vec<String>), JsonError> {
+    let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
+    let file: FileStyleList = serde_json::from_str(text)?;
+    let mut warnings = Vec::new();
+    let styles = styles_from_file(file.styles, &mut warnings);
+    Ok((styles, warnings))
+}
+
 // ----- File structs ----------------------------------------------------------
 //
 // Field order is key order in the written file. `default`s say what a missing
@@ -161,6 +182,15 @@ struct FileModel {
     /// Version 6: the saved styles some item follows (S §8.6). Left out when
     /// there are none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    styles: Vec<FileSavedStyle>,
+}
+
+/// A list of saved styles on its own.
+#[derive(Serialize, Deserialize)]
+struct FileStyleList {
+    #[serde(default, deserialize_with = "lenient_u32_opt")]
+    version: Option<u32>,
+    #[serde(default)]
     styles: Vec<FileSavedStyle>,
 }
 
@@ -767,7 +797,10 @@ fn styles_from_file(list: Vec<FileSavedStyle>, warnings: &mut Vec<String>) -> Ve
                 color: f.color,
             },
         };
-        out.push(SavedStyle { name, look });
+        out.push(SavedStyle {
+            name,
+            look: look.canonical(),
+        });
     }
     out
 }

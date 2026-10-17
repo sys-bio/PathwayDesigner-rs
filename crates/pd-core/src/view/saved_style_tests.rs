@@ -274,14 +274,20 @@ fn update_style_changes_every_item_that_follows_it() {
     let s1 = v.model().find_species("S1").unwrap();
     assert_eq!(s1.shape, NodeShape::Ellipse);
     assert_eq!(link(&v, &sp("S3")), None);
-    // The wrong kind, or a style that isn't there, is refused.
+    // A style the item's kind doesn't have yet is made: each kind has its
+    // own names.
+    v.update_style("Enzyme", &Target::Leg("R1".into())).unwrap();
     assert_eq!(
-        v.update_style("Enzyme", &Target::Leg("R1".into())),
-        Err(StyleError::WrongKind)
+        v.style_names(StyleKind::Reaction),
+        vec!["Enzyme".to_string()]
     );
     assert_eq!(
-        v.update_style("Nope", &sp("S3")),
-        Err(StyleError::NoStyle("Nope".into()))
+        link(&v, &Target::Leg("R1".into())).as_deref(),
+        Some("Enzyme")
+    );
+    assert_eq!(
+        v.update_style("Enzyme", &Target::Empty),
+        Err(StyleError::NoItem)
     );
 }
 
@@ -515,4 +521,237 @@ fn a_damaged_file_loses_only_the_broken_links() {
             .count(),
         2
     );
+}
+
+// ----- My Styles (step 2) ------------------------------------------------------
+
+#[test]
+fn save_style_keeps_it_in_my_styles_too() {
+    let v = with_enzyme();
+    assert_eq!(v.my_styles().len(), 1);
+    assert_eq!(v.my_styles()[0].name, "Enzyme");
+    assert_eq!(v.my_styles()[0].look, v.model().styles[0].look);
+    // Undo takes it out of the model, not out of My Styles.
+    let mut v = v;
+    v.undo();
+    assert!(v.model().styles.is_empty());
+    assert_eq!(v.my_styles().len(), 1);
+    // A name My Styles has is taken, even when the model doesn't have it.
+    assert_eq!(
+        v.save_style(&sp("S2"), "Enzyme"),
+        Err(StyleError::NameTaken("Enzyme".into()))
+    );
+}
+
+#[test]
+fn opening_another_model_keeps_my_styles() {
+    let mut v = with_enzyme();
+    v.set_model(view().model().clone());
+    assert!(v.model().styles.is_empty());
+    let e = v.style_entries(StyleKind::Species);
+    assert_eq!(e.len(), 1);
+    assert!(e[0].in_mine && !e[0].in_model);
+    // Applying it copies it into this model; undo takes it out again.
+    select(&mut v, &[sp("S3")]);
+    v.apply_style(StyleKind::Species, "Enzyme");
+    assert_eq!(
+        v.style_names(StyleKind::Species),
+        vec!["Enzyme".to_string()]
+    );
+    assert_eq!(link(&v, &sp("S3")).as_deref(), Some("Enzyme"));
+    assert_eq!(
+        v.model().find_species("S3").unwrap().shape,
+        NodeShape::Ellipse
+    );
+    v.undo();
+    assert!(v.model().styles.is_empty());
+    // With nothing of the kind selected, applying does nothing.
+    assert!(!v.can_apply_style(StyleKind::Species));
+    assert!(!v.apply_style(StyleKind::Species, "Enzyme").model_changed);
+    assert!(v.model().styles.is_empty());
+}
+
+#[test]
+fn the_list_shows_the_models_styles_then_my_styles() {
+    let mut v = with_enzyme();
+    // "Plain" only in the model (as from someone else's file), "Spare" only
+    // in My Styles, "Enzyme" in both but changed in the model.
+    v.save_style(&sp("S2"), "Plain").unwrap();
+    v.remove_from_my_styles(StyleKind::Species, "Plain");
+    v.save_style(&sp("S3"), "Spare").unwrap();
+    v.delete_style(StyleKind::Species, "Spare");
+    select(&mut v, &[sp("S2")]);
+    v.set_species_shape(NodeShape::Hexagon);
+    let mine = v.my_styles().to_vec();
+    v.update_style("Enzyme", &sp("S2")).unwrap();
+    // Changing it changed My Styles' copy too; put the old one back so they
+    // differ, as for a model from someone else.
+    assert_ne!(v.my_styles()[0].look, mine[0].look);
+    v.set_my_styles(mine);
+    let e = v.style_entries(StyleKind::Species);
+    let names: Vec<&str> = e.iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, ["Enzyme", "Plain", "Spare"]);
+    assert!(e[0].in_model && e[0].in_mine && e[0].differs);
+    assert_eq!(e[0].users, 2, "S1 and S2");
+    assert_eq!(
+        e[0].look,
+        v.model().styles[0].look,
+        "in this model the model's look wins"
+    );
+    assert!(e[1].in_model && !e[1].in_mine && !e[1].differs);
+    assert!(!e[2].in_model && e[2].in_mine && e[2].users == 0);
+    assert!(v.style_entries(StyleKind::Text).is_empty());
+    // Keep in My Styles: adds Plain, and replaces Enzyme with the model's.
+    v.keep_in_my_styles(StyleKind::Species, "Plain");
+    v.keep_in_my_styles(StyleKind::Species, "Enzyme");
+    let e = v.style_entries(StyleKind::Species);
+    assert!(e.iter().all(|e| !e.differs));
+    assert!(e[1].in_mine);
+    assert_eq!(v.my_styles().len(), 3);
+}
+
+#[test]
+fn rename_and_remove_reach_my_styles() {
+    let mut v = with_enzyme();
+    v.save_style(&sp("S3"), "Other").unwrap();
+    v.delete_style(StyleKind::Species, "Other");
+    // A name only My Styles has is taken.
+    assert_eq!(
+        v.rename_style(StyleKind::Species, "Enzyme", "Other"),
+        Err(StyleError::NameTaken("Other".into()))
+    );
+    v.rename_style(StyleKind::Species, "Enzyme", "Kinase")
+        .unwrap();
+    assert_eq!(
+        v.style_names(StyleKind::Species),
+        vec!["Kinase".to_string()]
+    );
+    assert!(
+        v.my_styles().iter().any(|s| s.name == "Kinase"),
+        "renamed in My Styles too"
+    );
+    // A style only in My Styles can be renamed there.
+    v.rename_style(StyleKind::Species, "Other", "Spare")
+        .unwrap();
+    assert!(v.my_styles().iter().any(|s| s.name == "Spare"));
+    assert_eq!(
+        v.rename_style(StyleKind::Species, "Nope", "X"),
+        Err(StyleError::NoStyle("Nope".into()))
+    );
+    // Removing from My Styles leaves the model's, and its items, alone.
+    v.remove_from_my_styles(StyleKind::Species, "Kinase");
+    assert!(!v.my_styles().iter().any(|s| s.name == "Kinase"));
+    assert_eq!(link(&v, &sp("S1")).as_deref(), Some("Kinase"));
+    // Deleting from the model leaves My Styles alone.
+    v.delete_style(StyleKind::Species, "Kinase");
+    v.keep_in_my_styles(StyleKind::Species, "Kinase");
+    assert!(!v.my_styles().iter().any(|s| s.name == "Kinase"));
+}
+
+#[test]
+fn change_style_makes_it_in_the_model_from_my_styles() {
+    let mut v = with_enzyme();
+    v.set_model(view().model().clone());
+    select(&mut v, &[sp("S2")]);
+    v.set_species_shape(NodeShape::Hexagon);
+    v.update_style("Enzyme", &sp("S2")).unwrap();
+    assert_eq!(
+        v.style_names(StyleKind::Species),
+        vec!["Enzyme".to_string()]
+    );
+    let look = v.model().styles[0].look;
+    assert_eq!(v.my_styles()[0].look, look, "My Styles follows");
+    assert_eq!(link(&v, &sp("S2")).as_deref(), Some("Enzyme"));
+}
+
+#[test]
+fn select_items_using_a_style() {
+    let mut v = with_enzyme();
+    select(&mut v, &[sp("S3")]);
+    v.apply_style(StyleKind::Species, "Enzyme");
+    select(&mut v, &[Target::Leg("R1".into())]);
+    let r = v.select_style_users(StyleKind::Species, "Enzyme");
+    assert!(r.selection_changed);
+    assert_eq!(v.selection().0, vec!["S1".to_string(), "S3".to_string()]);
+    assert!(
+        v.selection().1.is_empty(),
+        "the reaction is no longer selected"
+    );
+}
+
+#[test]
+fn a_preview_looks_like_its_style() {
+    let v = styled();
+    for st in &v.model().styles {
+        let m = crate::styles::preview(&st.look);
+        let id = match st.kind() {
+            StyleKind::Species => "A",
+            StyleKind::Reaction => "R",
+            StyleKind::Compartment => "c",
+            StyleKind::Text => "T",
+        };
+        assert_eq!(
+            crate::styles::look_of(&m, st.kind(), id),
+            Some(st.look),
+            "{}",
+            st.name
+        );
+    }
+}
+
+#[test]
+fn a_list_of_styles_reads_back() {
+    let v = styled();
+    let text = crate::json::styles_to_json(&v.model().styles);
+    let (back, warnings) = crate::json::styles_from_json(&text).unwrap();
+    assert!(warnings.is_empty());
+    assert_eq!(back, v.model().styles);
+    // A style that doesn't read is skipped, with a word.
+    let odd = text.replacen("\"species\"", "\"glow\"", 1);
+    let (back, warnings) = crate::json::styles_from_json(&odd).unwrap();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(back.len(), v.model().styles.len() - 1);
+    assert!(crate::json::styles_from_json("not json").is_err());
+}
+
+#[test]
+fn changing_a_style_only_in_the_model_leaves_my_styles_alone() {
+    let mut v = with_enzyme();
+    v.remove_from_my_styles(StyleKind::Species, "Enzyme");
+    select(&mut v, &[sp("S2")]);
+    v.set_species_shape(NodeShape::Hexagon);
+    v.update_style("Enzyme", &sp("S2")).unwrap();
+    assert!(v.my_styles().is_empty());
+}
+
+#[test]
+fn looks_that_draw_the_same_compare_equal() {
+    use crate::model::VisualStyle;
+    let red = Rgba::rgb(0xCC, 0, 0);
+    // Not custom: its colours don't count.
+    let stale = VisualStyle {
+        fill_color: red,
+        ..VisualStyle::default()
+    };
+    assert_eq!(stale.canonical(), VisualStyle::default());
+    // Custom, but all "use the default": the same as not custom.
+    let empty = VisualStyle {
+        has_custom_style: true,
+        junction_visible: false,
+        ..VisualStyle::default()
+    };
+    assert_eq!(
+        empty.canonical(),
+        VisualStyle {
+            junction_visible: false,
+            ..VisualStyle::default()
+        }
+    );
+    // A real custom style stays as it is.
+    let custom = VisualStyle {
+        has_custom_style: true,
+        fill_color: red,
+        ..VisualStyle::default()
+    };
+    assert_eq!(custom.canonical(), custom);
 }

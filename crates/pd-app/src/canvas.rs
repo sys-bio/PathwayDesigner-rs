@@ -327,7 +327,9 @@ fn style_items(
     }
     item(ui, "Save Style…", MenuAction::SaveStyle(target.clone()));
     let kind = style_kind(target);
-    let names = kind.map(|k| view.style_names(k)).unwrap_or_default();
+    let names: Vec<String> = kind
+        .map(|k| view.style_entries(k).into_iter().map(|e| e.name).collect())
+        .unwrap_or_default();
     const CHANGE: &str = "Change Style to Match This";
     if let (Some(kind), false) = (kind, names.is_empty()) {
         ui.menu_button("Apply Style", |ui| {

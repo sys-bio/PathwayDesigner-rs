@@ -85,9 +85,14 @@ fn heading(ui: &mut egui::Ui, shown: &mut bool, title: &str) {
 }
 
 /// The saved style the selected items of `kind` follow, and a list of the
-/// model's styles of that kind to give them one (S §8.6).
+/// styles of that kind, the model's and My Styles', to give them one
+/// (S §8.6).
 fn style_row(ui: &mut egui::Ui, view: &mut DiagramView, kind: StyleKind) {
-    let names = view.style_names(kind);
+    let names: Vec<String> = view
+        .style_entries(kind)
+        .into_iter()
+        .map(|e| e.name)
+        .collect();
     let m = view.model();
     let links: Vec<Option<String>> = pd_core::styles::selected_ids(m, kind)
         .iter()

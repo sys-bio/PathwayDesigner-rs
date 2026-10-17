@@ -374,6 +374,10 @@ kind uses, each left out at its default:
 | compartment | `style` |
 | text | `size`, `typeface`, `bold`, `italic`, `align`, `color` |
 
+A list of styles on its own (My Styles, kept under the preference key
+`pathwayDesigner.styles`) is `{"version": 6, "styles": [...]}`, each style as
+above. Looks are read into a standard form (S §8.6).
+
 Keys that don't belong to the kind are ignored. A style of a kind this version
 doesn't know, with no name, with a name its kind already has, or with
 `labelOutside` but no size, is skipped with a warning. An item following a style
@@ -1035,6 +1039,9 @@ file in the app's data folder. On the web it is `localStorage`.
 - Store the S §12 preferences under the same names
   (`convertCatalyticReactions`, `showNullSpecies`), with `selectedReactionColour`
   and View ▸ Modifier lines (`showModifiers`, S §7.6), which are kept the same way.
+- My Styles (S §8.6) are kept under `styles`, as a style list (§4.2). They live in
+  the view beside the model (`DiagramView::my_styles`), so opening a file keeps
+  them, and are saved whenever eframe saves (every few seconds and on exit).
 - Store UI-only settings (panel sizes, the alias-indicator toggle, layout options,
   recent files on desktop) under a separate key.
 - Apply the preferences **when the app starts** (fixes D-2).

@@ -86,6 +86,10 @@ pub struct DiagramView {
     /// What Copy Style took, for Paste Style (S §8.5). Not part of the model,
     /// so undo leaves it alone.
     copied_style: Option<crate::model::Look>,
+    /// My Styles: the saved styles kept with the app, not the model (S §8.6).
+    /// Not part of the model, so undo leaves them alone; the app loads and
+    /// saves them with its preferences.
+    my_styles: Vec<crate::model::SavedStyle>,
     tool: Tool,
     /// Species picked so far with an add-reaction tool.
     pending: Pending,
@@ -278,6 +282,7 @@ impl DiagramView {
             gesture: Gesture::Idle,
             shift_held: false,
             copied_style: None,
+            my_styles: Vec::new(),
             tool: Tool::Select,
             pending: Pending::default(),
             hover: None,
