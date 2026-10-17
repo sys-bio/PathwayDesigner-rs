@@ -3,17 +3,17 @@
 //! Every edit is one undo step (fixes D-4): colours, widths and junction
 //! visibility as a StyleEdit command, the rest as snapshots.
 
-use super::DiagramView;
+use super::{CopiedStyle, DiagramView};
 use crate::expr;
 use crate::model::{
-    Compartment, Id, Model, NodeShape, RenameError, Rgba, TextAlign, TextItem, Typeface,
-    VisualStyle,
+    BorderDash, Compartment, Id, Model, NodeShape, RenameError, Rgba, TextAlign, TextItem,
+    Typeface, VisualStyle,
 };
 use crate::render::constants::LABEL;
 use crate::render::draw::compartment_colours;
 use crate::render::draw::{line_colour, species_colours};
 use crate::undo::Command;
-use crate::view::ViewResponse;
+use crate::view::{Target, ViewResponse};
 
 /// Which colour a swatch sets (S §8.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,6 +22,8 @@ pub enum ColourField {
     Fill,
     /// Border of the selected species.
     Border,
+    /// Label of the selected species (S §8.1).
+    Label,
     /// Lines of the selected reactions.
     Line,
     /// The selected texts (S §7.8).
@@ -146,6 +148,10 @@ impl DiagramView {
                     border
                 })
             }
+            ColourField::Label => self.model.selected_species().next().map(|s| {
+                let custom = s.style.has_custom_style && !s.style.label_color.is_default();
+                if custom { s.style.label_color } else { LABEL }
+            }),
             ColourField::Line => self.model.selected_reactions().next().map(line_colour),
             ColourField::CompartmentFill | ColourField::CompartmentBorder => {
                 let c = self.model.selected_compartments().next()?;
@@ -187,6 +193,7 @@ impl DiagramView {
                 match field {
                     ColourField::Fill => Some(&mut s.fill_color),
                     ColourField::Border => Some(&mut s.border_color),
+                    ColourField::Label => Some(&mut s.label_color),
                     _ => None,
                 }
                 .into_iter()
@@ -215,6 +222,170 @@ impl DiagramView {
             s.border_width = width;
             s.has_custom_style = true;
         })
+    }
+
+    /// Sets the label font size of every selected species (0 means the
+    /// default, 12). One undo step (S §8.1).
+    pub fn set_font_size(&mut self, size: f64) -> ViewResponse {
+        if !(size.is_finite() && size >= 0.0) {
+            return ViewResponse::default();
+        }
+        self.style_edit(
+            |s| {
+                s.font_size = size;
+                s.has_custom_style = true;
+            },
+            |_| {},
+            true,
+            false,
+        )
+    }
+
+    /// Copy Style (S §8.5): remembers how `item` looks, a species, a reaction
+    /// (by its junction or a leg), a compartment or a text, for Paste Style.
+    /// Returns the id copied, or `None` if there is nothing there to copy. Not
+    /// an edit: no undo step.
+    pub fn copy_style(&mut self, item: &Target) -> Option<Id> {
+        let m = &self.model;
+        let (id, copied) = match item {
+            Target::Species(id) | Target::SpeciesCorner(id, _) => {
+                let s = m.find_species(id).filter(|s| !s.is_null_node)?;
+                (
+                    s.id.clone(),
+                    CopiedStyle::Species {
+                        style: s.style,
+                        shape: s.shape,
+                        border_dash: s.border_dash,
+                    },
+                )
+            }
+            Target::Junction(id) | Target::Leg(id) => {
+                let r = m.find_reaction(id)?;
+                (r.id.clone(), CopiedStyle::Reaction { style: r.style })
+            }
+            Target::Handle(h) => {
+                let r = m.find_reaction(&h.reaction)?;
+                (r.id.clone(), CopiedStyle::Reaction { style: r.style })
+            }
+            Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
+                let c = m.find_compartment(id)?;
+                (c.id.clone(), CopiedStyle::Compartment { style: c.style })
+            }
+            Target::Text(id) | Target::TextWrap(id) => {
+                let t = m.find_text(id)?;
+                (
+                    t.id.clone(),
+                    CopiedStyle::Text {
+                        font: t.font,
+                        align: t.align,
+                        size: t.size,
+                        color: t.color,
+                    },
+                )
+            }
+            Target::Empty => return None,
+        };
+        self.copied_style = Some(copied);
+        Some(id)
+    }
+
+    /// Copy Style for the one item selected (null nodes aside), whatever its
+    /// kind, as the Edit menu and its shortcut do. `None` unless exactly one
+    /// is selected.
+    pub fn copy_selected_style(&mut self) -> Option<Id> {
+        let m = &self.model;
+        let mut items: Vec<Target> = m
+            .selected_species()
+            .filter(|s| !s.is_null_node)
+            .map(|s| Target::Species(s.id.clone()))
+            .collect();
+        items.extend(m.selected_reactions().map(|r| Target::Leg(r.id.clone())));
+        items.extend(
+            m.selected_compartments()
+                .map(|c| Target::Compartment(c.id.clone())),
+        );
+        items.extend(m.selected_texts().map(|t| Target::Text(t.id.clone())));
+        match items.as_slice() {
+            [one] => {
+                let one = one.clone();
+                self.copy_style(&one)
+            }
+            _ => None,
+        }
+    }
+
+    /// True if Paste Style has something to paste and something selected of
+    /// the same kind to paste it on.
+    pub fn can_paste_style(&self) -> bool {
+        let m = &self.model;
+        match self.copied_style {
+            None => false,
+            Some(CopiedStyle::Species { .. }) => m.selected_species().any(|s| !s.is_null_node),
+            Some(CopiedStyle::Reaction { .. }) => m.selected_reactions().next().is_some(),
+            Some(CopiedStyle::Compartment { .. }) => m.selected_compartments().next().is_some(),
+            Some(CopiedStyle::Text { .. }) => m.selected_texts().next().is_some(),
+        }
+    }
+
+    /// True if a style has been copied.
+    pub fn has_copied_style(&self) -> bool {
+        self.copied_style.is_some()
+    }
+
+    /// Paste Style (S §8.5): every selected item of the kind that was copied
+    /// takes the copied look; selected items of other kinds are left alone. A
+    /// species keeps its size, except that one made a circle takes its larger
+    /// side both ways; a null node is left alone. One undo step.
+    pub fn paste_style(&mut self) -> ViewResponse {
+        let Some(copied) = self.copied_style else {
+            return ViewResponse::default();
+        };
+        let before = self.model.clone();
+        match copied {
+            CopiedStyle::Species {
+                style,
+                shape,
+                border_dash,
+            } => {
+                for s in self.model.species_mut() {
+                    if !s.selected || s.is_null_node {
+                        continue;
+                    }
+                    // A junction setting is a reaction's; keep the species' own.
+                    s.style = VisualStyle {
+                        junction_visible: s.style.junction_visible,
+                        ..style
+                    };
+                    s.border_dash = border_dash;
+                    s.shape = shape;
+                    if s.shape == NodeShape::Circle {
+                        let d = s.width.max(s.height);
+                        (s.width, s.height) = (d, d);
+                    }
+                }
+            }
+            CopiedStyle::Reaction { style } => {
+                for r in self.model.reactions_mut().filter(|r| r.selected) {
+                    r.style = style;
+                }
+            }
+            CopiedStyle::Compartment { style } => {
+                for c in self.model.compartments.iter_mut().filter(|c| c.selected) {
+                    c.style = style;
+                }
+            }
+            CopiedStyle::Text {
+                font,
+                align,
+                size,
+                color,
+            } => {
+                for t in self.model.texts_mut().filter(|t| t.selected) {
+                    (t.font, t.align, t.size, t.color) = (font, align, size, color);
+                }
+            }
+        }
+        self.record_if_changed("Paste Style", before)
     }
 
     /// Sets the line width of reaction `id` (0 means the default). One undo step.
@@ -393,6 +564,31 @@ impl DiagramView {
             }
         }
         self.record_if_changed("Change Shape", before)
+    }
+
+    /// Gives every selected species (null nodes aside) this border style. One
+    /// undo step (S §5.3).
+    pub fn set_species_border_dash(&mut self, dash: BorderDash) -> ViewResponse {
+        let before = self.model.clone();
+        for s in self.model.species_mut() {
+            if s.selected && !s.is_null_node {
+                s.border_dash = dash;
+            }
+        }
+        self.record_if_changed("Change Border Style", before)
+    }
+
+    /// The border style every selected species (null nodes aside) has, if
+    /// they all have the same one.
+    pub fn selected_species_border_dash(&self) -> Option<BorderDash> {
+        let mut dashes = self
+            .model
+            .species()
+            .iter()
+            .filter(|s| s.selected && !s.is_null_node)
+            .map(|s| s.border_dash);
+        let first = dashes.next()?;
+        dashes.all(|d| d == first).then_some(first)
     }
 
     /// The shape every selected species (null nodes aside) has, if they all

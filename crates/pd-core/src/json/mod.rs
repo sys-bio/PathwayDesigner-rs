@@ -14,9 +14,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::geometry::pt;
 use crate::model::{
-    AssignmentRule, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE,
-    Frame, Model, NodeShape, Parameter, Participant, Reaction, ReactionMode, Rgba, SpeciesNode,
-    TextAlign, TextFont, TextItem, Typeface, VisualStyle,
+    AssignmentRule, BorderDash, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH,
+    DEFAULT_TEXT_SIZE, Frame, Model, NodeShape, Parameter, Participant, Reaction, ReactionMode,
+    Rgba, SpeciesNode, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must.
@@ -31,12 +31,12 @@ pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
 /// (SPEC-Rust §4.2): 5 if a species has a shape other than the rounded
-/// rectangle, 4 if it has free text or a drawn compartment, 3 otherwise.
+/// rectangle or a border style other than automatic, 4 if it has free text or a drawn compartment, 3 otherwise.
 pub fn needed_version(model: &Model) -> u32 {
     if model
         .species()
         .iter()
-        .any(|s| s.shape != NodeShape::default())
+        .any(|s| s.shape != NodeShape::default() || s.border_dash != BorderDash::default())
     {
         FORMAT_VERSION
     } else if !model.texts().is_empty() || model.compartments.iter().any(|c| c.frame.is_some()) {
@@ -241,6 +241,9 @@ struct FileSpecies {
     /// rectangle.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     shape: Option<String>,
+    /// Version 5: `"solid"` or `"dashed"` (S §5.3). Left out for automatic.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    border_dash: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -442,12 +445,23 @@ impl FileModel {
                     NodeShape::default()
                 }),
             };
+            let border_dash = match s.border_dash.as_deref() {
+                None => BorderDash::default(),
+                Some(key) => BorderDash::from_key(key).unwrap_or_else(|| {
+                    warnings.push(format!(
+                        "Species `{}` has the unknown border style `{key}`; it is drawn as usual.",
+                        s.id
+                    ));
+                    BorderDash::default()
+                }),
+            };
             let node = SpeciesNode {
                 id: s.id,
                 center: pt(s.x, s.y),
                 width: s.w,
                 height: s.h,
                 shape,
+                border_dash,
                 initial_value: s.initial_value,
                 is_boundary: s.is_boundary,
                 is_constant: s.is_constant,
@@ -703,6 +717,8 @@ impl FileModel {
                     locked: s.locked,
                     style: custom_style_to_file(&s.style),
                     shape: (s.shape != NodeShape::default()).then(|| s.shape.key().to_owned()),
+                    border_dash: (s.border_dash != BorderDash::default())
+                        .then(|| s.border_dash.key().to_owned()),
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),

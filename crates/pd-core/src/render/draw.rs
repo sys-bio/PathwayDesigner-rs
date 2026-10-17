@@ -6,8 +6,8 @@
 use crate::bezier::{Ctrl, cut_leg, leg_curve};
 use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
-    Compartment, Frame, Model, NodeShape, Reaction, ReactionMode, Rgba, Role, SpeciesNode,
-    TextFont, TextItem, VisualStyle,
+    BorderDash, Compartment, Frame, Model, NodeShape, Reaction, ReactionMode, Rgba, Role,
+    SpeciesNode, TextFont, TextItem, VisualStyle,
 };
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
@@ -520,8 +520,16 @@ impl Drawer<'_> {
         let stroke = Stroke {
             width: self.len(border_width),
             color: border_color,
-            // An alias keeps its dashed border even with a custom style.
-            dash: if alias { self.dash(ALIAS_DASH) } else { None },
+            // An alias keeps its dashed border even with a custom style, while
+            // the alias indicator is shown; a border style set by hand
+            // decides for itself (S §5.3).
+            dash: match node.border_dash {
+                BorderDash::Automatic => alias,
+                BorderDash::Solid => false,
+                BorderDash::Dashed => true,
+            }
+            .then(|| self.dash(ALIAS_DASH))
+            .flatten(),
             round_cap: false,
         };
         match crate::node_shape::outline(node) {
@@ -998,6 +1006,38 @@ mod tests {
         assert_eq!(radii, [NODE_CORNER_RADIUS as f32, 0.0]);
         assert_eq!(polygons, [64, 64, 6]);
         assert_eq!(outlines, [65, 65, 7]);
+    }
+
+    #[test]
+    fn a_border_style_set_by_hand_wins_over_the_alias_rule() {
+        // A primary and an alias of it, side by side, both rectangles.
+        let mut m = Model::new();
+        let p = m.add_species(pt(0.0, 0.0), 80.0, 36.0);
+        let a = m.add_alias(&p, pt(200.0, 0.0)).unwrap();
+        let dashes = |m: &Model, indicator: bool| -> Vec<bool> {
+            let opts = DrawOptions {
+                show_alias_indicator: indicator,
+                ..DrawOptions::default()
+            };
+            draw(m, &opts)
+                .iter()
+                .filter_map(|c| match c {
+                    // A node: filled and outlined (an alias's fill differs).
+                    Call::RoundRect(_, Some(f), Some(s)) if *f != BACKGROUND => {
+                        Some(s.dash.is_some())
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+        // Automatic: the alias dashed, while the indicator is shown.
+        assert_eq!(dashes(&m, true), [false, true]);
+        assert_eq!(dashes(&m, false), [false, false]);
+        // Solid alias, dashed primary: as set, indicator or not.
+        m.find_species_mut(&a).unwrap().border_dash = BorderDash::Solid;
+        m.find_species_mut(&p).unwrap().border_dash = BorderDash::Dashed;
+        assert_eq!(dashes(&m, true), [true, false]);
+        assert_eq!(dashes(&m, false), [true, false]);
     }
 
     #[test]

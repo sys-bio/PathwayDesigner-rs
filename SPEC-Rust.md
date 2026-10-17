@@ -335,12 +335,14 @@ writer leaves out keys at their default (except `size`, `x`, `y` and `text`):
 
 `Models/text_1.json` is the version 4 sample file.
 
-**Version 5: species shapes (S §5.10).** A species may have `shape`: one of
-`"rectangle"`, `"ellipse"`, `"circle"` or `"hexagon"`; left out for the rounded
-rectangle. A document in which any species has a shape is version 5; otherwise it
+**Version 5: species shapes (S §5.10) and border styles (S §5.3).** A species may
+have `shape`: one of `"rectangle"`, `"ellipse"`, `"circle"` or `"hexagon"`; left
+out for the rounded rectangle. It may have `borderDash`: `"solid"` or `"dashed"`;
+left out for automatic. A document in which any species has either is version 5; otherwise it
 is written as version 4 or 3 as before, so a model that doesn't use shapes can
 still be opened by the Delphi app or an older Rust version. A shape this version
-doesn't know is read as the rounded rectangle, with a warning. An older Rust
+doesn't know is read as the rounded rectangle, and a border style it doesn't
+know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
@@ -870,10 +872,12 @@ Instead:
    about units, which these models don't declare. python-libsbml is a
    development-only dependency and is never shipped (§12).
 
-**Species shapes (S §5.10)** go in a note on the species glyph, written only for a
-shape other than the rounded rectangle: `<pd:species xmlns:pd="…/ns/sbml-layout/1"
-shape="ellipse"/>`. Import gives each node its glyph's shape (an alias has its own
-glyph, so its own shape). SBML Layout has no shapes, so other tools draw a box.
+**Species shapes (S §5.10) and border styles (S §5.3)** go in a note on the
+species glyph, written only when one is not the default:
+`<pd:species xmlns:pd="…/ns/sbml-layout/1" shape="ellipse" border="solid"/>`,
+with only the attributes that are set. Import gives each node its glyph's shape and
+border style (an alias has its own glyph, so its own). SBML Layout has neither, so
+other tools draw a box with a solid border.
 
 **Compartments (S §7.9)** are written as compartment glyphs with their box. A custom
 style goes in a note on the glyph: `<pd:compartment xmlns:pd="…/ns/sbml-layout/1"

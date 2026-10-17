@@ -40,6 +40,8 @@ pub enum MenuAction {
     SplitOffSelected(String),
     MergeSelectedInto(String),
     MergeIntoPrimary(String),
+    CopyStyle(Target),
+    PasteStyle,
     Rename(String),
     GoToPrimary(String),
     DeleteSpecies(String),
@@ -248,6 +250,10 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 item(ui, "Rename", MenuAction::Rename(id.clone()));
                 item(ui, "Delete Species", MenuAction::DeleteSpecies(id.clone()));
             }
+            if !node.is_null_node {
+                ui.separator();
+                style_items(ui, view, &Target::Species(id.clone()), &mut item);
+            }
             alignment(ui, view, &mut item);
             ui.separator();
             let lock = if view.lock_would_lock() {
@@ -268,11 +274,15 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 "Adjust Reaction (Make Nice)",
                 MenuAction::MakeNice(id.clone()),
             );
+            ui.separator();
+            style_items(ui, view, &Target::Leg(id.clone()), &mut item);
             alignment(ui, view, &mut item);
         }
         Target::Text(id) => {
             item(ui, "Edit Text", MenuAction::EditText(id.clone()));
             item(ui, "Delete Text", MenuAction::DeleteText(id.clone()));
+            ui.separator();
+            style_items(ui, view, &Target::Text(id.clone()), &mut item);
             alignment(ui, view, &mut item);
         }
         Target::Compartment(id) => {
@@ -281,6 +291,8 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 "Delete Compartment (keeps its species)",
                 MenuAction::DeleteCompartment(id.clone()),
             );
+            ui.separator();
+            style_items(ui, view, &Target::Compartment(id.clone()), &mut item);
         }
         Target::Handle(_)
         | Target::TextWrap(_)
@@ -289,6 +301,22 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         | Target::Empty => ui.close(),
     }
     chosen
+}
+
+/// Copy Style and Paste Style (S §8.5), for the item right-clicked.
+fn style_items(
+    ui: &mut egui::Ui,
+    view: &DiagramView,
+    target: &Target,
+    item: &mut impl FnMut(&mut egui::Ui, &str, MenuAction),
+) {
+    item(ui, "Copy Style", MenuAction::CopyStyle(target.clone()));
+    if view.can_paste_style() {
+        item(ui, "Paste Style", MenuAction::PasteStyle);
+    } else {
+        ui.add_enabled(false, egui::Button::new("Paste Style"))
+            .on_disabled_hover_text("Copy the style of something of this kind first");
+    }
 }
 
 /// Split Off Selected Reactions (S §7.3), or why it is not offered.

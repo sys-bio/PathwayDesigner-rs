@@ -36,6 +36,12 @@ const THIRD_PARTY_PAGE: &str = "THIRD-PARTY.html";
 #[cfg(not(target_arch = "wasm32"))]
 const THIRD_PARTY_PAGE: &str = "https://sys-bio.github.io/PathwayDesigner-rs/THIRD-PARTY.html";
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
+/// Ctrl+Alt (Cmd+Option), not Ctrl+Shift: Chrome keeps Ctrl+Shift+C for its
+/// developer tools (S §8.5).
+const COPY_STYLE: KeyboardShortcut =
+    KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::C);
+const PASTE_STYLE: KeyboardShortcut =
+    KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::V);
 /// How far an arrow key nudges the selection, in diagram units; with Shift.
 /// Room at the bottom of the left panel for the visitor counter (web only).
 const COUNTER_ROOM: f32 = 72.0;
@@ -359,6 +365,13 @@ impl PathwayApp {
         self.needed_version = needed;
     }
 
+    /// Copy Style for the one selected item, with a word in the status bar.
+    fn copy_selected_style(&mut self) {
+        if let Some(id) = self.view.copy_selected_style() {
+            self.notice = Some(format!("Copied the style of {id}"));
+        }
+    }
+
     /// Carries out a context-menu command.
     fn act(&mut self, action: MenuAction, canvas_centre: pd_core::geometry::Pt) {
         match action {
@@ -379,6 +392,14 @@ impl PathwayApp {
             }
             MenuAction::MergeIntoPrimary(id) => {
                 self.view.merge_alias_into_primary(&id);
+            }
+            MenuAction::CopyStyle(target) => {
+                if let Some(id) = self.view.copy_style(&target) {
+                    self.notice = Some(format!("Copied the style of {id}"));
+                }
+            }
+            MenuAction::PasteStyle => {
+                self.view.paste_style();
             }
             MenuAction::Rename(id) => self.ask_rename(&id),
             MenuAction::GoToPrimary(id) => {
@@ -487,6 +508,12 @@ impl PathwayApp {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&SELECT_ALL)) {
             self.view.select_all();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&COPY_STYLE)) {
+            self.copy_selected_style();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&PASTE_STYLE)) {
+            self.view.paste_style();
         }
         if ctx.input_mut(|i| {
             i.consume_key(Modifiers::NONE, Key::Delete)
@@ -653,6 +680,28 @@ impl PathwayApp {
                 }
                 if ui.button("Select All Reactions").clicked() {
                     self.view.select_all_reactions();
+                    ui.close();
+                }
+                ui.separator();
+                let one = self.view.selection_count() == 1;
+                let copy =
+                    egui::Button::new("Copy Style").shortcut_text(ctx.format_shortcut(&COPY_STYLE));
+                if ui
+                    .add_enabled(one, copy)
+                    .on_disabled_hover_text("Select one item")
+                    .clicked()
+                {
+                    self.copy_selected_style();
+                    ui.close();
+                }
+                let paste = egui::Button::new("Paste Style")
+                    .shortcut_text(ctx.format_shortcut(&PASTE_STYLE));
+                if ui
+                    .add_enabled(self.view.can_paste_style(), paste)
+                    .on_disabled_hover_text("Copy an item's style, then select items of that kind")
+                    .clicked()
+                {
+                    self.view.paste_style();
                     ui.close();
                 }
             });

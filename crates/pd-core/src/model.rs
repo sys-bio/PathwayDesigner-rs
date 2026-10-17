@@ -84,6 +84,8 @@ pub struct SpeciesNode {
     pub height: f64,
     /// What it is drawn as (S §5.10). A null node is always a small circle.
     pub shape: NodeShape,
+    /// Solid or dashed border; by default an alias's is dashed (S §5.3).
+    pub border_dash: BorderDash,
     pub initial_value: f64,
     pub is_boundary: bool,
     pub is_constant: bool,
@@ -151,6 +153,42 @@ impl NodeShape {
     }
 }
 
+/// Whether a species' border is drawn solid or dashed (S §5.3).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum BorderDash {
+    /// Dashed for an alias, solid otherwise: the reference's only rule.
+    #[default]
+    Automatic,
+    Solid,
+    Dashed,
+}
+
+impl BorderDash {
+    pub const ALL: [BorderDash; 3] = [BorderDash::Automatic, BorderDash::Solid, BorderDash::Dashed];
+
+    /// Its name in the panel.
+    pub fn label(self) -> &'static str {
+        match self {
+            BorderDash::Automatic => "Automatic",
+            BorderDash::Solid => "Solid",
+            BorderDash::Dashed => "Dashed",
+        }
+    }
+
+    /// Its name in files (JSON and SBML notes).
+    pub fn key(self) -> &'static str {
+        match self {
+            BorderDash::Automatic => "automatic",
+            BorderDash::Solid => "solid",
+            BorderDash::Dashed => "dashed",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<BorderDash> {
+        BorderDash::ALL.into_iter().find(|d| d.key() == key)
+    }
+}
+
 impl SpeciesNode {
     /// A plain species of the default size.
     pub fn new(id: impl Into<Id>, center: Pt) -> Self {
@@ -160,6 +198,7 @@ impl SpeciesNode {
             width: DEFAULT_SPECIES_WIDTH,
             height: DEFAULT_SPECIES_HEIGHT,
             shape: NodeShape::default(),
+            border_dash: BorderDash::default(),
             initial_value: 0.0,
             is_boundary: false,
             is_constant: false,

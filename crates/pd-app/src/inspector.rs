@@ -9,7 +9,7 @@
 use eframe::egui::{self, Color32, RichText, Sense, Vec2, text::CCursor, text::CCursorRange};
 use pd_core::expr;
 use pd_core::json::colour::{from_hex, to_hex};
-use pd_core::model::{NodeShape, Rgba, TextAlign, Typeface};
+use pd_core::model::{BorderDash, NodeShape, Rgba, TextAlign, Typeface};
 use pd_core::render::constants::PICKER_SWATCHES;
 use pd_core::view::{ColourField, DiagramView};
 
@@ -22,6 +22,7 @@ enum Field {
     BorderWidth,
     SpeciesWidth,
     SpeciesHeight,
+    FontSize,
     LineWidth,
     KineticLaw,
     TextSize,
@@ -45,6 +46,7 @@ pub struct Inspector {
     border_width: Draft,
     species_width: Draft,
     species_height: Draft,
+    font_size: Draft,
     line_width: Draft,
     law: Draft,
     text_size: Draft,
@@ -114,6 +116,7 @@ impl Inspector {
             (Field::BorderWidth, &one_species),
             (Field::SpeciesWidth, &first_species),
             (Field::SpeciesHeight, &first_species),
+            (Field::FontSize, &first_species),
             (Field::LineWidth, &one_reaction),
             (Field::KineticLaw, &one_reaction),
             (Field::TextSize, &first_text),
@@ -156,6 +159,9 @@ impl Inspector {
                         ui.label("Border");
                         self.swatch(ui, view, ColourField::Border);
                         ui.end_row();
+                        ui.label("Label");
+                        self.swatch(ui, view, ColourField::Label);
+                        ui.end_row();
 
                         ui.label("Border width");
                         self.number(
@@ -165,6 +171,40 @@ impl Inspector {
                             one_species.is_some(),
                             "0 = default",
                         );
+                        ui.end_row();
+
+                        // Solid or dashed, for every selected species (S §5.3).
+                        ui.label("Border style");
+                        let current = view.selected_species_border_dash();
+                        let mut chosen = None;
+                        egui::ComboBox::from_id_salt("species-border-dash")
+                            .selected_text(current.map_or("Mixed", BorderDash::label))
+                            .show_ui(ui, |ui| {
+                                for dash in BorderDash::ALL {
+                                    let tip = match dash {
+                                        BorderDash::Automatic => {
+                                            "Dashed for an alias, solid otherwise"
+                                        }
+                                        BorderDash::Solid => "Always solid, even for an alias",
+                                        BorderDash::Dashed => "Always dashed",
+                                    };
+                                    if ui
+                                        .selectable_label(current == Some(dash), dash.label())
+                                        .on_hover_text(tip)
+                                        .clicked()
+                                    {
+                                        chosen = Some(dash);
+                                    }
+                                }
+                            });
+                        if let Some(dash) = chosen {
+                            view.set_species_border_dash(dash);
+                        }
+                        ui.end_row();
+
+                        // The label's size, for every selected species (S §8.1).
+                        ui.label("Font size");
+                        self.number(ui, view, Field::FontSize, true, "0 = default");
                         ui.end_row();
 
                         // For every selected species (S §7.10).
@@ -488,6 +528,7 @@ impl Inspector {
             Field::BorderWidth => &self.border_width,
             Field::SpeciesWidth => &self.species_width,
             Field::SpeciesHeight => &self.species_height,
+            Field::FontSize => &self.font_size,
             Field::LineWidth => &self.line_width,
             Field::KineticLaw => &self.law,
             Field::TextSize => &self.text_size,
@@ -504,6 +545,7 @@ impl Inspector {
             Field::BorderWidth => &mut self.border_width,
             Field::SpeciesWidth => &mut self.species_width,
             Field::SpeciesHeight => &mut self.species_height,
+            Field::FontSize => &mut self.font_size,
             Field::LineWidth => &mut self.line_width,
             Field::KineticLaw => &mut self.law,
             Field::TextSize => &mut self.text_size,
@@ -528,6 +570,14 @@ impl Inspector {
                 .map(|s| s.style.border_width.to_string()),
             Field::SpeciesWidth => m.find_species(target).map(|s| size_text(s.width)),
             Field::SpeciesHeight => m.find_species(target).map(|s| size_text(s.height)),
+            Field::FontSize => m.find_species(target).map(|s| {
+                let size = if s.style.has_custom_style {
+                    s.style.font_size
+                } else {
+                    0.0
+                };
+                size_text(size)
+            }),
             Field::LineWidth => m
                 .find_reaction(target)
                 .map(|r| r.style.line_width.to_string()),
@@ -570,6 +620,9 @@ impl Inspector {
             }
             (Field::SpeciesHeight, Some(v)) => {
                 view.set_species_size(None, Some(v));
+            }
+            (Field::FontSize, Some(v)) => {
+                view.set_font_size(v);
             }
             (Field::LineWidth, Some(v)) => {
                 view.set_line_width(&target, v);

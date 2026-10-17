@@ -284,3 +284,80 @@ fn shapes_come_back_from_sbml() {
         NodeShape::RoundedRect
     );
 }
+
+// ----- Border style (S §5.3) ---------------------------------------------------
+
+use crate::model::BorderDash;
+
+#[test]
+fn a_border_style_goes_to_every_selected_species() {
+    let mut v = view();
+    let alias = v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+    v.select_item(&Target::Species("S1".into()), false);
+    v.select_item(&Target::Species(alias.clone()), true);
+    v.select_item(&Target::Species("_null".into()), true);
+    assert_eq!(
+        v.selected_species_border_dash(),
+        Some(BorderDash::Automatic)
+    );
+    v.set_species_border_dash(BorderDash::Solid);
+    assert_eq!(v.undo_description(), Some("Change Border Style"));
+    let m = v.model();
+    assert_eq!(
+        m.find_species(&alias).unwrap().border_dash,
+        BorderDash::Solid
+    );
+    assert_eq!(m.find_species("S1").unwrap().border_dash, BorderDash::Solid);
+    assert_eq!(
+        m.find_species("_null").unwrap().border_dash,
+        BorderDash::Automatic
+    );
+    // A new alias starts dashed again, as aliases do.
+    let another = v.model.add_alias("S1", pt(0.0, 200.0)).unwrap();
+    assert_eq!(
+        v.model().find_species(&another).unwrap().border_dash,
+        BorderDash::Automatic
+    );
+    v.undo();
+    assert_eq!(
+        v.model().find_species(&alias).unwrap().border_dash,
+        BorderDash::Automatic
+    );
+    v.select_item(&Target::Species("S2".into()), false);
+    v.set_species_border_dash(BorderDash::Dashed);
+    v.select_item(&Target::Species("S1".into()), true);
+    assert_eq!(v.selected_species_border_dash(), None, "mixed");
+}
+
+#[test]
+fn a_border_style_is_saved_only_when_set() {
+    let mut v = view();
+    assert!(!crate::json::to_json(v.model()).contains("borderDash"));
+    let alias = v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+    v.select_item(&Target::Species(alias.clone()), false);
+    v.set_species_border_dash(BorderDash::Solid);
+    let text = crate::json::to_json(v.model());
+    assert!(text.contains("\"version\": 5"));
+    assert!(text.contains("\"borderDash\": \"solid\""));
+    let back = crate::json::from_json(&text).unwrap().model;
+    assert_eq!(
+        back.find_species(&alias).unwrap().border_dash,
+        BorderDash::Solid
+    );
+    // And in SBML, beside the shape.
+    v.model.find_species_mut("S1").unwrap().shape = NodeShape::Circle;
+    v.model.find_species_mut("S1").unwrap().border_dash = BorderDash::Dashed;
+    let out = crate::sbml::export(v.model());
+    let opts = crate::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let back = crate::sbml::import(&out.xml, &opts).unwrap().model;
+    let s1 = back.find_species("S1").unwrap();
+    assert_eq!(
+        (s1.shape, s1.border_dash),
+        (NodeShape::Circle, BorderDash::Dashed)
+    );
+    let a = back.aliases_of("S1").next().unwrap();
+    assert_eq!(a.border_dash, BorderDash::Solid);
+}

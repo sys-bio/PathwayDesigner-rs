@@ -313,8 +313,9 @@ impl Builder {
             };
             let (w, h) = (bb.dimensions.width, bb.dimensions.height);
             let center = pt(bb.position.x + w / 2.0, bb.position.y + h / 2.0);
-            // Its shape, from PathwayDesigner's note (S §5.10).
-            let shape = g
+            // Its shape and border style, from PathwayDesigner's note
+            // (S §5.10, §5.3).
+            let look = g
                 .meta
                 .annotation
                 .as_deref()
@@ -337,7 +338,7 @@ impl Builder {
             if placed.insert(species.to_owned()) {
                 let node = self.model.find_species_mut(species).expect("checked above");
                 (node.center, node.width, node.height) = (center, w, h);
-                node.shape = shape;
+                (node.shape, node.border_dash) = (look.shape, look.border_dash);
                 glyph_node.insert(g.id.clone(), species.to_owned());
                 continue;
             }
@@ -359,7 +360,7 @@ impl Builder {
             };
             let node = self.model.find_species_mut(&id).expect("just added");
             (node.width, node.height) = (w, h);
-            node.shape = shape;
+            (node.shape, node.border_dash) = (look.shape, look.border_dash);
             glyph_node.insert(g.id.clone(), id);
         }
         (glyph_node, nulls)

@@ -13,12 +13,11 @@ const fn hex(rgb: u32) -> Rgba {
 
 pub const NODE_CORNER_RADIUS: f64 = 8.0;
 pub const LABEL_FONT_SIZE: f64 = 12.0;
-/// The space each side of a species' name that Fit to Name leaves (S §7.10).
+/// The space each side of a species' name, when a rename widens the node to
+/// fit it (S §5.3) and for Fit to Name (S §7.10).
 pub const FIT_MARGIN: f64 = 10.0;
 /// The smallest a species can be made, either way (S §7.10).
 pub const MIN_SPECIES_SIZE: f64 = 10.0;
-/// Padding on each side of a label when a node widens to fit it.
-pub const LABEL_PADDING: f64 = 10.0;
 pub const DEFAULT_LINE_WIDTH: f64 = 1.5;
 pub const BOUNDARY_BORDER_FACTOR: f64 = 2.4;
 pub const SELECTED_LINE_FACTOR: f64 = 1.5;

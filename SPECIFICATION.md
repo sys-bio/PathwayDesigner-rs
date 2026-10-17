@@ -136,6 +136,7 @@ world coordinates.
 | `center` | point | — | World coordinates of the centre. |
 | `width`, `height` | number | 80 × 36 | Null nodes are 28 × 28. Can be changed (§7.10). |
 | `shape` | NodeShape | rounded rectangle | What it is drawn as (§5.10). Ignored for null nodes. Added in the Rust version. |
+| `borderDash` | Automatic, Solid or Dashed | Automatic | Whether the border is dashed (§5.3). Ignored for null nodes. Added in the Rust version. |
 | `initialValue` | number | 0 | Initial concentration. |
 | `isBoundary` | bool | false | |
 | `isConstant` | bool | false | |
@@ -296,6 +297,17 @@ Each frame MUST be drawn in this order:
     `#7A6FC8`, and the border is **dashed** (5 on, 4 off).
   - A custom style overrides the colours field by field. An alias keeps its dashed
     border even when it has a custom style.
+  - **Border style** *(added in the Rust version)*: each species (primary or alias;
+    null nodes aside) has one of **Automatic** (the rule above: dashed for an alias
+    while the alias indicator is on, solid otherwise; the default), **Solid** or
+    **Dashed** (5 on, 4 off). Solid and Dashed apply whatever the alias indicator
+    says, so an alias can be styled, say as a coloured circle, without the dashes,
+    and a primary can be dashed. Set with the **Border style** list in the Species
+    group (§13.3), for every selected species, one undo step. A new alias starts
+    as Automatic, so dashed, even if its primary is Solid. A primary and its aliases
+    can then look the same; the model tree still marks aliases, and *Go to Primary*
+    still finds the primary. Saved like the shape (§5.10): JSON version 5, and the
+    SBML species glyph's note.
 - **Boundary species:** the border stroke width is multiplied by **2.4**.
 - **Label:** the id (for an alias, the primary's id), centred horizontally. It is
   centred vertically on the font's cap height. Default size 12, colour `#1A1A1A`.
@@ -303,7 +315,9 @@ Each frame MUST be drawn in this order:
 - **Selection:** a selected node is shown **only** by a red (`#FF0000`) dashed halo
   (10 on, 5 off). The halo is a rounded rectangle 6 units outside the node, stroke
   width 2, corner radius 14. Selection MUST NOT change the node's fill or border.
-- **Auto-width:** after a rename, the node widens to `textWidth(12pt) + 2×10` if
+- **Auto-width:** after a rename, the node widens to `textWidth(label size) + 2×10`
+  (the label size is 12 unless the species has its own font size; the reference
+  always used 12) if
   that is larger than its current width. It never shrinks. All aliases of the same
   primary widen the same way.
 
@@ -1059,6 +1073,9 @@ fields are enabled only when exactly one species is selected.
 | Width, Height (numbers) | all selected species | Applied when the field loses focus (§7.10). |
 | Fit to Name (button) | all selected species | §7.10. |
 | Shape (list) | all selected species | §5.10. Shows "Mixed" when they differ. |
+| Border style (list) | all selected species | Automatic, Solid or Dashed (§5.3). Shows "Mixed" when they differ. |
+| Label colour swatch | all selected species | Opens the colour picker. Sets `labelColor` and `hasCustomStyle`. Added in the Rust version. |
+| Font size (number) | all selected species | The label's size, 0 = the default 12. Applied when the field loses focus. Sets `fontSize` and `hasCustomStyle`. Added in the Rust version. |
 | Concentration (number) | single species | `initialValue`, applied when the field loses focus |
 | Boundary species (checkbox) | selected species | `isBoundary`, applied at once |
 
@@ -1141,6 +1158,35 @@ When a reaction's kinetic law is edited:
 
 This keeps the diagram matching the rate law: typing `Vm*S/(Km+S)*E` adds a
 modifier arc from `E`.
+
+### 8.5 Copy Style and Paste Style
+
+*Added in the Rust version.* The look of a species, a reaction, a compartment or a
+text can be copied to others of the same kind, as a format painter does.
+
+- **Copy Style** (the context menu of the item, or the **Edit** menu with exactly
+  one item selected, null nodes aside; Ctrl+Alt+C, Cmd+Option+C on a Mac) remembers
+  how that item looks. It is not an edit, so it has no undo step; the status bar
+  says what was copied. What is copied depends on the kind:
+
+  | Kind | Copied | Not copied |
+  |---|---|---|
+  | Species or alias | fill, border colour, border width, border style (§5.3), label colour, font size, shape (§5.10) | size, place |
+  | Reaction (its junction or a leg) | line colour, line width, junction colour, whether the junction is shown | its mode (straight, Bézier, linear) and handles, which are geometry |
+  | Compartment | fill, border colour, border width | its box, whether the box is shown (§7.9) |
+  | Text | typeface, bold, italic, size, colour, alignment | its words, wrap width, place |
+
+- **Paste Style** (the same menus; Ctrl+Alt+V, Cmd+Option+V) gives that look to every
+  selected item **of the kind that was copied**, in one undo step; selected items of
+  other kinds are left alone, so it can be used on a mixed selection. A species keeps
+  its own width and height, since species need different widths for different names
+  (use Fit to Name, §7.10, after); one made a circle takes its larger side both ways.
+  A null node is left alone. It is shown disabled until a style has been copied and
+  something of that kind is selected.
+- Ctrl+Alt rather than Ctrl+Shift: Chrome keeps Ctrl+Shift+C for its developer
+  tools, so a web page can't use it.
+- The copied look lasts until the next Copy Style or the end of the session; it
+  isn't saved. Named, saved styles are planned (§16.2).
 
 ---
 
@@ -1563,7 +1609,7 @@ file name when a file is open).
 | Menu | Items |
 |---|---|
 | **File** | New · Open… · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
-| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Preferences… |
+| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Preferences… |
 | **Help** | About (shows the version and build date) |
 
 File dialogs: Open and Save use `*.json`. Antimony uses `*.ant` and `*.txt`. SBML
@@ -1610,12 +1656,12 @@ Which items appear depends on what was right-clicked:
 
 | Target | Items |
 |---|---|
-| Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Alignment ▸ … |
+| Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Copy Style · Paste Style · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
-| Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Alignment ▸ … |
-| Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) |
-| Free text (§7.8) | Edit Text · Delete Text · Alignment ▸ … |
-| Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) |
+| Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Copy Style · Paste Style · Alignment ▸ … |
+| Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style |
+| Free text (§7.8) | Edit Text · Delete Text · Copy Style · Paste Style · Alignment ▸ … |
+| Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) · Copy Style · Paste Style |
 
 The *Alignment ▸* submenu contains Align Top / Middle / Bottom, Align Left / Center
 / Right, and Distribute Horizontally / Vertically.
@@ -1939,10 +1985,10 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 |---|---|---|
 | F-1 | **SBML import with Layout import** | Positions come from `speciesGlyph`/`reactionGlyph` when present. Otherwise run auto-layout. Use `initialConcentration`, falling back to `initialAmount`. Import modifiers and rules. |
 | F-2 | **Compartment drawing** | A compartment is drawn as a rounded box containing its species, with its own style. This replaces the status-bar warning. **Done: §7.9.** |
-| F-3 | **Font size and label colour controls** | The model already stores `fontSize` and `labelColor`. Only the UI is missing. |
-| F-4 | **Node shapes** | Rectangle, ellipse, circle and polygon. Border intersection and hit testing must handle each shape. |
+| F-3 | **Font size and label colour controls** | The model already stores `fontSize` and `labelColor`. Only the UI is missing. **Done: §8.1**, with Copy Style and Paste Style (§8.5). |
+| F-4 | **Node shapes** | Rectangle, ellipse, circle and polygon. Border intersection and hit testing must handle each shape. **Done: §5.10** (rectangle, ellipse, circle, hexagon; hit testing keeps the box), with resizing (§7.10). |
 | F-5 | **Label positioning** | Inside, above, below, left or right of the node. |
-| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. |
+| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. |
 | F-7 | **Arrange in a circle** | Put the selected nodes on a circle. |
 | F-8 | **Human-readable layout format** | Convert between the JSON format and a text format for layout ("Alcuin"). The reference lexer already has keywords for it (`layout`, `at`, `size`, `style`, `bezier`, `cp`, …). |
 | F-9 | **Several documents** | Tabs or several windows. |

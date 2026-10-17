@@ -21,8 +21,8 @@
 
 use crate::json::colour::{from_hex, to_hex};
 use crate::model::{
-    Compartment, NodeShape, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign, TextFont,
-    TextItem, Typeface, VisualStyle,
+    BorderDash, Compartment, NodeShape, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign,
+    TextFont, TextItem, Typeface, VisualStyle,
 };
 
 /// The namespace of PathwayDesigner's note.
@@ -97,30 +97,49 @@ pub fn compartment_note(c: &Compartment) -> Option<String> {
     (!attrs.is_empty()).then(|| format!("\n<pd:compartment xmlns:pd=\"{NS}\"{attrs}/>\n"))
 }
 
-/// The note for a species glyph: the shape it is drawn as, or `None` for
-/// the rounded rectangle (S §5.10). SBML Layout has no shapes.
+/// The note for a species glyph: the shape it is drawn as (S §5.10) and its
+/// border style (S §5.3), or `None` when both are the defaults. SBML Layout
+/// has neither.
 ///
 /// ```xml
-/// <pd:species xmlns:pd="…" shape="ellipse"/>
+/// <pd:species xmlns:pd="…" shape="ellipse" border="solid"/>
 /// ```
 pub fn species_note(s: &SpeciesNode) -> Option<String> {
-    (s.shape != NodeShape::default()).then(|| {
-        format!(
-            "\n<pd:species xmlns:pd=\"{NS}\" shape=\"{}\"/>\n",
-            s.shape.key()
-        )
-    })
+    let mut attrs = String::new();
+    if s.shape != NodeShape::default() {
+        attrs.push_str(&format!(" shape=\"{}\"", s.shape.key()));
+    }
+    if s.border_dash != BorderDash::default() {
+        attrs.push_str(&format!(" border=\"{}\"", s.border_dash.key()));
+    }
+    (!attrs.is_empty()).then(|| format!("\n<pd:species xmlns:pd=\"{NS}\"{attrs}/>\n"))
 }
 
-/// The shape a species glyph's note gives, or `None` without one (or with a
-/// shape this version doesn't know).
-pub fn read_species(annotation: &str) -> Option<NodeShape> {
+/// What a species glyph's note says. A value this version doesn't know is
+/// the default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SpeciesLook {
+    pub shape: NodeShape,
+    pub border_dash: BorderDash,
+}
+
+/// What a species glyph's note gives, or `None` without one.
+pub fn read_species(annotation: &str) -> Option<SpeciesLook> {
     let wrapped = format!("<a>{annotation}</a>");
     let doc = roxmltree::Document::parse(&wrapped).ok()?;
     let note = doc
         .descendants()
         .find(|n| n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "species")?;
-    note.attribute("shape").and_then(NodeShape::from_key)
+    Some(SpeciesLook {
+        shape: note
+            .attribute("shape")
+            .and_then(NodeShape::from_key)
+            .unwrap_or_default(),
+        border_dash: note
+            .attribute("border")
+            .and_then(BorderDash::from_key)
+            .unwrap_or_default(),
+    })
 }
 
 /// What a compartment glyph's note says.

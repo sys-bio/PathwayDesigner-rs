@@ -24,6 +24,8 @@ mod properties;
 #[cfg(test)]
 mod resize_tests;
 #[cfg(test)]
+mod style_tests;
+#[cfg(test)]
 mod text_tests;
 mod tooltip;
 
@@ -75,6 +77,9 @@ pub struct DiagramView {
     gesture: Gesture,
     /// Shift is held: a species resize keeps proportions (S §7.10).
     shift_held: bool,
+    /// What Copy Style took, for Paste Style (S §8.5). Not part of the model,
+    /// so undo leaves it alone.
+    copied_style: Option<CopiedStyle>,
     tool: Tool,
     /// Species picked so far with an add-reaction tool.
     pending: Pending,
@@ -205,6 +210,31 @@ struct SpeciesResizeDrag {
     delta: Pt,
 }
 
+/// How an item looks, as Copy Style takes it, by kind (S §8.5). Paste Style
+/// gives it to the selected items of the same kind.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum CopiedStyle {
+    /// Everything but its size and place.
+    Species {
+        style: crate::model::VisualStyle,
+        shape: crate::model::NodeShape,
+        border_dash: crate::model::BorderDash,
+    },
+    /// Line colour and width, junction colour and whether it is shown; not its
+    /// mode (straight, Bézier or linear), which is geometry.
+    Reaction { style: crate::model::VisualStyle },
+    /// Fill, border colour and width; not its box, or whether it is shown.
+    Compartment { style: crate::model::VisualStyle },
+    /// Typeface, bold, italic, size, colour and alignment; not its words or
+    /// its wrap width.
+    Text {
+        font: crate::model::TextFont,
+        align: crate::model::TextAlign,
+        size: f64,
+        color: crate::model::Rgba,
+    },
+}
+
 /// Which way a corner moves as a box grows: x and y, clockwise from the top
 /// left.
 const CORNER_SIGNS: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -254,6 +284,7 @@ impl DiagramView {
             undo: UndoHistory::new(),
             gesture: Gesture::Idle,
             shift_held: false,
+            copied_style: None,
             tool: Tool::Select,
             pending: Pending::default(),
             hover: None,
@@ -442,6 +473,15 @@ impl DiagramView {
     }
 
     /// The selected species and reaction ids, in model order.
+    /// How many items are selected, of every kind, null nodes aside.
+    pub fn selection_count(&self) -> usize {
+        let m = &self.model;
+        m.selected_species().filter(|s| !s.is_null_node).count()
+            + m.selected_reactions().count()
+            + m.selected_compartments().count()
+            + m.selected_texts().count()
+    }
+
     pub fn selection(&self) -> Selection {
         (
             self.model

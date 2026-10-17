@@ -10,12 +10,11 @@ use crate::model::{
     ReactionMode, RenameError,
 };
 use crate::render::constants::{
-    GUIDE_LINE, LABEL_FONT_SIZE, LABEL_PADDING, NODE_CORNER_RADIUS, PENDING_PRODUCT,
-    PENDING_REACTANT, PENDING_RING_OUTSET, PENDING_RING_WIDTH,
+    GUIDE_LINE, NODE_CORNER_RADIUS, PENDING_PRODUCT, PENDING_REACTANT, PENDING_RING_OUTSET,
+    PENDING_RING_WIDTH,
 };
 use crate::render::draw::effective_junction;
 use crate::render::{Renderer, SRect, Stroke, spt};
-use crate::text::text_width;
 use crate::undo::Command;
 use crate::view::{Modifiers, Request, Target, Tool, ViewResponse};
 
@@ -495,8 +494,9 @@ impl DiagramView {
         if before == self.model {
             return Ok(ViewResponse::default());
         }
-        let needed = text_width(new, LABEL_FONT_SIZE) + 2.0 * LABEL_PADDING;
+        // Each drawing at its own label size.
         for s in self.model.species_mut() {
+            let needed = crate::render::draw::width_for_name(s);
             if s.primary_id() == new && s.width < needed {
                 s.width = needed;
             }
