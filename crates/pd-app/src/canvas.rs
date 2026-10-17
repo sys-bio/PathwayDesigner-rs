@@ -39,6 +39,7 @@ pub enum MenuAction {
     MergeAliases(String),
     SplitOffSelected(String),
     MergeSelectedInto(String),
+    MergeIntoPrimary(String),
     Rename(String),
     GoToPrimary(String),
     DeleteSpecies(String),
@@ -210,7 +211,12 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 merge_selected(ui, view, id, &mut item);
                 item(
                     ui,
-                    "Merge Aliases into Primary",
+                    "Merge into Primary",
+                    MenuAction::MergeIntoPrimary(id.clone()),
+                );
+                item(
+                    ui,
+                    "Merge All Aliases into Primary",
                     MenuAction::MergeAliases(id.clone()),
                 );
                 item(ui, "Delete Alias", MenuAction::DeleteSpecies(id.clone()));

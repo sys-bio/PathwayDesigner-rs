@@ -633,8 +633,11 @@ single item.
   alias, the new alias is of the same primary, and the old one stays, drawing
   whatever is left. One undo step; the new aliases are selected; the biochemistry
   does not change.
+- **Merge into Primary** (context menu, an alias; added in the Rust version): that
+  alias alone goes back into its primary, as below; other aliases stay. One undo
+  step.
 - **Merge Aliases** (context menu, a primary species that has aliases, or
-  **Merge Aliases into Primary** on any of its aliases; added in the Rust version):
+  **Merge All Aliases into Primary** on any of its aliases; added in the Rust version):
   the reverse of Split into Aliases, in one undo step. Every line drawn to an alias
   of the species, reactant, product or modifier, is drawn to the primary again, and
   the aliases are removed. Reactant and product legs moved back go to automatic
@@ -1532,7 +1535,7 @@ Which items appear depends on what was right-clicked:
 |---|---|
 | Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
-| Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge Aliases into Primary · Delete Alias · Alignment ▸ … |
+| Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Alignment ▸ … |
 | Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) |
 | Free text (§7.8) | Edit Text · Delete Text · Alignment ▸ … |
 | Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) |

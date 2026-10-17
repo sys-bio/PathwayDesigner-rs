@@ -364,6 +364,9 @@ impl PathwayApp {
             MenuAction::MergeSelectedInto(id) => {
                 self.view.merge_selected_into(&id);
             }
+            MenuAction::MergeIntoPrimary(id) => {
+                self.view.merge_alias_into_primary(&id);
+            }
             MenuAction::Rename(id) => self.ask_rename(&id),
             MenuAction::GoToPrimary(id) => {
                 self.view.go_to_primary(&id, canvas_centre);

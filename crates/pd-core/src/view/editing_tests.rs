@@ -781,3 +781,22 @@ fn the_primary_takes_only_the_selected_aliases_and_is_never_merged_away() {
     assert!(!v.can_merge_selected_into(&a2));
     assert!(!v.merge_selected_into(&a2).model_changed);
 }
+
+#[test]
+fn one_alias_merges_into_the_primary() {
+    let (mut v, a2, a3, a4) = three_adp_aliases();
+    let biochemistry = v.export_antimony();
+    let r = v.merge_alias_into_primary(&a3);
+    assert!(r.model_changed && r.selection_changed);
+    let m = v.model();
+    assert!(m.find_species(&a3).is_none());
+    assert_eq!(m.find_reaction("R3").unwrap().modifiers[0].species, "ADP");
+    // The other aliases stay.
+    assert!(m.find_species(&a2).is_some() && m.find_species(&a4).is_some());
+    let (sel, _) = v.selection();
+    assert_eq!(sel, ["ADP"]);
+    assert_eq!(v.export_antimony(), biochemistry);
+    assert_eq!(v.undo_description(), Some("Merge into Primary"));
+    // Nothing to do for a primary.
+    assert!(!v.merge_alias_into_primary("ADP").model_changed);
+}

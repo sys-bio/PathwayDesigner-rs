@@ -685,6 +685,20 @@ impl DiagramView {
         self.set_species_selected(into, true);
     }
 
+    /// Merge into Primary (S §7.3): alias `id` alone goes back into its
+    /// primary. Other aliases are left alone. One undo step.
+    pub fn merge_alias_into_primary(&mut self, id: &str) -> ViewResponse {
+        let Some(primary) = self.model.find_species(id).and_then(|s| s.alias_of.clone()) else {
+            return ViewResponse::default();
+        };
+        self.cancel_gesture();
+        let before = self.model.clone();
+        self.merge_into(&primary, &[id.to_owned()]);
+        let mut r = self.record("Merge into Primary", before);
+        r.selection_changed = true;
+        r
+    }
+
     /// The selected aliases that Merge Selected Aliases into This would merge
     /// into node `id`: the other selected aliases of the same species.
     fn selected_aliases_besides(&self, id: &str) -> Vec<Id> {
