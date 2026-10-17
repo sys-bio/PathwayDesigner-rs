@@ -426,11 +426,16 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         glyph.meta.annotation = super::shape::species_note(s);
         l.species_glyphs.push(glyph);
         if !s.is_null_node {
+            // A name outside the node has a box of its own (S §5.11).
+            let text_box = match crate::render::draw::outside_label_box(s) {
+                Some((a, b)) => sb::BoundingBox::new(a.x, a.y, b.x - a.x, b.y - a.y),
+                None => bbox(s),
+            };
             l.text_glyphs.push(sb::TextGlyph {
                 id: ids.unique(format!("tg_{}", s.id)),
                 graphical_object: Some(id),
                 origin_of_text: Some(s.primary_id().to_owned()),
-                bounding_box: Some(bbox(s)),
+                bounding_box: Some(text_box),
                 ..Default::default()
             });
         }

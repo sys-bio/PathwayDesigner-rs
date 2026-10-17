@@ -5,7 +5,7 @@
 //! can never change the file. Reading accepts versions 1–4 (and newer files, as
 //! far as possible). Writing produces the lowest version that fits, with the
 //! keys in the order the Delphi app writes them: version 3, which the Delphi
-//! app reads, or version 4 when the model has free text or drawn compartments
+//! app reads, or a later one when the model uses what it brought
 //! (SPEC-Rust §4.2).
 
 pub mod colour;
@@ -19,8 +19,12 @@ use crate::model::{
     Rgba, SpeciesNode, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
 };
 
-/// The newest version this code understands, and writes when it must.
-pub const FORMAT_VERSION: u32 = 5;
+/// The newest version this code understands, and writes when it must: the
+/// one that brought names drawn outside their node (S §5.11).
+pub const FORMAT_VERSION: u32 = 6;
+
+/// The version that brought species shapes and border styles.
+pub const SHAPE_VERSION: u32 = 5;
 
 /// The version that brought free text and drawn compartments.
 pub const TEXT_VERSION: u32 = 4;
@@ -30,15 +34,18 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 5 if a species has a shape other than the rounded
-/// rectangle or a border style other than automatic, 4 if it has free text or a drawn compartment, 3 otherwise.
+/// (SPEC-Rust §4.2): 6 if a species has its name outside, 5 if one has a
+/// shape other than the rounded rectangle or a border style other than
+/// automatic, 4 if it has free text or a drawn compartment, 3 otherwise.
 pub fn needed_version(model: &Model) -> u32 {
-    if model
+    if model.species().iter().any(|s| s.label_offset.is_some()) {
+        FORMAT_VERSION
+    } else if model
         .species()
         .iter()
         .any(|s| s.shape != NodeShape::default() || s.border_dash != BorderDash::default())
     {
-        FORMAT_VERSION
+        SHAPE_VERSION
     } else if !model.texts().is_empty() || model.compartments.iter().any(|c| c.frame.is_some()) {
         TEXT_VERSION
     } else {
@@ -244,6 +251,12 @@ struct FileSpecies {
     /// Version 5: `"solid"` or `"dashed"` (S §5.3). Left out for automatic.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     border_dash: Option<String>,
+    /// Version 6: where its name is drawn outside the node, from the node's
+    /// centre (S §5.11). Both or neither; left out for a name inside.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_dx: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_dy: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -455,6 +468,17 @@ impl FileModel {
                     BorderDash::default()
                 }),
             };
+            let label_offset = match (s.label_dx, s.label_dy) {
+                (None, None) => None,
+                (Some(dx), Some(dy)) if dx.is_finite() && dy.is_finite() => Some(pt(dx, dy)),
+                _ => {
+                    warnings.push(format!(
+                        "Species `{}` has an incomplete label position; its name is drawn inside.",
+                        s.id
+                    ));
+                    None
+                }
+            };
             let node = SpeciesNode {
                 id: s.id,
                 center: pt(s.x, s.y),
@@ -462,6 +486,7 @@ impl FileModel {
                 height: s.h,
                 shape,
                 border_dash,
+                label_offset,
                 initial_value: s.initial_value,
                 is_boundary: s.is_boundary,
                 is_constant: s.is_constant,
@@ -719,6 +744,8 @@ impl FileModel {
                     shape: (s.shape != NodeShape::default()).then(|| s.shape.key().to_owned()),
                     border_dash: (s.border_dash != BorderDash::default())
                         .then(|| s.border_dash.key().to_owned()),
+                    label_dx: s.label_offset.map(|o| o.x),
+                    label_dy: s.label_offset.map(|o| o.y),
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -1074,7 +1101,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 6, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 7, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);

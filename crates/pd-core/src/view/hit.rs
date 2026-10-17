@@ -2,7 +2,8 @@
 //!
 //! Candidates are tried in order and the first hit wins: a handle of a
 //! selected Bézier reaction, the wrap handle of a selected text, a corner of a
-//! selected compartment, a corner of a selected species, the topmost text, a junction, the topmost species, a
+//! selected compartment, a corner of a selected species, the topmost text, a junction, the
+//! topmost name drawn outside its node, the topmost species, a
 //! reaction leg, then a compartment's border or name (innermost first). Text
 //! is drawn above everything, so it is hit first; compartments are drawn
 //! below everything, and only their edge and name select them, so a click
@@ -17,7 +18,7 @@ use crate::render::constants::{
 };
 use crate::render::draw::{
     compartment_corners, compartment_label_box, effective_junction, effective_mode, leg_end,
-    leg_start, species_corners, wrap_handle,
+    leg_start, outside_label_box, species_corners, wrap_handle,
 };
 use crate::textbox::text_box;
 use crate::view::input::{HandleId, Target};
@@ -93,6 +94,14 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
         if effective_junction(model, r).distance(p) <= junction_tol {
             return Target::Junction(r.id.clone());
         }
+    }
+
+    let on_label = |s: &&SpeciesNode| {
+        outside_label_box(s)
+            .is_some_and(|(a, b)| (a.x..=b.x).contains(&p.x) && (a.y..=b.y).contains(&p.y))
+    };
+    if let Some(s) = model.species().iter().rev().find(on_label) {
+        return Target::SpeciesLabel(s.id.clone());
     }
 
     if let Some(s) = model

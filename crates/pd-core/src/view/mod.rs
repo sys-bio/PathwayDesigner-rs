@@ -20,6 +20,8 @@ pub mod input;
 #[cfg(test)]
 mod interaction_tests;
 mod interchange;
+#[cfg(test)]
+mod label_tests;
 mod properties;
 #[cfg(test)]
 mod resize_tests;
@@ -113,6 +115,7 @@ enum Gesture {
     TextWrap(TextWrapDrag),
     Resize(ResizeDrag),
     SpeciesResize(SpeciesResizeDrag),
+    Label(LabelDrag),
     /// The Compartment tool: a box being drawn, corners in world coordinates.
     NewCompartment {
         start: Pt,
@@ -210,15 +213,29 @@ struct SpeciesResizeDrag {
     delta: Pt,
 }
 
+/// Dragging a name drawn outside its node moves only the name (S §5.11).
+#[derive(Clone, Debug)]
+struct LabelDrag {
+    start: Pt,
+    id: Id,
+    /// Its offset before the drag.
+    orig: Pt,
+    before: Box<Model>,
+    delta: Pt,
+}
+
 /// How an item looks, as Copy Style takes it, by kind (S §8.5). Paste Style
 /// gives it to the selected items of the same kind.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum CopiedStyle {
-    /// Everything but its size and place.
+    /// Everything but its size and place, and whether its name is outside
+    /// (not where). With the name outside, its size too (S §5.11).
     Species {
         style: crate::model::VisualStyle,
         shape: crate::model::NodeShape,
         border_dash: crate::model::BorderDash,
+        label_outside: bool,
+        size: Option<(f64, f64)>,
     },
     /// Line colour and width, junction colour and whether it is shown; not its
     /// mode (straight, Bézier or linear), which is geometry.
@@ -646,6 +663,27 @@ impl DiagramView {
                     self.gesture = Gesture::Nodes(self.begin_node_drag(world));
                 }
             }
+            Target::SpeciesLabel(id) => {
+                let selected = self.model.find_species(&id).is_some_and(|s| s.selected);
+                if modifiers.shift {
+                    self.set_species_selected(&id, !selected);
+                } else {
+                    if !selected {
+                        self.model.clear_selection();
+                        self.set_species_selected(&id, true);
+                    }
+                    let orig = self.model.find_species(&id).and_then(|s| s.label_offset);
+                    if let Some(orig) = orig {
+                        self.gesture = Gesture::Label(LabelDrag {
+                            start: world,
+                            id,
+                            orig,
+                            before: Box::new(self.model.clone()),
+                            delta: Pt::ZERO,
+                        });
+                    }
+                }
+            }
             Target::TextWrap(id) => {
                 if let Some(drag) = self.begin_text_wrap(world, id) {
                     self.gesture = Gesture::TextWrap(drag);
@@ -786,6 +824,11 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_species_resize(&drag);
             }
+            Gesture::Label(drag) => {
+                drag.delta = world - drag.start;
+                let drag = drag.clone();
+                self.apply_label_drag(&drag);
+            }
             Gesture::NewCompartment { current, .. } => *current = world,
             Gesture::RubberBand { current, .. } => *current = pos,
         }
@@ -811,6 +854,12 @@ impl DiagramView {
             Gesture::SpeciesResize(drag) if drag.delta == Pt::ZERO => None,
             Gesture::SpeciesResize(drag) => Some(Command::Snapshot {
                 desc: "Resize Species",
+                before: drag.before,
+                after: Box::new(self.model.clone()),
+            }),
+            Gesture::Label(drag) if drag.delta == Pt::ZERO => None,
+            Gesture::Label(drag) => Some(Command::Snapshot {
+                desc: "Move Label",
                 before: drag.before,
                 after: Box::new(self.model.clone()),
             }),
@@ -945,6 +994,10 @@ impl DiagramView {
             Gesture::SpeciesResize(mut drag) => {
                 drag.delta = Pt::ZERO;
                 self.apply_species_resize(&drag);
+            }
+            Gesture::Label(mut drag) => {
+                drag.delta = Pt::ZERO;
+                self.apply_label_drag(&drag);
             }
             Gesture::RubberBand { .. } | Gesture::NewCompartment { .. } => {}
         }
@@ -1239,8 +1292,15 @@ impl DiagramView {
                 (size.0.round(), size.1.round())
             };
             if let Some(s) = self.model.find_species_mut(id) {
-                (s.width, s.height) = size;
+                // Its name, if outside, moves with the edge.
+                s.resize(size.0, size.1);
             }
+        }
+    }
+
+    fn apply_label_drag(&mut self, drag: &LabelDrag) {
+        if let Some(s) = self.model.find_species_mut(&drag.id) {
+            s.label_offset = Some(drag.orig + drag.delta);
         }
     }
 
@@ -1419,11 +1479,12 @@ impl DiagramView {
                 continue;
             }
             let (hw, hh) = (s.width / 2.0, s.height / 2.0);
-            if s.center.x + hw >= a.x
-                && s.center.x - hw <= b.x
-                && s.center.y + hh >= a.y
-                && s.center.y - hh <= b.y
-            {
+            let touches =
+                |min: Pt, max: Pt| max.x >= a.x && min.x <= b.x && max.y >= a.y && min.y <= b.y;
+            // The node, or its name drawn outside it (S §5.11).
+            let on_label =
+                crate::render::draw::outside_label_box(s).is_some_and(|(p, q)| touches(p, q));
+            if touches(s.center - pt(hw, hh), s.center + pt(hw, hh)) || on_label {
                 s.selected = true;
             }
         }
@@ -1531,7 +1592,7 @@ impl DiagramView {
                     t.selected = !(add && t.selected);
                 }
             }
-            Target::SpeciesCorner(id, _) => {
+            Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => {
                 if let Some(s) = self.model.find_species_mut(id) {
                     s.selected = !(add && s.selected);
                 }

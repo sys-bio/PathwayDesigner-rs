@@ -346,6 +346,15 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 6: names outside the node (S §5.11).** A species may have `labelDx`
+and `labelDy`: where its name's centre is drawn, from the node's centre. Both are
+written for a name outside the node and both left out for one inside. A species
+with only one of them, or with a value that isn't a number, has its name drawn
+inside, with a warning. A document in which any species has its name outside is
+version 6; otherwise it is written as version 5, 4 or 3 as before. Saved styles
+(S §16.2 F-6) are planned for version 6 too. `Models/label_1.json` is the sample
+file.
+
 **Version 4: drawn compartments (S §7.9).** Each entry of `compartments` may have
 `x`, `y`, `w` and `h`: the box's centre and size, as for a species. All four are
 written for a drawn compartment and left out otherwise. A compartment missing any
@@ -874,10 +883,14 @@ Instead:
 
 **Species shapes (S §5.10) and border styles (S §5.3)** go in a note on the
 species glyph, written only when one is not the default:
-`<pd:species xmlns:pd="…/ns/sbml-layout/1" shape="ellipse" border="solid"/>`,
-with only the attributes that are set. Import gives each node its glyph's shape and
-border style (an alias has its own glyph, so its own). SBML Layout has neither, so
-other tools draw a box with a solid border.
+`<pd:species xmlns:pd="…/ns/sbml-layout/1" shape="ellipse" border="solid"
+label="outside"/>`, with only the attributes that are set. Import gives each node
+its glyph's shape and border style (an alias has its own glyph, so its own). SBML
+Layout has neither, so other tools draw a box with a solid border. A name outside
+the node (S §5.11) also gives the species' text glyph the name's own box rather
+than the node's, so other tools draw it in the same place; import reads a name as
+outside when the note says so or when the text glyph's centre is outside the
+species glyph's box.
 
 **Compartments (S §7.9)** are written as compartment glyphs with their box. A custom
 style goes in a note on the glyph: `<pd:compartment xmlns:pd="…/ns/sbml-layout/1"

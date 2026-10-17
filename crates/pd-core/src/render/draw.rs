@@ -153,8 +153,35 @@ pub fn species_corners(s: &SpeciesNode) -> [Pt; 4] {
 /// The width that fits a species' name: the label, as drawn, and
 /// [`FIT_MARGIN`] each side (S §7.10).
 pub fn width_for_name(s: &SpeciesNode) -> f64 {
-    let size = pick_width(custom(&s.style).map(|st| st.font_size), LABEL_FONT_SIZE);
-    text_width(s.primary_id(), size) + 2.0 * FIT_MARGIN
+    text_width(s.primary_id(), label_size(s)) + 2.0 * FIT_MARGIN
+}
+
+/// The size a species' name is drawn at.
+pub fn label_size(s: &SpeciesNode) -> f64 {
+    pick_width(custom(&s.style).map(|st| st.font_size), LABEL_FONT_SIZE)
+}
+
+/// The box round a species' name drawn outside its node, with
+/// [`LABEL_BOX_PAD`] each side: what selects the name, and what is outlined
+/// while the species is selected (S §5.11). `None` for a name drawn inside,
+/// and for a null node. Returns (min, max).
+pub fn outside_label_box(s: &SpeciesNode) -> Option<(Pt, Pt)> {
+    let offset = s.label_offset.filter(|_| !s.is_null_node)?;
+    let size = label_size(s);
+    let m = font_metrics(size);
+    let half = pt(
+        text_width(s.primary_id(), size) / 2.0 + LABEL_BOX_PAD,
+        (m.ascent - m.descent) / 2.0 + LABEL_BOX_PAD,
+    );
+    let c = s.center + offset;
+    Some((c - half, c + half))
+}
+
+/// Where a name taken outside its node starts: just right of the node,
+/// [`LABEL_GAP`] away, level with its centre (S §5.11).
+pub fn default_label_offset(s: &SpeciesNode) -> Pt {
+    let w = text_width(s.primary_id(), label_size(s));
+    pt(s.width / 2.0 + LABEL_GAP + w / 2.0, 0.0)
 }
 
 /// A compartment's four corner handles, clockwise from the top left
@@ -204,6 +231,10 @@ pub fn content_bounds(model: &Model) -> (Pt, Pt) {
         let half = pt(s.width / 2.0, s.height / 2.0);
         grow(s.center - half);
         grow(s.center + half);
+        if let Some((a, b)) = outside_label_box(s) {
+            grow(a);
+            grow(b);
+        }
     }
     for r in model.reactions() {
         grow(r.junction);
@@ -551,11 +582,12 @@ impl Drawer<'_> {
             }
         }
 
-        let size = pick_width(style.map(|s| s.font_size), LABEL_FONT_SIZE) * self.opts.zoom;
+        let size = label_size(node) * self.opts.zoom;
         if size >= MIN_LABEL_SIZE_PX {
             let color = pick(style.map(|s| s.label_color), LABEL);
+            // Inside the node, or outside it at its offset (S §5.11).
             out.text(
-                self.to_screen(node.center),
+                self.to_screen(node.center + node.label_offset.unwrap_or(Pt::ZERO)),
                 node.primary_id(),
                 size as f32,
                 TextFont::default(),
@@ -647,6 +679,18 @@ impl Drawer<'_> {
                 node.height / 2.0 + HALO_OUTSET,
             );
             out.round_rect(rect, self.len(HALO_CORNER_RADIUS), None, Some(stroke));
+            // A name outside the node is outlined too, more lightly (S §5.11).
+            if let Some((a, b)) = outside_label_box(node) {
+                let label = SRect {
+                    min: self.to_screen(a),
+                    max: self.to_screen(b),
+                };
+                let thin = Stroke {
+                    width: self.len(1.0),
+                    ..stroke
+                };
+                out.round_rect(label, 0.0, None, Some(thin));
+            }
             // Its corners resize it (S §7.10).
             for p in species_corners(node) {
                 out.round_rect(
@@ -1385,6 +1429,42 @@ mod tests {
             ..chosen
         };
         assert_eq!(colour(&draw(&m, &output)), REACTION_LINE);
+    }
+
+    #[test]
+    fn a_name_outside_is_drawn_at_its_offset_and_outlined_on_screen_only() {
+        let mut m = uni_uni();
+        let s1 = m.find_species_mut("S1").unwrap();
+        s1.label_offset = Some(pt(0.0, -40.0));
+        s1.selected = true;
+        let calls = draw(&m, &DrawOptions::default());
+        let at = calls.iter().find_map(|c| match c {
+            Call::Text(at, s, _, _) if s == "S1" => Some(*at),
+            _ => None,
+        });
+        assert!(close(at.unwrap(), spt(0.0, -40.0)));
+        // The halo, then the name's box, outlined in the halo colour.
+        let (a, b) = outside_label_box(m.find_species("S1").unwrap()).unwrap();
+        let outlined = |calls: &[Call]| {
+            calls.iter().any(|c| {
+                matches!(c, Call::RoundRect(r, None, Some(st))
+                    if st.color == SELECTION_HALO
+                        && close(r.min, spt(a.x as f32, a.y as f32))
+                        && close(r.max, spt(b.x as f32, b.y as f32)))
+            })
+        };
+        assert!(outlined(&calls));
+        let output = DrawOptions {
+            for_output: true,
+            ..DrawOptions::default()
+        };
+        assert!(!outlined(&draw(&m, &output)));
+        // Inside, it is at the node's centre.
+        m.find_species_mut("S1").unwrap().label_offset = None;
+        let calls = draw(&m, &DrawOptions::default());
+        assert!(calls.iter().any(
+            |c| matches!(c, Call::Text(at, s, _, _) if s == "S1" && close(*at, spt(0.0, 0.0)))
+        ));
     }
 
     #[test]

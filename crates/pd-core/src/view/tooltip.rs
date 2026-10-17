@@ -26,7 +26,7 @@ impl DiagramView {
     /// canvas or a null node.
     pub fn tooltip_text(&self, target: &Target) -> Option<String> {
         match target {
-            Target::Species(id) => {
+            Target::Species(id) | Target::SpeciesLabel(id) => {
                 let node = self.model.find_species(id)?;
                 if node.is_null_node {
                     return None;

@@ -307,6 +307,8 @@ impl Builder {
         let mut glyph_node = HashMap::new();
         let mut nulls = HashMap::new();
         let mut placed: HashSet<String> = HashSet::new();
+        // Glyphs whose note says the name is outside.
+        let mut outside: HashSet<String> = HashSet::new();
         for g in &l.species_glyphs {
             let Some(bb) = positioned(g.bounding_box.as_ref()) else {
                 continue;
@@ -321,6 +323,9 @@ impl Builder {
                 .as_deref()
                 .and_then(super::shape::read_species)
                 .unwrap_or_default();
+            if look.label_outside {
+                outside.insert(g.id.clone());
+            }
             let species = g
                 .species
                 .as_deref()
@@ -362,6 +367,30 @@ impl Builder {
             (node.width, node.height) = (w, h);
             (node.shape, node.border_dash) = (look.shape, look.border_dash);
             glyph_node.insert(g.id.clone(), id);
+        }
+        // A species' name is outside its node when the note says so, or when
+        // its text glyph's centre is outside the node's box, as other tools
+        // write it (S §5.11). The name is drawn at that centre.
+        for t in &l.text_glyphs {
+            let (Some(gid), Some(bb)) = (&t.graphical_object, positioned(t.bounding_box.as_ref()))
+            else {
+                continue;
+            };
+            let Some(node) = glyph_node
+                .get(gid)
+                .and_then(|id| self.model.find_species_mut(id))
+            else {
+                continue;
+            };
+            let c = pt(
+                bb.position.x + bb.dimensions.width / 2.0,
+                bb.position.y + bb.dimensions.height / 2.0,
+            );
+            let inside =
+                crate::geometry::point_in_rect(c, node.center, node.width / 2.0, node.height / 2.0);
+            if outside.contains(gid) || !inside {
+                node.label_offset = Some(c - node.center);
+            }
         }
         (glyph_node, nulls)
     }

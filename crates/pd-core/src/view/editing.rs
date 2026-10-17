@@ -152,7 +152,8 @@ impl DiagramView {
             return ViewResponse::default();
         };
         let id = match self.target_at(pos) {
-            Target::Species(id) => id,
+            // A name drawn outside picks its species too (S §5.11).
+            Target::Species(id) | Target::SpeciesLabel(id) => id,
             Target::Empty => return self.set_tool(Tool::Select),
             // Junctions and legs can't be picked.
             _ => return ViewResponse::default(),
@@ -411,7 +412,7 @@ impl DiagramView {
             return ViewResponse::default();
         }
         match self.target_at(pos) {
-            Target::Species(id)
+            Target::Species(id) | Target::SpeciesLabel(id)
                 if !self.model.find_species(&id).is_some_and(|s| s.is_null_node) =>
             {
                 ViewResponse {
@@ -440,7 +441,7 @@ impl DiagramView {
             Target::Handle(h) => Target::Leg(h.reaction),
             Target::TextWrap(id) => Target::Text(id),
             Target::CompartmentCorner(id, _) => Target::Compartment(id),
-            Target::SpeciesCorner(id, _) => Target::Species(id),
+            Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => Target::Species(id),
             t => t,
         };
         match &target {
@@ -472,6 +473,7 @@ impl DiagramView {
             | Target::TextWrap(_)
             | Target::CompartmentCorner(..)
             | Target::SpeciesCorner(..)
+            | Target::SpeciesLabel(_)
             | Target::Empty => {
                 return ViewResponse::default();
             }
@@ -487,17 +489,36 @@ impl DiagramView {
 
     /// Renames species `id` (its primary, for an alias) to `new`, rewriting
     /// every kinetic law, and widens the node and its aliases to fit the new
-    /// label. One undo step.
+    /// label. A name drawn outside its node instead keeps its edge nearer the
+    /// node where it was (S §5.11). One undo step.
     pub fn rename(&mut self, id: &str, new: &str) -> Result<ViewResponse, RenameError> {
+        use crate::render::draw::{label_size, width_for_name};
+        use crate::text::text_width;
         let before = self.model.clone();
+        let old = self
+            .model
+            .find_species(id)
+            .map(|s| s.primary_id().to_owned());
         self.model.rename_species(id, new)?;
         if before == self.model {
             return Ok(ViewResponse::default());
         }
         // Each drawing at its own label size.
         for s in self.model.species_mut() {
-            let needed = crate::render::draw::width_for_name(s);
-            if s.primary_id() == new && s.width < needed {
+            if s.primary_id() != new {
+                continue;
+            }
+            if let (Some(o), Some(old)) = (s.label_offset, &old) {
+                let size = label_size(s);
+                let grow = text_width(new, size) - text_width(old, size);
+                // Right of the node it grows right, left of it left;
+                // straight above or below, both ways.
+                let side = if o.x == 0.0 { 0.0 } else { o.x.signum() };
+                s.label_offset = Some(o + pt(side * grow / 2.0, 0.0));
+                continue;
+            }
+            let needed = width_for_name(s);
+            if s.width < needed {
                 s.width = needed;
             }
         }

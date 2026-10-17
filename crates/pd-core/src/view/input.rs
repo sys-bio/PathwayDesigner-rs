@@ -160,5 +160,7 @@ pub enum Target {
     /// A corner handle of a selected species, clockwise from the top left
     /// (S §7.10).
     SpeciesCorner(Id, usize),
+    /// A species' name drawn outside its node (S §5.11).
+    SpeciesLabel(Id),
     Empty,
 }

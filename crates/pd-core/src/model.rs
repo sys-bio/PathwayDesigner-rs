@@ -86,6 +86,10 @@ pub struct SpeciesNode {
     pub shape: NodeShape,
     /// Solid or dashed border; by default an alias's is dashed (S §5.3).
     pub border_dash: BorderDash,
+    /// Where its name is drawn when it is outside the node (S §5.11): the
+    /// label's centre, from the node's centre. `None` draws it inside, as
+    /// usual. It moves with the node.
+    pub label_offset: Option<Pt>,
     pub initial_value: f64,
     pub is_boundary: bool,
     pub is_constant: bool,
@@ -199,6 +203,7 @@ impl SpeciesNode {
             height: DEFAULT_SPECIES_HEIGHT,
             shape: NodeShape::default(),
             border_dash: BorderDash::default(),
+            label_offset: None,
             initial_value: 0.0,
             is_boundary: false,
             is_constant: false,
@@ -213,6 +218,19 @@ impl SpeciesNode {
 
     pub fn is_alias(&self) -> bool {
         self.alias_of.is_some()
+    }
+
+    /// Makes it `width` × `height` about its centre. A name drawn outside
+    /// keeps its distance from the node's edge: beside the node it moves out
+    /// or in by half the change in width, above or below it by half the
+    /// change in height (S §5.11).
+    pub fn resize(&mut self, width: f64, height: f64) {
+        if let Some(o) = self.label_offset.as_mut() {
+            let side = |d: f64, half: f64| if d.abs() < half { 0.0 } else { d.signum() };
+            o.x += side(o.x, self.width / 2.0) * (width - self.width) / 2.0;
+            o.y += side(o.y, self.height / 2.0) * (height - self.height) / 2.0;
+        }
+        (self.width, self.height) = (width, height);
     }
 
     /// The id of the species this node stands for: its primary's id for an
@@ -822,15 +840,21 @@ impl Model {
     pub fn add_alias(&mut self, primary: &str, center: Pt) -> Option<Id> {
         let source = self.find_species(primary)?;
         let primary_id = source.primary_id().to_owned();
-        let (width, height, shape) = match self.find_species(&primary_id) {
-            Some(p) => (p.width, p.height, p.shape),
-            None => (source.width, source.height, source.shape),
+        let (width, height, shape, label_offset) = match self.find_species(&primary_id) {
+            Some(p) => (p.width, p.height, p.shape, p.label_offset),
+            None => (
+                source.width,
+                source.height,
+                source.shape,
+                source.label_offset,
+            ),
         };
         let id = self.generate_id('S');
         let mut node = SpeciesNode::new(id.clone(), center);
         node.width = width;
         node.height = height;
         node.shape = shape;
+        node.label_offset = label_offset;
         node.alias_of = Some(primary_id);
         self.push_species(node).expect("generated ids are unused");
         Some(id)

@@ -298,6 +298,7 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         | Target::TextWrap(_)
         | Target::CompartmentCorner(..)
         | Target::SpeciesCorner(..)
+        | Target::SpeciesLabel(_)
         | Target::Empty => ui.close(),
     }
     chosen
@@ -455,7 +456,9 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
         Some(Target::Handle(_)) => CursorIcon::Crosshair,
-        Some(Target::Species(_) | Target::Junction(_) | Target::Text(_)) => CursorIcon::Grab,
+        Some(
+            Target::Species(_) | Target::SpeciesLabel(_) | Target::Junction(_) | Target::Text(_),
+        ) => CursorIcon::Grab,
         Some(Target::TextWrap(_)) => CursorIcon::ResizeHorizontal,
         Some(Target::Compartment(_)) => CursorIcon::Grab,
         // Top-left and bottom-right corners, then the other two.

@@ -97,12 +97,13 @@ pub fn compartment_note(c: &Compartment) -> Option<String> {
     (!attrs.is_empty()).then(|| format!("\n<pd:compartment xmlns:pd=\"{NS}\"{attrs}/>\n"))
 }
 
-/// The note for a species glyph: the shape it is drawn as (S §5.10) and its
-/// border style (S §5.3), or `None` when both are the defaults. SBML Layout
-/// has neither.
+/// The note for a species glyph: the shape it is drawn as (S §5.10), its
+/// border style (S §5.3) and whether its name is outside it (S §5.11), or
+/// `None` when all are the defaults. SBML Layout has none of them; where an
+/// outside name is drawn is its text glyph's box.
 ///
 /// ```xml
-/// <pd:species xmlns:pd="…" shape="ellipse" border="solid"/>
+/// <pd:species xmlns:pd="…" shape="ellipse" border="solid" label="outside"/>
 /// ```
 pub fn species_note(s: &SpeciesNode) -> Option<String> {
     let mut attrs = String::new();
@@ -111,6 +112,9 @@ pub fn species_note(s: &SpeciesNode) -> Option<String> {
     }
     if s.border_dash != BorderDash::default() {
         attrs.push_str(&format!(" border=\"{}\"", s.border_dash.key()));
+    }
+    if s.label_offset.is_some() {
+        attrs.push_str(r#" label="outside""#);
     }
     (!attrs.is_empty()).then(|| format!("\n<pd:species xmlns:pd=\"{NS}\"{attrs}/>\n"))
 }
@@ -121,6 +125,7 @@ pub fn species_note(s: &SpeciesNode) -> Option<String> {
 pub struct SpeciesLook {
     pub shape: NodeShape,
     pub border_dash: BorderDash,
+    pub label_outside: bool,
 }
 
 /// What a species glyph's note gives, or `None` without one.
@@ -139,6 +144,7 @@ pub fn read_species(annotation: &str) -> Option<SpeciesLook> {
             .attribute("border")
             .and_then(BorderDash::from_key)
             .unwrap_or_default(),
+        label_outside: note.attribute("label") == Some("outside"),
     })
 }
 

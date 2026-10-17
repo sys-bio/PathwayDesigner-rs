@@ -18,6 +18,12 @@ pub const LABEL_FONT_SIZE: f64 = 12.0;
 pub const FIT_MARGIN: f64 = 10.0;
 /// The smallest a species can be made, either way (S §7.10).
 pub const MIN_SPECIES_SIZE: f64 = 10.0;
+/// The space between a node and its name, when the name is taken outside
+/// (S §5.11).
+pub const LABEL_GAP: f64 = 8.0;
+/// The margin round a name drawn outside its node: the box that selects it
+/// and is outlined when it is selected (S §5.11).
+pub const LABEL_BOX_PAD: f64 = 2.0;
 pub const DEFAULT_LINE_WIDTH: f64 = 1.5;
 pub const BOUNDARY_BORDER_FACTOR: f64 = 2.4;
 pub const SELECTED_LINE_FACTOR: f64 = 1.5;

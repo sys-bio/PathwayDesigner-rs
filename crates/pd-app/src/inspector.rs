@@ -207,6 +207,40 @@ impl Inspector {
                         self.number(ui, view, Field::FontSize, true, "0 = default");
                         ui.end_row();
 
+                        // Inside the node or beside it, for every selected
+                        // species (S §5.11).
+                        ui.label("Name");
+                        let current = view.selected_species_label_outside();
+                        let mut chosen = None;
+                        egui::ComboBox::from_id_salt("species-label-place")
+                            .selected_text(match current {
+                                Some(false) => "Inside",
+                                Some(true) => "Outside",
+                                None => "Mixed",
+                            })
+                            .show_ui(ui, |ui| {
+                                for (outside, label, tip) in [
+                                    (false, "Inside", "The name is drawn inside the node"),
+                                    (
+                                        true,
+                                        "Outside",
+                                        "The name is drawn beside the node; drag it to move it",
+                                    ),
+                                ] {
+                                    if ui
+                                        .selectable_label(current == Some(outside), label)
+                                        .on_hover_text(tip)
+                                        .clicked()
+                                    {
+                                        chosen = Some(outside);
+                                    }
+                                }
+                            });
+                        if let Some(outside) = chosen {
+                            view.set_species_label_outside(outside);
+                        }
+                        ui.end_row();
+
                         // For every selected species (S §7.10).
                         ui.label("Width");
                         self.number(ui, view, Field::SpeciesWidth, true, "")
@@ -217,11 +251,14 @@ impl Inspector {
                             .on_hover_text("Shift while dragging a corner keeps the proportions");
                         ui.end_row();
                         ui.label("");
+                        // A name outside doesn't set the node's width.
+                        let fits = view.selected_species_label_outside() != Some(true);
                         if ui
-                            .button("Fit to Name")
+                            .add_enabled(fits, egui::Button::new("Fit to Name"))
                             .on_hover_text(
                                 "Make the selected species just wide enough for their names",
                             )
+                            .on_disabled_hover_text("Their names are drawn outside the node")
                             .clicked()
                         {
                             view.fit_species_to_names();

@@ -6,8 +6,8 @@
 use super::{CopiedStyle, DiagramView};
 use crate::expr;
 use crate::model::{
-    BorderDash, Compartment, Id, Model, NodeShape, RenameError, Rgba, TextAlign, TextItem,
-    Typeface, VisualStyle,
+    BorderDash, Compartment, Id, Model, NodeShape, RenameError, Rgba, SpeciesNode, TextAlign,
+    TextItem, Typeface, VisualStyle,
 };
 use crate::render::constants::LABEL;
 use crate::render::draw::compartment_colours;
@@ -84,6 +84,16 @@ pub fn sync_modifiers(model: &mut Model, id: &str) {
         }
     }
     model.find_reaction_mut(id).expect("found above").modifiers = modifiers;
+}
+
+/// Where `s`'s name goes when it is put `outside` or not: inside, where it
+/// already is outside, or just right of the node (S §5.11).
+fn label_place(s: &SpeciesNode, outside: bool) -> Option<crate::geometry::Pt> {
+    match (outside, s.label_offset) {
+        (false, _) => None,
+        (true, Some(o)) => Some(o),
+        (true, None) => Some(crate::render::draw::default_label_offset(s)),
+    }
 }
 
 impl DiagramView {
@@ -248,7 +258,7 @@ impl DiagramView {
     pub fn copy_style(&mut self, item: &Target) -> Option<Id> {
         let m = &self.model;
         let (id, copied) = match item {
-            Target::Species(id) | Target::SpeciesCorner(id, _) => {
+            Target::Species(id) | Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => {
                 let s = m.find_species(id).filter(|s| !s.is_null_node)?;
                 (
                     s.id.clone(),
@@ -256,6 +266,8 @@ impl DiagramView {
                         style: s.style,
                         shape: s.shape,
                         border_dash: s.border_dash,
+                        label_outside: s.label_offset.is_some(),
+                        size: s.label_offset.map(|_| (s.width, s.height)),
                     },
                 )
             }
@@ -346,6 +358,8 @@ impl DiagramView {
                 style,
                 shape,
                 border_dash,
+                label_outside,
+                size,
             } => {
                 for s in self.model.species_mut() {
                     if !s.selected || s.is_null_node {
@@ -358,10 +372,17 @@ impl DiagramView {
                     };
                     s.border_dash = border_dash;
                     s.shape = shape;
+                    // A name outside doesn't need the node to fit it, so the
+                    // size comes too (S §5.11).
+                    if let Some(size) = size {
+                        s.resize(size.0, size.1);
+                    }
                     if s.shape == NodeShape::Circle {
                         let d = s.width.max(s.height);
-                        (s.width, s.height) = (d, d);
+                        s.resize(d, d);
                     }
+                    // Where a name already outside is stays its own.
+                    s.label_offset = label_place(s, label_outside);
                 }
             }
             CopiedStyle::Reaction { style } => {
@@ -533,16 +554,22 @@ impl DiagramView {
                 continue;
             }
             if let Some(w) = width.filter(|w| w.is_finite()) {
-                s.width = w.max(MIN_SPECIES_SIZE);
-                if s.shape == NodeShape::Circle {
-                    s.height = s.width;
-                }
+                let w = w.max(MIN_SPECIES_SIZE);
+                let h = if s.shape == NodeShape::Circle {
+                    w
+                } else {
+                    s.height
+                };
+                s.resize(w, h);
             }
             if let Some(h) = height.filter(|h| h.is_finite()) {
-                s.height = h.max(MIN_SPECIES_SIZE);
-                if s.shape == NodeShape::Circle {
-                    s.width = s.height;
-                }
+                let h = h.max(MIN_SPECIES_SIZE);
+                let w = if s.shape == NodeShape::Circle {
+                    h
+                } else {
+                    s.width
+                };
+                s.resize(w, h);
             }
         }
         self.record_if_changed("Resize Species", before)
@@ -560,7 +587,7 @@ impl DiagramView {
             s.shape = shape;
             if shape == NodeShape::Circle {
                 let d = s.width.max(s.height);
-                (s.width, s.height) = (d, d);
+                s.resize(d, d);
             }
         }
         self.record_if_changed("Change Shape", before)
@@ -591,6 +618,39 @@ impl DiagramView {
         dashes.all(|d| d == first).then_some(first)
     }
 
+    /// Draws the names of the selected species (null nodes aside) outside
+    /// their nodes or inside them. A name taken outside starts just right of
+    /// its node; one already outside stays where it is. One undo step
+    /// (S §5.11).
+    pub fn set_species_label_outside(&mut self, outside: bool) -> ViewResponse {
+        let before = self.model.clone();
+        for s in self.model.species_mut() {
+            if !s.selected || s.is_null_node {
+                continue;
+            }
+            s.label_offset = label_place(s, outside);
+        }
+        let desc = if outside {
+            "Label Outside"
+        } else {
+            "Label Inside"
+        };
+        self.record_if_changed(desc, before)
+    }
+
+    /// Whether the selected species (null nodes aside) have their names
+    /// outside, if they all agree.
+    pub fn selected_species_label_outside(&self) -> Option<bool> {
+        let mut outside = self
+            .model
+            .species()
+            .iter()
+            .filter(|s| s.selected && !s.is_null_node)
+            .map(|s| s.label_offset.is_some());
+        let first = outside.next()?;
+        outside.all(|o| o == first).then_some(first)
+    }
+
     /// The shape every selected species (null nodes aside) has, if they all
     /// have the same one.
     pub fn selected_species_shape(&self) -> Option<NodeShape> {
@@ -604,15 +664,14 @@ impl DiagramView {
         shapes.all(|s| s == first).then_some(first)
     }
 
-    /// Fit to Name: each selected species (null nodes aside) is made as wide
-    /// as its name and a small margin each side, in whole units; the height
-    /// stays. One undo
-    /// step (S §7.10).
+    /// Fit to Name: each selected species (null nodes aside, and those with
+    /// their name outside) is made as wide as its name and a small margin
+    /// each side, in whole units; the height stays. One undo step (S §7.10).
     pub fn fit_species_to_names(&mut self) -> ViewResponse {
         use crate::render::constants::MIN_SPECIES_SIZE;
         let before = self.model.clone();
         for s in self.model.species_mut() {
-            if s.selected && !s.is_null_node {
+            if s.selected && !s.is_null_node && s.label_offset.is_none() {
                 s.width = crate::render::draw::width_for_name(s)
                     .ceil()
                     .max(MIN_SPECIES_SIZE);

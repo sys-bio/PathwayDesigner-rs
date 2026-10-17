@@ -137,6 +137,7 @@ world coordinates.
 | `width`, `height` | number | 80 × 36 | Null nodes are 28 × 28. Can be changed (§7.10). |
 | `shape` | NodeShape | rounded rectangle | What it is drawn as (§5.10). Ignored for null nodes. Added in the Rust version. |
 | `borderDash` | Automatic, Solid or Dashed | Automatic | Whether the border is dashed (§5.3). Ignored for null nodes. Added in the Rust version. |
+| `labelOffset` | point or none | none | Where the name is drawn when it is outside the node: its centre, from the node's centre (§5.11). None draws it inside. Ignored for null nodes. Added in the Rust version. |
 | `initialValue` | number | 0 | Initial concentration. |
 | `isBoundary` | bool | false | |
 | `isConstant` | bool | false | |
@@ -495,6 +496,60 @@ rectangle.* Each species (primary or alias; null nodes aside) is drawn as one of
   version 3 or 4. In SBML, PathwayDesigner's note on the species glyph
   (SPEC-Rust §8.3). Antimony has no layout.
 
+### 5.11 Names outside the node
+
+*Added in the Rust version; the reference always drew the name inside.* A
+species' name (its label) can be drawn **outside** its node, beside it, as in
+Escher's metabolic maps, where metabolites are small circles with their names
+next to them. Each drawing (primary or alias; null nodes have no name) has its
+own setting.
+
+- **Where it goes.** The name's centre is kept as an offset from the node's
+  centre (`labelOffset`, §3.2), so it moves with the node. Taken outside, a name
+  starts just right of the node: its left edge **8** from the node's right side,
+  level with its centre, clear of the selection halo. It can then be dragged
+  anywhere.
+- **Drawn** as an inside name is (colour, size, the label font), centred at that
+  point, in the species pass (§5.2).
+- **Clicking the name** selects the species, as clicking the node does (§6.2,
+  §6.3); Shift-click toggles it; a double click renames it; a right click gives
+  the species' menu; the add-reaction tools pick the species. The name's box is
+  the text's box with **2** to spare each side.
+- **Dragging the name** moves only the name, not the node or the rest of the
+  selection, even when the species is locked: a lock keeps the node in place, not
+  its name. One undo step, *Move Label*. Esc during the drag puts it back.
+  Dragging the node carries its name.
+- **Selected**, the name's box is outlined with a thin line in the halo colour,
+  besides the node's halo. Never drawn for output.
+- A rubber band touching the name selects the species (§6.3). Exports and
+  "zoom to fit" include the name (§11.6).
+- **Resizing** the node (§7.10, the shape becoming a circle, or Paste Style)
+  keeps the name the same distance from its edge: a name beside the node moves
+  out or in by half the change in width, one above or below it by half the change
+  in height; a name across the node's middle that way stays put.
+- **Renaming** doesn't widen the node (§5.3), since the name no longer has to fit
+  in it. The name's edge nearer the node stays where it was: right of the node it
+  grows to the right, left of the node to the left; straight above or below, both
+  ways.
+- **Fit to Name** (§7.10) leaves these species alone, and is shown disabled when
+  every selected species has its name outside.
+- **Choosing:** the **Name** list in the Species group (§8.1), *Inside* or
+  *Outside*, for every selected species; one undo step, *Label Outside* or *Label
+  Inside*. A name already outside stays where it is.
+- A new alias takes its primary's setting and offset, as it takes its size and
+  shape.
+- **Copy Style** (§8.5) takes whether the name is outside, but not where. With
+  the name outside it also takes the **size**: the size of a node with its name
+  inside follows the name, but with the name outside, giving every metabolite the
+  same small circle is the point.
+- **Files.** JSON version 6 (SPEC-Rust §4.2), written only when some species has
+  its name outside. In SBML, the species' text glyph has the name's own box, so
+  other tools see the name where it is drawn, and PathwayDesigner's note on the
+  species glyph says `label="outside"` (SPEC-Rust §8.3). Reading SBML, a name is
+  outside when the note says so **or** when its text glyph's centre lies outside
+  the species glyph's box, as other tools write it; it is then drawn at that
+  centre. Antimony has no layout.
+
 ## 6. Interaction model
 
 ### 6.1 Modes
@@ -522,6 +577,8 @@ Candidates are tried in this order, and the **first** hit wins:
    compartment's corner (§7.9), then a **selected species' corner** (§7.10), each
    within 8 screen px.
 2. **Junction** of any reaction (at its effective position), within **8 screen px**.
+   After it, in the Rust version: the **topmost name drawn outside its node**
+   (§5.11) whose box contains the point; it stands for its species.
 3. **Species**: the **topmost** node (last in list order) whose rectangle contains the
    point.
 4. **Reaction leg**, within **6 screen px**:
@@ -540,7 +597,7 @@ Candidates are tried in this order, and the **first** hit wins:
 | Click a junction | Clear the selection (unless Shift is held), select the reaction, start dragging the junction. |
 | Click a leg | Select only that reaction. Shift toggles instead. No drag. |
 | Click empty canvas | Clear the selection (unless Shift is held) and start a rubber band. |
-| Release rubber band | Add every species whose rectangle **intersects** the band, and every reaction whose stored junction lies **inside** the band. |
+| Release rubber band | Add every species whose rectangle, or name drawn outside it (§5.11), **intersects** the band, and every reaction whose stored junction lies **inside** the band. |
 | Ctrl/Cmd + A | Select all species and reactions. |
 | Esc | Cancel the current mode and clear the selection. |
 
@@ -1046,7 +1103,9 @@ can now be changed. A null node keeps its size.
 - **Fit to Name** (a button in the Species group) makes each selected species as
   wide as its name, at its label size, plus **10** each side, rounded up to a
   whole unit; the height stays. One
-  undo step.
+  undo step. Species with their name outside (§5.11) are left alone.
+- A name drawn outside the node (§5.11) keeps its distance from the node's edge
+  as the node is resized.
 - The cursor over a handle is a diagonal resize arrow, as for compartments.
 - **Files.** Sizes are saved as they always were (`w`, `h` in JSON, in every
   version, SPEC-Rust §4.2; the glyph's box in SBML), so a resized model is still
@@ -1076,6 +1135,7 @@ fields are enabled only when exactly one species is selected.
 | Border style (list) | all selected species | Automatic, Solid or Dashed (§5.3). Shows "Mixed" when they differ. |
 | Label colour swatch | all selected species | Opens the colour picker. Sets `labelColor` and `hasCustomStyle`. Added in the Rust version. |
 | Font size (number) | all selected species | The label's size, 0 = the default 12. Applied when the field loses focus. Sets `fontSize` and `hasCustomStyle`. Added in the Rust version. |
+| Name (list) | all selected species | Inside or Outside the node (§5.11). Shows "Mixed" when they differ. Added in the Rust version. |
 | Concentration (number) | single species | `initialValue`, applied when the field loses focus |
 | Boundary species (checkbox) | selected species | `isBoundary`, applied at once |
 
@@ -1171,7 +1231,7 @@ text can be copied to others of the same kind, as a format painter does.
 
   | Kind | Copied | Not copied |
   |---|---|---|
-  | Species or alias | fill, border colour, border width, border style (§5.3), label colour, font size, shape (§5.10) | size, place |
+  | Species or alias | fill, border colour, border width, border style (§5.3), label colour, font size, shape (§5.10), whether the name is outside (§5.11); with the name outside, the size too | the size (with the name inside), place, where an outside name is |
   | Reaction (its junction or a leg) | line colour, line width, junction colour, whether the junction is shown | its mode (straight, Bézier, linear) and handles, which are geometry |
   | Compartment | fill, border colour, border width | its box, whether the box is shown (§7.9) |
   | Text | typeface, bold, italic, size, colour, alignment | its words, wrap width, place |
@@ -1558,7 +1618,7 @@ See milestone F-1.
 ### 11.6 Graphics output
 
 All three outputs draw the **content bounds**: the union of all species rectangles
-and junction points, plus a 60-unit margin, or 800 × 600 if the model is empty.
+and junction points (with names drawn outside their node, §5.11), plus a 60-unit margin, or 800 × 600 if the model is empty.
 Each output saves the view's zoom and scroll first, draws with its own transform,
 and restores them afterwards.
 
@@ -1987,7 +2047,7 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | F-2 | **Compartment drawing** | A compartment is drawn as a rounded box containing its species, with its own style. This replaces the status-bar warning. **Done: §7.9.** |
 | F-3 | **Font size and label colour controls** | The model already stores `fontSize` and `labelColor`. Only the UI is missing. **Done: §8.1**, with Copy Style and Paste Style (§8.5). |
 | F-4 | **Node shapes** | Rectangle, ellipse, circle and polygon. Border intersection and hit testing must handle each shape. **Done: §5.10** (rectangle, ellipse, circle, hexagon; hit testing keeps the box), with resizing (§7.10). |
-| F-5 | **Label positioning** | Inside, above, below, left or right of the node. |
+| F-5 | **Label positioning** | Inside, above, below, left or right of the node. **Done: §5.11**, as a name inside or outside the node, dragged anywhere outside it. |
 | F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. |
 | F-7 | **Arrange in a circle** | Put the selected nodes on a circle. |
 | F-8 | **Human-readable layout format** | Convert between the JSON format and a text format for layout ("Alcuin"). The reference lexer already has keywords for it (`layout`, `at`, `size`, `style`, `bezier`, `cp`, …). |
