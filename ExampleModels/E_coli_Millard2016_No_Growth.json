@@ -1810,7 +1810,7 @@
     {
       "id": "ACCOA",
       "x": 1142.650723777391,
-      "y": 1019.2150127970447,
+      "y": 1012.4512854664083,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.154743005197164,
@@ -2042,7 +2042,7 @@
       "id": "NADPH",
       "x": 954.985552890622,
       "y": -631.4113446317506,
-      "w": 80.0,
+      "w": 70.0,
       "h": 36.0,
       "initialValue": 0.0891627925196171,
       "isBoundary": false,
@@ -2117,8 +2117,8 @@
     },
     {
       "id": "Q",
-      "x": 1417.6880647213475,
-      "y": 876.7116049209379,
+      "x": 1448.7229671012901,
+      "y": 891.0354060193731,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.326117384176523,
@@ -2414,8 +2414,8 @@
     },
     {
       "id": "HCO3",
-      "x": 823.6245596223052,
-      "y": 771.2849439500476,
+      "x": 799.7515577915799,
+      "y": 807.8902134238264,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 1.4,
@@ -2458,8 +2458,8 @@
     },
     {
       "id": "MgATP",
-      "x": 2009.5438738617631,
-      "y": -510.79846658873083,
+      "x": 2038.9872427863245,
+      "y": -544.2206691517462,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 2.37120966755768,
@@ -2480,8 +2480,8 @@
     },
     {
       "id": "ASP",
-      "x": 2129.6778563683006,
-      "y": -450.4234152601998,
+      "x": 2155.938158382098,
+      "y": -443.2615147109822,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 1.17,
@@ -2491,8 +2491,8 @@
     },
     {
       "id": "CYS",
-      "x": 2114.2469370851277,
-      "y": -510.7153382747917,
+      "x": 2148.464906375834,
+      "y": -544.1375408378071,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.085,
@@ -2569,7 +2569,7 @@
     {
       "id": "ACEx",
       "x": 483.2930171909581,
-      "y": 1014.04281892179,
+      "y": 1012.4512854664083,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.000186707816309202,
@@ -2599,8 +2599,8 @@
     },
     {
       "id": "ACEx_0",
-      "x": 147.06918147741337,
-      "y": 925.6470249355528,
+      "x": 134.44036350895973,
+      "y": 1006.6819402331305,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.000186687071641801,
@@ -2641,7 +2641,7 @@
     {
       "id": "ACEp",
       "x": 326.26458843766574,
-      "y": 924.3285815119751,
+      "y": 1009.5731027990373,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.000186697443975502,
@@ -2662,8 +2662,8 @@
     },
     {
       "id": "_sink__ACE_OUT",
-      "x": -15.720461955305332,
-      "y": 926.8435068480162,
+      "x": 7.432370986859704,
+      "y": 1005.7736191508516,
       "w": 28.0,
       "h": 28.0,
       "initialValue": 0.0,
@@ -2675,105 +2675,222 @@
       "id": "S3",
       "x": 965.0637366976582,
       "y": -4.012431105563678,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S4",
       "x": 862.8666486633527,
       "y": -240.16709604129284,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S5",
-      "x": 1307.8286485500157,
-      "y": 593.9321667009809,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 1349.2085183899399,
+      "y": 748.3109118730042,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S6",
       "x": 1894.380662972047,
       "y": 1526.8226941869993,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S7",
       "x": 2022.8094027006523,
       "y": 108.08840328828153,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S8",
       "x": 2257.212862993932,
       "y": 946.5367483725082,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S9",
       "x": 1900.2656654582754,
       "y": 622.0782037234153,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S10",
-      "x": 778.6470217134658,
-      "y": 925.7499446547232,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 815.2522911872445,
+      "y": 942.4610459362309,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S11",
       "x": 1005.822298770058,
       "y": 1051.993066549304,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S12",
       "x": 2267.5540005607477,
-      "y": -402.9004070473958,
+      "y": -394.14697304279656,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -2785,45 +2902,97 @@
       "id": "S13",
       "x": 1885.8003452686705,
       "y": 466.4488340517975,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S14",
       "x": 1778.8758399675312,
       "y": -465.97481965050144,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "P"
+      "aliasOf": "P",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S15",
       "x": 710.896377476959,
       "y": -320.42137563944294,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S16",
       "x": 991.0015653120931,
       "y": 256.6739926179653,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S17",
@@ -2862,14 +3031,27 @@
     },
     {
       "id": "S19",
-      "x": 1334.9381968332652,
-      "y": 665.2169263103732,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 1150.32031600899,
+      "y": 636.569324113503,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S20",
@@ -2921,56 +3103,121 @@
       "id": "S23",
       "x": 1927.7600731025318,
       "y": 1356.0823960033445,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S24",
       "x": 1786.3251654944252,
       "y": 178.0857952991995,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S26",
       "x": 2175.432477943834,
       "y": 1088.7338722035156,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S28",
       "x": 427.6210497912543,
       "y": 1146.9042556623376,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S29",
-      "x": 627.9161919229792,
-      "y": 1078.3123583064787,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 642.6286610110002,
+      "y": 1067.171624118807,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S30",
@@ -2987,23 +3234,49 @@
       "id": "S31",
       "x": 706.4955934709047,
       "y": -260.2688678993528,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S32",
       "x": 980.9636554282515,
       "y": 180.38008290124543,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S33",
@@ -3031,14 +3304,27 @@
     },
     {
       "id": "S34",
-      "x": 1121.7595246714397,
-      "y": 604.0969355954722,
-      "w": 80.0,
+      "x": 1109.0272570283862,
+      "y": 600.9138686847089,
+      "w": 36.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S35",
@@ -3055,83 +3341,171 @@
       "id": "S36",
       "x": 1902.3202164745787,
       "y": 1456.746905464059,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S39",
       "x": 2283.5055330821097,
       "y": 1089.7862736307507,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S40",
       "x": 523.0267400723656,
       "y": 1197.4812170867451,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S41",
       "x": 1687.0579925091654,
       "y": 383.27368572423336,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S42",
       "x": 820.4629990365203,
-      "y": 9.429104414204453,
-      "w": 80.0,
+      "y": 8.63333768651361,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NAD"
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S43",
-      "x": 1123.463663789928,
-      "y": 837.9443053832784,
-      "w": 80.0,
+      "x": 1148.9281990760348,
+      "y": 826.0078044679159,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NAD"
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S44",
-      "x": 927.1502628178217,
-      "y": 882.2046699024336,
-      "w": 80.0,
+      "x": 982.8539337561806,
+      "y": 746.1285594672996,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NAD"
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S45",
-      "x": 2135.804516895505,
-      "y": -296.9202038033814,
+      "x": 2150.9240847216306,
+      "y": -492.6788188153285,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3143,39 +3517,75 @@
       "id": "S46",
       "x": 2290.349475286911,
       "y": 211.69719007850028,
-      "w": 80.0,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NAD"
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S47",
-      "x": 1447.0964333458883,
-      "y": 321.13115951197665,
-      "w": 80.0,
+      "x": 1382.1425239410032,
+      "y": 279.7512896720529,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NAD"
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S48",
       "x": 498.5107558243953,
       "y": 1860.917863041983,
-      "w": 80.0,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NAD"
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S49",
-      "x": 1947.505742170356,
-      "y": -282.0284729571612,
+      "x": 2257.0589992420937,
+      "y": -494.49818925061595,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3185,8 +3595,8 @@
     },
     {
       "id": "S50",
-      "x": 2039.2260167508973,
-      "y": -280.4129142823362,
+      "x": 2041.6133169339696,
+      "y": -497.657230941936,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3196,190 +3606,405 @@
     },
     {
       "id": "S51",
-      "x": 991.1080401721588,
-      "y": 743.2563260613454,
-      "w": 80.0,
+      "x": 984.3969388906511,
+      "y": 805.7769300889408,
+      "w": 54.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "COA"
+      "aliasOf": "COA",
+      "style": {
+        "fillColor": "#FFE8E8FF",
+        "borderColor": "#FF4444FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid"
     },
     {
       "id": "S52",
       "x": 1061.7118560251367,
       "y": 1142.795438199794,
-      "w": 80.0,
+      "w": 54.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "COA"
+      "aliasOf": "COA",
+      "style": {
+        "fillColor": "#FFE8E8FF",
+        "borderColor": "#FF4444FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid"
     },
     {
       "id": "S53",
       "x": 1719.0529095980007,
       "y": 1718.12783835209,
-      "w": 80.0,
+      "w": 54.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "COA"
+      "aliasOf": "COA",
+      "style": {
+        "fillColor": "#FFE8E8FF",
+        "borderColor": "#FF4444FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid"
     },
     {
       "id": "S54",
       "x": 1945.4422328176936,
       "y": 1297.1410143805529,
-      "w": 80.0,
+      "w": 54.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "COA"
+      "aliasOf": "COA",
+      "style": {
+        "fillColor": "#FFE8E8FF",
+        "borderColor": "#FF4444FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid"
     },
     {
       "id": "S55",
-      "x": 612.7768255418207,
-      "y": 914.2304228319674,
-      "w": 80.0,
+      "x": 650.6286610110002,
+      "y": 941.4610459362309,
+      "w": 54.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "COA"
+      "aliasOf": "COA",
+      "style": {
+        "fillColor": "#FFE8E8FF",
+        "borderColor": "#FF4444FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid"
     },
     {
       "id": "S56",
       "x": 924.9726755548209,
       "y": 1200.1976528485372,
-      "w": 80.0,
+      "w": 54.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "COA"
+      "aliasOf": "COA",
+      "style": {
+        "fillColor": "#FFE8E8FF",
+        "borderColor": "#FF4444FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid"
     },
     {
       "id": "S57",
       "x": 838.1519334019409,
-      "y": -636.0282104264658,
-      "w": 80.0,
+      "y": -636.8239771541566,
+      "w": 70.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADP"
+      "aliasOf": "NADP",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S58",
       "x": 1344.3734489536384,
       "y": -502.7298611990294,
-      "w": 80.0,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADP"
+      "aliasOf": "NADP",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S59",
       "x": 1556.9298180732335,
-      "y": 281.11804990632913,
-      "w": 80.0,
+      "y": 279.7512896720529,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADP"
+      "aliasOf": "NADP",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S60",
       "x": 1559.3952050120515,
-      "y": -515.2835249807374,
-      "w": 80.0,
+      "y": -514.4877582530465,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADPH"
+      "aliasOf": "NADPH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S61",
-      "x": 1468.8894778828924,
+      "x": 1469.6852446105831,
       "y": 1781.5836410888805,
-      "w": 80.0,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADPH"
+      "aliasOf": "NADPH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S62",
-      "x": 1436.2546614239805,
-      "y": 147.65939740916428,
-      "w": 80.0,
+      "x": 1382.1425239410032,
+      "y": 158.6923713025275,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADPH"
+      "aliasOf": "NADPH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S63",
       "x": 1550.141565220089,
       "y": -419.09407185811517,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "HCO3"
+      "aliasOf": "HCO3",
+      "style": {
+        "fillColor": "#F0F0F0FF",
+        "borderColor": "#000000FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S64",
       "x": 1273.0056298114953,
       "y": 483.31209009171937,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "HCO3"
+      "aliasOf": "HCO3",
+      "style": {
+        "fillColor": "#F0F0F0FF",
+        "borderColor": "#000000FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S65",
-      "x": 1279.2055249138725,
-      "y": 672.6239706625225,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 1081.0596097188527,
+      "y": 558.8293286027322,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "HCO3"
+      "aliasOf": "HCO3",
+      "style": {
+        "fillColor": "#F0F0F0FF",
+        "borderColor": "#000000FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S66",
-      "x": 1112.6433487621937,
-      "y": 763.6491338460496,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 1146.065551325209,
+      "y": 764.4449005737405,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "HCO3"
+      "aliasOf": "HCO3",
+      "style": {
+        "fillColor": "#F0F0F0FF",
+        "borderColor": "#000000FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S67",
       "x": 1556.960746358086,
       "y": 1811.300440472444,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "HCO3"
+      "aliasOf": "HCO3",
+      "style": {
+        "fillColor": "#F0F0F0FF",
+        "borderColor": "#000000FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S68",
@@ -3396,39 +4021,75 @@
       "id": "S69",
       "x": 831.4220634745747,
       "y": 77.20870872875958,
-      "w": 80.0,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S70",
-      "x": 1117.3047030227024,
-      "y": 895.7337449420547,
-      "w": 80.0,
+      "x": 1061.6010320843434,
+      "y": 846.3962078252225,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S71",
-      "x": 806.1362495625659,
-      "y": 833.2659045254571,
-      "w": 80.0,
+      "x": 881.7340886931959,
+      "y": 866.6881070884725,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S72",
-      "x": 2003.984839589705,
-      "y": -443.68266598849453,
+      "x": 2046.1604761573196,
+      "y": -439.7038323500403,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3450,40 +4111,76 @@
     {
       "id": "S74",
       "x": 2190.877421746012,
-      "y": 212.52184144603248,
-      "w": 80.0,
+      "y": 210.9303079906508,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S75",
-      "x": 1572.3132412217865,
-      "y": 159.48813803021835,
-      "w": 80.0,
+      "x": 1556.9298180732335,
+      "y": 158.6923713025275,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S76",
       "x": 341.3273740919339,
-      "y": 1782.54275115418,
-      "w": 80.0,
+      "y": 1781.7469844264892,
+      "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S77",
-      "x": 2273.2546515450945,
-      "y": -462.9461697884958,
+      "x": 2262.113917357423,
+      "y": -446.23506850698817,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3517,14 +4214,27 @@
     },
     {
       "id": "S80",
-      "x": 801.8725079106475,
-      "y": 1069.2559885959245,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 814.604775553701,
+      "y": 1067.171624118807,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "AMP"
+      "aliasOf": "AMP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S81",
@@ -3594,8 +4304,8 @@
     },
     {
       "id": "S87",
-      "x": 1276.249328598712,
-      "y": 919.3532017457868,
+      "x": 1338.3191333585978,
+      "y": 903.43786719197,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3638,8 +4348,8 @@
     },
     {
       "id": "S91",
-      "x": 529.5908690705148,
-      "y": 1797.2202200832414,
+      "x": 505.7178672397895,
+      "y": 1778.917585346352,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3805,12 +4515,25 @@
       "id": "S107",
       "x": 1774.6900252159376,
       "y": 93.76425916334956,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     }
   ],
   "reactions": [
@@ -4060,8 +4783,8 @@
     },
     {
       "id": "PYK",
-      "jx": 958.8470385412842,
-      "jy": 611.1882740060405,
+      "jx": 946.1147708982306,
+      "jy": 609.3900936642416,
       "kineticLaw": "cell*Function_for_PYK(ADP, FDP, G6P, GL6P, KefrFDP, KefrG6P, KefrGL6P, KefrR5P, KefrRU5P, KefrS7P, KefrX5P, KeftATP, KeftSUCCOA, PYK_KirADP, PYK_KirATP, KirPEP, KirPYR, KirPyrATP, PYK_KitADP, PYK_KitATP, KitPEP, KitPYR, KitPyrATP, KmrADPMg, KmrPEP, KmtADPMg, KmtPEP, PYK_L0, MgADP, MgATP, PEP, PYR, R5P, RU5P, S7P, SUCCOA, PYK_Vmax, X5P, PYK_n)",
       "isReversible": false,
       "isLinear": false,
@@ -4073,8 +4796,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 994.2235787413572,
           "ctrl1y": 584.9115272087505,
-          "ctrl2x": 958.9815456103707,
-          "ctrl2y": 587.0675922580538,
+          "ctrl2x": 946.2492779673172,
+          "ctrl2y": 585.2694119162549,
           "ctrlSet": true
         },
         {
@@ -4082,8 +4805,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 916.6886192498218,
           "ctrl1y": 560.2450836071904,
-          "ctrl2x": 959.049122014561,
-          "ctrl2y": 574.949352300742,
+          "ctrl2x": 946.3168543715075,
+          "ctrl2y": 573.1511719589431,
           "ctrlSet": true
         }
       ],
@@ -4091,8 +4814,8 @@
         {
           "id": "S17",
           "stoichiometry": 1.0,
-          "ctrl1x": 958.7207633270751,
-          "ctrl1y": 633.8327660411429,
+          "ctrl1x": 945.9884956840216,
+          "ctrl1y": 632.034585699344,
           "ctrl2x": 979.1929601223528,
           "ctrl2y": 649.9937375960382,
           "ctrlSet": true
@@ -4100,8 +4823,8 @@
         {
           "id": "PYR",
           "stoichiometry": 1.0,
-          "ctrl1x": 958.6175029297548,
-          "ctrl1y": 652.3500915456588,
+          "ctrl1x": 945.8852352867012,
+          "ctrl1y": 650.5519112038598,
           "ctrl2x": 912.820138966729,
           "ctrl2y": 674.2234759619072,
           "ctrlSet": true
@@ -4234,7 +4957,7 @@
           "ctrl1x": 1474.973942861112,
           "ctrl1y": -531.9402520583915,
           "ctrl2x": 1514.0296109060778,
-          "ctrl2y": -530.4459042588641,
+          "ctrl2y": -529.6501375311732,
           "ctrlSet": true
         },
         {
@@ -4583,7 +5306,7 @@
     {
       "id": "FBP",
       "jx": 804.6260441953193,
-      "jy": -287.9449636548108,
+      "jy": -295.9449636548108,
       "kineticLaw": "cell*Function_for_FBP(AMP, F6P, FDP, KdFDPMg, KirAMP, KirAMPFDP, FBP_KirF6P, KirF6PMg, FBP_KirFDP, KirFDPMg, KirFDPMgMg, KirP, KirPF6P, KirPF6PMg, KirPMg, KitAMP, KitAMPFDP, FBP_KitF6P, KitF6PMg, FBP_KitFDP, KitFDPMg, KitFDPMgMg, KitP, KitPF6P, KitPF6PMg, KitPMg, FBP_KmrFDP, KmrMg, FBP_KmtFDP, KmtMg, FBP_L0, MG, MgFDP, P, FBP_Vmax, FBP_n)",
       "isReversible": false,
       "isLinear": false,
@@ -4619,31 +5342,51 @@
     },
     {
       "id": "PPC",
-      "jx": 1229.9501348028166,
-      "jy": 532.5837880181411,
+      "jx": 1271.3300046427403,
+      "jy": 636.0334626179505,
       "kineticLaw": "cell*Function_for_PPC(ACCOA, ASP, CIT, CYS, FDP, FUM, HCO3, KdrOAA, KdrPEP, KdtOAA, KdtPEP, KefrACCOA, KefrASP, KefrCIT, KefrCYS, PPC_KefrFDP, KefrFDPACCOA, KefrFUM, KefrMAL, KefrSUC, KeftACCOA, KeftASP, KeftCIT, KeftCYS, KeftFDP, KeftFDPACCOA, KeftFUM, KeftMAL, KeftSUC, PPC_Keq, KmrHCO3, KmrOAA, KmrP, PPC_KmrPEP, KmtHCO3, KmtOAA, KmtP, PPC_KmtPEP, PPC_L0, MAL, OAA, P, PEP, SUC, PPC_Vmax, PPC_n)",
       "isReversible": true,
       "isLinear": false,
-      "isBezier": false,
-      "isJunctionSmooth": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
       "reactants": [
         {
           "id": "PEP",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1017.1450700351941,
+          "ctrl1y": 508.16051168070027,
+          "ctrl2x": 1273.3875552849208,
+          "ctrl2y": 469.16126410286444,
+          "ctrlSet": true
         },
         {
           "id": "S64",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1271.464240929202,
+          "ctrl1y": 535.5709203843641,
+          "ctrl2x": 1271.6123614934943,
+          "ctrl2y": 613.1336576337213,
+          "ctrlSet": true
         }
       ],
       "products": [
         {
           "id": "OAA",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1269.4861321861767,
+          "ctrl1y": 785.575857492908,
+          "ctrl2x": 1285.746273280887,
+          "ctrl2y": 878.0274793721153,
+          "ctrlSet": true
         },
         {
           "id": "S5",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1270.904413556303,
+          "ctrl1y": 670.5499011474622,
+          "ctrl2x": 1265.9688492853695,
+          "ctrl2y": 705.1145476680504,
+          "ctrlSet": true
         }
       ],
       "modifiers": [
@@ -4675,35 +5418,60 @@
     },
     {
       "id": "PCK",
-      "jx": 1189.0274625816157,
-      "jy": 545.507338880197,
+      "jx": 1215.2877645954136,
+      "jy": 591.6618090862659,
       "kineticLaw": "cell*Function_for_PCK(ADP, HCO3, PCK_Keq, KmADP, KmATP, PCK_KmHCO3, KmOAA, PCK_KmPEP, MgADP, MgATP, OAA, PEP, PCK_Vmax)",
       "isReversible": true,
       "isLinear": false,
-      "isBezier": false,
-      "isJunctionSmooth": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
       "reactants": [
         {
           "id": "S19",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1198.5632466367297,
+          "ctrl1y": 616.5943418608239,
+          "ctrl2x": 1224.4326739972203,
+          "ctrl2y": 622.9174913497523,
+          "ctrlSet": true
         },
         {
           "id": "OAA",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1245.9588027173597,
+          "ctrl1y": 879.3676552630715,
+          "ctrl2x": 1262.46767194011,
+          "ctrl2y": 752.9143845240535,
+          "ctrlSet": true
         }
       ],
       "products": [
         {
           "id": "S34",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1206.2376289043184,
+          "ctrl1y": 560.7300465970249,
+          "ctrl2x": 1163.6059376768906,
+          "ctrl2y": 580.7258165254389,
+          "ctrlSet": true
         },
         {
           "id": "PEP",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1186.2585566295124,
+          "ctrl1y": 492.4451125967821,
+          "ctrl2x": 997.2517676639379,
+          "ctrl2y": 536.5567563131451,
+          "ctrlSet": true
         },
         {
           "id": "S65",
-          "stoichiometry": 1.0
+          "stoichiometry": 1.0,
+          "ctrl1x": 1201.6088016757008,
+          "ctrl1y": 544.9095341399342,
+          "ctrl2x": 1132.6946992826404,
+          "ctrl2y": 557.9067358199918,
+          "ctrlSet": true
         }
       ],
       "modifiers": [
@@ -4730,8 +5498,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 822.8301314899218,
           "ctrl1y": 689.1195152536444,
-          "ctrl2x": 854.4055265002733,
-          "ctrl2y": 645.7244484595153,
+          "ctrl2x": 851.2224595895099,
+          "ctrl2y": 644.9286817318244,
           "ctrlSet": true
         },
         {
@@ -4739,8 +5507,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 875.6182139284128,
           "ctrl1y": 672.8941128422775,
-          "ctrl2x": 854.4054336399175,
-          "ctrl2y": 645.7226243708433,
+          "ctrl2x": 851.1918662513801,
+          "ctrl2y": 645.744095667972,
           "ctrlSet": true
         }
       ],
@@ -4748,8 +5516,8 @@
         {
           "id": "S78",
           "stoichiometry": 1.0,
-          "ctrl1x": 851.4055050030817,
-          "ctrl1y": 586.7939696037206,
+          "ctrl1x": 853.4041042191567,
+          "ctrl1y": 586.7806160584479,
           "ctrl2x": 805.4193654414667,
           "ctrl2y": 514.6566022844397,
           "ctrlSet": true
@@ -4757,8 +5525,8 @@
         {
           "id": "PEP",
           "stoichiometry": 1.0,
-          "ctrl1x": 850.9896296854221,
-          "ctrl1y": 578.6247842705726,
+          "ctrl1x": 853.710783236881,
+          "ctrl1y": 578.6066030129942,
           "ctrl2x": 879.4866942115057,
           "ctrl2y": 558.9157204875607,
           "ctrlSet": true
@@ -4766,8 +5534,8 @@
         {
           "id": "P",
           "stoichiometry": 1.0,
-          "ctrl1x": 850.485549700899,
-          "ctrl1y": 568.7229636011645,
+          "ctrl1x": 854.0825070395291,
+          "ctrl1y": 568.6989307023828,
           "ctrl2x": 777.3354419843583,
           "ctrl2y": 601.6021314532542,
           "ctrlSet": true
@@ -4899,12 +5667,7 @@
       "reactants": [
         {
           "id": "ACCOA",
-          "stoichiometry": 1.0,
-          "ctrl1x": 1182.3891975229196,
-          "ctrl1y": 1045.2416837741316,
-          "ctrl2x": 1223.4600463288996,
-          "ctrl2y": 1103.6520034809278,
-          "ctrlSet": true
+          "stoichiometry": 1.0
         },
         {
           "id": "OAA",
@@ -5066,7 +5829,7 @@
           "stoichiometry": 1.0,
           "ctrl1x": 1504.6439358934224,
           "ctrl1y": 1660.8511558176851,
-          "ctrl2x": 1471.5599992522243,
+          "ctrl2x": 1472.355765979915,
           "ctrl2y": 1734.1557778290885,
           "ctrlSet": true
         },
@@ -5330,8 +6093,8 @@
         {
           "id": "Q",
           "stoichiometry": 1.0,
-          "ctrl1x": 1431.3998800866793,
-          "ctrl1y": 922.192590147301,
+          "ctrl1x": 1462.434782466622,
+          "ctrl1y": 936.5163912457361,
           "ctrl2x": 1425.3165458033218,
           "ctrl2y": 993.3373237112879,
           "ctrlSet": true
@@ -5352,8 +6115,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 1334.3545753505957,
           "ctrl1y": 1020.7609544419519,
-          "ctrl2x": 1289.9611439640441,
-          "ctrl2y": 964.8341869721498,
+          "ctrl2x": 1352.03094872393,
+          "ctrl2y": 948.918852418333,
           "ctrlSet": true
         }
       ],
@@ -5639,7 +6402,7 @@
           "id": "S74",
           "stoichiometry": 1.0,
           "ctrl1x": 2191.469465935933,
-          "ctrl1y": 248.8001318216781,
+          "ctrl1y": 247.2085983662964,
           "ctrl2x": 2202.2466655505696,
           "ctrl2y": 261.3169878980587,
           "ctrlSet": true
@@ -5703,8 +6466,8 @@
     },
     {
       "id": "PNT_req",
-      "jx": 1452.1072672958412,
-      "jy": 228.01265474833895,
+      "jx": 1469.5361710071184,
+      "jy": 219.22183048729022,
       "kineticLaw": "cell*Function_for_PNT(PNT_req_Keq, NAD, NADH, NADP, NADPH, PNT_req_k)",
       "isReversible": true,
       "isLinear": false,
@@ -5714,19 +6477,19 @@
         {
           "id": "S47",
           "stoichiometry": 1.0,
-          "ctrl1x": 1448.8502252283718,
-          "ctrl1y": 288.53968284470346,
-          "ctrl2x": 1419.6809505438935,
-          "ctrl2y": 231.72938977021363,
+          "ctrl1x": 1412.7303004141436,
+          "ctrl1y": 258.56597895738594,
+          "ctrl2x": 1432.328249005913,
+          "ctrl2y": 219.22183048729022,
           "ctrlSet": true
         },
         {
           "id": "S62",
           "stoichiometry": 1.0,
-          "ctrl1x": 1441.8030734791316,
-          "ctrl1y": 175.7830374778754,
-          "ctrl2x": 1423.6280077445688,
-          "ctrl2y": 231.27697434963673,
+          "ctrl1x": 1412.7303004141436,
+          "ctrl1y": 179.87768201719445,
+          "ctrl2x": 1432.328249005913,
+          "ctrl2y": 219.22183048729022,
           "ctrlSet": true
         }
       ],
@@ -5734,19 +6497,19 @@
         {
           "id": "S75",
           "stoichiometry": 1.0,
-          "ctrl1x": 1500.220263830482,
-          "ctrl1y": 222.49789768864625,
-          "ctrl2x": 1530.2411503477056,
-          "ctrl2y": 183.47171888156055,
+          "ctrl1x": 1506.7440930083237,
+          "ctrl1y": 219.22183048729022,
+          "ctrl2x": 1526.3420416000931,
+          "ctrl2y": 179.87768201719445,
           "ctrlSet": true
         },
         {
           "id": "S59",
           "stoichiometry": 1.0,
-          "ctrl1x": 1492.9672666590575,
-          "ctrl1y": 223.32924306798145,
-          "ctrl2x": 1520.2419253011462,
-          "ctrl2y": 262.5311616010326,
+          "ctrl1x": 1506.7440930083237,
+          "ctrl1y": 219.22183048729022,
+          "ctrl2x": 1526.3420416000931,
+          "ctrl2y": 258.56597895738594,
           "ctrlSet": true
         }
       ],
@@ -5936,7 +6699,7 @@
           "ctrl1x": 565.3329543557752,
           "ctrl1y": 1113.0774725840984,
           "ctrl2x": 536.4176973117991,
-          "ctrl2y": 1084.856533276232,
+          "ctrl2y": 1083.2649998208503,
           "ctrlSet": true
         },
         {
@@ -5965,27 +6728,27 @@
           "id": "ACEx",
           "stoichiometry": 1.0,
           "ctrl1x": 536.951895731313,
-          "ctrl1y": 1010.7288305349873,
-          "ctrl2x": 683.0852849999876,
-          "ctrl2y": 1012.634448219514,
+          "ctrl1y": 1009.1372970796057,
+          "ctrl2x": 683.0921691762928,
+          "ctrl2y": 1014.4469918336791,
           "ctrlSet": true
         },
         {
           "id": "S29",
           "stoichiometry": 1.0,
-          "ctrl1x": 651.0712472368756,
-          "ctrl1y": 1063.756967750258,
-          "ctrl2x": 709.4942693260305,
-          "ctrl2y": 1012.9793757049922,
+          "ctrl1x": 679.5820994706727,
+          "ctrl1y": 1037.1886181074983,
+          "ctrl2x": 698.8715605172321,
+          "ctrl2y": 1014.1210006671982,
           "ctrlSet": true
         },
         {
           "id": "S55",
           "stoichiometry": 1.0,
-          "ctrl1x": 619.770989163633,
-          "ctrl1y": 931.4457211553723,
-          "ctrl2x": 718.2615612070955,
-          "ctrl2y": 1013.0938852183326,
+          "ctrl1x": 680.8032658322186,
+          "ctrl1y": 966.6174764764957,
+          "ctrl2x": 671.4786341495819,
+          "ctrl2y": 1014.6869193282524,
           "ctrlSet": true
         }
       ],
@@ -5993,28 +6756,28 @@
         {
           "id": "ACCOA",
           "stoichiometry": 1.0,
-          "ctrl1x": 924.6641043410598,
-          "ctrl1y": 1015.7897068114903,
-          "ctrl2x": 962.82726104762,
-          "ctrl2y": 1019.8462811178795,
+          "ctrl1x": 899.4557944557363,
+          "ctrl1y": 1009.9770709688685,
+          "ctrl2x": 1000.6176066303726,
+          "ctrl2y": 1012.761132171111,
           "ctrlSet": true
         },
         {
           "id": "S80",
           "stoichiometry": 1.0,
-          "ctrl1x": 771.4743335993487,
-          "ctrl1y": 1013.7888967170703,
-          "ctrl2x": 773.6974783872404,
-          "ctrl2y": 1049.1119204932156,
+          "ctrl1x": 769.937598671264,
+          "ctrl1y": 1012.6528261239317,
+          "ctrl2x": 787.387740284974,
+          "ctrl2y": 1048.32935229517,
           "ctrlSet": true
         },
         {
           "id": "S10",
           "stoichiometry": 2.0,
-          "ctrl1x": 774.8427129541775,
-          "ctrl1y": 1013.8328910868141,
-          "ctrl2x": 781.0925209221325,
-          "ctrl2y": 958.9526262148653,
+          "ctrl1x": 774.8378464784165,
+          "ctrl1y": 1012.5515904384617,
+          "ctrl2x": 817.6977903959112,
+          "ctrl2y": 975.663727496373,
           "ctrlSet": true
         }
       ],
@@ -6033,19 +6796,19 @@
         {
           "id": "ACCOA",
           "stoichiometry": 1.0,
-          "ctrl1x": 1044.9671907624179,
-          "ctrl1y": 1078.1360182665933,
-          "ctrl2x": 1091.621218863793,
-          "ctrl2y": 1070.2022664316426,
+          "ctrl1x": 1084.2862147507408,
+          "ctrl1y": 1046.85505706024,
+          "ctrl2x": 1037.732802947205,
+          "ctrl2y": 1073.4500609961033,
           "ctrlSet": true
         },
         {
           "id": "S11",
           "stoichiometry": 1.0,
-          "ctrl1x": 970.0943130187261,
-          "ctrl1y": 1038.216416546755,
-          "ctrl2x": 1012.0332780882427,
-          "ctrl2y": 1098.0864673527021,
+          "ctrl1x": 993.1715481217605,
+          "ctrl1y": 1097.898921123568,
+          "ctrl2x": 1008.6844794522258,
+          "ctrl2y": 1090.970667261907,
           "ctrlSet": true
         }
       ],
@@ -6053,8 +6816,8 @@
         {
           "id": "S56",
           "stoichiometry": 1.0,
-          "ctrl1x": 930.8018856884806,
-          "ctrl1y": 1126.546463235247,
+          "ctrl1x": 934.9804920029301,
+          "ctrl1y": 1135.425506266369,
           "ctrl2x": 936.6784272667752,
           "ctrl2y": 1162.3166606446928,
           "ctrlSet": true
@@ -6062,8 +6825,8 @@
         {
           "id": "ACP",
           "stoichiometry": 1.0,
-          "ctrl1x": 909.0413720016579,
-          "ctrl1y": 1134.1704139227015,
+          "ctrl1x": 918.5905727339481,
+          "ctrl1y": 1145.3111481103733,
           "ctrl2x": 847.0787957466824,
           "ctrl2y": 1174.4285477112953,
           "ctrlSet": true
@@ -6591,7 +7354,7 @@
     {
       "id": "XCH_ACE1",
       "jx": 387.24049384088653,
-      "jy": 959.1656291539504,
+      "jy": 1010.6907335073885,
       "kineticLaw": "Function_for_XCH_RMM(XCH_ACE1_Vmax, ACEx, ACEp, XCH_ACE1_Km)",
       "isReversible": true,
       "isLinear": true,
@@ -6613,8 +7376,8 @@
     },
     {
       "id": "_ACE_OUT",
-      "jx": 64.05393131281726,
-      "jy": 926.2571758222191,
+      "jx": 69.67211382308227,
+      "jy": 1006.2187381504604,
       "kineticLaw": "extracellular*_ACE_OUT_k1*ACEx_0",
       "isReversible": false,
       "isLinear": true,
@@ -6636,8 +7399,8 @@
     },
     {
       "id": "XCH_ACE2",
-      "jx": 216.959118630862,
-      "jy": 925.132804568093,
+      "jx": 209.25580243229103,
+      "jy": 1007.8095537889649,
       "kineticLaw": "Function_for_XCH_RMM(XCH_ACE2_Vmax, ACEp, ACEx_0, XCH_ACE2_Km)",
       "isReversible": true,
       "isLinear": true,
