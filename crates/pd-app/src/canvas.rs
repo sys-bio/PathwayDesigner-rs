@@ -42,6 +42,12 @@ pub enum MenuAction {
     MergeIntoPrimary(String),
     CopyStyle(Target),
     PasteStyle,
+    /// Asks for a name to save the item's look under (S §8.6).
+    SaveStyle(Target),
+    /// The selected items of the kind take the style (S §8.6).
+    ApplyStyle(pd_core::model::StyleKind, String),
+    /// The style takes the item's look.
+    UpdateStyle(String, Target),
     Rename(String),
     GoToPrimary(String),
     DeleteSpecies(String),
@@ -304,7 +310,8 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
     chosen
 }
 
-/// Copy Style and Paste Style (S §8.5), for the item right-clicked.
+/// Copy Style and Paste Style (S §8.5), Save Style…, Apply Style and
+/// Change Style to Match This (S §8.6), for the item right-clicked.
 fn style_items(
     ui: &mut egui::Ui,
     view: &DiagramView,
@@ -317,6 +324,54 @@ fn style_items(
     } else {
         ui.add_enabled(false, egui::Button::new("Paste Style"))
             .on_disabled_hover_text("Copy the style of something of this kind first");
+    }
+    item(ui, "Save Style…", MenuAction::SaveStyle(target.clone()));
+    let kind = style_kind(target);
+    let names = kind.map(|k| view.style_names(k)).unwrap_or_default();
+    const CHANGE: &str = "Change Style to Match This";
+    if let (Some(kind), false) = (kind, names.is_empty()) {
+        ui.menu_button("Apply Style", |ui| {
+            for name in &names {
+                item(ui, name, MenuAction::ApplyStyle(kind, name.clone()));
+            }
+        })
+        .response
+        .on_hover_text("Give the selected items a saved style");
+    } else {
+        ui.add_enabled(false, egui::Button::new("Apply Style"))
+            .on_disabled_hover_text("No saved style of this kind yet: use Save Style… first");
+    }
+    if names.is_empty() {
+        ui.add_enabled(false, egui::Button::new(CHANGE))
+            .on_disabled_hover_text("No saved style of this kind yet");
+    } else {
+        ui.menu_button(CHANGE, |ui| {
+            for name in names {
+                item(
+                    ui,
+                    &name,
+                    MenuAction::UpdateStyle(name.clone(), target.clone()),
+                );
+            }
+        })
+        .response
+        .on_hover_text(
+            "Change a saved style to this item's look: every item that follows it changes too",
+        );
+    }
+}
+
+/// The kind of item a context-menu target is, for its styles.
+fn style_kind(t: &Target) -> Option<pd_core::model::StyleKind> {
+    use pd_core::model::StyleKind;
+    match t {
+        Target::Species(_) | Target::SpeciesCorner(..) | Target::SpeciesLabel(_) => {
+            Some(StyleKind::Species)
+        }
+        Target::Junction(_) | Target::Leg(_) | Target::Handle(_) => Some(StyleKind::Reaction),
+        Target::Compartment(_) | Target::CompartmentCorner(..) => Some(StyleKind::Compartment),
+        Target::Text(_) | Target::TextWrap(_) => Some(StyleKind::Text),
+        Target::Empty => None,
     }
 }
 

@@ -351,9 +351,29 @@ and `labelDy`: where its name's centre is drawn, from the node's centre. Both ar
 written for a name outside the node and both left out for one inside. A species
 with only one of them, or with a value that isn't a number, has its name drawn
 inside, with a warning. A document in which any species has its name outside is
-version 6; otherwise it is written as version 5, 4 or 3 as before. Saved styles
-(S §16.2 F-6) are planned for version 6 too. `Models/label_1.json` is the sample
-file.
+version 6; otherwise it is written as version 5, 4 or 3 as before.
+`Models/label_1.json` is the sample file.
+
+**Version 6: saved styles (S §8.6).** A species, reaction, compartment or text may
+have `styleName`: the saved style it follows. A top-level `styles` array, after
+`texts`, left out when empty, holds the styles some item follows (a style nothing
+follows is not written). Each is an object with `name`, `kind` (`"species"`,
+`"reaction"`, `"compartment"` or `"text"`) and the look, in the keys an item of that
+kind uses, each left out at its default:
+
+| Kind | Keys |
+|---|---|
+| species | `style` (the style object, only when custom), `shape`, `borderDash`, `labelOutside` (true for a name outside the node), and then `w` and `h`, the size |
+| reaction | `style` (written as on a reaction, so a hidden junction is kept) |
+| compartment | `style` |
+| text | `size`, `typeface`, `bold`, `italic`, `align`, `color` |
+
+Keys that don't belong to the kind are ignored. A style of a kind this version
+doesn't know, with no name, with a name its kind already has, or with
+`labelOutside` but no size, is skipped with a warning. An item following a style
+the file doesn't have is unlinked with a warning; one that doesn't look like its
+style is unlinked quietly. A document in which an item follows a style is version
+6.
 
 **Version 4: drawn compartments (S §7.9).** Each entry of `compartments` may have
 `x`, `y`, `w` and `h`: the box's centre and size, as for a species. All four are

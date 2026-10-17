@@ -15,12 +15,14 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::geometry::pt;
 use crate::model::{
     AssignmentRule, BorderDash, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH,
-    DEFAULT_TEXT_SIZE, Frame, Model, NodeShape, Parameter, Participant, Reaction, ReactionMode,
-    Rgba, SpeciesNode, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
+    DEFAULT_TEXT_SIZE, Frame, Look, Model, NodeShape, Parameter, Participant, Reaction,
+    ReactionMode, Rgba, SavedStyle, SpeciesNode, StyleKind, TextAlign, TextFont, TextItem,
+    Typeface, VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought names drawn outside their node (S §5.11).
+/// one that brought names drawn outside their node (S §5.11) and saved
+/// styles (S §8.6).
 pub const FORMAT_VERSION: u32 = 6;
 
 /// The version that brought species shapes and border styles.
@@ -34,11 +36,12 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 6 if a species has its name outside, 5 if one has a
+/// (SPEC-Rust §4.2): 6 if a species has its name outside or an item follows
+/// a saved style, 5 if one has a
 /// shape other than the rounded rectangle or a border style other than
 /// automatic, 4 if it has free text or a drawn compartment, 3 otherwise.
 pub fn needed_version(model: &Model) -> u32 {
-    if model.species().iter().any(|s| s.label_offset.is_some()) {
+    if model.species().iter().any(|s| s.label_offset.is_some()) || crate::styles::any_links(model) {
         FORMAT_VERSION
     } else if model
         .species()
@@ -150,6 +153,49 @@ struct FileModel {
     /// Version 4: free text. Left out when there is none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     texts: Vec<FileText>,
+    /// Version 6: the saved styles some item follows (S §8.6). Left out when
+    /// there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    styles: Vec<FileSavedStyle>,
+}
+
+/// A saved style (version 6, S §8.6): a name, a kind, and the look, in the
+/// keys an item of that kind uses. Keys that don't belong to the kind are
+/// ignored.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileSavedStyle {
+    name: String,
+    /// `"species"`, `"reaction"`, `"compartment"` or `"text"`.
+    kind: String,
+    /// Species, reactions and compartments: their style object.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style: Option<FileStyle>,
+    /// Species: as on a species.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shape: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    border_dash: Option<String>,
+    /// Species: the name drawn outside the node, and then the node's size.
+    #[serde(default, skip_serializing_if = "is_false")]
+    label_outside: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    w: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    h: Option<f64>,
+    /// Texts: as on a text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    size: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    typeface: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    bold: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    italic: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    align: Option<String>,
+    #[serde(default, with = "colour", skip_serializing_if = "is_default_colour")]
+    color: Rgba,
 }
 
 /// Free text (version 4, S §7.8). Every key but `id` is optional; left out
@@ -180,6 +226,9 @@ struct FileText {
     color: Rgba,
     #[serde(default, skip_serializing_if = "is_zero")]
     wrap_width: f64,
+    /// Version 6: the saved style it follows (S §8.6).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -205,6 +254,9 @@ struct FileCompartment {
     /// Version 4: its box is not shown (S §7.9). Left out when it is.
     #[serde(default, skip_serializing_if = "is_false")]
     hidden: bool,
+    /// Version 6: the saved style it follows (S §8.6).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style_name: Option<String>,
 }
 
 /// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
@@ -257,6 +309,9 @@ struct FileSpecies {
     label_dx: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label_dy: Option<f64>,
+    /// Version 6: the saved style it follows (S §8.6).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -286,6 +341,9 @@ struct FileReaction {
     modifiers: Vec<FileParticipant>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style: Option<FileStyle>,
+    /// Version 6: the saved style it follows (S §8.6).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style_name: Option<String>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -426,6 +484,7 @@ impl FileModel {
                 },
                 hidden: c.hidden,
                 selected: false,
+                style_name: c.style_name,
             })
             .collect();
         model.parameters = self
@@ -496,6 +555,7 @@ impl FileModel {
                 locked: s.locked,
                 selected: false,
                 style: style_from_file(s.style),
+                style_name: s.style_name,
             };
             if let Err(dup) = model.push_species(node) {
                 warnings.push(format!("A second species with id `{}` was skipped.", dup.0));
@@ -517,6 +577,7 @@ impl FileModel {
             reaction.mode = mode;
             reaction.junction_smooth = r.is_junction_smooth;
             reaction.style = style_from_file(r.style);
+            reaction.style_name = r.style_name;
             for (list, out) in [
                 (r.reactants, &mut reaction.reactants),
                 (r.products, &mut reaction.products),
@@ -571,6 +632,7 @@ impl FileModel {
                 size,
                 color: t.color,
                 selected: false,
+                style_name: t.style_name,
             };
             if let Err(dup) = model.push_text(item) {
                 warnings.push(format!(
@@ -580,6 +642,9 @@ impl FileModel {
             }
         }
 
+        model.styles = styles_from_file(self.styles, &mut warnings);
+        link_styles(&mut model, &mut warnings);
+
         model.recompute_id_counter();
         Loaded {
             model,
@@ -587,6 +652,120 @@ impl FileModel {
             warnings,
         }
     }
+}
+
+/// The saved styles (S §8.6). One with no name, a kind this version doesn't
+/// know, or a name its kind already has, is skipped with a warning.
+fn styles_from_file(list: Vec<FileSavedStyle>, warnings: &mut Vec<String>) -> Vec<SavedStyle> {
+    let mut out: Vec<SavedStyle> = Vec::new();
+    for f in list {
+        let name = f.name.trim().to_owned();
+        let Some(kind) = StyleKind::from_key(&f.kind) else {
+            warnings.push(format!(
+                "The style `{name}` is of a kind this version doesn't know (`{}`); it was skipped.",
+                f.kind
+            ));
+            continue;
+        };
+        if name.is_empty() {
+            warnings.push("A style with no name was skipped.".to_owned());
+            continue;
+        }
+        if out.iter().any(|s| s.kind() == kind && s.name == name) {
+            warnings.push(format!(
+                "A second {} style named `{name}` was skipped.",
+                kind.key()
+            ));
+            continue;
+        }
+        let look = match kind {
+            StyleKind::Species => {
+                let size = match (f.label_outside, f.w, f.h) {
+                    (false, _, _) => None,
+                    (true, Some(w), Some(h))
+                        if w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0 =>
+                    {
+                        Some((w, h))
+                    }
+                    _ => {
+                        warnings.push(format!(
+                            "The species style `{name}` puts the name outside but has no size; \
+                             it was skipped."
+                        ));
+                        continue;
+                    }
+                };
+                Look::Species {
+                    // As a species keeps it (S §8.5): the junction is a reaction's.
+                    style: VisualStyle {
+                        junction_visible: true,
+                        ..style_from_file(f.style)
+                    },
+                    shape: f
+                        .shape
+                        .as_deref()
+                        .and_then(NodeShape::from_key)
+                        .unwrap_or_default(),
+                    border_dash: f
+                        .border_dash
+                        .as_deref()
+                        .and_then(BorderDash::from_key)
+                        .unwrap_or_default(),
+                    label_outside: f.label_outside,
+                    size,
+                }
+            }
+            StyleKind::Reaction => Look::Reaction {
+                style: style_from_file(f.style),
+            },
+            StyleKind::Compartment => Look::Compartment {
+                style: style_from_file(f.style),
+            },
+            StyleKind::Text => Look::Text {
+                font: TextFont {
+                    typeface: if f.typeface.as_deref() == Some("serif") {
+                        Typeface::Serif
+                    } else {
+                        Typeface::Sans
+                    },
+                    bold: f.bold,
+                    italic: f.italic,
+                },
+                align: match f.align.as_deref() {
+                    Some("center") => TextAlign::Center,
+                    Some("right") => TextAlign::Right,
+                    _ => TextAlign::Left,
+                },
+                size: f
+                    .size
+                    .filter(|s| s.is_finite() && *s >= 1.0)
+                    .unwrap_or(DEFAULT_TEXT_SIZE),
+                color: f.color,
+            },
+        };
+        out.push(SavedStyle { name, look });
+    }
+    out
+}
+
+/// An item following a style the file doesn't have is unlinked, with a
+/// warning; one that no longer looks like its style (the file was edited by
+/// hand) is unlinked quietly, keeping its own look.
+fn link_styles(model: &mut Model, warnings: &mut Vec<String>) {
+    for kind in StyleKind::ALL {
+        for id in crate::styles::item_ids(model, kind) {
+            let Some(name) = crate::styles::link(model, kind, &id) else {
+                continue;
+            };
+            if crate::styles::find(model, kind, &name).is_none() {
+                warnings.push(format!(
+                    "`{id}` follows a style `{name}` that isn't in the file; it keeps its look."
+                ));
+                crate::styles::set_link(model, kind, &id, None);
+            }
+        }
+    }
+    crate::styles::drop_stale_links(model);
 }
 
 /// Makes every `alias_of` point at an existing primary (S §3.2). An alias of
@@ -706,6 +885,7 @@ impl FileModel {
                     w: c.frame.map(|f| f.width),
                     h: c.frame.map(|f| f.height),
                     hidden: c.hidden,
+                    style_name: c.style_name.clone(),
                 })
                 .collect(),
             parameters: m
@@ -746,6 +926,7 @@ impl FileModel {
                         .then(|| s.border_dash.key().to_owned()),
                     label_dx: s.label_offset.map(|o| o.x),
                     label_dy: s.label_offset.map(|o| o.y),
+                    style_name: s.style_name.clone(),
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -773,10 +954,73 @@ impl FileModel {
                     .to_owned(),
                     color: t.color,
                     wrap_width: t.wrap_width,
+                    style_name: t.style_name.clone(),
                 })
+                .collect(),
+            styles: m
+                .styles
+                .iter()
+                .filter(|st| !crate::styles::users(m, st.kind(), &st.name).is_empty())
+                .map(saved_style_to_file)
                 .collect(),
         }
     }
+}
+
+/// A saved style, in the keys an item of its kind uses.
+fn saved_style_to_file(st: &SavedStyle) -> FileSavedStyle {
+    let mut f = FileSavedStyle {
+        name: st.name.clone(),
+        kind: st.kind().key().to_owned(),
+        style: None,
+        shape: None,
+        border_dash: None,
+        label_outside: false,
+        w: None,
+        h: None,
+        size: None,
+        typeface: None,
+        bold: false,
+        italic: false,
+        align: None,
+        color: Rgba::DEFAULT,
+    };
+    match st.look {
+        Look::Species {
+            style,
+            shape,
+            border_dash,
+            label_outside,
+            size,
+        } => {
+            f.style = custom_style_to_file(&style);
+            f.shape = (shape != NodeShape::default()).then(|| shape.key().to_owned());
+            f.border_dash =
+                (border_dash != BorderDash::default()).then(|| border_dash.key().to_owned());
+            f.label_outside = label_outside;
+            (f.w, f.h) = (size.map(|s| s.0), size.map(|s| s.1));
+        }
+        // As a reaction's own (fix D-8): a hidden junction is kept.
+        Look::Reaction { style } => f.style = reaction_style_to_file(&style),
+        Look::Compartment { style } => f.style = custom_style_to_file(&style),
+        Look::Text {
+            font,
+            align,
+            size,
+            color,
+        } => {
+            f.size = Some(size);
+            f.typeface = (font.typeface == Typeface::Serif).then(|| "serif".to_owned());
+            (f.bold, f.italic) = (font.bold, font.italic);
+            f.align = match align {
+                TextAlign::Left => None,
+                TextAlign::Center => Some("center".to_owned()),
+                TextAlign::Right => Some("right".to_owned()),
+            };
+            f.color = color;
+        }
+    }
+    f
 }
 
 fn reaction_to_file(r: &Reaction) -> FileReaction {
@@ -797,18 +1041,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
             })
             .collect()
     };
-    // Fix D-8: a hidden junction is saved even without a custom style, as a
-    // style object whose other fields are all "use the default".
-    let style = if r.style.has_custom_style {
-        Some(style_to_file(&r.style))
-    } else if !r.style.junction_visible {
-        Some(style_to_file(&VisualStyle {
-            junction_visible: false,
-            ..VisualStyle::default()
-        }))
-    } else {
-        None
-    };
+    let style = reaction_style_to_file(&r.style);
     FileReaction {
         id: r.id.clone(),
         jx: r.junction.x,
@@ -837,6 +1070,23 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
             })
             .collect(),
         style,
+        style_name: r.style_name.clone(),
+    }
+}
+
+/// A reaction's style object. Fix D-8: a hidden junction is saved even
+/// without a custom style, as a style object whose other fields are all "use
+/// the default".
+fn reaction_style_to_file(s: &VisualStyle) -> Option<FileStyle> {
+    if s.has_custom_style {
+        Some(style_to_file(s))
+    } else if !s.junction_visible {
+        Some(style_to_file(&VisualStyle {
+            junction_visible: false,
+            ..VisualStyle::default()
+        }))
+    } else {
+        None
     }
 }
 

@@ -75,6 +75,90 @@ impl Default for VisualStyle {
     }
 }
 
+/// The four kinds of item a style is for (S §8.5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum StyleKind {
+    Species,
+    Reaction,
+    Compartment,
+    Text,
+}
+
+impl StyleKind {
+    pub const ALL: [StyleKind; 4] = [
+        StyleKind::Species,
+        StyleKind::Reaction,
+        StyleKind::Compartment,
+        StyleKind::Text,
+    ];
+
+    /// Its name in files.
+    pub fn key(self) -> &'static str {
+        match self {
+            StyleKind::Species => "species",
+            StyleKind::Reaction => "reaction",
+            StyleKind::Compartment => "compartment",
+            StyleKind::Text => "text",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<StyleKind> {
+        StyleKind::ALL.into_iter().find(|k| k.key() == key)
+    }
+}
+
+/// How an item looks, by kind: what Copy Style takes (S §8.5) and a saved
+/// style keeps (S §8.6).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Look {
+    /// Everything but its size and place, and whether its name is outside
+    /// (not where). With the name outside, its size too (S §5.11).
+    Species {
+        style: VisualStyle,
+        shape: NodeShape,
+        border_dash: BorderDash,
+        label_outside: bool,
+        size: Option<(f64, f64)>,
+    },
+    /// Line colour and width, junction colour and whether it is shown; not its
+    /// mode (straight, Bézier or linear), which is geometry.
+    Reaction { style: VisualStyle },
+    /// Fill, border colour and width; not its box, or whether it is shown.
+    Compartment { style: VisualStyle },
+    /// Typeface, bold, italic, size, colour and alignment; not its words or
+    /// its wrap width.
+    Text {
+        font: TextFont,
+        align: TextAlign,
+        size: f64,
+        color: Rgba,
+    },
+}
+
+impl Look {
+    pub fn kind(&self) -> StyleKind {
+        match self {
+            Look::Species { .. } => StyleKind::Species,
+            Look::Reaction { .. } => StyleKind::Reaction,
+            Look::Compartment { .. } => StyleKind::Compartment,
+            Look::Text { .. } => StyleKind::Text,
+        }
+    }
+}
+
+/// A look saved under a name (S §8.6). Names are unique within a kind.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SavedStyle {
+    pub name: String,
+    pub look: Look,
+}
+
+impl SavedStyle {
+    pub fn kind(&self) -> StyleKind {
+        self.look.kind()
+    }
+}
+
 /// A species node (S §3.2). An alias is a second drawing of a primary species.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpeciesNode {
@@ -104,6 +188,8 @@ pub struct SpeciesNode {
     /// Transient: not saved.
     pub selected: bool,
     pub style: VisualStyle,
+    /// The saved style it follows (S §8.6), by name, while it looks like it.
+    pub style_name: Option<String>,
 }
 
 /// What a species is drawn as (S §5.10).
@@ -213,6 +299,7 @@ impl SpeciesNode {
             locked: false,
             selected: false,
             style: VisualStyle::default(),
+            style_name: None,
         }
     }
 
@@ -303,6 +390,8 @@ pub struct Reaction {
     /// Transient: not saved.
     pub selected: bool,
     pub style: VisualStyle,
+    /// The saved style it follows (S §8.6), by name, while it looks like it.
+    pub style_name: Option<String>,
 }
 
 impl Reaction {
@@ -319,6 +408,7 @@ impl Reaction {
             junction_smooth: false,
             selected: false,
             style: VisualStyle::default(),
+            style_name: None,
         }
     }
 
@@ -403,6 +493,8 @@ pub struct TextItem {
     pub color: Rgba,
     /// Transient: not saved.
     pub selected: bool,
+    /// The saved style it follows (S §8.6), by name, while it looks like it.
+    pub style_name: Option<String>,
 }
 
 impl TextItem {
@@ -417,6 +509,7 @@ impl TextItem {
             size: DEFAULT_TEXT_SIZE,
             color: Rgba::DEFAULT,
             selected: false,
+            style_name: None,
         }
     }
 }
@@ -479,6 +572,8 @@ pub struct Compartment {
     pub hidden: bool,
     /// Transient: not saved.
     pub selected: bool,
+    /// The saved style it follows (S §8.6), by name, while it looks like it.
+    pub style_name: Option<String>,
 }
 
 impl Compartment {
@@ -491,6 +586,7 @@ impl Compartment {
             frame: None,
             hidden: false,
             selected: false,
+            style_name: None,
         }
     }
 
@@ -564,6 +660,9 @@ pub struct Model {
     pub compartments: Vec<Compartment>,
     pub parameters: Vec<Parameter>,
     pub assignment_rules: Vec<AssignmentRule>,
+    /// The model's saved styles (S §8.6). Only those some item follows are
+    /// saved in the file.
+    pub styles: Vec<SavedStyle>,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -581,6 +680,7 @@ impl Default for Model {
             compartments: Vec::new(),
             parameters: Vec::new(),
             assignment_rules: Vec::new(),
+            styles: Vec::new(),
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),

@@ -74,6 +74,9 @@ impl DiagramView {
     pub(super) fn record(&mut self, desc: &'static str, before: Model) -> ViewResponse {
         // An import may bring compartments without boxes (S §7.9).
         crate::compartments::place_unplaced(&mut self.model);
+        // An item whose look was changed by hand no longer follows its style
+        // (S §8.6).
+        crate::styles::drop_stale_links(&mut self.model);
         self.undo.push(Command::Snapshot {
             desc,
             before: Box::new(before),

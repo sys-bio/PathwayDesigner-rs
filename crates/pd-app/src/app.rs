@@ -107,6 +107,13 @@ enum FileShortcut {
 
 /// The dialog on screen, if any (SPEC-Rust §6.2).
 pub(crate) enum Dialog {
+    /// Asks for a name to save an item's look under (S §8.6).
+    SaveStyle {
+        target: pd_core::view::Target,
+        text: String,
+        error: Option<String>,
+        focus: bool,
+    },
     /// Asks for a new id for a species.
     Rename {
         id: String,
@@ -400,6 +407,22 @@ impl PathwayApp {
             }
             MenuAction::PasteStyle => {
                 self.view.paste_style();
+            }
+            MenuAction::SaveStyle(target) => {
+                self.dialog = Some(Dialog::SaveStyle {
+                    target,
+                    text: String::new(),
+                    error: None,
+                    focus: true,
+                });
+            }
+            MenuAction::ApplyStyle(kind, name) => {
+                self.view.apply_style(kind, &name);
+            }
+            MenuAction::UpdateStyle(name, target) => {
+                if let Err(e) = self.view.update_style(&name, &target) {
+                    self.notice = Some(format!("Can't change the style: {e}."));
+                }
             }
             MenuAction::Rename(id) => self.ask_rename(&id),
             MenuAction::GoToPrimary(id) => {
@@ -1092,6 +1115,41 @@ impl PathwayApp {
                     match self.view.rename(id, text.trim()) {
                         Ok(_) => close = true,
                         Err(e) => *error = Some(format!("Can't rename: {e}.")),
+                    }
+                }
+            }
+            Dialog::SaveStyle {
+                target,
+                text,
+                error,
+                focus,
+            } => {
+                let mut submit = false;
+                let modal = egui::Modal::new(egui::Id::new("save-style")).show(ctx, |ui| {
+                    ui.heading("Save style");
+                    ui.label("A name for this look:");
+                    ui.add_space(4.0);
+                    let edit = ui.add(egui::TextEdit::singleline(text).desired_width(240.0));
+                    if std::mem::take(focus) {
+                        edit.request_focus();
+                    }
+                    if edit.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                        submit = true;
+                    }
+                    if let Some(e) = error {
+                        ui.colored_label(egui::Color32::from_rgb(0xCC, 0x33, 0x00), e.as_str());
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        submit |= ui.button("OK").clicked();
+                        close |= ui.button("Cancel").clicked();
+                    });
+                });
+                close |= modal.should_close();
+                if submit {
+                    match self.view.save_style(target, text) {
+                        Ok(_) => close = true,
+                        Err(e) => *error = Some(format!("Can't save: {e}.")),
                     }
                 }
             }

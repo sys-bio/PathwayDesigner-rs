@@ -9,7 +9,7 @@
 use eframe::egui::{self, Color32, RichText, Sense, Vec2, text::CCursor, text::CCursorRange};
 use pd_core::expr;
 use pd_core::json::colour::{from_hex, to_hex};
-use pd_core::model::{BorderDash, NodeShape, Rgba, TextAlign, Typeface};
+use pd_core::model::{BorderDash, NodeShape, Rgba, StyleKind, TextAlign, Typeface};
 use pd_core::render::constants::PICKER_SWATCHES;
 use pd_core::view::{ColourField, DiagramView};
 
@@ -83,6 +83,46 @@ fn heading(ui: &mut egui::Ui, shown: &mut bool, title: &str) {
     ui.heading(title);
 }
 
+/// The saved style the selected items of `kind` follow, and a list of the
+/// model's styles of that kind to give them one (S §8.6).
+fn style_row(ui: &mut egui::Ui, view: &mut DiagramView, kind: StyleKind) {
+    let names = view.style_names(kind);
+    let m = view.model();
+    let links: Vec<Option<String>> = pd_core::styles::selected_ids(m, kind)
+        .iter()
+        .map(|id| pd_core::styles::link(m, kind, id))
+        .collect();
+    let current = view.selected_style_name(kind);
+    let shown = match &current {
+        Some(name) => name.clone(),
+        None if links.iter().all(Option::is_none) => "None".to_owned(),
+        None => "Mixed".to_owned(),
+    };
+    let mut chosen = None;
+    ui.horizontal(|ui| {
+        ui.label("Style");
+        ui.add_enabled_ui(!names.is_empty(), |ui| {
+            egui::ComboBox::from_id_salt(("saved-style", kind.key()))
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    for name in &names {
+                        if ui
+                            .selectable_label(current.as_deref() == Some(name), name)
+                            .clicked()
+                        {
+                            chosen = Some(name.clone());
+                        }
+                    }
+                })
+                .response
+                .on_disabled_hover_text("Save a style first: right-click an item, Save Style…");
+        });
+    });
+    if let Some(name) = chosen {
+        view.apply_style(kind, &name);
+    }
+}
+
 const ERROR: Color32 = Color32::from_rgb(0xCC, 0x33, 0x00);
 const SWATCH: Vec2 = Vec2::new(28.0, 18.0);
 
@@ -140,6 +180,7 @@ impl Inspector {
         let mut shown = false;
         if !species.is_empty() {
             heading(ui, &mut shown, "Species");
+            style_row(ui, view, StyleKind::Species);
             ui.scope(|ui| {
                 egui::Grid::new("species")
                     .num_columns(2)
@@ -308,6 +349,7 @@ impl Inspector {
 
         if !reactions.is_empty() {
             heading(ui, &mut shown, "Reaction");
+            style_row(ui, view, StyleKind::Reaction);
             ui.scope(|ui| {
                 egui::Grid::new("reaction")
                     .num_columns(2)
@@ -348,6 +390,7 @@ impl Inspector {
 
         if !compartments.is_empty() {
             heading(ui, &mut shown, "Compartment");
+            style_row(ui, view, StyleKind::Compartment);
             ui.scope(|ui| {
                 egui::Grid::new("compartment")
                     .num_columns(2)
@@ -413,6 +456,7 @@ impl Inspector {
 
         if !texts.is_empty() {
             heading(ui, &mut shown, "Text");
+            style_row(ui, view, StyleKind::Text);
             ui.scope(|ui| {
                 self.words_field(ui, view, one_text.as_deref());
                 let m = view.model();

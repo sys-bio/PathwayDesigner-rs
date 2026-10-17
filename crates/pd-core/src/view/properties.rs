@@ -3,10 +3,10 @@
 //! Every edit is one undo step (fixes D-4): colours, widths and junction
 //! visibility as a StyleEdit command, the rest as snapshots.
 
-use super::{CopiedStyle, DiagramView};
+use super::DiagramView;
 use crate::expr;
 use crate::model::{
-    BorderDash, Compartment, Id, Model, NodeShape, RenameError, Rgba, SpeciesNode, TextAlign,
+    BorderDash, Compartment, Id, Model, NodeShape, RenameError, Rgba, StyleKind, TextAlign,
     TextItem, Typeface, VisualStyle,
 };
 use crate::render::constants::LABEL;
@@ -86,14 +86,23 @@ pub fn sync_modifiers(model: &mut Model, id: &str) {
     model.find_reaction_mut(id).expect("found above").modifiers = modifiers;
 }
 
-/// Where `s`'s name goes when it is put `outside` or not: inside, where it
-/// already is outside, or just right of the node (S §5.11).
-fn label_place(s: &SpeciesNode, outside: bool) -> Option<crate::geometry::Pt> {
-    match (outside, s.label_offset) {
-        (false, _) => None,
-        (true, Some(o)) => Some(o),
-        (true, None) => Some(crate::render::draw::default_label_offset(s)),
-    }
+/// The kind and id of the item a target stands for, for its look: a
+/// species by its node, corner or name, a reaction by its junction, a leg or
+/// a handle, a compartment by its border or corner, a text by itself or its
+/// wrap handle.
+pub(super) fn style_target(t: &Target) -> Option<(StyleKind, Id)> {
+    Some(match t {
+        Target::Species(id) | Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => {
+            (StyleKind::Species, id.clone())
+        }
+        Target::Junction(id) | Target::Leg(id) => (StyleKind::Reaction, id.clone()),
+        Target::Handle(h) => (StyleKind::Reaction, h.reaction.clone()),
+        Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
+            (StyleKind::Compartment, id.clone())
+        }
+        Target::Text(id) | Target::TextWrap(id) => (StyleKind::Text, id.clone()),
+        Target::Empty => return None,
+    })
 }
 
 impl DiagramView {
@@ -256,48 +265,8 @@ impl DiagramView {
     /// Returns the id copied, or `None` if there is nothing there to copy. Not
     /// an edit: no undo step.
     pub fn copy_style(&mut self, item: &Target) -> Option<Id> {
-        let m = &self.model;
-        let (id, copied) = match item {
-            Target::Species(id) | Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => {
-                let s = m.find_species(id).filter(|s| !s.is_null_node)?;
-                (
-                    s.id.clone(),
-                    CopiedStyle::Species {
-                        style: s.style,
-                        shape: s.shape,
-                        border_dash: s.border_dash,
-                        label_outside: s.label_offset.is_some(),
-                        size: s.label_offset.map(|_| (s.width, s.height)),
-                    },
-                )
-            }
-            Target::Junction(id) | Target::Leg(id) => {
-                let r = m.find_reaction(id)?;
-                (r.id.clone(), CopiedStyle::Reaction { style: r.style })
-            }
-            Target::Handle(h) => {
-                let r = m.find_reaction(&h.reaction)?;
-                (r.id.clone(), CopiedStyle::Reaction { style: r.style })
-            }
-            Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
-                let c = m.find_compartment(id)?;
-                (c.id.clone(), CopiedStyle::Compartment { style: c.style })
-            }
-            Target::Text(id) | Target::TextWrap(id) => {
-                let t = m.find_text(id)?;
-                (
-                    t.id.clone(),
-                    CopiedStyle::Text {
-                        font: t.font,
-                        align: t.align,
-                        size: t.size,
-                        color: t.color,
-                    },
-                )
-            }
-            Target::Empty => return None,
-        };
-        self.copied_style = Some(copied);
+        let (kind, id) = style_target(item)?;
+        self.copied_style = Some(crate::styles::look_of(&self.model, kind, &id)?);
         Some(id)
     }
 
@@ -329,14 +298,8 @@ impl DiagramView {
     /// True if Paste Style has something to paste and something selected of
     /// the same kind to paste it on.
     pub fn can_paste_style(&self) -> bool {
-        let m = &self.model;
-        match self.copied_style {
-            None => false,
-            Some(CopiedStyle::Species { .. }) => m.selected_species().any(|s| !s.is_null_node),
-            Some(CopiedStyle::Reaction { .. }) => m.selected_reactions().next().is_some(),
-            Some(CopiedStyle::Compartment { .. }) => m.selected_compartments().next().is_some(),
-            Some(CopiedStyle::Text { .. }) => m.selected_texts().next().is_some(),
-        }
+        self.copied_style
+            .is_some_and(|look| !crate::styles::selected_ids(&self.model, look.kind()).is_empty())
     }
 
     /// True if a style has been copied.
@@ -349,62 +312,12 @@ impl DiagramView {
     /// species keeps its size, except that one made a circle takes its larger
     /// side both ways; a null node is left alone. One undo step.
     pub fn paste_style(&mut self) -> ViewResponse {
-        let Some(copied) = self.copied_style else {
+        let Some(look) = self.copied_style else {
             return ViewResponse::default();
         };
         let before = self.model.clone();
-        match copied {
-            CopiedStyle::Species {
-                style,
-                shape,
-                border_dash,
-                label_outside,
-                size,
-            } => {
-                for s in self.model.species_mut() {
-                    if !s.selected || s.is_null_node {
-                        continue;
-                    }
-                    // A junction setting is a reaction's; keep the species' own.
-                    s.style = VisualStyle {
-                        junction_visible: s.style.junction_visible,
-                        ..style
-                    };
-                    s.border_dash = border_dash;
-                    s.shape = shape;
-                    // A name outside doesn't need the node to fit it, so the
-                    // size comes too (S §5.11).
-                    if let Some(size) = size {
-                        s.resize(size.0, size.1);
-                    }
-                    if s.shape == NodeShape::Circle {
-                        let d = s.width.max(s.height);
-                        s.resize(d, d);
-                    }
-                    // Where a name already outside is stays its own.
-                    s.label_offset = label_place(s, label_outside);
-                }
-            }
-            CopiedStyle::Reaction { style } => {
-                for r in self.model.reactions_mut().filter(|r| r.selected) {
-                    r.style = style;
-                }
-            }
-            CopiedStyle::Compartment { style } => {
-                for c in self.model.compartments.iter_mut().filter(|c| c.selected) {
-                    c.style = style;
-                }
-            }
-            CopiedStyle::Text {
-                font,
-                align,
-                size,
-                color,
-            } => {
-                for t in self.model.texts_mut().filter(|t| t.selected) {
-                    (t.font, t.align, t.size, t.color) = (font, align, size, color);
-                }
-            }
+        for id in crate::styles::selected_ids(&self.model, look.kind()) {
+            crate::styles::give_look(&mut self.model, &id, &look);
         }
         self.record_if_changed("Paste Style", before)
     }
@@ -497,6 +410,31 @@ impl DiagramView {
     ) -> ViewResponse {
         if species.is_empty() && reactions.is_empty() {
             return ViewResponse::default();
+        }
+        // An item following a saved style stops following it (S §8.6). The
+        // link is not part of a style edit, so the step is a snapshot.
+        let linked = species.iter().any(|(id, ..)| {
+            self.model
+                .find_species(id)
+                .is_some_and(|s| s.style_name.is_some())
+        }) || reactions.iter().any(|(id, ..)| {
+            self.model
+                .find_reaction(id)
+                .is_some_and(|r| r.style_name.is_some())
+        });
+        if linked {
+            let mut before = self.model.clone();
+            for (id, old, _) in &species {
+                if let Some(s) = before.find_species_mut(id) {
+                    s.style = *old;
+                }
+            }
+            for (id, old, _) in &reactions {
+                if let Some(r) = before.find_reaction_mut(id) {
+                    r.style = *old;
+                }
+            }
+            return self.record("Style", before);
         }
         self.undo.push(Command::StyleEdit { species, reactions });
         ViewResponse {
@@ -628,7 +566,7 @@ impl DiagramView {
             if !s.selected || s.is_null_node {
                 continue;
             }
-            s.label_offset = label_place(s, outside);
+            s.label_offset = crate::styles::label_place(s, outside);
         }
         let desc = if outside {
             "Label Outside"
@@ -801,7 +739,7 @@ impl DiagramView {
 
     /// Records a change since `before` as one undo step, or nothing if the
     /// model is the same.
-    fn record_if_changed(&mut self, desc: &'static str, before: Model) -> ViewResponse {
+    pub(super) fn record_if_changed(&mut self, desc: &'static str, before: Model) -> ViewResponse {
         if self.model == before {
             return ViewResponse::default();
         }

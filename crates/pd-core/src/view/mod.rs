@@ -26,6 +26,9 @@ mod properties;
 #[cfg(test)]
 mod resize_tests;
 #[cfg(test)]
+mod saved_style_tests;
+mod saved_styles;
+#[cfg(test)]
 mod style_tests;
 #[cfg(test)]
 mod text_tests;
@@ -46,6 +49,7 @@ pub use arrange::Arrange;
 pub use hit::hit_test;
 pub use input::{Button, HandleId, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
 pub use properties::{ColourField, sync_modifiers};
+pub use saved_styles::StyleError;
 
 /// The rubber band's fill: its colour at 20 % (S §5.9).
 const RUBBER_BAND_FILL_ALPHA: u8 = 51;
@@ -81,7 +85,7 @@ pub struct DiagramView {
     shift_held: bool,
     /// What Copy Style took, for Paste Style (S §8.5). Not part of the model,
     /// so undo leaves it alone.
-    copied_style: Option<CopiedStyle>,
+    copied_style: Option<crate::model::Look>,
     tool: Tool,
     /// Species picked so far with an add-reaction tool.
     pending: Pending,
@@ -222,34 +226,6 @@ struct LabelDrag {
     orig: Pt,
     before: Box<Model>,
     delta: Pt,
-}
-
-/// How an item looks, as Copy Style takes it, by kind (S §8.5). Paste Style
-/// gives it to the selected items of the same kind.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum CopiedStyle {
-    /// Everything but its size and place, and whether its name is outside
-    /// (not where). With the name outside, its size too (S §5.11).
-    Species {
-        style: crate::model::VisualStyle,
-        shape: crate::model::NodeShape,
-        border_dash: crate::model::BorderDash,
-        label_outside: bool,
-        size: Option<(f64, f64)>,
-    },
-    /// Line colour and width, junction colour and whether it is shown; not its
-    /// mode (straight, Bézier or linear), which is geometry.
-    Reaction { style: crate::model::VisualStyle },
-    /// Fill, border colour and width; not its box, or whether it is shown.
-    Compartment { style: crate::model::VisualStyle },
-    /// Typeface, bold, italic, size, colour and alignment; not its words or
-    /// its wrap width.
-    Text {
-        font: crate::model::TextFont,
-        align: crate::model::TextAlign,
-        size: f64,
-        color: crate::model::Rgba,
-    },
 }
 
 /// Which way a corner moves as a box grows: x and y, clockwise from the top
@@ -846,6 +822,10 @@ impl DiagramView {
         {
             crate::compartments::reassign(&mut self.model, &drag.reassign);
         }
+        // A resize can change a look a style keeps (a name outside: its
+        // size), and then the item no longer follows it (S §8.6). Moves, the
+        // only gestures not undone as snapshots, change no look.
+        crate::styles::drop_stale_links(&mut self.model);
         let cmd = match gesture {
             Gesture::Idle => return ViewResponse::default(),
             Gesture::NewCompartment { start, current } => {
