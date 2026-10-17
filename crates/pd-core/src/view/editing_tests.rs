@@ -580,3 +580,204 @@ fn split_into_aliases_needs_a_primary_in_two_reactions() {
     let alias = v.model().aliases_of("ADP").next().unwrap().id.clone();
     assert!(!v.can_split_into_aliases(&alias));
 }
+
+#[test]
+fn merge_aliases_undoes_a_split() {
+    let mut v = busy_adp();
+    let biochemistry = v.export_antimony();
+    assert!(!v.can_merge_aliases("ADP"), "no aliases yet");
+    v.split_into_aliases("ADP");
+    let alias = v.model().aliases_of("ADP").next().unwrap().id.clone();
+    // Offered on the primary and on any of its aliases.
+    assert!(v.can_merge_aliases("ADP") && v.can_merge_aliases(&alias));
+    // A leg to an alias whose handles were shaped by hand.
+    v.model.find_reaction_mut("R4").unwrap().reactants[0].ctrl_pts_set = true;
+
+    let r = v.merge_aliases(&alias);
+    assert!(r.model_changed && r.selection_changed);
+    let m = v.model();
+    assert_eq!(m.aliases_of("ADP").count(), 0);
+    assert!(m.find_species(&alias).is_none());
+    // Every line is drawn to ADP again, and every reaction is still there.
+    assert_eq!(m.reactions().len(), 4);
+    assert_eq!(m.find_reaction("R2").unwrap().products[0].species, "ADP");
+    assert_eq!(m.find_reaction("R3").unwrap().modifiers[0].species, "ADP");
+    let r4 = &m.find_reaction("R4").unwrap().reactants[0];
+    assert_eq!(r4.species, "ADP");
+    assert!(!r4.ctrl_pts_set, "a moved leg gets automatic handles");
+    // Only ADP is selected, and the biochemistry never changed.
+    let (sel, _) = v.selection();
+    assert_eq!(sel, ["ADP"]);
+    assert_eq!(v.export_antimony(), biochemistry);
+    assert_eq!(v.undo_description(), Some("Merge Aliases"));
+
+    // One undo step brings the aliases back.
+    v.undo();
+    assert_eq!(v.model().aliases_of("ADP").count(), 3);
+    assert_eq!(
+        v.model().find_reaction("R2").unwrap().products[0].species,
+        v.model().aliases_of("ADP").next().unwrap().id
+    );
+}
+
+#[test]
+fn merge_aliases_draws_a_modifier_once() {
+    let mut v = busy_adp();
+    let alias = v.model.add_alias("ADP", pt(500.0, 500.0)).unwrap();
+    // R3 has ADP as a modifier already; give it the alias as one too.
+    let r3 = v.model.find_reaction_mut("R3").unwrap();
+    r3.modifiers.push(Participant::new(alias.as_str(), 1.0));
+    v.merge_aliases("ADP");
+    let mods: Vec<_> = v
+        .model()
+        .find_reaction("R3")
+        .unwrap()
+        .modifiers
+        .iter()
+        .map(|p| p.species.clone())
+        .collect();
+    assert_eq!(mods, ["ADP"]);
+    // Nothing to do for a species without aliases, or for a null node.
+    assert!(!v.can_merge_aliases("ADP"));
+    assert!(!v.merge_aliases("B").model_changed);
+}
+
+#[test]
+fn split_off_moves_only_the_selected_reactions() {
+    let mut v = busy_adp();
+    let biochemistry = v.export_antimony();
+    // ADP alone selected: nothing to split off.
+    v.select_item(&Target::Species("ADP".into()), false);
+    assert!(!v.can_split_off_selected("ADP"));
+    // ADP with R2 (it is a product there) and R3 (a modifier).
+    v.select_item(&Target::Leg("R2".into()), true);
+    v.select_item(&Target::Leg("R3".into()), true);
+    assert!(v.can_split_off_selected("ADP"));
+    // B is not in R2 or R3.
+    assert!(!v.can_split_off_selected("B"));
+
+    let r = v.split_off_selected("ADP");
+    assert!(r.model_changed && r.selection_changed);
+    let m = v.model();
+    let a2 = m.find_reaction("R2").unwrap().products[0].species.clone();
+    let a3 = m.find_reaction("R3").unwrap().modifiers[0].species.clone();
+    for a in [&a2, &a3] {
+        assert_eq!(m.find_species(a).unwrap().alias_of.as_deref(), Some("ADP"));
+    }
+    assert_ne!(a2, a3, "one alias per reaction");
+    // Placed as Split into Aliases places them.
+    assert_eq!(m.find_species(&a2).unwrap().center, pt(0.0, 210.0));
+    // The others stay with ADP.
+    assert_eq!(m.find_reaction("R1").unwrap().reactants[0].species, "ADP");
+    assert_eq!(m.find_reaction("R4").unwrap().reactants[0].species, "ADP");
+    assert_eq!(m.aliases_of("ADP").count(), 2);
+    // The new aliases are selected, and the biochemistry is the same.
+    let (mut sel, _) = v.selection();
+    sel.sort();
+    let mut want = vec![a2.clone(), a3.clone()];
+    want.sort();
+    assert_eq!(sel, want);
+    assert_eq!(v.export_antimony(), biochemistry);
+    assert_eq!(v.undo_description(), Some("Split Off Selected Reactions"));
+    v.undo();
+    assert_eq!(v.model().aliases_of("ADP").count(), 0);
+    assert_eq!(
+        v.model().find_reaction("R2").unwrap().products[0].species,
+        "ADP"
+    );
+}
+
+#[test]
+fn split_off_works_from_an_alias_too() {
+    let mut v = busy_adp();
+    v.select_item(&Target::Species("ADP".into()), false);
+    v.select_item(&Target::Leg("R2".into()), true);
+    v.split_off_selected("ADP");
+    let a2 = v.model().find_reaction("R2").unwrap().products[0]
+        .species
+        .clone();
+    // From that alias, split R2 off again: a new alias of ADP, and a2 is
+    // left drawing nothing, like one made with Create Alias.
+    v.select_item(&Target::Species(a2.clone()), false);
+    v.select_item(&Target::Leg("R2".into()), true);
+    assert!(v.can_split_off_selected(&a2));
+    v.split_off_selected(&a2);
+    let m = v.model();
+    let again = m.find_reaction("R2").unwrap().products[0].species.clone();
+    assert_ne!(again, a2);
+    assert_eq!(
+        m.find_species(&again).unwrap().alias_of.as_deref(),
+        Some("ADP")
+    );
+    assert!(m.find_species(&a2).is_some());
+}
+
+#[test]
+fn an_alias_split_off_near_its_junction_goes_half_way() {
+    // R1's junction is 60 from ADP, nearer than 180: half way, not 90 off.
+    let mut v = busy_adp();
+    v.select_item(&Target::Species("ADP".into()), false);
+    v.select_item(&Target::Leg("R1".into()), true);
+    v.split_off_selected("ADP");
+    let m = v.model();
+    let a1 = &m.find_reaction("R1").unwrap().reactants[0].species;
+    assert_eq!(m.find_species(a1).unwrap().center, pt(30.0, 0.0));
+}
+
+/// busy_adp after Split into Aliases: the aliases drawing R2, R3 and R4.
+fn three_adp_aliases() -> (DiagramView, Id, Id, Id) {
+    let mut v = busy_adp();
+    v.split_into_aliases("ADP");
+    let m = v.model();
+    let a2 = m.find_reaction("R2").unwrap().products[0].species.clone();
+    let a3 = m.find_reaction("R3").unwrap().modifiers[0].species.clone();
+    let a4 = m.find_reaction("R4").unwrap().reactants[0].species.clone();
+    (v, a2, a3, a4)
+}
+
+#[test]
+fn selected_aliases_merge_into_the_one_right_clicked() {
+    let (mut v, a2, a3, a4) = three_adp_aliases();
+    let biochemistry = v.export_antimony();
+    let at = v.model().find_species(&a2).unwrap().center;
+    // One alias alone: nothing to merge.
+    v.select_item(&Target::Species(a2.clone()), false);
+    assert!(!v.can_merge_selected_into(&a2));
+    // With a4 too, a4 merges into a2.
+    v.select_item(&Target::Species(a4.clone()), true);
+    assert!(v.can_merge_selected_into(&a2));
+    let r = v.merge_selected_into(&a2);
+    assert!(r.model_changed && r.selection_changed);
+    let m = v.model();
+    assert!(m.find_species(&a4).is_none());
+    assert_eq!(m.find_reaction("R4").unwrap().reactants[0].species, a2);
+    assert!(!m.find_reaction("R4").unwrap().reactants[0].ctrl_pts_set);
+    // a2 stays where it was; a3, not selected, is left alone.
+    assert_eq!(m.find_species(&a2).unwrap().center, at);
+    assert_eq!(m.find_reaction("R3").unwrap().modifiers[0].species, a3);
+    assert_eq!(m.aliases_of("ADP").count(), 2);
+    let (sel, _) = v.selection();
+    assert_eq!(sel, std::slice::from_ref(&a2));
+    assert_eq!(v.export_antimony(), biochemistry);
+    assert_eq!(v.undo_description(), Some("Merge Aliases"));
+    v.undo();
+    assert_eq!(v.model().aliases_of("ADP").count(), 3);
+}
+
+#[test]
+fn the_primary_takes_only_the_selected_aliases_and_is_never_merged_away() {
+    let (mut v, a2, a3, a4) = three_adp_aliases();
+    // Right-clicking the primary with a3 selected merges only a3.
+    v.select_item(&Target::Species("ADP".into()), false);
+    v.select_item(&Target::Species(a3.clone()), true);
+    v.merge_selected_into("ADP");
+    let m = v.model();
+    assert!(m.find_species(&a3).is_none());
+    assert_eq!(m.find_reaction("R3").unwrap().modifiers[0].species, "ADP");
+    assert!(m.find_species(&a2).is_some() && m.find_species(&a4).is_some());
+    // An alias with only the primary selected besides: the primary stays.
+    v.select_item(&Target::Species(a2.clone()), false);
+    v.select_item(&Target::Species("ADP".into()), true);
+    assert!(!v.can_merge_selected_into(&a2));
+    assert!(!v.merge_selected_into(&a2).model_changed);
+}

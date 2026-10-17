@@ -577,26 +577,170 @@ impl DiagramView {
         self.cancel_gesture();
         let before = self.model.clone();
         let centre = self.model.find_species(id).expect("checked above").center;
-        let mut reactions: Vec<(String, Pt)> = self
-            .reactions_drawing(id)
-            .into_iter()
-            .filter_map(|r| {
-                let r = self.model.find_reaction(&r)?;
-                Some((r.id.clone(), effective_junction(&self.model, r)))
-            })
-            .collect();
+        let mut reactions = self.reactions_drawing(id);
         // The nearest reaction stays with the primary.
+        let junction = |m: &Model, rid: &str| {
+            m.find_reaction(rid)
+                .map_or(centre, |r| effective_junction(m, r))
+        };
         let nearest = reactions
             .iter()
             .enumerate()
-            .min_by(|a, b| a.1.1.distance(centre).total_cmp(&b.1.1.distance(centre)))
+            .min_by(|a, b| {
+                let (da, db) = (
+                    junction(&self.model, a.1).distance(centre),
+                    junction(&self.model, b.1).distance(centre),
+                );
+                da.total_cmp(&db)
+            })
             .map(|(i, _)| i)
             .expect("two or more reactions");
         reactions.remove(nearest);
+        self.move_to_new_aliases(id, &reactions);
+        let mut r = self.record("Split into Aliases", before);
+        r.selection_changed = true;
+        r
+    }
 
+    /// The primary whose aliases Merge Aliases would merge, given the
+    /// species `id` or one of its aliases, if it has any.
+    fn primary_with_aliases(&self, id: &str) -> Option<Id> {
+        let s = self.model.find_species(id)?;
+        if s.is_null_node {
+            return None;
+        }
+        let primary = s.primary_id().to_owned();
+        let has_aliases = self.model.aliases_of(&primary).next().is_some();
+        has_aliases.then_some(primary)
+    }
+
+    /// True if Merge Aliases can do anything for `id`: a species with
+    /// aliases, or one of the aliases.
+    pub fn can_merge_aliases(&self, id: &str) -> bool {
+        self.primary_with_aliases(id).is_some()
+    }
+
+    /// Merge Aliases, the reverse of Split into Aliases: every line drawn to
+    /// an alias of the species (`id`, or the primary of alias `id`) goes back
+    /// to the primary, with automatic handles, and the aliases go. Smooth
+    /// junctions are recomputed, a modifier drawn twice is drawn once, and
+    /// the primary is selected. One undo step. The biochemistry doesn't
+    /// change: an alias is the same species.
+    pub fn merge_aliases(&mut self, id: &str) -> ViewResponse {
+        let Some(primary) = self.primary_with_aliases(id) else {
+            return ViewResponse::default();
+        };
+        self.cancel_gesture();
+        let before = self.model.clone();
+        let aliases: Vec<Id> = self
+            .model
+            .aliases_of(&primary)
+            .map(|a| a.id.clone())
+            .collect();
+        self.merge_into(&primary, &aliases);
+        let mut r = self.record("Merge Aliases", before);
+        r.selection_changed = true;
+        r
+    }
+
+    /// Moves every line drawn to one of `aliases` to node `into` (another
+    /// drawing of the same species), with automatic handles, and removes the
+    /// aliases. Smooth junctions are recomputed, a modifier drawn twice is
+    /// drawn once, and only `into` is selected. Not an undo step: the caller
+    /// records one.
+    fn merge_into(&mut self, into: &str, aliases: &[Id]) {
+        let is_alias = |s: &str| aliases.iter().any(|a| a == s);
+        let mut smooth = Vec::new();
+        for r in self.model.reactions_mut() {
+            let mut moved = false;
+            for p in r.reactants.iter_mut().chain(&mut r.products) {
+                if is_alias(&p.species) {
+                    p.species = into.to_owned();
+                    p.ctrl_pts_set = false;
+                    moved = true;
+                }
+            }
+            for p in r.modifiers.iter_mut().filter(|p| is_alias(&p.species)) {
+                p.species = into.to_owned();
+                moved = true;
+            }
+            let mut seen = Vec::new();
+            r.modifiers.retain(|m| {
+                let first = !seen.contains(&m.species);
+                seen.push(m.species.clone());
+                first
+            });
+            if moved && r.mode == crate::model::ReactionMode::Bezier && r.junction_smooth {
+                smooth.push(r.id.clone());
+            }
+        }
+        for alias in aliases {
+            // Nothing draws it any more, so this takes nothing else with it.
+            self.model.delete_species(alias);
+        }
+        for rid in smooth {
+            crate::bezier::apply_smooth_handles(&mut self.model, &rid);
+        }
+        self.model.clear_selection();
+        self.set_species_selected(into, true);
+    }
+
+    /// The selected aliases that Merge Selected Aliases into This would merge
+    /// into node `id`: the other selected aliases of the same species.
+    fn selected_aliases_besides(&self, id: &str) -> Vec<Id> {
+        let Some(node) = self.model.find_species(id).filter(|s| !s.is_null_node) else {
+            return Vec::new();
+        };
+        let primary = node.primary_id().to_owned();
+        self.model
+            .aliases_of(&primary)
+            .filter(|a| a.selected && a.id != id)
+            .map(|a| a.id.clone())
+            .collect()
+    }
+
+    /// True if Merge Selected Aliases into This can do anything for node
+    /// `id`: another alias of the same species is selected.
+    pub fn can_merge_selected_into(&self, id: &str) -> bool {
+        !self.selected_aliases_besides(id).is_empty()
+    }
+
+    /// Merge Selected Aliases into This (S §7.3): the other selected aliases
+    /// of the species that node `id` draws are merged into `id`, which may be
+    /// an alias or the primary. The primary is never merged away. One undo
+    /// step.
+    pub fn merge_selected_into(&mut self, id: &str) -> ViewResponse {
+        let aliases = self.selected_aliases_besides(id);
+        if aliases.is_empty() {
+            return ViewResponse::default();
+        }
+        self.cancel_gesture();
+        let before = self.model.clone();
+        self.merge_into(id, &aliases);
+        let mut r = self.record("Merge Aliases", before);
+        r.selection_changed = true;
+        r
+    }
+
+    /// Gives each of `reactions` its own new alias of the species that node
+    /// `id` draws, in place of `id`: placed between the reaction's junction
+    /// and `id`, near the junction (S §7.3). Lines moved to an alias go back
+    /// to automatic handles, and smooth junctions are recomputed. Selects
+    /// only the new aliases. Not an undo step: the caller records one.
+    fn move_to_new_aliases(&mut self, id: &str, reactions: &[Id]) {
+        let Some(centre) = self.model.find_species(id).map(|s| s.center) else {
+            return;
+        };
         self.model.clear_selection();
         let mut smooth = Vec::new();
-        for (rid, junction) in reactions {
+        for rid in reactions {
+            let Some(junction) = self
+                .model
+                .find_reaction(rid)
+                .map(|r| effective_junction(&self.model, r))
+            else {
+                continue;
+            };
             let away = centre - junction;
             let len = away.length();
             let at = if len < 1.0 {
@@ -608,7 +752,7 @@ impl DiagramView {
                 continue;
             };
             self.set_species_selected(&alias, true);
-            let r = self.model.find_reaction_mut(&rid).expect("listed above");
+            let r = self.model.find_reaction_mut(rid).expect("found above");
             for p in r.reactants.iter_mut().chain(&mut r.products) {
                 if p.species == id {
                     p.species = alias.clone();
@@ -619,13 +763,43 @@ impl DiagramView {
                 p.species = alias.clone();
             }
             if r.mode == crate::model::ReactionMode::Bezier && r.junction_smooth {
-                smooth.push(rid);
+                smooth.push(rid.clone());
             }
         }
         for rid in smooth {
             crate::bezier::apply_smooth_handles(&mut self.model, &rid);
         }
-        let mut r = self.record("Split into Aliases", before);
+    }
+
+    /// The selected reactions that draw node `id` itself: what Split Off
+    /// Selected Reactions would move.
+    fn selected_reactions_drawing(&self, id: &str) -> Vec<Id> {
+        self.reactions_drawing(id)
+            .into_iter()
+            .filter(|r| self.model.find_reaction(r).is_some_and(|r| r.selected))
+            .collect()
+    }
+
+    /// True if Split Off Selected Reactions can do anything for node `id`:
+    /// a species (or alias), not a null node, drawn by a selected reaction.
+    pub fn can_split_off_selected(&self, id: &str) -> bool {
+        self.model.find_species(id).is_some_and(|s| !s.is_null_node)
+            && !self.selected_reactions_drawing(id).is_empty()
+    }
+
+    /// Split Off Selected Reactions (S §7.3): as Split into Aliases, but
+    /// only for the selected reactions that draw node `id`; every other
+    /// reaction stays with it. Each gets its own new alias, already joined
+    /// to it. The new aliases are selected. One undo step.
+    pub fn split_off_selected(&mut self, id: &str) -> ViewResponse {
+        let reactions = self.selected_reactions_drawing(id);
+        if !self.can_split_off_selected(id) {
+            return ViewResponse::default();
+        }
+        self.cancel_gesture();
+        let before = self.model.clone();
+        self.move_to_new_aliases(id, &reactions);
+        let mut r = self.record("Split Off Selected Reactions", before);
         r.selection_changed = true;
         r
     }

@@ -623,6 +623,32 @@ single item.
   an alias go back to automatic handles, and smooth junctions are recomputed. The
   new aliases are selected, so they can be dragged as a group. The biochemistry
   does not change.
+- **Split Off Selected Reactions** (context menu, a species or alias, when a
+  reaction it is drawn in is selected too; added in the Rust version): as Split into
+  Aliases, but only for the selected reactions that draw the right-clicked node. Each
+  gets its own new alias, already joined to it and placed the same way; every other
+  reaction stays with the node. To use it, select the species, add the reaction with
+  Shift-click (on the canvas; Ctrl/Cmd-click in the model tree), and right-click the
+  species (a right-click on something selected keeps the selection). Otherwise the item is shown disabled. Split off from an
+  alias, the new alias is of the same primary, and the old one stays, drawing
+  whatever is left. One undo step; the new aliases are selected; the biochemistry
+  does not change.
+- **Merge Aliases** (context menu, a primary species that has aliases, or
+  **Merge Aliases into Primary** on any of its aliases; added in the Rust version):
+  the reverse of Split into Aliases, in one undo step. Every line drawn to an alias
+  of the species, reactant, product or modifier, is drawn to the primary again, and
+  the aliases are removed. Reactant and product legs moved back go to automatic
+  handles, smooth junctions are recomputed, and a reaction that had the species as a
+  modifier twice (once through an alias) has it once. Only the primary is selected
+  afterwards. The biochemistry does not change.
+- **Merge Selected Aliases into This** (context menu, a species or alias, when other
+  aliases of the same species are selected too; added in the Rust version): the
+  selected aliases are merged into the node that was right-clicked, as Merge Aliases
+  merges them into the primary. The right-clicked node stays where it is; aliases
+  that are not selected, and selected nodes of other species, are left alone. On the
+  primary it merges only the selected aliases. The primary itself is never merged
+  away. Select with click and Shift-click, then right-click the one to keep.
+  Otherwise the item is shown disabled. One undo step.
 
 ### 7.4 Reaction shape commands
 
@@ -1504,9 +1530,9 @@ Which items appear depends on what was right-clicked:
 
 | Target | Items |
 |---|---|
-| Primary species | Create Alias · Split into Aliases (one per reaction) · Rename · Delete Species · Alignment ▸ … |
+| Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
-| Alias | Rename (renames the primary) · Go to Primary · Delete Alias · Alignment ▸ … |
+| Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge Aliases into Primary · Delete Alias · Alignment ▸ … |
 | Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) |
 | Free text (§7.8) | Edit Text · Delete Text · Alignment ▸ … |
 | Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) |

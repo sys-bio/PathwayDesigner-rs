@@ -355,6 +355,15 @@ impl PathwayApp {
             MenuAction::SplitIntoAliases(id) => {
                 self.view.split_into_aliases(&id);
             }
+            MenuAction::MergeAliases(id) => {
+                self.view.merge_aliases(&id);
+            }
+            MenuAction::SplitOffSelected(id) => {
+                self.view.split_off_selected(&id);
+            }
+            MenuAction::MergeSelectedInto(id) => {
+                self.view.merge_selected_into(&id);
+            }
             MenuAction::Rename(id) => self.ask_rename(&id),
             MenuAction::GoToPrimary(id) => {
                 self.view.go_to_primary(&id, canvas_centre);

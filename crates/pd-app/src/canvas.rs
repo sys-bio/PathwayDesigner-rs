@@ -36,6 +36,9 @@ pub struct CanvasState {
 pub enum MenuAction {
     CreateAlias(String),
     SplitIntoAliases(String),
+    MergeAliases(String),
+    SplitOffSelected(String),
+    MergeSelectedInto(String),
     Rename(String),
     GoToPrimary(String),
     DeleteSpecies(String),
@@ -203,6 +206,13 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                     MenuAction::Rename(id.clone()),
                 );
                 item(ui, "Go to Primary", MenuAction::GoToPrimary(id.clone()));
+                split_off(ui, view, id, &mut item);
+                merge_selected(ui, view, id, &mut item);
+                item(
+                    ui,
+                    "Merge Aliases into Primary",
+                    MenuAction::MergeAliases(id.clone()),
+                );
                 item(ui, "Delete Alias", MenuAction::DeleteSpecies(id.clone()));
             } else {
                 item(ui, "Create Alias", MenuAction::CreateAlias(id.clone()));
@@ -219,6 +229,14 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                     )
                     .on_disabled_hover_text("Only for a species in two or more reactions");
                 }
+                split_off(ui, view, id, &mut item);
+                if view.can_merge_aliases(id) {
+                    item(ui, "Merge Aliases", MenuAction::MergeAliases(id.clone()));
+                } else {
+                    ui.add_enabled(false, egui::Button::new("Merge Aliases"))
+                        .on_disabled_hover_text("Only for a species that has aliases");
+                }
+                merge_selected(ui, view, id, &mut item);
                 item(ui, "Rename", MenuAction::Rename(id.clone()));
                 item(ui, "Delete Species", MenuAction::DeleteSpecies(id.clone()));
             }
@@ -261,6 +279,38 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         }
     }
     chosen
+}
+
+/// Split Off Selected Reactions (S §7.3), or why it is not offered.
+fn split_off(
+    ui: &mut egui::Ui,
+    view: &DiagramView,
+    id: &str,
+    item: &mut impl FnMut(&mut egui::Ui, &str, MenuAction),
+) {
+    const LABEL: &str = "Split Off Selected Reactions";
+    if view.can_split_off_selected(id) {
+        item(ui, LABEL, MenuAction::SplitOffSelected(id.to_owned()));
+    } else {
+        ui.add_enabled(false, egui::Button::new(LABEL))
+            .on_disabled_hover_text("Select a reaction this species is in");
+    }
+}
+
+/// Merge Selected Aliases into This (S §7.3), or why it is not offered.
+fn merge_selected(
+    ui: &mut egui::Ui,
+    view: &DiagramView,
+    id: &str,
+    item: &mut impl FnMut(&mut egui::Ui, &str, MenuAction),
+) {
+    const LABEL: &str = "Merge Selected Aliases into This";
+    if view.can_merge_selected_into(id) {
+        item(ui, LABEL, MenuAction::MergeSelectedInto(id.to_owned()));
+    } else {
+        ui.add_enabled(false, egui::Button::new(LABEL))
+            .on_disabled_hover_text("Select other aliases of this species");
+    }
 }
 
 /// The Alignment submenu: the align and distribute commands for the
