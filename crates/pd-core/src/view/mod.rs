@@ -22,6 +22,9 @@ mod interaction_tests;
 mod interchange;
 #[cfg(test)]
 mod label_tests;
+#[cfg(test)]
+mod participant_tests;
+mod participants;
 mod properties;
 #[cfg(test)]
 mod reaction_label_tests;
@@ -124,6 +127,9 @@ struct Pending {
     products: Vec<Id>,
     /// With the open reaction tool: Enter was pressed, clicks pick products.
     to_products: bool,
+    /// Add Reactant… or Add Product…: the reaction and the side clicks add
+    /// species to (S §7.11).
+    adding_to: Option<(Id, Role)>,
 }
 
 /// The gesture in progress (S §6.1).
@@ -668,6 +674,9 @@ impl DiagramView {
             return ViewResponse::default();
         }
         match self.tool {
+            Tool::Select if self.pending.adding_to.is_some() => {
+                return self.pick_for_adding(pos);
+            }
             Tool::Select => {}
             Tool::AddSpecies => return self.add_species_at(pos),
             Tool::AddReaction { .. } => return self.pick_for_reaction(pos),

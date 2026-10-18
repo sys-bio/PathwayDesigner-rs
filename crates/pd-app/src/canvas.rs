@@ -54,6 +54,10 @@ pub enum MenuAction {
     RemoveNullNode(String),
     ToggleLock,
     DeleteReaction(String),
+    /// Add Reactant… or Add Product… (S §7.11).
+    AddParticipant(String, pd_core::model::Role),
+    /// Remove from Reaction: the reaction and the species.
+    RemoveParticipant(String, String),
     MakeNice(String),
     Arrange(Arrange),
     EditText(String),
@@ -194,6 +198,8 @@ fn update_tooltip(ui: &egui::Ui, view: &DiagramView, state: &mut CanvasState, re
 /// The items for what was right-clicked (S §13.4). Returns the one chosen.
 fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Option<MenuAction> {
     let mut chosen = None;
+    // A choice in a submenu, which `item` can't reach.
+    let mut item_chosen = None;
     let mut item = |ui: &mut egui::Ui, label: &str, action: MenuAction| {
         if ui.button(label).clicked() {
             chosen = Some(action);
@@ -272,6 +278,53 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
             item(ui, lock, MenuAction::ToggleLock);
         }
         Target::Junction(id) | Target::Leg(id) => {
+            use pd_core::model::Role;
+            item(
+                ui,
+                "Add Reactant…",
+                MenuAction::AddParticipant(id.clone(), Role::Reactant),
+            );
+            item(
+                ui,
+                "Add Product…",
+                MenuAction::AddParticipant(id.clone(), Role::Product),
+            );
+            // Each reactant and product, null nodes aside; the last one left
+            // can't go.
+            if let Some(r) = view.model().find_reaction(id) {
+                let m = view.model();
+                let listed: Vec<(String, &str)> =
+                    [(&r.reactants, "reactant"), (&r.products, "product")]
+                        .into_iter()
+                        .flat_map(|(list, role)| {
+                            list.iter().map(move |p| (p.species.clone(), role))
+                        })
+                        .filter(|(s, _)| m.find_species(s).is_some_and(|n| !n.is_null_node))
+                        .collect();
+                let mut removed = None;
+                ui.menu_button("Remove from Reaction", |ui| {
+                    for (species, role) in listed {
+                        let label = match m.find_species(&species) {
+                            Some(n) if n.is_alias() => {
+                                format!("{} ({role}, alias)", n.primary_id())
+                            }
+                            _ => format!("{species} ({role})"),
+                        };
+                        let ok = view.can_remove_participant(id, &species);
+                        let b = ui
+                            .add_enabled(ok, egui::Button::new(label))
+                            .on_disabled_hover_text("A reaction needs at least one species");
+                        if b.clicked() {
+                            removed = Some(MenuAction::RemoveParticipant(id.clone(), species));
+                            ui.close();
+                        }
+                    }
+                });
+                if removed.is_some() {
+                    item_chosen = removed;
+                }
+            }
+            ui.separator();
             item(
                 ui,
                 "Delete Reaction",
@@ -310,7 +363,7 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         | Target::ReactionLabel(_)
         | Target::Empty => ui.close(),
     }
-    chosen
+    chosen.or(item_chosen)
 }
 
 /// Copy Style and Paste Style (S §8.5), Save Style…, Apply Style and

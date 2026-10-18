@@ -474,6 +474,12 @@ impl PathwayApp {
             MenuAction::DeleteReaction(id) => {
                 self.view.delete_reaction(&id);
             }
+            MenuAction::AddParticipant(id, role) => {
+                self.view.begin_adding(&id, role);
+            }
+            MenuAction::RemoveParticipant(id, species) => {
+                self.view.remove_participant(&id, &species);
+            }
             MenuAction::MakeNice(id) => {
                 self.view.make_nice_reactions(&[id]);
             }
@@ -1055,6 +1061,9 @@ impl PathwayApp {
             .on_hover_text("Where the pointer is on the diagram");
             ui.separator();
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                // What doesn't fit is cut short with "…", never drawn under
+                // the pointer's coordinates.
+                ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
                 self.status_text(ui)
             });
         });
@@ -1082,19 +1091,20 @@ impl PathwayApp {
                     reactions.len()
                 ));
             }
-            ui.label(text);
+            let short = |text: String| egui::Label::new(text).truncate();
+            ui.add(short(text));
             #[cfg(target_arch = "wasm32")]
             {
                 ui.separator();
-                ui.label(crate::files::Files::save_mode());
+                ui.add(short(crate::files::Files::save_mode().to_string()));
             }
             if let Some(n) = &self.notice {
                 ui.separator();
-                ui.label(n);
+                ui.add(short(n.clone()));
             }
             if let Some(hint) = self.tool_hint() {
                 ui.separator();
-                ui.label(hint);
+                ui.add(short(hint));
             }
             if let Some(w) = self.warnings.first() {
                 ui.separator();
@@ -1146,6 +1156,16 @@ impl PathwayApp {
 
     /// What the current tool expects next.
     fn tool_hint(&self) -> Option<String> {
+        if let Some((id, role)) = self.view.adding_to() {
+            let side = if role == pd_core::model::Role::Reactant {
+                "reactant"
+            } else {
+                "product"
+            };
+            return Some(format!(
+                "Click a species to add it to {id} as a {side} · Esc to stop"
+            ));
+        }
         match self.view.tool() {
             Tool::Select => None,
             Tool::AddSpecies => Some("Click to add a species · Esc to stop".to_owned()),
@@ -1787,6 +1807,46 @@ mod tests {
         let at = h.centre("S1");
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(h.centre("S1"), at);
+    }
+
+    #[test]
+    fn the_reaction_menu_adds_and_removes_species() {
+        use pd_core::model::Role;
+        let mut h = Harness::new();
+        h.app.perform(Action::New);
+        h.run(vec![]);
+        h.app.view.set_tool(Tool::AddSpecies);
+        for x in [400.0, 550.0, 700.0] {
+            h.time += 1.0;
+            h.click(Pos2::new(x, 400.0));
+        }
+        h.app.view.set_tool(Tool::UNI_UNI);
+        for id in ["S1", "S2"] {
+            h.time += 1.0;
+            h.click(h.on_screen(id));
+        }
+        h.app.view.set_tool(Tool::Select);
+        let r = h.app.view.model().reactions()[0].id.clone();
+        // Add Product…, then a click on S3.
+        h.app.act(
+            MenuAction::AddParticipant(r.clone(), Role::Product),
+            pt(0.0, 0.0),
+        );
+        let hint = h.app.tool_hint().unwrap();
+        assert!(
+            hint.contains(&format!("add it to {r} as a product")),
+            "{hint}"
+        );
+        h.time += 1.0;
+        h.click(h.on_screen("S3"));
+        let products = |h: &Harness| h.app.view.model().reactions()[0].products.len();
+        assert_eq!(products(&h), 2);
+        h.key(Key::Escape, Modifiers::NONE);
+        assert_eq!(h.app.tool_hint(), None);
+        // Remove from Reaction.
+        h.app
+            .act(MenuAction::RemoveParticipant(r, "S3".into()), pt(0.0, 0.0));
+        assert_eq!(products(&h), 1);
     }
 
     #[test]

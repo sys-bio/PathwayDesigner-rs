@@ -1220,6 +1220,32 @@ can now be changed. A null node keeps its size.
 
 ---
 
+### 7.11 Changing a reaction's species
+
+*Added in the Rust version.* A reaction's reactants and products can be changed
+after it is made, whichever way it was made.
+
+- **Add Reactant…** and **Add Product…** (the reaction's context menu, §13.4):
+  from then on, each click on a species (or its name) adds it to that side, with
+  stoichiometry 1, one undo step each (*Add Reactant*, *Add Product*). A dashed
+  guide runs from the junction to the cursor, with a green dot for a reactant
+  and a red one for a product, and the status bar says what a click does. Esc, a
+  click on empty canvas or choosing a tool stops it.
+- A species already a reactant or product of the reaction is ignored (nodes are
+  compared, as the reaction tools compare them, §6.5), and so is a null node. A
+  modifier added becomes a participant and stops being a modifier. A side that
+  only had a null node loses it.
+- **Remove from Reaction ▸** lists the reaction's reactants and products (null
+  nodes aside); choosing one takes it out (*Remove from Reaction*). A side left
+  empty gets a null node (a source or a sink, §5.4). The only species left in a
+  reaction can't be removed: its entry is disabled.
+- **The rate law:** if it is still the mass-action law a new reaction gets
+  (§6.5, `k<N>` times each reactant, null nodes left out), it follows the new
+  reactants; a law written by hand is left alone. Modifiers then follow the law
+  (§8.4), so a species taken out but still named in it becomes a modifier.
+- A smooth junction gets its handles again (§7.4.4); other handles stay, and the
+  junction stays where it is.
+
 ## 8. Properties, styling and kinetic laws
 
 ### 8.1 Inspector panel
@@ -1998,7 +2024,7 @@ Which items appear depends on what was right-clicked:
 | Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
 | Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
-| Reaction (junction or leg) | Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
+| Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 | Free text (§7.8) | Edit Text · Delete Text · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 

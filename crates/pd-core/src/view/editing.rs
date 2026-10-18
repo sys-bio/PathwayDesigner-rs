@@ -976,10 +976,43 @@ impl DiagramView {
 
     // ----- Feedback while picking (S §5.9) ----------------------------------
 
+    /// While adding to a reaction (S §7.11): a dashed guide from its
+    /// junction to the cursor, and a dot there, green for a reactant and red
+    /// for a product.
+    fn draw_adding_overlay(&self, r: &mut dyn Renderer) {
+        let (Some((id, role)), Some(cursor)) = (&self.pending.adding_to, self.hover) else {
+            return;
+        };
+        let Some(rx) = self.model.find_reaction(id) else {
+            return;
+        };
+        let cursor = spt(cursor.x as f32, cursor.y as f32);
+        let j = self.world_to_screen(effective_junction(&self.model, rx));
+        r.polyline(
+            &[spt(j.x as f32, j.y as f32), cursor],
+            Stroke {
+                width: 1.0,
+                color: GUIDE_LINE,
+                dash: Some(GUIDE_DASH_PX),
+                round_cap: false,
+            },
+        );
+        let color = if *role == crate::model::Role::Reactant {
+            PENDING_REACTANT
+        } else {
+            PENDING_PRODUCT
+        };
+        r.circle(cursor, PICK_DOT_RADIUS_PX, Some(color), None);
+    }
+
     /// Rings round the species picked so far, a dashed guide from the last
     /// one to the cursor, and a dot at the cursor: green while reactants are
     /// still needed, red after.
     pub(super) fn draw_overlays(&self, r: &mut dyn Renderer) {
+        if self.pending.adding_to.is_some() {
+            self.draw_adding_overlay(r);
+            return;
+        }
         if !matches!(self.tool, Tool::AddReaction { .. }) {
             return;
         }
