@@ -4,15 +4,15 @@
 //! drawing of one is its own node), and each reaction's markers: one
 //! `midmarker`, its centre, and `multimarker`s on its spine either side. A
 //! reaction's `segments` join them: a curve (handles `b1` near the segment's
-//! `from` node and `b2` near its `to` node) from a metabolite to a multimarker,
-//! then a short straight stub along the spine to the midmarker.
+//! `from` node and `b2` near its `to` node) from a metabolite to the
+//! multimarker on its side (or straight to the midmarker), and the straight
+//! spine from one multimarker through the midmarker to the other.
 //!
 //! Here a metabolite becomes a species, and its other drawings aliases of
-//! it. A reaction's junction is its midmarker, and each leg is one curve from
-//! the species to the junction: Escher's own handle by the metabolite, and
-//! the multimarker as the handle by the junction, so the leg comes into the
-//! junction along the spine (the stub merged into the curve). Labels keep
-//! their places, and the diagram takes the Escher theme (S §8.7).
+//! it. A reaction's junction is its midmarker, its stem (S §5.13) the spine,
+//! and each leg Escher's own curve from the species to its side's end of the
+//! stem: the drawing is the map's. Labels keep their places, and the diagram
+//! takes the Escher theme (S §8.7).
 
 use std::collections::HashMap;
 
@@ -138,9 +138,10 @@ pub fn import(text: &str) -> Result<Imported, String> {
             continue;
         };
 
-        // Each metabolite drawing in this reaction: its node, and the leg's
-        // handles by the species and by the junction.
-        let mut legs: Vec<(&str, Pt, Pt)> = Vec::new();
+        // Each metabolite drawing in this reaction: its node, the node it
+        // joins (its side's multimarker, or the midmarker), and the curve's
+        // handles by the metabolite and by that node.
+        let mut legs: Vec<(&str, Pt, Pt, Pt)> = Vec::new();
         for s in &segments {
             let (Some(from), Some(to)) = ends(s) else {
                 continue;
@@ -161,15 +162,11 @@ pub fn import(text: &str) -> Result<Imported, String> {
             } else {
                 (handle(s, "b2"), handle(s, "b1"))
             };
+            // A segment with no handles is straight: handles a third of the
+            // way along keep it so.
             let outer = near_m.unwrap_or(mp + (op - mp) / 3.0);
-            let (outer, inner) = if kind(other) == Some("midmarker") {
-                (outer, near_other.unwrap_or(j + (mp - j) / 3.0))
-            } else {
-                // The multimarker: the leg comes in along the spine.
-                let near_k = near_other.unwrap_or(op + (mp - op) / 3.0);
-                merge(mp, outer, near_k, op, j)
-            };
-            legs.push((m, outer, inner));
+            let inner = near_other.unwrap_or(op + (mp - op) / 3.0);
+            legs.push((m, op, outer, inner));
         }
 
         let mut rx = Reaction::new(id.clone(), j);
@@ -179,6 +176,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
             .and_then(Value::as_bool)
             .unwrap_or(false);
         let mut used = vec![false; legs.len()];
+        let (mut reactant_end, mut product_end) = (None, None);
         for m in r
             .get("metabolites")
             .and_then(Value::as_array)
@@ -209,7 +207,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 continue;
             };
             used[i] = true;
-            let (node, outer, inner) = legs[i];
+            let (node, joins, outer, inner) = legs[i];
             let Some(species) = species_of.get(node) else {
                 continue;
             };
@@ -218,10 +216,18 @@ pub fn import(text: &str) -> Result<Imported, String> {
             if coef < 0.0 {
                 (p.ctrl1, p.ctrl2) = (outer, inner);
                 rx.reactants.push(p);
+                reactant_end.get_or_insert(joins);
             } else {
                 (p.ctrl1, p.ctrl2) = (inner, outer);
                 rx.products.push(p);
+                product_end.get_or_insert(joins);
             }
+        }
+        // The spine: each side's metabolites join one node (its multimarker,
+        // or the midmarker itself); a stem only if one isn't the midmarker.
+        let (r_end, p_end) = (reactant_end.unwrap_or(j), product_end.unwrap_or(j));
+        if r_end != j || p_end != j {
+            rx.stem = Some((r_end - j, p_end - j));
         }
         if rx.reactants.is_empty() && rx.products.is_empty() {
             warnings.push(format!(
@@ -264,8 +270,8 @@ pub fn import(text: &str) -> Result<Imported, String> {
         }
     }
 
-    // Escher's look. The theme makes every curve smooth; Escher's own
-    // handles are kept instead.
+    // Escher's look. The theme makes every curve smooth; the map's own
+    // handles and stems are kept instead.
     let shapes: Vec<(Id, Reaction)> = model
         .reactions()
         .iter()
@@ -274,8 +280,8 @@ pub fn import(text: &str) -> Result<Imported, String> {
     themes::apply(&mut model, Theme::Escher);
     for (id, old) in shapes {
         if let Some(r) = model.find_reaction_mut(&id) {
-            (r.reactants, r.products, r.mode, r.junction_smooth) =
-                (old.reactants, old.products, old.mode, false);
+            (r.reactants, r.products, r.mode, r.junction_smooth, r.stem) =
+                (old.reactants, old.products, old.mode, false, old.stem);
         }
     }
     // Labels where Escher draws them: its point is the start of the text, on
@@ -301,60 +307,6 @@ pub fn import(text: &str) -> Result<Imported, String> {
     }
     model.recompute_id_counter();
     Ok(Imported { model, warnings })
-}
-
-/// One curve from `m` to the junction `j` for Escher's curve `m`, `c1`,
-/// `c2`, `k` and its straight stub from `k` to `j`: the handles keep the
-/// directions at both ends (towards `c1` from `m`, along the spine from `j`
-/// to `k`), with the lengths that bring the curve closest to Escher's path.
-/// Returns the handle by `m` and the one by `j`.
-fn merge(m: Pt, c1: Pt, c2: Pt, k: Pt, j: Pt) -> (Pt, Pt) {
-    const OUTER: [f64; 7] = [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.2];
-    const INNER: [f64; 7] = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
-    // Each curve as a polyline of this many pieces: as good a choice as 48
-    // on the E. coli core map, and quick enough in the browser.
-    const PIECES: u32 = 16;
-    let along = |a: Pt, b: Pt, c: Pt, d: Pt| -> Vec<Pt> {
-        (0..=PIECES)
-            .map(|i| cubic(a, b, c, d, f64::from(i) / f64::from(PIECES)))
-            .collect()
-    };
-    let mut path = along(m, c1, c2, k);
-    path.push(j);
-    let mut best = (f64::INFINITY, c1, k);
-    for a in OUTER {
-        for b in INNER {
-            let (h1, h2) = (m + (c1 - m) * a, j + (k - j) * b);
-            let ours = along(m, h1, h2, j);
-            // The farther either path strays from the other, given up on as
-            // soon as it is no better than the best so far.
-            let mut d = 0.0_f64;
-            for (from, to) in [(&ours, &path), (&path, &ours)] {
-                for &p in from.iter() {
-                    d = d.max(distance_to(p, to));
-                    if d >= best.0 {
-                        break;
-                    }
-                }
-            }
-            if d < best.0 - 1e-9 {
-                best = (d, h1, h2);
-            }
-        }
-    }
-    (best.1, best.2)
-}
-
-fn cubic(a: Pt, b: Pt, c: Pt, d: Pt, t: f64) -> Pt {
-    let u = 1.0 - t;
-    a * (u * u * u) + b * (3.0 * u * u * t) + c * (3.0 * u * t * t) + d * (t * t * t)
-}
-
-/// How far `p` is from the polyline `line`.
-fn distance_to(p: Pt, line: &[Pt]) -> f64 {
-    line.windows(2)
-        .map(|w| crate::geometry::point_to_segment_dist(p, w[0], w[1]))
-        .fold(f64::INFINITY, f64::min)
 }
 
 /// The members of a JSON object in the order of their keys as numbers
@@ -412,6 +364,7 @@ fn compartment_of(bigg: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::Role;
 
     /// PGK-like: 3pg_c + atp_c → 13dpg_c + adp_c down a vertical spine
     /// (midmarker at (100,200), multimarkers at (100,170) and (100,230)),
@@ -457,10 +410,6 @@ mod tests {
         import(MAP).unwrap()
     }
 
-    fn dir(v: Pt) -> Pt {
-        v / v.x.hypot(v.y)
-    }
-
     #[test]
     fn metabolites_become_species_and_their_other_drawings_aliases() {
         let m = map().model;
@@ -496,61 +445,32 @@ mod tests {
     }
 
     #[test]
-    fn each_leg_leaves_its_species_as_drawn_and_comes_in_along_the_spine() {
+    fn the_spine_is_the_stem_and_each_leg_the_map_s_own_curve() {
         let m = map().model;
         let r = m.find_reaction("PGK").unwrap();
-        let j = r.junction;
-        let down = pt(0.0, 1.0);
+        // The multimarkers, from the midmarker at (100,200).
+        assert_eq!(r.stem, Some((pt(0.0, -30.0), pt(0.0, 30.0))));
+        assert_eq!(r.leg_anchor(Role::Reactant), pt(100.0, 170.0));
+        assert_eq!(r.leg_anchor(Role::Product), pt(100.0, 230.0));
         for p in r.reactants.iter().chain(&r.products) {
             assert!(p.ctrl_pts_set);
         }
-        // 3pg_c, a reactant: from (100,100) towards b1 (100,120), into the
-        // junction from above, along the spine.
+        // 3pg_c → its multimarker: b1 by the metabolite, b2 by the marker.
         let pg = &r.reactants[0];
-        assert!(dir(pg.ctrl1 - pt(100.0, 100.0)).distance(down) < 1e-9);
-        assert!(dir(j - pg.ctrl2).distance(down) < 1e-9);
-        // atp_c leaves towards its b1 (160,150), straight down.
-        let atp = &r.reactants[1];
-        assert!(dir(atp.ctrl1 - pt(160.0, 130.0)).distance(down) < 1e-9);
-        // 13dpg_c, a product: out of the junction downwards, and into the
-        // species along b2 → (100,300).
+        assert_eq!((pg.ctrl1, pg.ctrl2), (pt(100.0, 120.0), pt(100.0, 150.0)));
+        let curve = crate::bezier::leg_curve(&m, r, Role::Reactant, 0).unwrap();
+        assert_eq!((curve.p0, curve.p3), (pt(100.0, 100.0), pt(100.0, 170.0)));
+        // A product, from the marker: the segment runs marker → 13dpg_c, so
+        // b1 is by the marker.
         let dpg = &r.products[0];
-        assert!(dir(dpg.ctrl1 - j).distance(down) < 1e-9);
-        assert!(dir(pt(100.0, 300.0) - dpg.ctrl2).distance(down) < 1e-9);
-        // adp_c's segment had no handles: it still leaves the junction along
-        // the spine.
+        assert_eq!((dpg.ctrl1, dpg.ctrl2), (pt(100.0, 250.0), pt(100.0, 280.0)));
+        // adp_c's segment has no handles: straight, a third of the way along.
         let adp = &r.products[1];
-        assert!(dir(adp.ctrl1 - j).distance(down) < 1e-9);
-    }
-
-    #[test]
-    fn a_merged_curve_follows_the_drawn_path() {
-        // A curve that bends, then a long stub: the merged curve stays close
-        // to both, closer than with the handles as they come.
-        let (m, c1, c2, k, j) = (
-            pt(0.0, 0.0),
-            pt(0.0, 80.0),
-            pt(60.0, 100.0),
-            pt(100.0, 100.0),
-            pt(220.0, 100.0),
-        );
-        let (h1, h2) = merge(m, c1, c2, k, j);
-        let mut path: Vec<Pt> = (0..=48)
-            .map(|i| cubic(m, c1, c2, k, f64::from(i) / 48.0))
-            .collect();
-        path.push(j);
-        let worst = |a: Pt, b: Pt| {
-            (0..=48)
-                .map(|i| distance_to(cubic(m, a, b, j, f64::from(i) / 48.0), &path))
-                .fold(0.0, f64::max)
-        };
-        let fitted = worst(h1, h2);
-        let plain = worst(c1, k);
-        assert!(fitted < 8.0, "{fitted}");
-        assert!(fitted < plain, "{fitted} vs {plain}");
-        // The directions at both ends are kept.
-        assert!(dir(h1 - m).distance(dir(c1 - m)) < 1e-9);
-        assert!(dir(h2 - j).distance(dir(k - j)) < 1e-9);
+        let (k, a) = (pt(100.0, 230.0), pt(160.0, 270.0));
+        assert!(adp.ctrl1.distance(k + (a - k) / 3.0) < 1e-9);
+        assert!(adp.ctrl2.distance(a + (k - a) / 3.0) < 1e-9);
+        // An exchange joins the midmarker itself: no stem.
+        assert_eq!(m.find_reaction("EX_atp_c").unwrap().stem, None);
     }
 
     #[test]

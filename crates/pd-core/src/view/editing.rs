@@ -347,6 +347,7 @@ impl DiagramView {
             let linear = r.mode == ReactionMode::Linear;
             let mid = midpoint(m, id);
             let r = m.find_reaction_mut(id).expect("found above");
+            r.stem = None;
             if linear {
                 r.mode = ReactionMode::Straight;
                 if let Some(mid) = mid {
@@ -374,6 +375,7 @@ impl DiagramView {
             let mid = midpoint(m, id);
             if let Some(r) = m.find_reaction_mut(id) {
                 r.mode = ReactionMode::Straight;
+                r.stem = None;
                 if let Some(mid) = mid {
                     r.junction = mid;
                 }
@@ -406,6 +408,8 @@ impl DiagramView {
             };
             r.junction_smooth = on;
             if on {
+                // Smooth handles meet at the junction (S §5.13).
+                r.stem = None;
                 apply_smooth_handles(m, id);
             }
         })
@@ -445,6 +449,7 @@ impl DiagramView {
             let r = m.find_reaction_mut(id).expect("found above");
             r.mode = ReactionMode::Bezier;
             r.junction = (cent_r + cent_p) / 2.0;
+            r.stem = None;
             if smooth {
                 apply_smooth_handles(m, id);
             } else {

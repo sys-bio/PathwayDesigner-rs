@@ -21,8 +21,11 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought reaction names (S §5.12).
-pub const FORMAT_VERSION: u32 = 7;
+/// one that brought reaction stems (S §5.13).
+pub const FORMAT_VERSION: u32 = 8;
+
+/// The version that brought reaction names (S §5.12).
+pub const NAME_VERSION: u32 = 7;
 
 /// The version that brought names drawn outside their node (S §5.11) and
 /// saved styles (S §8.6).
@@ -39,16 +42,18 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 7 if a reaction shows its name, 6 if a species has its
-/// name outside, a species or
+/// (SPEC-Rust §4.2): 8 if a reaction has a stem, 7 if a reaction shows its
+/// name, 6 if a species has its name outside, a species or
 /// compartment has no border, or an item follows a saved style, 5 if one has a
 /// shape other than the rounded rectangle or a border style other than
 /// automatic, 4 if it has free text or a drawn compartment, 3 otherwise.
 pub fn needed_version(model: &Model) -> u32 {
     let no_border = model.species().iter().any(|s| s.style.no_border)
         || model.compartments.iter().any(|c| c.style.no_border);
-    if model.reactions().iter().any(|r| r.label_offset.is_some()) {
+    if model.reactions().iter().any(|r| r.stem.is_some()) {
         FORMAT_VERSION
+    } else if model.reactions().iter().any(|r| r.label_offset.is_some()) {
+        NAME_VERSION
     } else if model.species().iter().any(|s| s.label_offset.is_some())
         || no_border
         || crate::styles::any_links(model)
@@ -404,6 +409,10 @@ struct FileReaction {
     label_dx: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label_dy: Option<f64>,
+    /// Version 8: its stem (S §5.13), `[rdx, rdy, pdx, pdy]`: where the
+    /// reactants' lines end and the products' lines start, from the junction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stem: Option<Vec<f64>>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -644,6 +653,19 @@ impl FileModel {
             reaction.junction_smooth = r.is_junction_smooth;
             reaction.style = style_from_file(r.style);
             reaction.style_name = r.style_name;
+            reaction.stem = match r.stem.as_deref() {
+                None => None,
+                Some(&[a, b, c, d]) if [a, b, c, d].iter().all(|v| v.is_finite()) => {
+                    Some((pt(a, b), pt(c, d)))
+                }
+                Some(_) => {
+                    warnings.push(format!(
+                        "Reaction `{}` has a stem that isn't four numbers; it was left out.",
+                        reaction.id
+                    ));
+                    None
+                }
+            };
             reaction.label_offset = match (r.label_dx, r.label_dy) {
                 (None, None) => None,
                 (Some(dx), Some(dy)) if dx.is_finite() && dy.is_finite() => Some(pt(dx, dy)),
@@ -1180,6 +1202,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         style_name: r.style_name.clone(),
         label_dx: r.label_offset.map(|o| o.x),
         label_dy: r.label_offset.map(|o| o.y),
+        stem: r.stem.map(|(a, b)| vec![a.x, a.y, b.x, b.y]),
     }
 }
 
@@ -1460,7 +1483,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 8, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 9, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);

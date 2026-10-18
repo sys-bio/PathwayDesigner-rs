@@ -36,6 +36,8 @@ mod saved_styles;
 #[cfg(test)]
 mod snap_tests;
 #[cfg(test)]
+mod stem_tests;
+#[cfg(test)]
 mod style_tests;
 #[cfg(test)]
 mod text_tests;

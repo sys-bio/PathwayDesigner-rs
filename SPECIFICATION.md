@@ -602,6 +602,29 @@ name: renaming the reaction renames the label.
   (SPEC-Rust §8.3), read back from this app's files and other tools'; its size and
   colour are not carried. Antimony has no layout.
 
+### 5.13 Stems
+
+*Added in the Rust version*, for Escher maps (§11.7). A reaction may have a
+**stem**: a straight line through its junction, from the point where its reactants'
+lines end to the point where its products' lines start, as Escher draws a reaction's
+spine. Both points are stored as offsets from the junction, so whatever moves the
+junction (dragging it, moving the reaction, alignment, layout) carries the stem.
+
+- **Drawing:** the stem is drawn as two straight pieces, reactants' end → junction
+  → products' end, in the reaction's line colour and width, before its legs. Each
+  reactant's leg (straight or Bézier) ends at the reactants' end, and each product's
+  starts at the products' end; their handles work as before. A modifier's arc still
+  ends at the junction. A Linear reaction is drawn as one line and shows no stem.
+- **Clicking** the stem selects the reaction, as its legs do. A name shown (§5.12)
+  starts clear of the stem: the lines leaving the junction are the stem's.
+- **Commands that reshape the reaction remove it:** Set Straight, Toggle Linear,
+  Make Nice, and turning Smooth junction on (smooth handles meet at the junction).
+  Set Bézier keeps it, and so does the Escher theme (§8.7), which leaves a reaction
+  with a stem, and its handles, as they are. Undo puts it back.
+- **Files:** JSON version 8 (SPEC-Rust §4.2), written only when a reaction has a
+  stem. In SBML each leg ends at its end of the stem (the stem itself is written
+  in step 2).
+
 ## 6. Interaction model
 
 ### 6.1 Modes
@@ -1959,21 +1982,19 @@ Save never writes over the map. Opening it is not an edit, so the status bar say
   rate laws, so the law is empty. A metabolite listed but not drawn is left out,
   with a warning; a reaction with no `midmarker` or nothing drawn is left out,
   with a warning.
-- **Legs.** Escher draws each side of a reaction as a curve from the metabolite to a
-  `multimarker` on the reaction's spine (handles `b1` by the segment's `from` node
-  and `b2` by its `to` node), then a straight stub along the spine to the
-  `midmarker`. Here each leg is one Bézier from the species to the junction: its
-  handle by the species points towards Escher's handle there, and its handle by the
-  junction lies on the spine, so the leg leaves the metabolite and comes into the
-  junction as Escher's does. The two handles' lengths are those, of a few tried,
-  that bring the curve closest to Escher's path, each curve compared as 16 straight
-  pieces (as good a choice as 48 on the E. coli core map, and 20 times quicker). A segment with no handles has them
-  a third of the way along; a metabolite joined straight to the `midmarker` keeps
-  that segment's handles.
+- **Legs and spine.** Escher draws each side of a reaction as curves from its
+  metabolites to one node on the reaction's spine (a `multimarker`, or the
+  `midmarker` itself), with handles `b1` by the segment's `from` node and `b2` by
+  its `to` node, and the spine as straight segments from one multimarker through the
+  midmarker to the other. Here the spine is the reaction's **stem** (§5.13), its ends
+  the two sides' nodes, and each leg is the map's own curve from the species to its
+  side's end of the stem, its handles as the map has them: the drawing is the map's.
+  A segment with no handles is straight, its handles a third of the way along. A
+  reaction whose metabolites all join the midmarker has no stem.
 - **Exchange reactions** draw only one side: the other gets a null node (§5.4)
   across the junction from the species, `NULL_OFFSET` away.
 - **Look.** The diagram takes the Escher theme (§8.7), keeping the map's handles
-  (no smooth junctions). Names are drawn where the map puts them: Escher's label
+  and stems (no smooth junctions). Names are drawn where the map puts them: Escher's label
   point is the start of the text on its baseline, so a name's centre is half its
   width right of it and half its height above the baseline's middle. Reaction names
   are shown (§5.12) at the reactions' label points.

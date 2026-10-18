@@ -454,9 +454,24 @@ pub struct Reaction {
     /// Where its name (its id) is drawn, from its junction (S §5.12);
     /// `None` when the name isn't shown.
     pub label_offset: Option<Pt>,
+    /// A stem (S §5.13): a straight line through the junction, from where
+    /// the reactants' lines end to where the products' lines start, both
+    /// from the junction. `None`: they all meet at the junction.
+    pub stem: Option<(Pt, Pt)>,
 }
 
 impl Reaction {
+    /// Where the lines of `role` meet the reaction: their end of its stem,
+    /// or its junction (S §5.13). A modifier's arc always ends at the
+    /// junction.
+    pub fn leg_anchor(&self, role: Role) -> Pt {
+        match (self.stem, role) {
+            (Some((a, _)), Role::Reactant) => self.junction + a,
+            (Some((_, b)), Role::Product) => self.junction + b,
+            _ => self.junction,
+        }
+    }
+
     pub fn new(id: impl Into<Id>, junction: Pt) -> Self {
         Self {
             id: id.into(),
@@ -472,6 +487,7 @@ impl Reaction {
             style: VisualStyle::default(),
             style_name: None,
             label_offset: None,
+            stem: None,
         }
     }
 

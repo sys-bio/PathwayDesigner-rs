@@ -97,7 +97,7 @@ pub fn leg_curve(model: &Model, r: &Reaction, role: Role, index: usize) -> Optio
     let list = r.participants(role);
     let p = list.get(index)?;
     let s = model.find_species(&p.species)?.center;
-    let j = r.junction;
+    let j = r.leg_anchor(role);
     let (a, b) = if role == Role::Reactant {
         (s, j)
     } else {

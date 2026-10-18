@@ -346,6 +346,12 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 8: stems (S §5.13).** A reaction may have `stem`, after `labelDy`:
+`[rdx, rdy, pdx, pdy]`, where its reactants' lines end and its products' lines
+start, each from the junction. Left out for a reaction without one; anything but
+four numbers is left out, with a warning. A document in which a reaction has a stem
+is version 8; otherwise it is written as before.
+
 **Version 7: reaction names (S §5.12).** A reaction may have `labelDx` and
 `labelDy`, after `styleName`: where its name's centre is drawn, from its junction.
 Both are written for a reaction showing its name and both left out otherwise; a

@@ -343,7 +343,17 @@ pub fn clear_reaction_label_offset(model: &Model, r: &Reaction) -> Pt {
     let j = effective_junction(model, r);
     let bezier = effective_mode(r) == ReactionMode::Bezier;
     let mut toward = Vec::new();
+    // A stem's ends are where its lines leave the junction (S §5.13); a
+    // side whose end is at the junction has its legs leave from there.
+    let stem = stem_line(r);
     for role in [Role::Reactant, Role::Product, Role::Modifier] {
+        if let Some(s) = stem {
+            let end = if role == Role::Reactant { s[0] } else { s[2] };
+            if role != Role::Modifier && end.distance(j) > 1e-9 {
+                toward.push(end);
+                continue;
+            }
+        }
         for (i, p) in r.participants(role).iter().enumerate() {
             let curve = (bezier && role != Role::Modifier)
                 .then(|| leg_curve(model, r, role, i))
@@ -542,6 +552,19 @@ pub fn effective_junction(model: &Model, r: &Reaction) -> Pt {
     }
 }
 
+/// A reaction's stem as drawn (S §5.13): from the reactants' end through
+/// the junction to the products' end. `None` without one, and for a Linear
+/// reaction, which is drawn as one line.
+pub fn stem_line(r: &Reaction) -> Option<[Pt; 3]> {
+    r.stem
+        .filter(|_| effective_mode(r) != ReactionMode::Linear)?;
+    Some([
+        r.leg_anchor(Role::Reactant),
+        r.junction,
+        r.leg_anchor(Role::Product),
+    ])
+}
+
 /// A Linear reaction's reactant and product centres, or `None` for any other
 /// reaction.
 pub fn linear_line(model: &Model, r: &Reaction) -> Option<(Pt, Pt)> {
@@ -652,6 +675,13 @@ impl Drawer<'_> {
             return;
         }
 
+        // The stem, if it has one (S §5.13): a straight line through the
+        // junction.
+        if let Some(stem) = stem_line(r) {
+            let pts: Vec<SPt> = stem.iter().map(|&p| self.to_screen(p)).collect();
+            out.polyline(&pts, stroke);
+        }
+
         if effective_mode(r) == ReactionMode::Bezier {
             for (role, list) in [(Role::Reactant, &r.reactants), (Role::Product, &r.products)] {
                 for (index, p) in list.iter().enumerate() {
@@ -679,13 +709,14 @@ impl Drawer<'_> {
             return;
         }
 
-        let j = r.junction;
+        let j = r.leg_anchor(Role::Reactant);
         for p in &r.reactants {
             if let Some(node) = self.visible(&p.species) {
                 let start = leg_start(node, j);
                 out.polyline(&[self.to_screen(start), self.to_screen(j)], stroke);
             }
         }
+        let j = r.leg_anchor(Role::Product);
         let size = ArrowSize::of(r);
         for p in &r.products {
             if let Some(node) = self.visible(&p.species) {
@@ -1926,6 +1957,45 @@ mod tests {
             assert!(verticals(&calls, GRID_MINOR).is_empty());
             assert!(verticals(&calls, GRID_MAJOR).is_empty());
         }
+    }
+
+    #[test]
+    fn a_stem_is_drawn_through_the_junction_and_the_lines_meet_its_ends() {
+        // A at (0,0), junction (200,0), B at (400,0); the stem from 160 to 240.
+        let mut m = uni_uni();
+        let r = m.reactions_mut().next().unwrap();
+        r.mode = ReactionMode::Straight;
+        r.stem = Some((pt(-40.0, 0.0), pt(40.0, 0.0)));
+        let lines: Vec<Vec<SPt>> = draw(&m, &DrawOptions::default())
+            .into_iter()
+            .filter_map(|c| match c {
+                Call::Polyline(p, _) => Some(p),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            lines.contains(&vec![spt(160.0, 0.0), spt(200.0, 0.0), spt(240.0, 0.0)]),
+            "{lines:?}"
+        );
+        // The reactant's line ends at the stem, the product's starts there.
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.len() == 2 && l[1] == spt(160.0, 0.0))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.len() == 2 && l[0] == spt(240.0, 0.0))
+        );
+        // Linear: one line, no stem.
+        m.reactions_mut().next().unwrap().mode = ReactionMode::Linear;
+        let calls = draw(&m, &DrawOptions::default());
+        assert!(
+            !calls
+                .iter()
+                .any(|c| matches!(c, Call::Polyline(p, _) if p.len() == 3))
+        );
     }
 
     #[test]

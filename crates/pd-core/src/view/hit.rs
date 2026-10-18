@@ -167,6 +167,10 @@ fn leg_segments<'a>(
             .filter(|s| show_null_species || !s.is_null_node)
     };
     let mut segments = Vec::new();
+    if let Some([a, j, b]) = crate::render::draw::stem_line(r) {
+        segments.push((a, j));
+        segments.push((j, b));
+    }
     if effective_mode(r) == ReactionMode::Bezier {
         // The curve sampled at 20 points; samples inside the node are ignored.
         for (role, list) in [(Role::Reactant, &r.reactants), (Role::Product, &r.products)] {
@@ -191,12 +195,13 @@ fn leg_segments<'a>(
             segments.push((leg_start(a, b.center), leg_end(b, a.center).0));
         }
     } else {
-        let j = r.junction;
+        let j = r.leg_anchor(Role::Reactant);
         for p in &r.reactants {
             if let Some(n) = node(&p.species) {
                 segments.push((leg_start(n, j), j));
             }
         }
+        let j = r.leg_anchor(Role::Product);
         for p in &r.products {
             if let Some(n) = node(&p.species) {
                 segments.push((j, leg_end(n, j).0));

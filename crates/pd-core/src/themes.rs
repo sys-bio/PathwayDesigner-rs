@@ -291,6 +291,13 @@ fn curve(model: &mut Model, id: &str) {
     let Some(r) = model.find_reaction(id) else {
         return;
     };
+    // A reaction with a stem (an Escher map's, S §5.13) is drawn as it is.
+    if r.stem.is_some() {
+        if let Some(r) = model.find_reaction_mut(id) {
+            r.mode = ReactionMode::Bezier;
+        }
+        return;
+    }
     let mid = if r.mode == ReactionMode::Linear && r.is_uni_uni() {
         let a = model
             .find_species(&r.reactants[0].species)

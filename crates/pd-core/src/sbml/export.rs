@@ -493,6 +493,13 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             let Some(node) = model.find_species(&p.species) else {
                 continue;
             };
+            // A leg meets the reaction at its end of the stem, if it has
+            // one (S §5.13).
+            let j = if crate::render::draw::stem_line(r).is_some() {
+                r.leg_anchor(leg.role)
+            } else {
+                j
+            };
             let edge = border(node, j);
             let segment = match (
                 leg.role,
