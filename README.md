@@ -221,7 +221,7 @@ is written to the `gh-pages` branch.
 
 ## Status
 
-Version 0.1.12. All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
+Version 0.1.13. All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
 browser version (R0 to R12) and the desktop version (D1). The conformance checklist
 and its evidence are in [docs/release-checklist.md](docs/release-checklist.md).
 
