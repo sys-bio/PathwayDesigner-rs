@@ -31,6 +31,9 @@ pub struct DrawOptions {
     pub show_null_species: bool,
     /// Draw modifier arcs (S §7.6). Default on.
     pub show_modifiers: bool,
+    /// Draw an arrowhead at the reactants' end of a reversible reaction too
+    /// (S §5.5, §7.6). Default on.
+    pub show_reversible: bool,
     /// The colour of a selected reaction's lines, arrowheads and modifier
     /// arcs (a preference; selection accent by default).
     pub selected_reaction: Rgba,
@@ -48,6 +51,7 @@ impl Default for DrawOptions {
             show_alias_indicator: true,
             show_null_species: true,
             show_modifiers: true,
+            show_reversible: true,
             selected_reaction: SELECTED_REACTION,
             grid: false,
         }
@@ -61,6 +65,7 @@ impl DrawOptions {
             show_alias_indicator: shown.alias_indicator,
             show_null_species: shown.null_species,
             show_modifiers: shown.modifiers,
+            show_reversible: shown.reversible,
             ..self
         }
     }
@@ -73,6 +78,8 @@ pub struct Shown {
     pub alias_indicator: bool,
     pub null_species: bool,
     pub modifiers: bool,
+    /// Arrowheads at both ends of a reversible reaction.
+    pub reversible: bool,
 }
 
 impl Shown {
@@ -81,6 +88,7 @@ impl Shown {
         alias_indicator: true,
         null_species: true,
         modifiers: true,
+        reversible: true,
     };
 }
 
@@ -683,7 +691,13 @@ impl Drawer<'_> {
                 return;
             };
             let size = ArrowSize::of(r);
-            let start = leg_start(a, b.center);
+            let start = if self.both_ends(r) {
+                let (start, tip) = leg_end_sized(a, b.center, &size);
+                self.arrowhead(tip, a.center - b.center, stroke.color, &size, out);
+                start
+            } else {
+                leg_start(a, b.center)
+            };
             let (end, tip) = leg_end_sized(b, a.center, &size);
             out.polyline(&[self.to_screen(start), self.to_screen(end)], stroke);
             self.arrowhead(tip, b.center - a.center, stroke.color, &size, out);
@@ -707,7 +721,16 @@ impl Drawer<'_> {
                         continue;
                     };
                     let size = ArrowSize::of(r);
-                    let leg = crate::bezier::cut_leg_sized(&curve, node, role, &size);
+                    // A reversible reaction's reactant leg ends in an
+                    // arrowhead too: cut it as a product's, run backwards.
+                    let leg = if role == Role::Reactant && self.both_ends(r) {
+                        let back = crate::geometry::CubicBezier::new(
+                            curve.p3, curve.p2, curve.p1, curve.p0,
+                        );
+                        crate::bezier::cut_leg_sized(&back, node, Role::Product, &size)
+                    } else {
+                        crate::bezier::cut_leg_sized(&curve, node, role, &size)
+                    };
                     let c = leg.curve;
                     out.cubic(
                         self.to_screen(c.p0),
@@ -725,14 +748,20 @@ impl Drawer<'_> {
         }
 
         let j = r.leg_anchor(Role::Reactant);
+        let size = ArrowSize::of(r);
         for p in &r.reactants {
             if let Some(node) = self.visible(&p.species) {
-                let start = leg_start(node, j);
+                let start = if self.both_ends(r) {
+                    let (start, tip) = leg_end_sized(node, j, &size);
+                    self.arrowhead(tip, node.center - j, stroke.color, &size, out);
+                    start
+                } else {
+                    leg_start(node, j)
+                };
                 out.polyline(&[self.to_screen(start), self.to_screen(j)], stroke);
             }
         }
         let j = r.leg_anchor(Role::Product);
-        let size = ArrowSize::of(r);
         for p in &r.products {
             if let Some(node) = self.visible(&p.species) {
                 let (end, tip) = leg_end_sized(node, j, &size);
@@ -740,6 +769,12 @@ impl Drawer<'_> {
                 self.arrowhead(tip, node.center - j, stroke.color, &size, out);
             }
         }
+    }
+
+    /// Whether `r` is drawn with arrowheads at both ends (S §5.5): it is
+    /// reversible and they are shown.
+    fn both_ends(&self, r: &Reaction) -> bool {
+        r.is_reversible && self.opts.show_reversible
     }
 
     fn arrowhead(&self, tip: Pt, dir: Pt, color: Rgba, size: &ArrowSize, out: &mut dyn Renderer) {
@@ -1334,9 +1369,7 @@ mod tests {
         fn polyline(&mut self, pts: &[SPt], stroke: Stroke) {
             self.calls.push(Call::Polyline(pts.to_vec(), stroke));
         }
-        fn cubic(&mut self, _: SPt, _: SPt, _: SPt, _: SPt, _: Stroke) {
-            panic!("no cubics before R5");
-        }
+        fn cubic(&mut self, _: SPt, _: SPt, _: SPt, _: SPt, _: Stroke) {}
         fn polygon(&mut self, pts: &[SPt], fill: Rgba) {
             self.calls.push(Call::Polygon(pts.to_vec(), fill));
         }
@@ -2012,6 +2045,91 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, Call::Polyline(p, _) if p.len() == 3))
         );
+    }
+
+    #[test]
+    fn a_reversible_reaction_has_an_arrowhead_at_both_ends() {
+        // A at (0,0) → B at (400,0); A's border is at x 40.
+        let arrows = |mode: ReactionMode, reversible: bool, shown: bool| {
+            let mut m = uni_uni();
+            let r = m.reactions_mut().next().unwrap();
+            r.mode = mode;
+            r.is_reversible = reversible;
+            let opts = DrawOptions {
+                show_reversible: shown,
+                ..DrawOptions::default()
+            };
+            draw(&m, &opts)
+                .into_iter()
+                .filter_map(|c| match c {
+                    Call::Polygon(p, _) if p.len() == 3 => Some(p),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        for mode in [
+            ReactionMode::Straight,
+            ReactionMode::Linear,
+            ReactionMode::Bezier,
+        ] {
+            assert_eq!(arrows(mode, false, true).len(), 1, "{mode:?}");
+            assert_eq!(arrows(mode, true, false).len(), 1, "{mode:?}: hidden");
+            let both = arrows(mode, true, true);
+            assert_eq!(both.len(), 2, "{mode:?}");
+            // One points at A: its tip 3 right of A's border, its base
+            // further right.
+            let at_a = both
+                .iter()
+                .find(|t| (t[0].x - 43.0).abs() < 0.5)
+                .unwrap_or_else(|| panic!("{mode:?}: {both:?}"));
+            assert!(at_a[1].x > at_a[0].x && at_a[2].x > at_a[0].x, "{mode:?}");
+            // And the line from A starts under it, not at the reactant gap.
+            let lines: Vec<SPt> = {
+                let mut m = uni_uni();
+                let r = m.reactions_mut().next().unwrap();
+                r.mode = mode;
+                r.is_reversible = true;
+                draw(&m, &DrawOptions::default())
+                    .into_iter()
+                    .filter_map(|c| match c {
+                        Call::Polyline(p, _) => Some(p[0]),
+                        _ => None,
+                    })
+                    .collect()
+            };
+            if mode != ReactionMode::Bezier {
+                assert!(
+                    lines.iter().any(|p| (p.x - (40.0 + 6.0)).abs() < 0.5),
+                    "{mode:?}: {lines:?}"
+                );
+            }
+        }
+        // With a thick line the line stops halfway under the bigger head:
+        // 6 wide, the head is twice the size, so 6 + 24/2 from A's border.
+        let mut m = uni_uni();
+        let r = m.reactions_mut().next().unwrap();
+        r.mode = ReactionMode::Straight;
+        r.is_reversible = true;
+        r.style.has_custom_style = true;
+        r.style.line_width = 6.0;
+        let starts: Vec<SPt> = draw(&m, &DrawOptions::default())
+            .into_iter()
+            .filter_map(|c| match c {
+                Call::Polyline(p, _) => Some(p[0]),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            starts.iter().any(|p| (p.x - (40.0 + 18.0)).abs() < 0.5),
+            "{starts:?}"
+        );
+        // Output follows what is shown.
+        let shown = Shown {
+            reversible: false,
+            ..Shown::ALL
+        };
+        assert!(!DrawOptions::default().with(shown).show_reversible);
+        assert!(DrawOptions::default().with(Shown::ALL).show_reversible);
     }
 
     #[test]

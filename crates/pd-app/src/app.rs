@@ -274,6 +274,7 @@ impl PathwayApp {
         app.view.show_null_species = app.prefs.show_null_species;
         app.view.selected_reaction_colour = app.prefs.selected_reaction;
         app.view.show_modifiers = app.prefs.show_modifiers;
+        app.view.show_reversible = app.prefs.show_reversible;
         app.view.show_grid = app.prefs.show_grid;
         app.view.snap_to_grid = app.prefs.snap_to_grid;
         app.view.set_my_styles(crate::my_styles::load(cc.storage));
@@ -839,6 +840,8 @@ impl PathwayApp {
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
                 ui.checkbox(&mut self.view.show_modifiers, "Modifier lines")
                     .on_hover_text("Show the dashed lines from modifiers to their reactions");
+                ui.checkbox(&mut self.view.show_reversible, "Reversible arrowheads")
+                    .on_hover_text("Draw reversible reactions with an arrowhead at both ends");
                 ui.checkbox(&mut self.view.show_grid, "Grid").on_hover_text(
                     "Lines every 20 units behind the diagram, as a guide; never exported",
                 );
@@ -1488,6 +1491,7 @@ impl eframe::App for PathwayApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         // View ▸ Modifier lines changes the view directly.
         self.prefs.show_modifiers = self.view.show_modifiers;
+        self.prefs.show_reversible = self.view.show_reversible;
         self.prefs.show_grid = self.view.show_grid;
         self.prefs.snap_to_grid = self.view.snap_to_grid;
         self.prefs.save(storage);

@@ -378,6 +378,13 @@ width, not the wider one a selected reaction is drawn with, so selecting a
 reaction doesn't change its arrowheads. At the default width or less, nothing
 changes.
 
+**Reversible reactions** (added in the Rust version): a reaction marked reversible
+(`isReversible`, §8.1) also has an arrowhead at each reactant, while **Reversible
+arrowheads** is on (§7.6): drawn as a product's, pointing at the reactant, the
+reactant's line ending under it as a product's does, for Straight, Linear and
+Bézier reactions. With the toggle off, or for a reaction not reversible, a
+reactant's line starts the reactant gap from its node, as before.
+
 **Border intersection for straight lines:** use the axis-aligned rectangle (ignore
 the rounded corners). Starting at the centre `C`, step towards an external point `P`
 along the unit vector `u`. The border point is `C + u·min(halfW/|uₓ|, halfH/|u_y|)`.
@@ -1000,7 +1007,7 @@ the circle. Both handles are 0.35 of the leg's length.
 junction at the centre of its species and automatic handles (smooth handles
 recomputed). Without this, the mean movement could put the junction anywhere.
 
-### 7.6 View toggles (not undoable; Modifier lines, Grid and Snap to grid are remembered)
+### 7.6 View toggles (not undoable; Modifier lines, Reversible arrowheads, Grid and Snap to grid are remembered)
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border
   of aliases on or off.
@@ -1009,6 +1016,9 @@ recomputed). Without this, the mean movement could put the junction anywhere.
   reaction at once. The modifiers stay in the model. It is remembered between
   sessions, like a preference. *Not in the reference; added at the user's
   request.*
+- **Reversible arrowheads** on/off (View menu). Default **on**. Draws reversible
+  reactions with an arrowhead at both ends (§5.5), on screen and in output.
+  Remembered between sessions. *Added in the Rust version.*
 - **Grid** on/off (View menu). Default **off**. Light lines behind the diagram,
   every **20** units, with a darker line every **100**, as a guide for lining
   things up; they follow zoom and scroll. Lines that would be closer than **8**
@@ -1310,6 +1320,7 @@ fields are enabled only when exactly one species is selected.
 | Line colour swatch | all selected reactions | Sets `lineColor` and `hasCustomStyle`. |
 | Line width (number) | single reaction | Sets `lineWidth` and `hasCustomStyle`. Shows the width drawn (1.5 by default); 0 or less is refused. |
 | Show junction (checkbox) | all selected reactions | Sets `junctionVisible`. The box is ticked only if **every** selected reaction shows its junction. |
+| Reversible (checkbox) | all selected reactions | Sets `isReversible` (one undo step, *Reversible*), drawn with an arrowhead at both ends (§5.5). Ticked only if every selected reaction is reversible. Added in the Rust version. |
 | Kinetic law (text) | single reaction | Applied when the field loses focus. Then runs modifier sync (§8.4). |
 
 **Displayed values.** Each swatch shows the **effective** colour, which is the

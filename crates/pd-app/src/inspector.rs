@@ -416,6 +416,23 @@ impl Inspector {
                         }
                         ui.end_row();
 
+                        // For every selected reaction (S §8.1); drawn with
+                        // arrowheads at both ends (S §5.5). Not part of a look.
+                        if !look_only {
+                            ui.label("Reversible");
+                            let mut rev = view.selected_reactions_reversible() == Some(true);
+                            if ui
+                                .checkbox(&mut rev, "")
+                                .on_hover_text(
+                                    "A reversible reaction has an arrowhead at both ends",
+                                )
+                                .changed()
+                            {
+                                view.set_reversible(rev);
+                            }
+                            ui.end_row();
+                        }
+
                         // Its id beside the junction, for every selected
                         // reaction (S §5.12). Where it is isn't part of a look.
                         if !look_only {

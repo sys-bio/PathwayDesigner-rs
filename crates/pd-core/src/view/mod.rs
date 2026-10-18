@@ -86,6 +86,8 @@ pub struct DiagramView {
     pub show_null_species: bool,
     /// Modifier arcs drawn (S §7.6).
     pub show_modifiers: bool,
+    /// View ▸ Reversible arrowheads (S §7.6).
+    pub show_reversible: bool,
     /// The grid drawn behind the diagram (S §7.6). Never in output.
     pub show_grid: bool,
     /// Dragged and new items land on grid points (S §7.6), unless Alt is held.
@@ -339,6 +341,7 @@ impl DiagramView {
             scroll: Pt::ZERO,
             show_alias_indicator: true,
             show_modifiers: true,
+            show_reversible: true,
             show_grid: false,
             snap_to_grid: false,
             show_null_species: true,
@@ -382,6 +385,7 @@ impl DiagramView {
             alias_indicator: self.show_alias_indicator,
             null_species: self.show_null_species,
             modifiers: self.show_modifiers,
+            reversible: self.show_reversible,
         }
     }
 
@@ -457,6 +461,7 @@ impl DiagramView {
             show_alias_indicator: self.show_alias_indicator,
             show_null_species: self.show_null_species,
             show_modifiers: self.show_modifiers,
+            show_reversible: self.show_reversible,
             selected_reaction: self.selected_reaction_colour,
             grid: self.show_grid,
         };

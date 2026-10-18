@@ -268,6 +268,23 @@ impl DiagramView {
         })
     }
 
+    /// Marks the selected reactions reversible or not (S §8.1): a reversible
+    /// one is drawn with an arrowhead at both ends (S §5.5). One undo step.
+    pub fn set_reversible(&mut self, reversible: bool) -> ViewResponse {
+        let before = self.model.clone();
+        for r in self.model.reactions_mut().filter(|r| r.selected) {
+            r.is_reversible = reversible;
+        }
+        self.record_if_changed("Reversible", before)
+    }
+
+    /// Whether the selected reactions are reversible, if they all agree.
+    pub fn selected_reactions_reversible(&self) -> Option<bool> {
+        let mut rev = self.model.selected_reactions().map(|r| r.is_reversible);
+        let first = rev.next()?;
+        rev.all(|v| v == first).then_some(first)
+    }
+
     /// Sets the diagram's background colour (S §8.8); [`Rgba::DEFAULT`] puts
     /// the usual one back. One undo step.
     pub fn set_background(&mut self, colour: Rgba) -> ViewResponse {

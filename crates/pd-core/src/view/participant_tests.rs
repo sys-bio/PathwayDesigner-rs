@@ -206,3 +206,35 @@ fn an_alias_is_added_as_drawn() {
     // is in, the primary node is not.
     assert!(!click(&mut v, pt(0.0, 400.0)).model_changed);
 }
+
+#[test]
+fn reactions_can_be_marked_reversible() {
+    let mut v = view();
+    let mut r2 = Reaction::new("R2", pt(150.0, 200.0));
+    r2.reactants = vec![Participant::new("S3", 1.0)];
+    r2.products = vec![Participant::new("S4", 1.0)];
+    r2.is_reversible = true;
+    v.model.push_reaction(r2).unwrap();
+    assert_eq!(v.selected_reactions_reversible(), None, "nothing selected");
+    v.select_item(&Target::Leg("R1".into()), false);
+    assert_eq!(v.selected_reactions_reversible(), Some(false));
+    v.select_item(&Target::Leg("R2".into()), true);
+    assert_eq!(v.selected_reactions_reversible(), None, "they disagree");
+    v.set_reversible(true);
+    assert_eq!(v.undo_description(), Some("Reversible"));
+    assert!(r1(&v).is_reversible);
+    assert_eq!(v.selected_reactions_reversible(), Some(true));
+    assert!(!v.set_reversible(true).model_changed);
+    v.undo();
+    assert!(!r1(&v).is_reversible);
+    // The file and SBML keep it, as they always have.
+    v.redo();
+    let back = crate::json::from_json(&crate::json::to_json(v.model()))
+        .unwrap()
+        .model;
+    assert!(back.find_reaction("R1").unwrap().is_reversible);
+    // View ▸ Reversible arrowheads is on by default, and output follows it.
+    assert!(v.show_reversible);
+    v.show_reversible = false;
+    assert!(!v.shown().reversible);
+}
