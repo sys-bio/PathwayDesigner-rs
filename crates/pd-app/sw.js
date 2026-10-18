@@ -11,8 +11,9 @@
 // base path (/<repo>/ on GitHub Pages).
 
 const CACHE = "pathwaydesigner";
-// `pathway-designer-<hash>.js` or `pathway-designer-<hash>_bg.wasm`.
-const HASHED = /-[0-9a-f]{16}(_bg)?\.(js|wasm)$/;
+// `pathway-designer-<hash>.js` or `pathway-designer-<hash>_bg.wasm`. The hash
+// has up to 16 hex digits: Trunk drops leading zeros.
+const HASHED = /-[0-9a-f]{1,16}(_bg)?\.(js|wasm)$/;
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));

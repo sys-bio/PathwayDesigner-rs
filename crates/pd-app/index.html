@@ -101,8 +101,9 @@
         // A new version: the published page names a different build. Checked a
         // little after loading, every 30 minutes, and on coming back to the tab.
         // GitHub Pages' caching can't be changed, so the page asks for a reload.
+        // The build's hash: up to 16 hex digits (Trunk drops leading zeros).
         function buildOf(html) {
-            const m = /pathway-designer-([0-9a-f]{16})\.js/.exec(html);
+            const m = /pathway-designer-([0-9a-f]{1,16})\.js/.exec(html);
             return m ? m[1] : null;
         }
         async function checkForUpdate() {

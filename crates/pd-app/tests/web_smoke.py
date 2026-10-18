@@ -102,7 +102,8 @@ with sync_playwright() as p:
     index = os.path.join(site, "index.html")
     with open(index, encoding="utf-8") as f:
         text = f.read()
-    running = re.search(r"pathway-designer-([0-9a-f]{16})\.js", text).group(1)
+    # Up to 16 hex digits: Trunk drops leading zeros.
+    running = re.search(r"pathway-designer-([0-9a-f]{1,16})\.js", text).group(1)
     with open(index, "w", encoding="utf-8") as f:
         f.write(text.replace(running, "0123456789abcdef"))
     page.evaluate("checkForUpdate()")
