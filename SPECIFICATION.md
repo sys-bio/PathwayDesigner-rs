@@ -940,8 +940,21 @@ recomputed). Without this, the mean movement could put the junction anywhere.
     Compartment tool.
   - Holding **Alt** places freely; pressing or letting go of it during a drag
     takes effect at once.
-  - Not snapped: Bézier handles, a name drawn outside its node (§5.11), resizing
-    by a corner, the arrow keys, and automatic layout.
+  - **Resizing by a corner** (§7.10, §7.9) puts the corner dragged on the
+    nearest grid point: a species' own corner (not its handle, which sits just
+    outside it), the size changing about the centre as usual, so with the centre
+    on the grid both sides land on it; other selected species grow by the same
+    amount. A compartment's corner dragged lands on the grid; the opposite one
+    stays. With Shift or a circle, which keep proportions, the side that grows
+    most lands on the grid.
+  - **Arrow keys** move the selection to the next grid line in that direction
+    (five lines with Shift), led by the first selected item that moves (a
+    species' centre, else a text's or compartment's top-left corner, else a
+    junction); the rest moves by as much, and nothing moves across. An item
+    already on a line moves one line. With Alt, the usual steps, 1 unit (10 with
+    Shift).
+  - Not snapped: Bézier handles, a name drawn outside its node (§5.11), and
+    automatic layout.
   Remembered between sessions. *Not in the reference; added at the user's
   request.*
 

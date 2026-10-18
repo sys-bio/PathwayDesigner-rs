@@ -22,6 +22,10 @@ pub(super) struct LayoutState {
 
 /// The undo step a run of keyboard nudges makes.
 const NUDGE: &str = "Nudge";
+/// How far an arrow key moves the selection without snapping, in diagram
+/// units; with Shift.
+pub const NUDGE_STEP: f64 = 1.0;
+pub const NUDGE_STEP_SHIFT: f64 = 10.0;
 
 /// Something align and distribute move: a species by its box, or a
 /// junction as a point.
@@ -447,6 +451,56 @@ impl DiagramView {
     }
 
     // ----- Keyboard nudge ----------------------------------------------------
+
+    /// An arrow key (S §7.5): moves the selection one step in direction
+    /// `dir` (a unit vector along an axis), a big step with Shift. Without
+    /// snapping, or with Alt (`free`), the steps are [`NUDGE_STEP`] and
+    /// [`NUDGE_STEP_SHIFT`]. While snapping to the grid (S §7.6), the first
+    /// selected item moves to the next grid line that way (five lines with
+    /// Shift), and the rest by as much; across, nothing moves.
+    pub fn nudge_key(&mut self, dir: Pt, big: bool, free: bool) -> ViewResponse {
+        use crate::render::constants::{GRID_MAJOR_EVERY, GRID_SPACING};
+        if !self.snap_to_grid || free {
+            let step = if big { NUDGE_STEP_SHIFT } else { NUDGE_STEP };
+            return self.nudge(dir * step);
+        }
+        let lines = if big { GRID_MAJOR_EVERY as f64 } else { 1.0 };
+        let Some(a) = self.nudge_anchor() else {
+            return self.nudge(dir * (GRID_SPACING * lines));
+        };
+        // The next grid line beyond `v` that way, then more lines with Shift.
+        let along = |v: f64, d: f64| -> f64 {
+            if d == 0.0 {
+                return 0.0;
+            }
+            let k = v / GRID_SPACING;
+            let next = if d > 0.0 {
+                k.floor() + 1.0
+            } else {
+                k.ceil() - 1.0
+            };
+            (next + d * (lines - 1.0)) * GRID_SPACING - v
+        };
+        self.nudge(pt(along(a.x, dir.x), along(a.y, dir.y)))
+    }
+
+    /// The point of the first selected item that lands on the grid when
+    /// arrow keys move the selection: a species' centre (not a locked one,
+    /// which stays), else a text's top-left corner, a compartment's box's
+    /// top-left corner, or a reaction's junction.
+    fn nudge_anchor(&self) -> Option<Pt> {
+        let m = &self.model;
+        m.selected_species()
+            .find(|s| !s.locked)
+            .map(|s| s.center)
+            .or_else(|| m.selected_texts().next().map(|t| t.position))
+            .or_else(|| {
+                m.selected_compartments()
+                    .find_map(|c| c.drawn_frame())
+                    .map(|f| f.min())
+            })
+            .or_else(|| m.selected_reactions().next().map(|r| r.junction))
+    }
 
     /// Moves the selected species and the junctions of the selected reactions
     /// by `delta` (world units), as dragging them would: locked species stay,

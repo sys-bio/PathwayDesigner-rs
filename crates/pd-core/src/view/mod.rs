@@ -216,6 +216,8 @@ struct ResizeDrag {
     corner: usize,
     orig: crate::model::Frame,
     before: Box<Model>,
+    /// The pointer's movement; `delta` is it snapped (S §7.6).
+    raw: Pt,
     delta: Pt,
 }
 
@@ -231,6 +233,11 @@ struct SpeciesResizeDrag {
     /// Every species resized, and its size before the drag.
     orig: Vec<(Id, f64, f64)>,
     before: Box<Model>,
+    /// The node's own corner being dragged, where it was: it snaps to the
+    /// grid (S §7.6). `None` if that species can't be found.
+    corner_at: Option<Pt>,
+    /// The pointer's movement; `delta` is it snapped.
+    raw: Pt,
     delta: Pt,
 }
 
@@ -735,12 +742,19 @@ impl DiagramView {
                     .filter(|s| s.selected && !s.is_null_node)
                     .map(|s| (s.id.clone(), s.width, s.height))
                     .collect();
+                // The node's corner, not the handle, which sits outside it.
+                let corner_at = self.model.find_species(&id).map(|s| {
+                    let (sx, sy) = CORNER_SIGNS[corner];
+                    s.center + pt(sx * s.width / 2.0, sy * s.height / 2.0)
+                });
                 self.gesture = Gesture::SpeciesResize(SpeciesResizeDrag {
                     start: world,
                     anchor: id,
                     corner,
                     orig,
                     before: Box::new(self.model.clone()),
+                    corner_at,
+                    raw: Pt::ZERO,
                     delta: Pt::ZERO,
                 });
             }
@@ -752,6 +766,7 @@ impl DiagramView {
                         corner,
                         orig,
                         before: Box::new(self.model.clone()),
+                        raw: Pt::ZERO,
                         delta: Pt::ZERO,
                     });
                 }
@@ -847,12 +862,15 @@ impl DiagramView {
                 self.apply_text_wrap(&drag);
             }
             Gesture::Resize(drag) => {
-                drag.delta = world - drag.start;
+                drag.raw = world - drag.start;
+                let corner = crate::render::draw::compartment_corners(&drag.orig)[drag.corner];
+                drag.delta = snap_delta(snap, Some(corner), drag.raw);
                 let drag = drag.clone();
                 self.apply_resize(&drag);
             }
             Gesture::SpeciesResize(drag) => {
-                drag.delta = world - drag.start;
+                drag.raw = world - drag.start;
+                drag.delta = snap_delta(snap, drag.corner_at, drag.raw);
                 let drag = drag.clone();
                 self.apply_species_resize(&drag);
             }
@@ -1292,6 +1310,17 @@ impl DiagramView {
                 drag.delta = snap_delta(snap, Some(drag.orig), drag.raw);
                 let drag = drag.clone();
                 self.apply_junction_drag(&drag);
+            }
+            Gesture::Resize(drag) => {
+                let corner = crate::render::draw::compartment_corners(&drag.orig)[drag.corner];
+                drag.delta = snap_delta(snap, Some(corner), drag.raw);
+                let drag = drag.clone();
+                self.apply_resize(&drag);
+            }
+            Gesture::SpeciesResize(drag) => {
+                drag.delta = snap_delta(snap, drag.corner_at, drag.raw);
+                let drag = drag.clone();
+                self.apply_species_resize(&drag);
             }
             _ => return ViewResponse::default(),
         }

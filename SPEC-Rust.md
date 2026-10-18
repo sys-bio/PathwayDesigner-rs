@@ -553,7 +553,7 @@ Text group did nothing, so the text was never saved.)
 | Delete / Backspace | Delete the selection |
 | Esc | Cancel |
 | Cmd+A | Select all |
-| Arrow keys | Nudge the selection 1 unit; with Shift, 10 units |
+| Arrow keys | Nudge the selection 1 unit; with Shift, 10 units. While snapping to the grid (S §7.6), to the next grid line (five with Shift); Alt keeps the 1 and 10 units |
 | Cmd+Z | Undo |
 | Cmd+Shift+Z, Ctrl+Y | Redo |
 | Cmd+S / Cmd+Shift+S | Save / Save As |

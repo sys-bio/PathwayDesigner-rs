@@ -178,3 +178,95 @@ fn a_locked_species_grabbed_doesnt_snap_the_rest() {
     assert_eq!(centre(&v, "S1"), pt(3.0, 7.0));
     assert_eq!(centre(&v, "S2"), pt(143.0, 44.0));
 }
+
+#[test]
+fn a_species_corner_lands_on_the_grid() {
+    use crate::render::constants::HALO_OUTSET;
+    let mut v = view();
+    v.select_item(&Target::Species("S1".into()), false);
+    // S1 is 80 × 36 at (3, 7): its bottom-right corner is at (43, 25), its
+    // handle a little outside. Dragged by (10, 10), the corner would be at
+    // (53, 35): it goes to (60, 40), the centre staying.
+    let handle = pt(43.0 + HALO_OUTSET, 25.0 + HALO_OUTSET);
+    drag(&mut v, handle, handle + pt(10.0, 10.0));
+    let s = v.model().find_species("S1").unwrap();
+    assert_eq!(s.center, pt(3.0, 7.0));
+    assert_eq!((s.width, s.height), (114.0, 66.0));
+    assert_eq!(s.center + pt(s.width / 2.0, s.height / 2.0), pt(60.0, 40.0));
+    // With Alt, as the pointer goes.
+    v.undo();
+    v.select_item(&Target::Species("S1".into()), false);
+    v.set_alt_held(true);
+    drag(&mut v, handle, handle + pt(10.0, 10.0));
+    let s = v.model().find_species("S1").unwrap();
+    assert_eq!((s.width, s.height), (100.0, 56.0));
+}
+
+#[test]
+fn a_compartment_corner_lands_on_the_grid() {
+    let mut v = view();
+    v.select_item(&Target::Compartment("C".into()), false);
+    // Its box runs from (-38, -59) to (372, 141); the bottom-right corner,
+    // dragged by (9, 4), goes to (380, 140). The other corner stays.
+    drag(&mut v, pt(372.0, 141.0), pt(381.0, 145.0));
+    let f = v.model().find_compartment("C").unwrap().frame.unwrap();
+    assert_eq!((f.min(), f.max()), (pt(-38.0, -59.0), pt(380.0, 140.0)));
+    // Alt pressed during the drag: as the pointer goes, at once.
+    v.undo();
+    v.select_item(&Target::Compartment("C".into()), false);
+    press(&mut v, pt(372.0, 141.0));
+    v.handle(&ViewEvent::PointerMove {
+        pos: pt(381.0, 145.0),
+    });
+    v.set_alt_held(true);
+    let f = v.model().find_compartment("C").unwrap().frame.unwrap();
+    assert_eq!(f.max(), pt(381.0, 145.0));
+    release(&mut v, pt(381.0, 145.0));
+}
+
+#[test]
+fn arrow_keys_go_from_grid_line_to_grid_line() {
+    let mut v = view();
+    v.select_item(&Target::Species("S1".into()), false);
+    v.select_item(&Target::Species("S2".into()), true);
+    let right = pt(1.0, 0.0);
+    // S1's centre is at x 3: first to the next line, 20, then one line at a
+    // time; S2 keeps its distance.
+    v.nudge_key(right, false, false);
+    assert_eq!(centre(&v, "S1"), pt(20.0, 7.0), "across, it stays");
+    assert_eq!(centre(&v, "S2"), pt(120.0, 7.0));
+    v.nudge_key(right, false, false);
+    assert_eq!(centre(&v, "S1"), pt(40.0, 7.0));
+    // Shift: five lines.
+    v.nudge_key(right, true, false);
+    assert_eq!(centre(&v, "S1"), pt(140.0, 7.0));
+    v.nudge_key(pt(-1.0, 0.0), false, false);
+    assert_eq!(centre(&v, "S1"), pt(120.0, 7.0));
+    // Up from y 7: the line at 0.
+    v.nudge_key(pt(0.0, -1.0), false, false);
+    assert_eq!(centre(&v, "S1"), pt(120.0, 0.0));
+    // Alt: the fine steps, 1 and 10.
+    v.nudge_key(right, false, true);
+    v.nudge_key(right, true, true);
+    assert_eq!(centre(&v, "S1"), pt(131.0, 0.0));
+    // One undo step for the run, as before.
+    v.undo();
+    assert_eq!(centre(&v, "S1"), pt(3.0, 7.0));
+    // Without snapping, the fine steps.
+    v.snap_to_grid = false;
+    v.select_item(&Target::Species("S1".into()), false);
+    v.nudge_key(right, false, false);
+    v.nudge_key(right, true, false);
+    assert_eq!(centre(&v, "S1"), pt(14.0, 7.0));
+}
+
+#[test]
+fn arrow_keys_take_a_junction_to_the_grid_when_it_leads() {
+    let mut v = view();
+    v.select_item(&Target::Junction("R".into()), false);
+    v.nudge_key(pt(0.0, 1.0), false, false);
+    assert_eq!(
+        v.model().find_reaction("R").unwrap().junction,
+        pt(55.0, 60.0)
+    );
+}

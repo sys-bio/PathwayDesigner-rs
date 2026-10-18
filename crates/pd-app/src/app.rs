@@ -42,11 +42,8 @@ const COPY_STYLE: KeyboardShortcut =
     KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::C);
 const PASTE_STYLE: KeyboardShortcut =
     KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::V);
-/// How far an arrow key nudges the selection, in diagram units; with Shift.
 /// Room at the bottom of the left panel for the visitor counter (web only).
 const COUNTER_ROOM: f32 = 72.0;
-const NUDGE_STEP: f64 = 1.0;
-const NUDGE_STEP_SHIFT: f64 = 10.0;
 const NEW: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
 const OPEN: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
 const SAVE_AS: KeyboardShortcut =
@@ -573,29 +570,36 @@ impl PathwayApp {
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             self.view.handle(&ViewEvent::Cancel);
         }
-        // Arrow keys nudge the selection. (A focused widget, such as a row of
-        // the model tree, keeps them: shortcuts don't run while one has focus.)
+        // Arrow keys nudge the selection, by grid lines while snapping
+        // (S §7.5, §7.6). (A focused widget, such as a row of the model tree,
+        // keeps them: shortcuts don't run while one has focus.)
         {
-            let delta = ctx.input_mut(|i| {
-                let mut d = Pt::ZERO;
+            let presses = ctx.input_mut(|i| {
+                let mut presses = Vec::new();
                 for (key, dir) in [
                     (Key::ArrowLeft, pt(-1.0, 0.0)),
                     (Key::ArrowRight, pt(1.0, 0.0)),
                     (Key::ArrowUp, pt(0.0, -1.0)),
                     (Key::ArrowDown, pt(0.0, 1.0)),
                 ] {
-                    // Shift first: a plain pattern also matches the key with Shift.
-                    while i.consume_key(Modifiers::SHIFT, key) {
-                        d += dir * NUDGE_STEP_SHIFT;
-                    }
-                    while i.consume_key(Modifiers::NONE, key) {
-                        d += dir * NUDGE_STEP;
+                    // (big, free): Alt places freely, Shift takes big steps.
+                    // Shift first: a plain pattern also matches the key with
+                    // Shift.
+                    for (mods, big, free) in [
+                        (Modifiers::ALT.plus(Modifiers::SHIFT), true, true),
+                        (Modifiers::ALT, false, true),
+                        (Modifiers::SHIFT, true, false),
+                        (Modifiers::NONE, false, false),
+                    ] {
+                        while i.consume_key(mods, key) {
+                            presses.push((dir, big, free));
+                        }
                     }
                 }
-                d
+                presses
             });
-            if delta != Pt::ZERO {
-                self.view.nudge(delta);
+            for (dir, big, free) in presses {
+                self.view.nudge_key(dir, big, free);
             }
         }
     }
@@ -1728,6 +1732,29 @@ mod tests {
         let at = h.centre("S1");
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(h.centre("S1"), at);
+    }
+
+    #[test]
+    fn arrow_keys_step_along_the_grid_while_snapping() {
+        let mut h = Harness::new();
+        h.app.perform(Action::New);
+        h.run(vec![]);
+        h.app.view.snap_to_grid = true;
+        h.app.view.set_tool(Tool::AddSpecies);
+        h.click(Pos2::new(400.0, 400.0));
+        h.key(Key::Escape, Modifiers::NONE);
+        h.time += 1.0;
+        h.click(h.on_screen("S1"));
+        // Placed on the grid, it moves a line at a time; Shift, five.
+        let start = h.centre("S1");
+        assert_eq!(pd_core::view::snap_point(start), start);
+        h.key(Key::ArrowRight, Modifiers::NONE);
+        h.key(Key::ArrowDown, Modifiers::SHIFT);
+        assert_eq!(h.centre("S1") - start, pt(20.0, 100.0));
+        // Alt: the fine steps, 1 and 10.
+        h.key(Key::ArrowLeft, Modifiers::ALT);
+        h.key(Key::ArrowUp, Modifiers::ALT.plus(Modifiers::SHIFT));
+        assert_eq!(h.centre("S1") - start, pt(19.0, 90.0));
     }
 
     #[test]
