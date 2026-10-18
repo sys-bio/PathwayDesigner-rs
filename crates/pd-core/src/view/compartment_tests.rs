@@ -361,3 +361,60 @@ fn a_fill_can_be_left_out() {
     let xml = crate::sbml::export(v.model()).xml;
     assert!(xml.contains("fill=\"#FFFFFF00\""), "{xml}");
 }
+
+#[test]
+fn a_compartment_name_can_be_bigger() {
+    use crate::render::draw::{compartment_label_box, compartment_label_size};
+    let mut v = view();
+    let c = draw_around_a(&mut v);
+    let comp = |v: &DiagramView| v.model().find_compartment(&c).unwrap().clone();
+    assert_eq!(compartment_label_size(&comp(&v)), 12.0);
+    let f = comp(&v).frame.unwrap();
+    let (a, b) = compartment_label_box(&comp(&v), &f);
+    v.select_item(&Target::Compartment(c.clone()), false);
+    v.set_compartment_font_size(24.0);
+    assert_eq!(v.undo_description(), Some("Name Size"));
+    assert_eq!(compartment_label_size(&comp(&v)), 24.0);
+    // The name's box grows from the corner, and a click there selects it.
+    let (a2, b2) = compartment_label_box(&comp(&v), &f);
+    assert_eq!(a2, a);
+    assert!(b2.x > b.x && b2.y > b.y);
+    let inside = pt((b.x + b2.x) / 2.0, (b.y + b2.y) / 2.0);
+    v.model.clear_selection();
+    assert_eq!(v.target_at(inside), Target::Compartment(c.clone()));
+    // Bad sizes are ignored; undo goes back to 12.
+    assert!(!v.set_compartment_font_size(f64::NAN).model_changed);
+    v.undo();
+    assert_eq!(compartment_label_size(&comp(&v)), 12.0);
+    v.redo();
+    // Files keep it: JSON in the style, SBML in the note.
+    let back = crate::json::from_json(&crate::json::to_json(v.model()))
+        .unwrap()
+        .model;
+    assert_eq!(
+        compartment_label_size(back.find_compartment(&c).unwrap()),
+        24.0
+    );
+    let xml = crate::sbml::export(v.model()).xml;
+    assert!(xml.contains("fontSize=\"24\""), "{xml}");
+    let opts = crate::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let back = crate::sbml::import(&xml, &opts).unwrap().model;
+    assert_eq!(
+        compartment_label_size(back.find_compartment(&c).unwrap()),
+        24.0
+    );
+    // Copy Style carries it to another compartment.
+    v.set_tool(Tool::AddCompartment);
+    drag(&mut v, pt(200.0, -100.0), pt(400.0, 100.0));
+    let other = v.model().compartments.last().unwrap().id.clone();
+    v.copy_style(&Target::Compartment(c.clone()));
+    v.select_item(&Target::Compartment(other.clone()), false);
+    v.paste_style();
+    assert_eq!(
+        compartment_label_size(v.model().find_compartment(&other).unwrap()),
+        24.0
+    );
+}

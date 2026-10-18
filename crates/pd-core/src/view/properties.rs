@@ -564,6 +564,18 @@ impl DiagramView {
         self.record_if_changed("Border Width", before)
     }
 
+    /// Sets the name size of every selected compartment (S §7.9; 0 means the
+    /// default, 12). One undo step.
+    pub fn set_compartment_font_size(&mut self, size: f64) -> ViewResponse {
+        if !(size.is_finite() && size >= 0.0) {
+            return ViewResponse::default();
+        }
+        self.on_selected_compartments("Name Size", |c| {
+            c.style.font_size = size;
+            c.style.has_custom_style = true;
+        })
+    }
+
     /// Renames a compartment, and every reference to it (S §7.9). One undo
     /// step.
     pub fn rename_compartment(&mut self, id: &str, new: &str) -> Result<ViewResponse, RenameError> {

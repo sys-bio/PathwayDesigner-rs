@@ -32,6 +32,7 @@ enum Field {
     CompartmentId,
     Volume,
     CompartmentBorderWidth,
+    CompartmentFontSize,
 }
 
 /// The text being typed into one field, and the item it is for.
@@ -57,6 +58,7 @@ pub struct Inspector {
     compartment_id: Draft,
     volume: Draft,
     compartment_border: Draft,
+    compartment_font_size: Draft,
     /// Why the last compartment rename was refused.
     rename_error: Option<String>,
     /// The words of the one selected text, as shown or typed.
@@ -169,6 +171,7 @@ impl Inspector {
         let first_text = texts.first().cloned();
         let compartments = view.selected_compartment_ids();
         let one_compartment = (compartments.len() == 1).then(|| compartments[0].clone());
+        let first_compartment = compartments.first().cloned();
         let look_only = self.look_only;
 
         // Drafts typed for an item that is no longer the one shown go to that
@@ -187,6 +190,7 @@ impl Inspector {
             (Field::CompartmentId, &one_compartment),
             (Field::Volume, &one_compartment),
             (Field::CompartmentBorderWidth, &one_compartment),
+            (Field::CompartmentFontSize, &first_compartment),
         ] {
             if self.draft(field).target != *target {
                 self.commit(field, view);
@@ -482,6 +486,10 @@ impl Inspector {
                         )
                         .on_hover_text("0 for no border");
                         ui.end_row();
+                        // For every selected compartment (S §7.9).
+                        ui.label("Name size");
+                        self.number(ui, view, Field::CompartmentFontSize, true, "");
+                        ui.end_row();
 
                         if !look_only {
                             // Ticked only if every selected box is shown. The default
@@ -714,6 +722,7 @@ impl Inspector {
             Field::CompartmentId => &self.compartment_id,
             Field::Volume => &self.volume,
             Field::CompartmentBorderWidth => &self.compartment_border,
+            Field::CompartmentFontSize => &self.compartment_font_size,
         }
     }
 
@@ -732,6 +741,7 @@ impl Inspector {
             Field::CompartmentId => &mut self.compartment_id,
             Field::Volume => &mut self.volume,
             Field::CompartmentBorderWidth => &mut self.compartment_border,
+            Field::CompartmentFontSize => &mut self.compartment_font_size,
         }
     }
 
@@ -767,6 +777,9 @@ impl Inspector {
             Field::CompartmentBorderWidth => m
                 .find_compartment(target)
                 .map(|c| size_text(draw::compartment_colours(c).2)),
+            Field::CompartmentFontSize => m
+                .find_compartment(target)
+                .map(|c| size_text(draw::compartment_label_size(c))),
         }
         .unwrap_or_default()
     }
@@ -828,6 +841,10 @@ impl Inspector {
             }
             (Field::Volume, Some(v)) => {
                 view.set_compartment_volume(&target, v);
+            }
+            // The size goes to every selected compartment.
+            (Field::CompartmentFontSize, Some(v)) if v > 0.0 => {
+                view.set_compartment_font_size(v);
             }
             (Field::CompartmentBorderWidth, Some(v)) => {
                 view.set_compartment_border_width(&target, v);

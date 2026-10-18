@@ -948,7 +948,7 @@ species glyph's box.
 
 **Compartments (S §7.9)** are written as compartment glyphs with their box. A custom
 style goes in a note on the glyph: `<pd:compartment xmlns:pd="…/ns/sbml-layout/1"
-fill="#F0F6EAFF" border="#7FA36BFF" borderWidth="3"/>`, with only the fields that
+fill="#F0F6EAFF" border="#7FA36BFF" borderWidth="3" fontSize="16"/>`, with only the fields that
 are set; a hidden box (S §7.9) is still written as a glyph, with `hidden="true"` in
 the note. Import gives each compartment the box of its glyph and the note's style,
 and hides the box if the note says so. Compartments without a glyph are fitted

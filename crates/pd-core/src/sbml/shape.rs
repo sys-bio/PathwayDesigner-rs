@@ -90,6 +90,9 @@ pub fn compartment_note(c: &Compartment) -> Option<String> {
                 sbml_io::fmt_f64(s.border_width)
             ));
         }
+        if s.font_size > 0.0 {
+            attrs.push_str(&format!(" fontSize=\"{}\"", sbml_io::fmt_f64(s.font_size)));
+        }
     }
     if c.style.no_border {
         attrs.push_str(r#" noBorder="true""#);
@@ -173,7 +176,7 @@ pub fn read_compartment(annotation: &str) -> Option<CompartmentLook> {
         .descendants()
         .find(|n| n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "compartment")?;
     let colour = |key: &str| note.attribute(key).and_then(from_hex).unwrap_or_default();
-    let styled = ["fill", "border", "borderWidth"]
+    let styled = ["fill", "border", "borderWidth", "fontSize"]
         .iter()
         .any(|k| note.attribute(*k).is_some());
     Some(CompartmentLook {
@@ -183,6 +186,11 @@ pub fn read_compartment(annotation: &str) -> Option<CompartmentLook> {
             border_color: colour("border"),
             border_width: note
                 .attribute("borderWidth")
+                .and_then(|v| v.parse::<f64>().ok())
+                .filter(|w| w.is_finite() && *w > 0.0)
+                .unwrap_or(0.0),
+            font_size: note
+                .attribute("fontSize")
                 .and_then(|v| v.parse::<f64>().ok())
                 .filter(|w| w.is_finite() && *w > 0.0)
                 .unwrap_or(0.0),

@@ -397,10 +397,20 @@ pub fn compartment_corners(f: &Frame) -> [Pt; 4] {
 /// The box of a compartment's name, inside its top-left corner: what
 /// selects it, with its border (S §7.9).
 pub fn compartment_label_box(c: &Compartment, f: &Frame) -> (Pt, Pt) {
-    let m = font_metrics(COMPARTMENT_LABEL_SIZE);
-    let w = text_width(&c.id, COMPARTMENT_LABEL_SIZE);
+    let size = compartment_label_size(c);
+    let m = font_metrics(size);
+    let w = text_width(&c.id, size);
     let a = f.min() + pt(COMPARTMENT_LABEL_INSET, COMPARTMENT_LABEL_INSET);
     (a, a + pt(w, m.ascent - m.descent))
+}
+
+/// The size a compartment's name (its id) is drawn at (S §7.9): its style's
+/// font size, or 12.
+pub fn compartment_label_size(c: &Compartment) -> f64 {
+    pick_width(
+        custom(&c.style).map(|s| s.font_size),
+        COMPARTMENT_LABEL_SIZE,
+    )
 }
 
 /// The fill, border colour and border width a compartment is drawn with; a
@@ -1061,11 +1071,12 @@ impl Drawer<'_> {
             Some(fill),
             (width > 0.0).then(|| Stroke::solid(self.len(width), border)),
         );
-        let size = COMPARTMENT_LABEL_SIZE * self.opts.zoom;
+        let label = compartment_label_size(c);
+        let size = label * self.opts.zoom;
         if size >= MIN_LABEL_SIZE_PX {
             let (a, b) = compartment_label_box(c, f);
-            let cap = font_metrics(COMPARTMENT_LABEL_SIZE).cap_height;
-            let m = font_metrics(COMPARTMENT_LABEL_SIZE);
+            let cap = font_metrics(label).cap_height;
+            let m = font_metrics(label);
             let centre = pt((a.x + b.x) / 2.0, a.y + m.ascent - cap / 2.0);
             out.text(
                 self.to_screen(centre),
@@ -2001,6 +2012,32 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, Call::Polyline(p, _) if p.len() == 3))
         );
+    }
+
+    #[test]
+    fn a_compartment_name_is_drawn_at_its_size() {
+        let mut m = Model::new();
+        let mut c = Compartment::new("cell");
+        c.frame = Some(Frame {
+            center: pt(100.0, 100.0),
+            width: 200.0,
+            height: 200.0,
+        });
+        m.compartments.push(c);
+        let size = |m: &Model| {
+            draw(m, &DrawOptions::default())
+                .into_iter()
+                .find_map(|c| match c {
+                    Call::Text(_, s, size, _) if s == "cell" => Some(size),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        assert_eq!(size(&m), 12.0);
+        let c = &mut m.compartments[0];
+        c.style.has_custom_style = true;
+        c.style.font_size = 20.0;
+        assert_eq!(size(&m), 20.0);
     }
 
     #[test]

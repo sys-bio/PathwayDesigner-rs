@@ -1147,8 +1147,11 @@ valid id it is given), its volume, its style, and the box (centre and size).
 are on top. A rectangle with corners rounded by 14 (less for a very small box),
 filled and outlined: by default a pale green fill (`#F0F6EA`), a green border
 (`#7FA36B`) 2 wide. The fill, border colour and border width can each be set. The
-id is written inside the top-left corner, 8 in from each side, in 12-point label
-font, dark green (`#3D5C2B`), or in the border colour if that was set. A selected
+id is written inside the top-left corner, 8 in from each side, in label font of
+the style's font size (12 point by default; **Name size** in the Compartment
+group sets it for every selected compartment, one undo step, *Name Size*; added
+in the Rust version), dark green (`#3D5C2B`), or in the border colour if that was
+set. The name's box, which selects the compartment, grows with it. A selected
 compartment has the selection halo's dashed outline and a square handle at each
 corner. Neither is drawn in exported pictures.
 
