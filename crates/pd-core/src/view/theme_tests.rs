@@ -142,14 +142,56 @@ fn escher_restyles_every_item_in_one_step() {
     assert_eq!(back, want);
 }
 
+/// The gaps between `id`'s name, drawn outside, and its node: to the right
+/// of the node, and above it (negative when the name isn't that way).
+fn name_gaps(v: &DiagramView, id: &str) -> (f64, f64) {
+    let s = sp(v, id);
+    let (lo, hi) = crate::render::draw::outside_label_box(s).unwrap();
+    let (x, y) = (s.center.x, s.center.y);
+    (lo.x - (x + s.width / 2.0), (y - s.height / 2.0) - hi.y)
+}
+
 #[test]
 fn a_name_already_outside_keeps_its_place() {
-    // Above the node, 22 from its top edge; the node shrinks from 36 to 26
-    // high, and the name stays 22 above the edge (S §5.11).
+    // G6P's name above its node, ADP's to the right, each placed by hand.
+    // The nodes shrink to circles and the names grow (18 and 14); each name
+    // keeps its gap from its node (S §5.11), on its side.
     let mut v = view();
     v.model.find_species_mut("G6P").unwrap().label_offset = Some(pt(0.0, -40.0));
+    v.model.find_species_mut("ADP").unwrap().label_offset = Some(pt(70.0, 0.0));
+    let above = name_gaps(&v, "G6P").1;
+    let right = name_gaps(&v, "ADP").0;
     v.apply_theme(Theme::Escher);
-    assert_eq!(sp(&v, "G6P").label_offset, Some(pt(0.0, -35.0)));
+    assert!((name_gaps(&v, "G6P").1 - above).abs() < 1e-9);
+    assert_eq!(sp(&v, "G6P").label_offset.unwrap().x, 0.0);
+    assert!((name_gaps(&v, "ADP").0 - right).abs() < 1e-9);
+    assert_eq!(sp(&v, "ADP").label_offset.unwrap().y, 0.0);
+    // Applied again, nothing changes size, so nothing moves.
+    let placed = (sp(&v, "G6P").label_offset, sp(&v, "ADP").label_offset);
+    v.apply_theme(Theme::Escher);
+    assert_eq!(
+        (sp(&v, "G6P").label_offset, sp(&v, "ADP").label_offset),
+        placed
+    );
+}
+
+#[test]
+fn escher_names_are_18_and_cofactors_14() {
+    let mut v = view();
+    v.apply_theme(Theme::Escher);
+    let size = |id| crate::render::draw::label_size(sp(&v, id));
+    assert_eq!((size("Glc"), size("G6P")), (18.0, 18.0));
+    assert_eq!((size("ATP"), size("ADP")), (14.0, 14.0));
+    // Names the theme takes outside are placed for their new size, the
+    // usual gap from the node.
+    for id in ["Glc", "ATP", "G6P", "ADP"] {
+        let s = sp(&v, id);
+        assert_eq!(
+            s.label_offset,
+            Some(clear_label_offset(v.model(), s)),
+            "{id}"
+        );
+    }
 }
 
 #[test]

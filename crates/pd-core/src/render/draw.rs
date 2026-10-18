@@ -240,6 +240,27 @@ pub fn clear_label_offset(model: &Model, s: &SpeciesNode) -> Pt {
     label_offset_towards(s, best)
 }
 
+/// Where `s`'s name, at `offset` while it was `old_size` high, goes now that
+/// it is [`label_size`]: moved away from the node (or towards it) by half
+/// the change in the name's width and height, along the axes of the side
+/// it is on (to the nearest eighth of a turn), so the gap between the name
+/// and the node stays the same.
+pub fn label_offset_resized(s: &SpeciesNode, offset: Pt, old_size: f64) -> Pt {
+    let half = |size: f64| {
+        let m = font_metrics(size);
+        pt(
+            text_width(s.primary_id(), size) / 2.0,
+            (m.ascent - m.descent) / 2.0,
+        )
+    };
+    let grow = half(label_size(s)) - half(old_size);
+    let eighth = std::f64::consts::FRAC_PI_4;
+    let a = (offset.y.atan2(offset.x) / eighth).round() * eighth;
+    // A cosine of 6e-17 is zero: the name is centred along that axis.
+    let side = |v: f64| if v.abs() < 1e-9 { 0.0 } else { v.signum() };
+    offset + pt(side(a.cos()) * grow.x, side(a.sin()) * grow.y)
+}
+
 /// The offset that puts `s`'s name beside its node in direction `d` (each
 /// part -1, 0 or 1 in sign): the name's box [`LABEL_GAP`] from the node's
 /// box along each axis `d` points along, centred along the others.

@@ -1426,8 +1426,8 @@ once. **View ▸ Theme** offers:
 
   | Style | Look |
   |---|---|
-  | *Escher metabolite* | orange circle (#E0865B, border #A24510, width 2), 26 across, name outside |
-  | *Escher cofactor* | the same, 16 across, border width 1.5 |
+  | *Escher metabolite* | orange circle (#E0865B, border #A24510, width 2), 26 across, name outside in 18 pt |
+  | *Escher cofactor* | the same, 16 across, border width 1.5, name in 14 pt |
   | *Escher reaction* | slate-blue line (#334E75), width 5, no junction dot |
   | *Escher compartment* | light grey box (#FAFAFA, border #C8CDD3, width 1.5) |
 
@@ -1438,8 +1438,10 @@ once. **View ▸ Theme** offers:
   (§7.4.4), its handles set as the Smooth junction command sets them, those
   dragged by hand too (a Linear reaction's junction first goes halfway between
   its two species, as Set Straight does); each text keeps its size and alignment and takes a sans-serif face
-  and the slate-blue colour. A name already outside its node keeps its side; the
-  others start on the side clearest of their lines (§5.11).
+  and the slate-blue colour. A name already outside its node keeps its side and
+  its gap from the node, moved out (or in) by half the change in its width and
+  height when the theme changes its size; the others start on the side
+  clearest of their lines (§5.11).
 - **Classic**, the usual look: every species becomes a rounded rectangle with its
   name inside, 80 × 36 or wide enough for its name, with the default colours and
   border; every reaction, compartment and text has the default look (a

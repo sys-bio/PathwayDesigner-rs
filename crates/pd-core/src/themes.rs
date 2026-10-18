@@ -7,6 +7,7 @@ use crate::model::{
     BorderDash, Look, Model, NodeShape, ReactionMode, Rgba, SavedStyle, StyleKind, TextFont,
     Typeface, VisualStyle,
 };
+use crate::render::draw;
 use crate::styles;
 
 /// The built-in themes.
@@ -57,15 +58,19 @@ const ESCHER_COMPARTMENT_BORDER: Rgba = Rgba([0xC8, 0xCD, 0xD3, 0xFF]);
 /// The diameter of a metabolite's circle, and of a cofactor's.
 const ESCHER_METABOLITE_SIZE: f64 = 26.0;
 const ESCHER_COFACTOR_SIZE: f64 = 16.0;
+/// The size of a metabolite's name, and of a cofactor's.
+const ESCHER_METABOLITE_FONT: f64 = 18.0;
+const ESCHER_COFACTOR_FONT: f64 = 14.0;
 
 /// The Escher theme's saved styles, kept as drawn.
 pub fn escher_styles() -> Vec<SavedStyle> {
-    let circle = |size: f64, border_width: f64| Look::Species {
+    let circle = |size: f64, border_width: f64, font_size: f64| Look::Species {
         style: VisualStyle {
             has_custom_style: true,
             fill_color: ESCHER_FILL,
             border_color: ESCHER_BORDER,
             border_width,
+            font_size,
             ..VisualStyle::default()
         },
         shape: NodeShape::Circle,
@@ -75,8 +80,14 @@ pub fn escher_styles() -> Vec<SavedStyle> {
         alias: false,
     };
     [
-        (ESCHER_METABOLITE, circle(ESCHER_METABOLITE_SIZE, 2.0)),
-        (ESCHER_COFACTOR, circle(ESCHER_COFACTOR_SIZE, 1.5)),
+        (
+            ESCHER_METABOLITE,
+            circle(ESCHER_METABOLITE_SIZE, 2.0, ESCHER_METABOLITE_FONT),
+        ),
+        (
+            ESCHER_COFACTOR,
+            circle(ESCHER_COFACTOR_SIZE, 1.5, ESCHER_COFACTOR_FONT),
+        ),
         (
             ESCHER_REACTION,
             Look::Reaction {
@@ -217,7 +228,20 @@ fn theme_item(model: &mut Model, theme: Theme, kind: StyleKind, id: &str) {
     let Some(look) = styles::find(model, kind, name).map(|s| s.look) else {
         return;
     };
+    // A name already outside (one taken outside now is placed at its new
+    // size) and now a different size keeps its gap from the node, so a
+    // bigger one doesn't overlap it.
+    let was_outside = model
+        .find_species(id)
+        .filter(|s| s.label_offset.is_some())
+        .map(draw::label_size);
     styles::give_look(model, id, &look);
+    if let Some(size) = was_outside
+        && let Some(s) = model.find_species_mut(id)
+        && let Some(o) = s.label_offset
+    {
+        s.label_offset = Some(draw::label_offset_resized(s, o, size));
+    }
     styles::set_link(model, kind, id, Some(name.to_owned()));
     if kind == StyleKind::Reaction {
         curve(model, id);
