@@ -541,3 +541,16 @@ fn select_all_species_or_all_reactions() {
     v.select_all();
     assert_eq!((v.selection().0.len(), v.selection().1.len()), (3, 2));
 }
+
+#[test]
+fn the_pointer_position_is_in_diagram_coordinates() {
+    let mut v = DiagramView::new(Model::new());
+    assert_eq!(v.pointer_world(), None, "not over the canvas yet");
+    v.centre_on(pt(100.0, 50.0), pt(400.0, 300.0));
+    v.handle(&ViewEvent::PointerMove {
+        pos: pt(400.0, 300.0),
+    });
+    assert_eq!(v.pointer_world(), Some(pt(100.0, 50.0)));
+    v.handle(&ViewEvent::PointerLeft);
+    assert_eq!(v.pointer_world(), None);
+}

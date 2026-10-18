@@ -681,7 +681,7 @@ and BiBi (2,2).
 | Plain mouse wheel | SHOULD pan vertically (Shift + wheel pans horizontally). The reference does nothing. |
 | Hover | After the pointer has been still for **600 ms** over a species, junction or leg, show the tooltip. Moving to a different item hides it, and so does leaving the canvas. |
 | Delete key (Select mode) | Delete the selection (§7.2). |
-| Pointer move | The status bar MAY show the pointer coordinates. |
+| Pointer move | The status bar shows the pointer's diagram coordinates (§13.5). |
 
 ---
 
@@ -912,7 +912,7 @@ the circle. Both handles are 0.35 of the leg's length.
 junction at the centre of its species and automatic handles (smooth handles
 recomputed). Without this, the mean movement could put the junction anywhere.
 
-### 7.6 View toggles (not undoable; only Modifier lines is remembered)
+### 7.6 View toggles (not undoable; Modifier lines and Grid are remembered)
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border
   of aliases on or off.
@@ -921,8 +921,15 @@ recomputed). Without this, the mean movement could put the junction anywhere.
   reaction at once. The modifiers stay in the model. It is remembered between
   sessions, like a preference. *Not in the reference; added at the user's
   request.*
+- **Grid** on/off (View menu). Default **off**. Light lines behind the diagram,
+  every **20** units, with a darker line every **100**, as a guide for lining
+  things up; they follow zoom and scroll. Lines that would be closer than **8**
+  screen points are left out (the fine ones first), so zooming out never turns
+  the background grey. Remembered between sessions. Things don't snap to it yet;
+  snapping is planned. *Not in the reference; added at the user's request.*
 
-Exported pictures (SVG, PNG, PDF, print) follow these settings.
+Exported pictures (SVG, PNG, PDF, print) follow these settings, except the grid,
+which is never exported or printed.
 
 **Zoom In and Zoom Out** are in the View menu and in the status bar (§13.5). Each
 zooms by two wheel notches (×1.15², within [0.1, 8]) about the centre of the
@@ -1853,8 +1860,12 @@ nothing.
 
 ### 13.5 Status bar
 
-The status bar MAY show the pointer coordinates. (It used to warn that compartments
-weren't drawn; they are now, §7.9.)
+Beside the zoom control, the status bar shows where the pointer is on the
+diagram, in diagram coordinates (the units of the file, of a species' Width and
+Height, and of positions), rounded to whole units: `x 412, y -87`. It is blank
+while the pointer is off the canvas. *(Added in the Rust version; the reference
+didn't show it. The status bar used to warn that compartments weren't drawn;
+they are now, §7.9.)*
 
 At its right end is a zoom control: **− 95% +**. The buttons zoom out and in as
 the View menu's Zoom Out and Zoom In do (§7.6). Clicking the percentage zooms to

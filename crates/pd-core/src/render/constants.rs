@@ -24,6 +24,12 @@ pub const LABEL_GAP: f64 = 8.0;
 /// The margin round a name drawn outside its node: the box that selects it
 /// and is outlined when it is selected (S §5.11).
 pub const LABEL_BOX_PAD: f64 = 2.0;
+/// The grid's spacing, in world units, and how many spaces there are
+/// between its darker lines (S §7.6).
+pub const GRID_SPACING: f64 = 20.0;
+pub const GRID_MAJOR_EVERY: i64 = 5;
+/// Grid lines closer than this on screen are not drawn.
+pub const GRID_MIN_GAP_PX: f64 = 8.0;
 pub const DEFAULT_LINE_WIDTH: f64 = 1.5;
 pub const BOUNDARY_BORDER_FACTOR: f64 = 2.4;
 pub const SELECTED_LINE_FACTOR: f64 = 1.5;
@@ -102,6 +108,9 @@ pub const PENDING_REACTANT: Rgba = hex(0x00AA44);
 pub const PENDING_PRODUCT: Rgba = hex(0xCC3300);
 pub const GUIDE_LINE: Rgba = hex(0x888888);
 pub const RUBBER_BAND: Rgba = hex(0x0066CC);
+/// The grid (S §7.6): its fine lines and its lines every 100 units.
+pub const GRID_MINOR: Rgba = hex(0xE8EBEE);
+pub const GRID_MAJOR: Rgba = hex(0xD3D8DD);
 pub const HANDLE_FILL: Rgba = hex(0xFFFFFF);
 pub const HANDLE_BORDER: Rgba = hex(0x888800);
 pub const HANDLE_SMOOTH_INNER: Rgba = hex(0x009999);

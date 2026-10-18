@@ -210,6 +210,16 @@ pub struct PathwayApp {
 const LAYOUT_FRAME_BUDGET_MS: f64 = 8.0;
 const LAYOUT_START_ITERATIONS: u32 = 5;
 
+/// The pointer's place on the diagram for the status bar, in whole units, or
+/// nothing while it is off the canvas (S §13.5).
+fn pointer_text(at: Option<Pt>) -> String {
+    match at {
+        // `+ 0.0` turns -0 into 0.
+        Some(p) => format!("x {}, y {}", p.x.round() + 0.0, p.y.round() + 0.0),
+        None => String::new(),
+    }
+}
+
 /// A seed from the clock, for anything random (SPEC-Rust §7.2).
 fn clock_seed() -> u64 {
     web_time::SystemTime::now()
@@ -257,6 +267,7 @@ impl PathwayApp {
         app.view.show_null_species = app.prefs.show_null_species;
         app.view.selected_reaction_colour = app.prefs.selected_reaction;
         app.view.show_modifiers = app.prefs.show_modifiers;
+        app.view.show_grid = app.prefs.show_grid;
         app.view.set_my_styles(crate::my_styles::load(cc.storage));
         app.perform(Action::OpenSample(START_SAMPLE));
         app.notice = None;
@@ -797,6 +808,9 @@ impl PathwayApp {
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
                 ui.checkbox(&mut self.view.show_modifiers, "Modifier lines")
                     .on_hover_text("Show the dashed lines from modifiers to their reactions");
+                ui.checkbox(&mut self.view.show_grid, "Grid").on_hover_text(
+                    "Lines every 20 units behind the diagram, as a guide; never exported",
+                );
             });
             // On macOS, About is in the application menu (macos_menu.rs).
             #[cfg(not(target_os = "macos"))]
@@ -977,6 +991,14 @@ impl PathwayApp {
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             self.zoom_control(ui);
+            ui.separator();
+            // A fixed width, so the text beside it doesn't move as it changes.
+            ui.add_sized(
+                [118.0, ui.available_height()],
+                egui::Label::new(pointer_text(self.view.pointer_world())),
+            )
+            .on_hover_text("Where the pointer is on the diagram");
+            ui.separator();
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 self.status_text(ui)
             });
@@ -1378,6 +1400,7 @@ impl eframe::App for PathwayApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         // View ▸ Modifier lines changes the view directly.
         self.prefs.show_modifiers = self.view.show_modifiers;
+        self.prefs.show_grid = self.view.show_grid;
         self.prefs.save(storage);
         crate::my_styles::save(self.view.my_styles(), storage);
         self.autosave(storage);
@@ -1896,6 +1919,16 @@ k = 0.1"
                 "{id} followed the pointer after release"
             );
         }
+    }
+
+    #[test]
+    fn the_pointer_position_reads_in_whole_units() {
+        assert_eq!(
+            pointer_text(Some(Pt { x: 412.4, y: -86.6 })),
+            "x 412, y -87"
+        );
+        assert_eq!(pointer_text(Some(Pt { x: -0.2, y: 0.4 })), "x 0, y 0");
+        assert_eq!(pointer_text(None), "");
     }
 
     #[test]

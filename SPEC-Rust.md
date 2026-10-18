@@ -1040,7 +1040,8 @@ file in the app's data folder. On the web it is `localStorage`.
 
 - Store the S §12 preferences under the same names
   (`convertCatalyticReactions`, `showNullSpecies`), with `selectedReactionColour`
-  and View ▸ Modifier lines (`showModifiers`, S §7.6), which are kept the same way.
+  and View ▸ Modifier lines (`showModifiers`) and View ▸ Grid (`showGrid`), S §7.6,
+  which are kept the same way.
 - My Styles (S §8.6) are kept under `styles`, as a style list (§4.2). They live in
   the view beside the model (`DiagramView::my_styles`), so opening a file keeps
   them, and are saved whenever eframe saves (every few seconds and on exit).

@@ -73,6 +73,8 @@ pub struct DiagramView {
     pub show_null_species: bool,
     /// Modifier arcs drawn (S §7.6).
     pub show_modifiers: bool,
+    /// The grid drawn behind the diagram (S §7.6). Never in output.
+    pub show_grid: bool,
     /// The colour a selected reaction is drawn in (a preference).
     pub selected_reaction_colour: crate::model::Rgba,
     /// New reactions are Bézier (S §6.5). The reference starts with it on.
@@ -274,6 +276,7 @@ impl DiagramView {
             scroll: Pt::ZERO,
             show_alias_indicator: true,
             show_modifiers: true,
+            show_grid: false,
             show_null_species: true,
             selected_reaction_colour: crate::render::constants::SELECTED_REACTION,
             default_bezier: true,
@@ -331,6 +334,12 @@ impl DiagramView {
         world_to_screen(w, self.zoom, self.scroll)
     }
 
+    /// Where the pointer is on the diagram, while it is over the canvas
+    /// (S §13.5).
+    pub fn pointer_world(&self) -> Option<Pt> {
+        self.hover.map(|p| self.screen_to_world(p))
+    }
+
     pub fn screen_to_world(&self, s: Pt) -> Pt {
         screen_to_world(s, self.zoom, self.scroll)
     }
@@ -384,6 +393,7 @@ impl DiagramView {
             show_null_species: self.show_null_species,
             show_modifiers: self.show_modifiers,
             selected_reaction: self.selected_reaction_colour,
+            grid: self.show_grid,
         };
         draw_model(&self.model, &opts, r);
         self.draw_overlays(r);

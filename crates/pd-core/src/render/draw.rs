@@ -34,6 +34,8 @@ pub struct DrawOptions {
     /// The colour of a selected reaction's lines, arrowheads and modifier
     /// arcs (a preference; selection accent by default).
     pub selected_reaction: Rgba,
+    /// Draw the grid on the background (S §7.6). Never drawn for output.
+    pub grid: bool,
 }
 
 impl Default for DrawOptions {
@@ -47,6 +49,7 @@ impl Default for DrawOptions {
             show_null_species: true,
             show_modifiers: true,
             selected_reaction: SELECTED_REACTION,
+            grid: false,
         }
     }
 }
@@ -93,6 +96,9 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     let d = Drawer { model, opts };
     if let Some(bg) = opts.background {
         r.round_rect(bg, 0.0, Some(BACKGROUND), None);
+        if opts.grid && !opts.for_output {
+            d.grid(bg, r);
+        }
     }
     // Compartments first, largest first, so nested ones are drawn on top.
     let mut framed: Vec<(&Compartment, Frame)> = model
@@ -725,6 +731,47 @@ impl Drawer<'_> {
                     Some(HANDLE_FILL),
                     Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
                 );
+            }
+        }
+    }
+
+    // ----- The grid (S §7.6) ------------------------------------------------
+
+    /// Grid lines across `area`: every [`GRID_SPACING`] units, darker every
+    /// [`GRID_MAJOR_EVERY`] spaces. Lines that would be closer than
+    /// [`GRID_MIN_GAP_PX`] on screen are left out, finest first.
+    fn grid(&self, area: SRect, out: &mut dyn Renderer) {
+        let zoom = self.opts.zoom;
+        let to_world = |x: f32, y: f32| {
+            pt(
+                (f64::from(x) - self.opts.scroll.x) / zoom,
+                (f64::from(y) - self.opts.scroll.y) / zoom,
+            )
+        };
+        let (a, b) = (
+            to_world(area.min.x, area.min.y),
+            to_world(area.max.x, area.max.y),
+        );
+        let major = GRID_SPACING * GRID_MAJOR_EVERY as f64;
+        for (step, color, skip_majors) in
+            [(GRID_SPACING, GRID_MINOR, true), (major, GRID_MAJOR, false)]
+        {
+            if step * zoom < GRID_MIN_GAP_PX {
+                continue;
+            }
+            let stroke = Stroke::solid(1.0, color);
+            let lines = |lo: f64, hi: f64| {
+                let first = (lo / step).floor() as i64;
+                let last = (hi / step).ceil() as i64;
+                (first..=last).filter(move |k| !(skip_majors && k % GRID_MAJOR_EVERY == 0))
+            };
+            for k in lines(a.x, b.x) {
+                let x = self.to_screen(pt(k as f64 * step, 0.0)).x;
+                out.polyline(&[spt(x, area.min.y), spt(x, area.max.y)], stroke);
+            }
+            for k in lines(a.y, b.y) {
+                let y = self.to_screen(pt(0.0, k as f64 * step)).y;
+                out.polyline(&[spt(area.min.x, y), spt(area.max.x, y)], stroke);
             }
         }
     }
@@ -1532,6 +1579,77 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, Call::RoundRect(_, Some(f), None) if *f == COMPARTMENT_FILL))
         );
+    }
+
+    #[test]
+    fn the_grid_is_drawn_behind_everything_on_screen_only() {
+        let m = uni_uni();
+        let area = SRect {
+            min: spt(0.0, 0.0),
+            max: spt(400.0, 300.0),
+        };
+        let opts = DrawOptions {
+            background: Some(area),
+            grid: true,
+            ..DrawOptions::default()
+        };
+        // Vertical grid lines, by colour: where they are.
+        let verticals = |calls: &[Call], color: Rgba| -> Vec<f32> {
+            calls
+                .iter()
+                .filter_map(|c| match c {
+                    Call::Polyline(p, s) if s.color == color && p[0].x == p[1].x => Some(p[0].x),
+                    _ => None,
+                })
+                .collect()
+        };
+        let calls = draw(&m, &opts);
+        let minor = verticals(&calls, GRID_MINOR);
+        let major = verticals(&calls, GRID_MAJOR);
+        assert!(minor.contains(&20.0) && minor.contains(&380.0));
+        assert!(!minor.contains(&100.0), "no fine line under a darker one");
+        assert_eq!(major, vec![0.0, 100.0, 200.0, 300.0, 400.0]);
+        // Behind everything: right after the background, before any leg.
+        let first_grid = calls
+            .iter()
+            .position(|c| matches!(c, Call::Polyline(_, s) if s.color == GRID_MINOR))
+            .unwrap();
+        assert_eq!(first_grid, 1);
+        let last_grid = calls
+            .iter()
+            .rposition(|c| matches!(c, Call::Polyline(_, s) if s.color == GRID_MINOR || s.color == GRID_MAJOR))
+            .unwrap();
+        let first_node = calls
+            .iter()
+            .position(|c| matches!(c, Call::RoundRect(_, Some(f), _) if *f == SPECIES_FILL))
+            .unwrap();
+        assert!(last_grid < first_node);
+        // It follows zoom and scroll: at 0.2 the fine lines would be 4 px
+        // apart, so only the darker ones, 20 px apart, are drawn.
+        let far = DrawOptions {
+            zoom: 0.2,
+            scroll: pt(7.0, 0.0),
+            ..opts
+        };
+        let calls = draw(&m, &far);
+        assert!(verticals(&calls, GRID_MINOR).is_empty());
+        let major = verticals(&calls, GRID_MAJOR);
+        assert!(major.contains(&27.0) && major.contains(&47.0));
+        // Never for output, and not unless asked for.
+        for o in [
+            DrawOptions {
+                for_output: true,
+                ..opts
+            },
+            DrawOptions {
+                grid: false,
+                ..opts
+            },
+        ] {
+            let calls = draw(&m, &o);
+            assert!(verticals(&calls, GRID_MINOR).is_empty());
+            assert!(verticals(&calls, GRID_MAJOR).is_empty());
+        }
     }
 
     #[test]
