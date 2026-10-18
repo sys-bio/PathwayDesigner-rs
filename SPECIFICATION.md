@@ -595,7 +595,7 @@ name: renaming the reaction renames the label.
   (§7.6), Alt to place it freely.
 - **Look:** drawn in the reaction style's `fontSize` (default 12) and `labelColor`
   (default `#1A1A1A`), fields a reaction's style always had but never used, set by
-  **Name size** and **Name colour** in the Reaction group. Drawn after the junction
+  **Font size** and **Name colour** in the Reaction group. Drawn after the junction
   handles, over the lines. Not drawn below 2 screen points, as species names.
 - **Selecting:** clicking the name selects its reaction (Shift toggles it), a
   rubber band touching the name selects it, and a selected reaction's name is
@@ -635,6 +635,11 @@ junction (dragging it, moving the reaction, alignment, layout) carries the stem.
   junction stops being smooth; each stored handle by the junction moves to its
   side's end. Remove Stem has the lines meet at the junction again, those handles
   moving back. One undo step each.
+- **Straighten Stem** (the context menu, under a reaction with a stem; disabled
+  when it is straight): puts both ends on one straight line through the junction,
+  along the way from the reactants' end to the products' end, each as far from the
+  junction as it was; each stored handle by the stem moves as much as its end. One
+  undo step.
 - **Commands that reshape the reaction remove it:** Set Straight, Toggle Linear,
   Make Nice, and turning Smooth junction on (smooth handles meet at the junction).
   Set Bézier keeps it, and so does the Escher theme (§8.7), which leaves a reaction
@@ -1169,8 +1174,8 @@ are on top. A rectangle with corners rounded by 14 (less for a very small box),
 filled and outlined: by default a pale green fill (`#F0F6EA`), a green border
 (`#7FA36B`) 2 wide. The fill, border colour and border width can each be set. The
 id is written inside the top-left corner, 8 in from each side, in label font of
-the style's font size (12 point by default; **Name size** in the Compartment
-group sets it for every selected compartment, one undo step, *Name Size*; added
+the style's font size (12 point by default; **Font size** in the Compartment
+group sets it for every selected compartment, one undo step, *Font Size*; added
 in the Rust version), dark green (`#3D5C2B`), or in the border colour if that was
 set. The name's box, which selects the compartment, grows with it. A selected
 compartment has the selection halo's dashed outline and a square handle at each
@@ -2137,7 +2142,7 @@ Which items appear depends on what was right-clicked:
 | Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
 | Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
-| Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Add Stem or Remove Stem (§5.13) · Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
+| Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Add Stem, or Straighten Stem and Remove Stem (§5.13) · Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 | Free text (§7.8) | Edit Text · Delete Text · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 

@@ -407,3 +407,44 @@ fn a_stem_can_be_added_and_removed() {
     assert_eq!(r1(&v).junction, drawn, "where it was drawn, on the line");
     assert_eq!(drawn.y, 0.0);
 }
+
+#[test]
+fn a_bent_stem_can_be_straightened() {
+    let mut v = view();
+    // Straight already: nothing to do.
+    assert_eq!(v.straightened_stem("R1"), None);
+    assert!(!v.straighten_stem("R1").model_changed);
+    // Bend it: the reactants' end 50 from the junction, up and left.
+    {
+        let r = v.model.find_reaction_mut("R1").unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.stem = Some((pt(-40.0, -30.0), pt(40.0, 0.0)));
+        let p = &mut r.reactants[0];
+        (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (pt(40.0, -30.0), pt(120.0, -40.0), true);
+    }
+    v.straighten_stem("R1");
+    assert_eq!(v.undo_description(), Some("Straighten Stem"));
+    let (a, b) = r1(&v).stem.unwrap();
+    let len = |p: Pt| p.x.hypot(p.y);
+    // Each end keeps its distance from the junction...
+    assert!((len(a) - 50.0).abs() < 1e-9);
+    assert!((len(b) - 40.0).abs() < 1e-9);
+    // ... on one straight line through it, along the way from the old
+    // reactants' end (-40,-30) to the products' end (40,0).
+    assert!((a.x * b.y - a.y * b.x).abs() < 1e-9, "in line");
+    assert!(a.x * b.x + a.y * b.y < 0.0, "on either side");
+    let d = pt(80.0, 30.0) / 80.0f64.hypot(30.0);
+    assert!((b / 40.0).distance(d) < 1e-9);
+    // Straight now: the command has nothing more to do.
+    assert_eq!(v.straightened_stem("R1"), None);
+    // The handle by the stem moved with the reactants' end; the other stayed.
+    let p = &r1(&v).reactants[0];
+    let moved = a - pt(-40.0, -30.0);
+    assert!(p.ctrl2.distance(pt(120.0, -40.0) + moved) < 1e-9);
+    assert_eq!(p.ctrl1, pt(40.0, -30.0));
+    v.undo();
+    assert_eq!(r1(&v).stem, Some((pt(-40.0, -30.0), pt(40.0, 0.0))));
+    // No stem, no command.
+    v.model.find_reaction_mut("R1").unwrap().stem = None;
+    assert_eq!(v.straightened_stem("R1"), None);
+}

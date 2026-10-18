@@ -488,6 +488,9 @@ impl PathwayApp {
             MenuAction::AddStem(id) => {
                 self.view.add_stem(&id);
             }
+            MenuAction::StraightenStem(id) => {
+                self.view.straighten_stem(&id);
+            }
             MenuAction::RemoveStem(id) => {
                 self.view.remove_stem(&id);
             }
@@ -1981,6 +1984,32 @@ mod tests {
         let stem = |h: &Harness| h.app.view.model().reactions()[0].stem;
         h.app.act(MenuAction::AddStem(r.clone()), pt(0.0, 0.0));
         assert!(stem(&h).is_some());
+        // Bent, then straightened from the menu.
+        {
+            use pd_core::view::{Button, Modifiers as M, Target, ViewEvent};
+            let v = &mut h.app.view;
+            v.select_item(&Target::Leg(r.clone()), false);
+            let m = v.model();
+            let rx = &m.reactions()[0];
+            let end = v.world_to_screen(rx.leg_anchor(pd_core::model::Role::Reactant));
+            let to = end + pt(0.0, -40.0);
+            v.handle(&ViewEvent::PointerDown {
+                pos: end,
+                button: Button::Primary,
+                modifiers: M::NONE,
+            });
+            v.handle(&ViewEvent::PointerMove { pos: to });
+            v.handle(&ViewEvent::PointerUp {
+                pos: to,
+                button: Button::Primary,
+            });
+        }
+        let (a, b) = stem(&h).unwrap();
+        assert!((a.x * b.y - a.y * b.x).abs() > 1.0, "bent");
+        h.app
+            .act(MenuAction::StraightenStem(r.clone()), pt(0.0, 0.0));
+        let (a2, b2) = stem(&h).unwrap();
+        assert!((a2.x * b2.y - a2.y * b2.x).abs() < 1e-6, "in line again");
         h.app.act(MenuAction::RemoveStem(r), pt(0.0, 0.0));
         assert!(stem(&h).is_none());
     }

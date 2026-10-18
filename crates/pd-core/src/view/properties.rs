@@ -589,7 +589,7 @@ impl DiagramView {
         if !(size.is_finite() && size >= 0.0) {
             return ViewResponse::default();
         }
-        self.on_selected_compartments("Name Size", |c| {
+        self.on_selected_compartments("Font Size", |c| {
             c.style.font_size = size;
             c.style.has_custom_style = true;
         })

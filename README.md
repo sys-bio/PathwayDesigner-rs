@@ -167,7 +167,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Alt while dragging | Place freely while Snap to grid is on |
 | Double-click a species | Rename it |
 | Double-click a text | Edit its words |
-| Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add or Remove Stem, styles, alignment, locking and more) |
+| Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, styles, alignment, locking and more) |
 | Rest the pointer on an item | A tooltip: a species' value, a reaction's rate law, a compartment's volume |
 
 **Adding things**

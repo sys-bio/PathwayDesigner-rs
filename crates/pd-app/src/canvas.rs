@@ -58,8 +58,9 @@ pub enum MenuAction {
     AddParticipant(String, pd_core::model::Role),
     /// Remove from Reaction: the reaction and the species.
     RemoveParticipant(String, String),
-    /// Add Stem and Remove Stem (S §5.13).
+    /// Add Stem, Straighten Stem and Remove Stem (S §5.13).
     AddStem(String),
+    StraightenStem(String),
     RemoveStem(String),
     MakeNice(String),
     Arrange(Arrange),
@@ -332,6 +333,14 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 .find_reaction(id)
                 .is_some_and(|r| r.stem.is_some())
             {
+                let bent = view.straightened_stem(id).is_some();
+                let b = ui
+                    .add_enabled(bent, egui::Button::new("Straighten Stem"))
+                    .on_disabled_hover_text("The stem is straight");
+                if b.clicked() {
+                    item_chosen = Some(MenuAction::StraightenStem(id.clone()));
+                    ui.close();
+                }
                 item(ui, "Remove Stem", MenuAction::RemoveStem(id.clone()));
             } else {
                 item(ui, "Add Stem", MenuAction::AddStem(id.clone()));

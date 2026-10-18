@@ -449,7 +449,7 @@ impl Inspector {
                             }
                             ui.end_row();
                         }
-                        ui.label("Name size");
+                        ui.label("Font size");
                         self.number(ui, view, Field::ReactionFontSize, true, "");
                         ui.end_row();
                         ui.label("Name colour");
@@ -504,7 +504,7 @@ impl Inspector {
                         .on_hover_text("0 for no border");
                         ui.end_row();
                         // For every selected compartment (S §7.9).
-                        ui.label("Name size");
+                        ui.label("Font size");
                         self.number(ui, view, Field::CompartmentFontSize, true, "");
                         ui.end_row();
 

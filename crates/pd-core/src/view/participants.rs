@@ -172,6 +172,42 @@ impl DiagramView {
         self.record("Add Stem", before)
     }
 
+    /// The straight stem Straighten Stem would give reaction `id` (S §5.13):
+    /// each end as far from the junction as it is, both on the line through
+    /// the junction along the way from the reactants' end to the products'.
+    /// `None` without a stem, or when it is straight already.
+    pub fn straightened_stem(
+        &self,
+        id: &str,
+    ) -> Option<(crate::geometry::Pt, crate::geometry::Pt)> {
+        let (a, b) = self.model.find_reaction(id)?.stem?;
+        let len = |v: crate::geometry::Pt| v.x.hypot(v.y);
+        let (la, lb) = (len(a), len(b));
+        let ab = b - a;
+        if len(ab) < 1e-9 {
+            return None;
+        }
+        let d = ab / len(ab);
+        let straight = (d * -la, d * lb);
+        let off = |p: crate::geometry::Pt, q: crate::geometry::Pt| len(p - q) > 1e-6;
+        (off(straight.0, a) || off(straight.1, b)).then_some(straight)
+    }
+
+    /// Straighten Stem (S §5.13): see [`Self::straightened_stem`]. Each line
+    /// with stored handles has its handle by the stem moved as much as its
+    /// end. One undo step; nothing for a stem already straight.
+    pub fn straighten_stem(&mut self, id: &str) -> ViewResponse {
+        let Some(straight) = self.straightened_stem(id) else {
+            return ViewResponse::default();
+        };
+        let before = self.model.clone();
+        let r = self.model.find_reaction_mut(id).expect("has a stem");
+        let old = r.stem.expect("has a stem");
+        r.stem = Some(straight);
+        shift_inner_handles(r, (straight.0 - old.0, straight.1 - old.1));
+        self.record("Straighten Stem", before)
+    }
+
     /// Remove Stem (S §5.13): the lines meet at the junction again, each
     /// handle by the stem moving back with it. One undo step.
     pub fn remove_stem(&mut self, id: &str) -> ViewResponse {

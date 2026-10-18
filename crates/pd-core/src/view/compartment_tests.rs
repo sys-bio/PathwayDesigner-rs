@@ -373,7 +373,7 @@ fn a_compartment_name_can_be_bigger() {
     let (a, b) = compartment_label_box(&comp(&v), &f);
     v.select_item(&Target::Compartment(c.clone()), false);
     v.set_compartment_font_size(24.0);
-    assert_eq!(v.undo_description(), Some("Name Size"));
+    assert_eq!(v.undo_description(), Some("Font Size"));
     assert_eq!(compartment_label_size(&comp(&v)), 24.0);
     // The name's box grows from the corner, and a click there selects it.
     let (a2, b2) = compartment_label_box(&comp(&v), &f);
