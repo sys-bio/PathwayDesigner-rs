@@ -204,6 +204,9 @@ struct HandleDrag {
     /// so the drag is undone as a snapshot.
     smooth: bool,
     before: Option<Box<Model>>,
+    /// The pointer's movement; `delta` is it snapped, putting the handle on
+    /// the grid (S §7.6).
+    raw: Pt,
     delta: Pt,
 }
 
@@ -248,7 +251,11 @@ struct LabelDrag {
     id: Id,
     /// Its offset before the drag.
     orig: Pt,
+    /// Where the name's centre was: it snaps to the grid (S §7.6).
+    centre: Pt,
     before: Box<Model>,
+    /// The pointer's movement; `delta` is it snapped.
+    raw: Pt,
     delta: Pt,
 }
 
@@ -706,11 +713,17 @@ impl DiagramView {
                     }
                     let orig = self.model.find_species(&id).and_then(|s| s.label_offset);
                     if let Some(orig) = orig {
+                        let centre = self
+                            .model
+                            .find_species(&id)
+                            .map_or(orig, |s| s.center + orig);
                         self.gesture = Gesture::Label(LabelDrag {
                             start: world,
                             id,
                             orig,
+                            centre,
                             before: Box::new(self.model.clone()),
+                            raw: Pt::ZERO,
                             delta: Pt::ZERO,
                         });
                     }
@@ -852,7 +865,8 @@ impl DiagramView {
                 self.apply_junction_drag(&drag);
             }
             Gesture::Handle(drag) => {
-                drag.delta = world - drag.start;
+                drag.raw = world - drag.start;
+                drag.delta = snap_delta(snap, Some(drag.orig), drag.raw);
                 let drag = drag.clone();
                 self.apply_handle_drag(&drag);
             }
@@ -875,7 +889,8 @@ impl DiagramView {
                 self.apply_species_resize(&drag);
             }
             Gesture::Label(drag) => {
-                drag.delta = world - drag.start;
+                drag.raw = world - drag.start;
+                drag.delta = snap_delta(snap, Some(drag.centre), drag.raw);
                 let drag = drag.clone();
                 self.apply_label_drag(&drag);
             }
@@ -1322,6 +1337,16 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_species_resize(&drag);
             }
+            Gesture::Handle(drag) => {
+                drag.delta = snap_delta(snap, Some(drag.orig), drag.raw);
+                let drag = drag.clone();
+                self.apply_handle_drag(&drag);
+            }
+            Gesture::Label(drag) => {
+                drag.delta = snap_delta(snap, Some(drag.centre), drag.raw);
+                let drag = drag.clone();
+                self.apply_label_drag(&drag);
+            }
             _ => return ViewResponse::default(),
         }
         ViewResponse {
@@ -1517,6 +1542,7 @@ impl DiagramView {
             from,
             smooth,
             before,
+            raw: Pt::ZERO,
             delta: Pt::ZERO,
         }
     }

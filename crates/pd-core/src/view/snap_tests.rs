@@ -2,7 +2,7 @@
 //! unless Alt is held. Driven with made-up events; screen = world.
 
 use super::*;
-use crate::model::Participant;
+use crate::model::{Participant, Role};
 
 /// S1 at (3, 7), S2 at (103, 7), a reaction S1 → S2 with its junction at
 /// (55, 41), a text T at (11, 213) and a compartment C with its box's
@@ -269,4 +269,72 @@ fn arrow_keys_take_a_junction_to_the_grid_when_it_leads() {
         v.model().find_reaction("R").unwrap().junction,
         pt(55.0, 60.0)
     );
+}
+
+#[test]
+fn a_bezier_handle_lands_on_the_grid() {
+    let mut v = view();
+    v.model.find_reaction_mut("R").unwrap().mode = crate::model::ReactionMode::Bezier;
+    v.select_item(&Target::Junction("R".into()), false);
+    // S1's handle, where it is drawn (automatic until it is moved).
+    let r = v.model().find_reaction("R").unwrap().clone();
+    let curve = crate::bezier::leg_curve(v.model(), &r, Role::Reactant, 0).unwrap();
+    let at = curve.p1;
+    let Target::Handle(h) = v.target_at(at) else {
+        panic!("a handle at {at:?}");
+    };
+    let moved = pt(7.0, 5.0);
+    drag(&mut v, at, at + moved);
+    let r = v.model().find_reaction("R").unwrap();
+    let p = &r.reactants[0];
+    assert!(p.ctrl_pts_set);
+    assert_eq!(h.ctrl.get(p), snap_point(at + moved));
+    // With Alt, as the pointer goes.
+    v.undo();
+    v.select_item(&Target::Junction("R".into()), false);
+    v.set_alt_held(true);
+    drag(&mut v, at, at + moved);
+    let r = v.model().find_reaction("R").unwrap();
+    assert_eq!(h.ctrl.get(&r.reactants[0]), at + moved);
+    // Alt let go during a drag: back on the grid at once.
+    v.undo();
+    v.select_item(&Target::Junction("R".into()), false);
+    press(&mut v, at);
+    v.handle(&ViewEvent::PointerMove { pos: at + moved });
+    v.set_alt_held(false);
+    let r = v.model().find_reaction("R").unwrap();
+    assert_eq!(h.ctrl.get(&r.reactants[0]), snap_point(at + moved));
+    release(&mut v, at + moved);
+}
+
+#[test]
+fn a_name_outside_lands_on_the_grid_by_its_centre() {
+    let mut v = view();
+    v.model.find_species_mut("S1").unwrap().label_offset = Some(pt(40.0, 0.0));
+    // Its centre is at (43, 7); moved by (5, 5) it would be at (48, 12), so
+    // it goes to (40, 20). The node stays.
+    let at = pt(43.0, 7.0);
+    assert_eq!(v.target_at(at), Target::SpeciesLabel("S1".into()));
+    drag(&mut v, at, at + pt(5.0, 5.0));
+    let s = v.model().find_species("S1").unwrap();
+    assert_eq!(s.center, pt(3.0, 7.0));
+    assert_eq!(s.center + s.label_offset.unwrap(), pt(40.0, 20.0));
+    assert_eq!(v.undo_description(), Some("Move Label"));
+    // Alt pressed during the drag: as the pointer goes, at once.
+    v.undo();
+    press(&mut v, at);
+    v.handle(&ViewEvent::PointerMove {
+        pos: at + pt(5.0, 5.0),
+    });
+    v.set_alt_held(true);
+    let s = v.model().find_species("S1").unwrap();
+    assert_eq!(s.center + s.label_offset.unwrap(), pt(48.0, 12.0));
+    release(&mut v, at + pt(5.0, 5.0));
+    // A click on it moves nothing.
+    v.set_alt_held(false);
+    let before = v.model().find_species("S1").unwrap().label_offset;
+    let at = pt(3.0, 7.0) + before.unwrap();
+    press(&mut v, at);
+    release(&mut v, at);
+    assert_eq!(v.model().find_species("S1").unwrap().label_offset, before);
 }

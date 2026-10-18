@@ -953,8 +953,12 @@ recomputed). Without this, the mean movement could put the junction anywhere.
     junction); the rest moves by as much, and nothing moves across. An item
     already on a line moves one line. With Alt, the usual steps, 1 unit (10 with
     Shift).
-  - Not snapped: Bézier handles, a name drawn outside its node (§5.11), and
-    automatic layout.
+  - **A Bézier handle** dragged lands on a grid point (on a smooth junction the
+    other inner handles swing into line as usual, §6.4).
+  - **A name drawn outside its node** (§5.11), dragged, lands with its centre on
+    a grid point; the node stays.
+  - Not snapped: automatic layout, Arrange in Circle and the other arrangements,
+    which place things themselves.
   Remembered between sessions. *Not in the reference; added at the user's
   request.*
 
