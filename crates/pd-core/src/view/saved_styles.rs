@@ -361,4 +361,24 @@ impl DiagramView {
             ..r
         }
     }
+
+    // ----- Themes (S §8.7) ----------------------------------------------------
+
+    /// The diagram's theme, if it has one.
+    pub fn theme(&self) -> Option<crate::themes::Theme> {
+        self.model.theme
+    }
+
+    /// Applies a theme to the whole diagram: every item takes its look, and
+    /// while it is the diagram's theme, items added later do too. One undo
+    /// step.
+    pub fn apply_theme(&mut self, theme: crate::themes::Theme) -> ViewResponse {
+        let before = self.model.clone();
+        crate::themes::apply(&mut self.model, theme);
+        let desc = match theme {
+            crate::themes::Theme::Escher => "Escher Theme",
+            crate::themes::Theme::Classic => "Classic Theme",
+        };
+        self.record_if_changed(desc, before)
+    }
 }

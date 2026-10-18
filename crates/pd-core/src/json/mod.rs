@@ -46,6 +46,7 @@ pub fn needed_version(model: &Model) -> u32 {
     if model.species().iter().any(|s| s.label_offset.is_some())
         || no_border
         || crate::styles::any_links(model)
+        || model.theme.is_some()
     {
         FORMAT_VERSION
     } else if model
@@ -183,6 +184,9 @@ struct FileModel {
     /// there are none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     styles: Vec<FileSavedStyle>,
+    /// Version 6: the diagram's theme (S §8.7), `"escher"`. Left out for none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    theme: Option<String>,
 }
 
 /// A list of saved styles on its own.
@@ -693,6 +697,16 @@ impl FileModel {
         }
 
         model.styles = styles_from_file(self.styles, &mut warnings);
+        model.theme = match self.theme.as_deref() {
+            None => None,
+            Some(key) => crate::themes::Theme::from_key(key).or_else(|| {
+                warnings.push(format!(
+                    "The file's theme `{key}` isn't one this version knows; new items get the \
+                     default look."
+                ));
+                None
+            }),
+        };
         link_styles(&mut model, &mut warnings);
 
         model.recompute_id_counter();
@@ -1026,6 +1040,7 @@ impl FileModel {
                 .filter(|st| !crate::styles::users(m, st.kind(), &st.name).is_empty())
                 .map(saved_style_to_file)
                 .collect(),
+            theme: m.theme.map(|t| t.key().to_owned()),
         }
     }
 }

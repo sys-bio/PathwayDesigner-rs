@@ -820,6 +820,36 @@ impl PathwayApp {
                     .on_hover_text(
                         "Dragged and new items land on grid points; hold Alt to place freely",
                     );
+                ui.separator();
+                // Restyles the whole diagram, in one undo step (S §8.7).
+                ui.menu_button("Theme", |ui| {
+                    use pd_core::themes::Theme;
+                    let current = self.view.theme().unwrap_or(Theme::Classic);
+                    for (theme, tip) in [
+                        (
+                            Theme::Classic,
+                            "The usual look: rounded boxes with the names inside",
+                        ),
+                        (
+                            Theme::Escher,
+                            "Like Escher's maps: small circles with names beside them, \
+                             smaller cofactors, thick reaction lines",
+                        ),
+                    ] {
+                        if ui
+                            .selectable_label(current == theme, theme.label())
+                            .on_hover_text(tip)
+                            .clicked()
+                        {
+                            self.view.apply_theme(theme);
+                            self.notice = Some(format!(
+                                "{} theme: every item restyled (Undo puts it back)",
+                                theme.label()
+                            ));
+                            ui.close();
+                        }
+                    }
+                });
             });
             // On macOS, About is in the application menu (macos_menu.rs).
             #[cfg(not(target_os = "macos"))]

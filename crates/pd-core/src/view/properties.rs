@@ -568,11 +568,20 @@ impl DiagramView {
     /// (S §5.11).
     pub fn set_species_label_outside(&mut self, outside: bool) -> ViewResponse {
         let before = self.model.clone();
-        for s in self.model.species_mut() {
-            if !s.selected || s.is_null_node {
-                continue;
+        let places: Vec<(String, Option<crate::geometry::Pt>)> = self
+            .model
+            .species()
+            .iter()
+            .filter(|s| s.selected && !s.is_null_node)
+            .map(|s| {
+                let place = crate::styles::label_place(&self.model, s, outside);
+                (s.id.clone(), place)
+            })
+            .collect();
+        for (id, place) in places {
+            if let Some(s) = self.model.find_species_mut(&id) {
+                s.label_offset = place;
             }
-            s.label_offset = crate::styles::label_place(s, outside);
         }
         let desc = if outside {
             "Label Outside"

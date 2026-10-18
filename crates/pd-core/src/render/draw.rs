@@ -183,11 +183,82 @@ pub fn outside_label_box(s: &SpeciesNode) -> Option<(Pt, Pt)> {
     Some((c - half, c + half))
 }
 
-/// Where a name taken outside its node starts: just right of the node,
-/// [`LABEL_GAP`] away, level with its centre (S §5.11).
+/// Where a name taken outside its node starts when nothing is in the way:
+/// just right of the node, [`LABEL_GAP`] away, level with its centre
+/// (S §5.11).
 pub fn default_label_offset(s: &SpeciesNode) -> Pt {
-    let w = text_width(s.primary_id(), label_size(s));
-    pt(s.width / 2.0 + LABEL_GAP + w / 2.0, 0.0)
+    label_offset_towards(s, pt(1.0, 0.0))
+}
+
+/// Where a name taken outside its node starts (S §5.11): on the side of the
+/// node clearest of its lines. Of eight directions (right first, then left,
+/// above, below, then the corners), the one furthest from every line that
+/// leaves the node towards a junction; right when the node has none. The
+/// name's box is [`LABEL_GAP`] from the node's box that way.
+pub fn clear_label_offset(model: &Model, s: &SpeciesNode) -> Pt {
+    let id = s.id.as_str();
+    let legs: Vec<Pt> = model
+        .reactions()
+        .iter()
+        .filter(|r| {
+            [&r.reactants, &r.products, &r.modifiers]
+                .iter()
+                .any(|list| list.iter().any(|p| p.species == id))
+        })
+        .filter_map(|r| {
+            let d = effective_junction(model, r) - s.center;
+            let len = d.x.hypot(d.y);
+            (len > 1e-9).then(|| pt(d.x / len, d.y / len))
+        })
+        .collect();
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let directions = [
+        pt(1.0, 0.0),
+        pt(-1.0, 0.0),
+        pt(0.0, -1.0),
+        pt(0.0, 1.0),
+        pt(h, -h),
+        pt(-h, -h),
+        pt(h, h),
+        pt(-h, h),
+    ];
+    // The direction whose nearest line is furthest away: the smallest
+    // largest cosine; the first such in the list on a tie.
+    let closeness = |d: &Pt| {
+        legs.iter()
+            .map(|l| l.x * d.x + l.y * d.y)
+            .fold(f64::NEG_INFINITY, f64::max)
+    };
+    let mut best = directions[0];
+    let mut best_close = closeness(&best);
+    for d in &directions[1..] {
+        let c = closeness(d);
+        if c < best_close - 1e-9 {
+            (best, best_close) = (*d, c);
+        }
+    }
+    label_offset_towards(s, best)
+}
+
+/// The offset that puts `s`'s name beside its node in direction `d` (each
+/// part -1, 0 or 1 in sign): the name's box [`LABEL_GAP`] from the node's
+/// box along each axis `d` points along, centred along the others.
+fn label_offset_towards(s: &SpeciesNode, d: Pt) -> Pt {
+    let size = label_size(s);
+    let half_w = text_width(s.primary_id(), size) / 2.0;
+    let m = font_metrics(size);
+    let half_h = (m.ascent - m.descent) / 2.0;
+    let along = |v: f64, node_half: f64, label_half: f64| {
+        if v.abs() < 1e-9 {
+            0.0
+        } else {
+            v.signum() * (node_half + LABEL_GAP + label_half)
+        }
+    };
+    pt(
+        along(d.x, s.width / 2.0, half_w),
+        along(d.y, s.height / 2.0, half_h),
+    )
 }
 
 /// A compartment's four corner handles, clockwise from the top left

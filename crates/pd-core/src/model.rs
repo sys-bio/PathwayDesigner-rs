@@ -722,6 +722,8 @@ pub struct Model {
     /// The model's saved styles (S §8.6). Only those some item follows are
     /// saved in the file.
     pub styles: Vec<SavedStyle>,
+    /// The diagram's theme (S §8.7): items added later take its look.
+    pub theme: Option<crate::themes::Theme>,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -740,6 +742,7 @@ impl Default for Model {
             parameters: Vec::new(),
             assignment_rules: Vec::new(),
             styles: Vec::new(),
+            theme: None,
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),

@@ -360,6 +360,10 @@ because inside the style object `borderWidth` 0 means "the default" to every
 reader. Left out otherwise; a document in which a species or compartment has it is
 version 6. A saved style of those kinds carries it the same way.
 
+**Version 6: themes (S §8.7).** A top-level `"theme": "escher"` after `styles`,
+left out for none (Classic). A theme this version doesn't know is read as none,
+with a warning. A document with a theme is version 6.
+
 **Version 6: saved styles (S §8.6).** A species, reaction, compartment or text may
 have `styleName`: the saved style it follows. A top-level `styles` array, after
 `texts`, left out when empty, holds the styles some item follows (a style nothing

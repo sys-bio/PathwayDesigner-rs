@@ -21,5 +21,6 @@ pub mod sbml;
 pub mod styles;
 pub mod text;
 pub mod textbox;
+pub mod themes;
 pub mod undo;
 pub mod view;

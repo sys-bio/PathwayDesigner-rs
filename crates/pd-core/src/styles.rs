@@ -11,7 +11,7 @@ use crate::model::{
     BorderDash, Look, Model, NodeShape, SavedStyle, SpeciesNode, StyleKind, VisualStyle,
 };
 use crate::render::constants::{ALIAS_BORDER, ALIAS_FILL, SPECIES_BORDER, SPECIES_FILL};
-use crate::render::draw::default_label_offset;
+use crate::render::draw::clear_label_offset;
 
 /// How the item `id` of `kind` looks, in standard form, or `None` if there
 /// is no such item (or it is a null node, which has no look of its own).
@@ -141,7 +141,14 @@ pub fn give_look(model: &mut Model, id: &str, look: &Look) {
                 let d = s.width.max(s.height);
                 s.resize(d, d);
             }
-            s.label_offset = label_place(s, label_outside);
+            // Where the name goes depends on the node's lines, so it is
+            // worked out with the whole model.
+            let place = model
+                .find_species(id)
+                .and_then(|s| label_place(model, s, label_outside));
+            if let Some(s) = model.find_species_mut(id) {
+                s.label_offset = place;
+            }
         }
         Look::Reaction { style } => {
             if let Some(r) = model.find_reaction_mut(id) {
@@ -167,12 +174,13 @@ pub fn give_look(model: &mut Model, id: &str, look: &Look) {
 }
 
 /// Where `s`'s name goes when it is put `outside` or not: inside, where it
-/// already is outside, or just right of the node (S §5.11).
-pub fn label_place(s: &SpeciesNode, outside: bool) -> Option<crate::geometry::Pt> {
+/// already is outside, or beside the node on the side clearest of its lines
+/// (S §5.11).
+pub fn label_place(model: &Model, s: &SpeciesNode, outside: bool) -> Option<crate::geometry::Pt> {
     match (outside, s.label_offset) {
         (false, _) => None,
         (true, Some(o)) => Some(o),
-        (true, None) => Some(default_label_offset(s)),
+        (true, None) => Some(clear_label_offset(model, s)),
     }
 }
 

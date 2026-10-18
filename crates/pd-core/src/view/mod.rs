@@ -34,6 +34,8 @@ mod snap_tests;
 mod style_tests;
 #[cfg(test)]
 mod text_tests;
+#[cfg(test)]
+mod theme_tests;
 mod tooltip;
 
 use crate::bezier::{Ctrl as HandleCtrl, apply_smooth_handles, store_auto_handles};

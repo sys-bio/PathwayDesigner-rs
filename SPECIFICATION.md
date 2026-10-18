@@ -508,9 +508,12 @@ own setting.
 
 - **Where it goes.** The name's centre is kept as an offset from the node's
   centre (`labelOffset`, §3.2), so it moves with the node. Taken outside, a name
-  starts just right of the node: its left edge **8** from the node's right side,
-  level with its centre, clear of the selection halo. It can then be dragged
-  anywhere.
+  starts beside the node on the side **clearest of its lines**: of eight
+  directions (right, left, above, below, then the four corners, in that order of
+  preference), the one furthest from every line leaving the node towards a
+  junction. With no lines, that is just right of the node. The name's box is
+  **8** from the node's box that way, clear of the selection halo. It can then be
+  dragged anywhere.
 - **Drawn** as an inside name is (colour, size, the label font), centred at that
   point, in the species pass (§5.2).
 - **Clicking the name** selects the species, as clicking the node does (§6.2,
@@ -1403,6 +1406,51 @@ model.
   skipped with a warning; a file that isn't one is a warning. Not an undo step,
   like other changes to My Styles.
 
+### 8.7 Themes
+
+*Added in the Rust version* (§16.2 F-6). A theme restyles the whole diagram at
+once. **View ▸ Theme** offers:
+
+- **Escher**, after Escher's metabolic maps. It is a set of saved styles (§8.6),
+  added to the model:
+
+  | Style | Look |
+  |---|---|
+  | *Escher metabolite* | orange circle (#E0865B, border #A24510, width 2), 26 across, name outside |
+  | *Escher cofactor* | the same, 16 across, border width 1.5 |
+  | *Escher reaction* | slate-blue line (#334E75), width 5, no junction dot |
+  | *Escher compartment* | light grey box (#FAFAFA, border #C8CDD3, width 1.5) |
+
+  **Every** item takes the theme, those styled by hand too (a user recolours
+  afterwards if they want): each species follows *Escher cofactor* if it is a
+  cofactor, otherwise *Escher metabolite*; each reaction and compartment follows
+  its style; each text keeps its size and alignment and takes a sans-serif face
+  and the slate-blue colour. A name already outside its node keeps its side; the
+  others start on the side clearest of their lines (§5.11).
+- **Classic**, the usual look: every species becomes a rounded rectangle with its
+  name inside, 80 × 36 or wide enough for its name, with the default colours and
+  border; every reaction, compartment and text has the default look; nothing
+  follows a style, and Escher's styles leave the model.
+
+Applying a theme is **one undo step**, *Escher Theme* or *Classic Theme*.
+
+- **Cofactors** are known by name: the species' id (an alias: its primary's),
+  without an SBML `M_` prefix or a one-letter compartment suffix (`_c`, `_e`…),
+  ignoring case and a trailing + or −, is one of ATP, ADP, AMP, GTP, GDP, GMP,
+  UTP, UDP, UMP, CTP, CDP, CMP, NAD, NADH, NADP, NADPH, FAD, FADH2, FMN, FMNH2,
+  CoA, H, Hin, Hout, proton, H2O, water, Pi, PPi, phosphate, CO2, O2, NH3, NH4,
+  HCO3, H2O2, Q, QH2, Q8, Q8H2, MgATP, MgADP. Others (such as P) are too
+  ambiguous to count. Any species can be given the other style by hand.
+- **The diagram remembers its theme:** while it is Escher, items added later
+  (with a tool, by Create Alias or Split into Aliases, by loading Antimony text)
+  take the theme's look as they are added. An edit counts as adding only when the
+  number of items of that kind goes up, so a rename never re-themes an item
+  recoloured by hand. Classic forgets the theme. The theme is saved in the file
+  (JSON version 6, SPEC-Rust §4.2).
+- The theme's styles are ordinary saved styles of the model: they show in the
+  Styles tab and can be edited (Edit Style…), which changes every item following
+  them.
+
 ---
 
 ## 9. Undo / redo
@@ -2212,7 +2260,7 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | F-3 | **Font size and label colour controls** | The model already stores `fontSize` and `labelColor`. Only the UI is missing. **Done: §8.1**, with Copy Style and Paste Style (§8.5). |
 | F-4 | **Node shapes** | Rectangle, ellipse, circle and polygon. Border intersection and hit testing must handle each shape. **Done: §5.10** (rectangle, ellipse, circle, hexagon; hit testing keeps the box), with resizing (§7.10). |
 | F-5 | **Label positioning** | Inside, above, below, left or right of the node. **Done: §5.11**, as a name inside or outside the node, dragged anywhere outside it. |
-| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. **Saved styles: done, §8.6** (in the model, My Styles, the Styles tab, exporting and importing styles). Diagram-wide themes still to come. |
+| F-6 | **Style themes** | For example an Escher-like theme: global style presets on top of the per-item styles. First, **saved styles**: a look from Copy Style (§8.5) saved under a name and applied from a list, kept with the app and exportable to a file. The styles a model uses must also be saved in the model file, so that someone given the model can apply and change them; the nodes themselves always carry their own colours, so the model looks the same either way. Diagram-wide themes (new defaults for everything without a custom style) after that. **Saved styles: done, §8.6** (in the model, My Styles, the Styles tab, exporting and importing styles). **Themes: Escher and Classic, done, §8.7.** |
 | F-7 | **Arrange in a circle** | Put the selected nodes on a circle. |
 | F-8 | **Human-readable layout format** | Convert between the JSON format and a text format for layout ("Alcuin"). The reference lexer already has keywords for it (`layout`, `at`, `size`, `style`, `bezier`, `cp`, …). |
 | F-9 | **Several documents** | Tabs or several windows. |
