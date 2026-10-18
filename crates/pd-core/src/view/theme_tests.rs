@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::model::{
-    BorderDash, Compartment, Frame, NodeShape, Participant, Rgba, TextItem, Typeface,
+    BorderDash, Compartment, Frame, NodeShape, Participant, ReactionMode, Rgba, TextItem, Typeface,
 };
 use crate::render::draw::{clear_label_offset, default_label_offset};
 use crate::themes::{
@@ -43,6 +43,10 @@ fn view() -> DiagramView {
     t.size = 24.0;
     m.push_text(t).unwrap();
     DiagramView::new(m)
+}
+
+fn rx(v: &DiagramView, id: &str) -> crate::model::Reaction {
+    v.model().find_reaction(id).unwrap().clone()
 }
 
 fn sp<'a>(v: &'a DiagramView, id: &str) -> &'a crate::model::SpeciesNode {
@@ -187,6 +191,79 @@ fn items_added_under_a_theme_take_its_look() {
     v.rename("G6P", "glucose6p").unwrap();
     assert_eq!(sp(&v, "glucose6p").style.fill_color, Rgba::rgb(0, 0, 0xCC));
     assert_eq!(sp(&v, "glucose6p").style_name, None);
+}
+
+#[test]
+fn escher_draws_reactions_as_smooth_curves() {
+    let mut v = view();
+    let mut m = v.model().clone();
+    // R2: Glc → G6P drawn as one straight line, its junction left elsewhere.
+    let mut r2 = crate::model::Reaction::new("R2", pt(900.0, 900.0));
+    r2.mode = ReactionMode::Linear;
+    r2.reactants = vec![Participant::new("Glc", 1.0)];
+    r2.products = vec![Participant::new("G6P", 1.0)];
+    m.push_reaction(r2).unwrap();
+    // R3: ATP → ADP, already a Bézier, with handles dragged by hand.
+    let mut r3 = crate::model::Reaction::new("R3", pt(0.0, 50.0));
+    r3.mode = ReactionMode::Bezier;
+    let mut atp = Participant::new("ATP", 1.0);
+    (atp.ctrl1, atp.ctrl2, atp.ctrl_pts_set) = (pt(-40.0, 70.0), pt(-20.0, 60.0), true);
+    r3.reactants = vec![atp.clone()];
+    r3.products = vec![Participant::new("ADP", 1.0)];
+    m.push_reaction(r3).unwrap();
+    v.set_model(m);
+    v.apply_theme(Theme::Escher);
+    for id in ["R1", "R2", "R3"] {
+        let r = v.model().find_reaction(id).unwrap();
+        assert_eq!(
+            (r.mode, r.junction_smooth),
+            (ReactionMode::Bezier, true),
+            "{id}"
+        );
+    }
+    assert_eq!(
+        rx(&v, "R1").junction,
+        pt(100.0, 50.0),
+        "a junction in use stays"
+    );
+    assert_eq!(
+        rx(&v, "R2").junction,
+        pt(100.0, 0.0),
+        "halfway, as Set Straight does"
+    );
+    // Every leg has the smooth junction's handles, those placed by hand too.
+    for id in ["R1", "R2", "R3"] {
+        let r = rx(&v, id);
+        let smooth = crate::bezier::smooth_handles(v.model(), &r);
+        for (role, i, h) in smooth {
+            let p = &r.participants(role)[i];
+            assert_eq!(Some((p.ctrl1, p.ctrl2)), h, "{id}");
+            assert!(p.ctrl_pts_set);
+        }
+    }
+    assert_ne!(rx(&v, "R3").reactants[0], atp);
+    // Undo puts the straight lines back.
+    v.undo();
+    assert_eq!(rx(&v, "R1").mode, ReactionMode::Straight);
+    assert_eq!(rx(&v, "R2").mode, ReactionMode::Linear);
+    // A reaction drawn later under the theme is curved too.
+    v.redo();
+    v.set_tool(Tool::UNI_UNI);
+    for at in [pt(0.0, 0.0), pt(200.0, 100.0)] {
+        v.handle(&ViewEvent::PointerDown {
+            pos: at,
+            button: Button::Primary,
+            modifiers: Modifiers::NONE,
+        });
+    }
+    let new = v.model().reactions().last().unwrap();
+    assert_eq!(
+        (new.mode, new.junction_smooth),
+        (ReactionMode::Bezier, true)
+    );
+    // Classic leaves the curves alone: a reaction's shape isn't part of its look.
+    v.apply_theme(Theme::Classic);
+    assert_eq!(rx(&v, "R1").mode, ReactionMode::Bezier);
 }
 
 #[test]

@@ -71,7 +71,8 @@ Delphi version does, and some more (see [Status](#status)).
   styles to share them.
 - **Themes** (*View ▸ Theme*): **Escher** restyles the whole diagram as a metabolic
   map, with orange circles, smaller circles for cofactors such as ATP and NADH,
-  names placed clear of the lines, and thick blue reaction lines; new items follow
+  names placed clear of the lines, and thick blue reactions curving smoothly
+  through their junctions; new items follow
   the theme. **Classic** puts back the default look. Undo reverses either.
 - Arrowheads grow with thick reaction lines.
 

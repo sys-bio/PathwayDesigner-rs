@@ -4,8 +4,8 @@
 //! while it is the diagram's theme, items added later get theirs too.
 
 use crate::model::{
-    BorderDash, Look, Model, NodeShape, Rgba, SavedStyle, StyleKind, TextFont, Typeface,
-    VisualStyle,
+    BorderDash, Look, Model, NodeShape, ReactionMode, Rgba, SavedStyle, StyleKind, TextFont,
+    Typeface, VisualStyle,
 };
 use crate::styles;
 
@@ -219,6 +219,35 @@ fn theme_item(model: &mut Model, theme: Theme, kind: StyleKind, id: &str) {
     };
     styles::give_look(model, id, &look);
     styles::set_link(model, kind, id, Some(name.to_owned()));
+    if kind == StyleKind::Reaction {
+        curve(model, id);
+    }
+}
+
+/// Makes the reaction a Bézier with a smooth junction, as Escher draws its
+/// reactions, and gives it the smooth junction's handles (S §7.4.4), as the
+/// Smooth junction command does. A Linear reaction's junction, unused until
+/// now, first goes halfway between its two species.
+fn curve(model: &mut Model, id: &str) {
+    let Some(r) = model.find_reaction(id) else {
+        return;
+    };
+    let mid = if r.mode == ReactionMode::Linear && r.is_uni_uni() {
+        let a = model
+            .find_species(&r.reactants[0].species)
+            .map(|s| s.center);
+        let b = model.find_species(&r.products[0].species).map(|s| s.center);
+        a.zip(b).map(|(a, b)| (a + b) / 2.0)
+    } else {
+        None
+    };
+    let r = model.find_reaction_mut(id).expect("found above");
+    if let Some(mid) = mid {
+        r.junction = mid;
+    }
+    r.mode = ReactionMode::Bezier;
+    r.junction_smooth = true;
+    crate::bezier::apply_smooth_handles(model, id);
 }
 
 /// Applies `theme` to the whole diagram (S §8.7): every item, hand-styled

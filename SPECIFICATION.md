@@ -1434,12 +1434,17 @@ once. **View ▸ Theme** offers:
   **Every** item takes the theme, those styled by hand too (a user recolours
   afterwards if they want): each species follows *Escher cofactor* if it is a
   cofactor, otherwise *Escher metabolite*; each reaction and compartment follows
-  its style; each text keeps its size and alignment and takes a sans-serif face
+  its style, and each reaction becomes a **Bézier with a smooth junction**
+  (§7.4.4), its handles set as the Smooth junction command sets them, those
+  dragged by hand too (a Linear reaction's junction first goes halfway between
+  its two species, as Set Straight does); each text keeps its size and alignment and takes a sans-serif face
   and the slate-blue colour. A name already outside its node keeps its side; the
   others start on the side clearest of their lines (§5.11).
 - **Classic**, the usual look: every species becomes a rounded rectangle with its
   name inside, 80 × 36 or wide enough for its name, with the default colours and
-  border; every reaction, compartment and text has the default look; nothing
+  border; every reaction, compartment and text has the default look (a
+  reaction keeps its shape: straight, Linear or Bézier is not part of a look);
+  nothing
   follows a style, and Escher's styles leave the model.
 
 Applying a theme is **one undo step**, *Escher Theme* or *Classic Theme*.
