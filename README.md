@@ -18,6 +18,12 @@ The same model in the Escher theme (*View ▸ Theme ▸ Escher*), for metabolic 
 
 ![The same model in the Escher theme](docs/screenshot-escher.png)
 
+An [Escher](https://escher.github.io) map of *E. coli* core metabolism, opened
+with *File ▸ Open* (`Escher/e_coli_core.Core metabolism.json`) and drawn as Escher
+draws it:
+
+![The E. coli core metabolism Escher map in PathwayDesigner](docs/screenshot-escher-ecoli.png)
+
 This is a re-implementation of the Delphi PathwayDesigner. It does everything the
 Delphi version does, and some more (see [Status](#status)).
 
@@ -35,17 +41,24 @@ Delphi version does, and some more (see [Status](#status)).
 ## Features
 
 **Drawing and editing**
-- Species, and reactions of any shape: A → B, A + B → C, A → B + C, A + B → C + D,
-  with stoichiometry.
+- Species, and reactions of any shape, with stoichiometry: tools for A → B,
+  A + B → C, A → B + C and A + B → C + D, and **A+… → B+…** for any number of
+  reactants and products (click the reactants, press Enter, click the products,
+  press Enter again).
+- Change a reaction's species afterwards from its right-click menu: **Add
+  Reactant…**, **Add Product…** and **Remove from Reaction**. An automatic rate
+  law follows, and a side left empty gets a null node.
 - Three ways to draw a reaction: **Straight** (legs meet at a junction), **Linear**
   (one straight line, for A → B), and **Bézier** curves with handles you can drag,
-  optionally with a smooth junction.
+  optionally with a smooth junction. A reaction can also have a **stem**, a
+  straight centre line its reactants join at one end and its products leave from
+  the other, as Escher draws reactions.
 - **Aliases** (a second drawing of the same species), with commands to split a
   species into aliases, split off chosen reactions, and merge aliases back.
 - **Modifiers** (drawn as dashed arcs, found from the rate law), and **null
   nodes** for sources and sinks.
 - **Compartments**, drawn as boxes you can move and resize; species move with
-  their compartment, and a box can be hidden.
+  their compartment, a box can be hidden, and its name can be any size.
 - **Free text** for titles and notes, with typeface, size, bold, italic, colour,
   alignment and wrapping.
 - A right-hand panel with **Properties** for what is selected (colours, line and
@@ -59,7 +72,10 @@ Delphi version does, and some more (see [Status](#status)).
 - Species **shapes**: rounded rectangle, rectangle, ellipse, circle or hexagon;
   **resize** them by their corners or by number, or fit them to their names.
 - Fill, border colour, border width (0 for no border), solid or dashed border,
-  label colour and font size, for each item.
+  label colour and font size, for each item. A species' or compartment's fill can
+  be left out (**No fill**), so what is behind shows through.
+- The diagram's **background colour** (Properties, with nothing selected), on
+  screen and in exported pictures.
 - **Names outside the node**, as in Escher's metabolic maps: small circles with
   their names beside them, each name dragged where you want it.
 - **Reaction names**: show a reaction's id beside it (*Show name* in the
@@ -95,10 +111,12 @@ Delphi version does, and some more (see [Status](#status)).
   model that uses nothing new is still saved in the Delphi version's format.
 - **Antimony**: import and export, with a live Antimony panel next to the drawing.
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
-  package, so positions, aliases and curves survive the round trip; shapes, names
-  outside the node and compartment boxes come back too.
+  package, so positions, aliases, curves, reaction stems and reaction names survive
+  the round trip; shapes, names outside the node and compartment boxes come back
+  too.
 - **Escher maps**: *File ▸ Open* reads an [Escher](https://escher.github.io) map
-  (`.json`), keeping its layout, curves and labels, each extra drawing of a
+  (`.json`) and draws it as Escher does: its layout, each reaction's straight
+  centre line and the map's own curves, its labels, and each extra drawing of a
   metabolite as an alias, in the Escher theme.
 - **Graphics**: SVG, PNG at any resolution, and vector PDF (Letter, A4 or the
   drawing's own size), and printing.
@@ -120,7 +138,8 @@ Delphi version does, and some more (see [Status](#status)).
 
 Pick a tool on the left: **Species** adds a species where you click, and the
 reaction tools (A → B and the others) add a reaction when you click its species in
-turn. **Select** is for selecting, dragging and editing. Esc goes back to Select.
+turn; with **A+… → B+…**, press Enter after the reactants and again after the
+products. **Select** is for selecting, dragging and editing. Esc goes back to Select.
 
 The toolbar shapes the selected reactions (Linear, Bézier, Straight, smooth
 junction, Make Nice) and runs the auto-layout. Right-click a species or a reaction
@@ -159,12 +178,13 @@ lines.
 | PathwayDesigner diagram | `.json` | yes | yes |
 | Antimony | `.ant`, `.txt` | yes | yes |
 | SBML Level 2 and 3, with Layout | `.xml` | yes | Level 3 Version 1 |
+| Escher map | `.json` | yes | |
 | SVG, PNG, PDF | `.svg`, `.png`, `.pdf` | | yes |
 
 `Models/` holds the reference models in each format. The tests check every one,
 so a model added there needs a stored image. File ▸ Open sample opens the JSON
 ones directly, even in the browser. `ExampleModels/` holds more example models;
-the tests don't use it.
+the tests don't use it. `Escher/` holds an Escher map of *E. coli* core metabolism.
 
 ## Project layout
 
@@ -236,7 +256,9 @@ Beyond the Delphi version, this one adds SBML import, SVG export, a drawing-size
 PDF page, the model tree, animated auto-layout, keyboard nudging, aligning
 junctions, Arrange in Circle, more alias commands, drawn compartments, free text,
 species shapes and resizing, names outside the node, Copy and Paste Style, saved
-styles, the grid and Snap to grid, offline use and autosave, and fixes the defects
+styles, the grid and Snap to grid, themes, reaction names and stems, reactions with
+any number of species, Escher maps, transparent fills, a background colour, offline
+use and autosave, and fixes the defects
 listed in SPECIFICATION.md §15.
 
 ## Documents
