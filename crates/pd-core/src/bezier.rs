@@ -14,9 +14,7 @@
 
 use crate::geometry::{CubicBezier, Pt, normalize, perp};
 use crate::model::{Model, Participant, Reaction, Role, SpeciesNode};
-use crate::render::constants::{
-    ARROW_TIP_INSET, FAN_SPREAD, HANDLE_FRACTION, PRODUCT_LINE_GAP, REACTANT_GAP,
-};
+use crate::render::constants::{FAN_SPREAD, HANDLE_FRACTION, REACTANT_GAP};
 
 /// Smooth junction, looped species: outer handles move this far sideways, and
 /// inner handles sit this far from the junction (S §7.4.4, §17.1).
@@ -127,6 +125,16 @@ pub struct DrawnLeg {
 /// gap short of the border, with the arrowhead tip at the 3-unit inset,
 /// pointing along the curve's tangent there.
 pub fn cut_leg(curve: &CubicBezier, node: &SpeciesNode, role: Role) -> DrawnLeg {
+    cut_leg_sized(curve, node, role, &crate::render::draw::ArrowSize::STANDARD)
+}
+
+/// [`cut_leg`] for an arrowhead of `size` (S §5.5).
+pub fn cut_leg_sized(
+    curve: &CubicBezier,
+    node: &SpeciesNode,
+    role: Role,
+    size: &crate::render::draw::ArrowSize,
+) -> DrawnLeg {
     // Cut where the curve leaves the shape that is drawn (S §5.10).
     let t = crate::geometry::bezier_crossing(curve, |p| crate::node_shape::contains(node, p));
     let (left, right) = curve.split(t);
@@ -139,9 +147,9 @@ pub fn cut_leg(curve: &CubicBezier, node: &SpeciesNode, role: Role) -> DrawnLeg 
         }
     } else {
         let d = normalize(left.p3 - left.p2);
-        let tip = left.p3 - d * ARROW_TIP_INSET;
+        let tip = left.p3 - d * size.tip_inset;
         let mut c = left;
-        c.p3 = left.p3 - d * PRODUCT_LINE_GAP;
+        c.p3 = left.p3 - d * size.line_gap;
         DrawnLeg {
             curve: c,
             arrow: Some((tip, d)),
@@ -272,6 +280,7 @@ mod tests {
     use super::*;
     use crate::geometry::{bezier_rect_crossing, point_in_rect, pt};
     use crate::model::ReactionMode;
+    use crate::render::constants::{ARROW_TIP_INSET, PRODUCT_LINE_GAP};
 
     fn close(a: Pt, b: Pt) -> bool {
         a.distance(b) < 1e-9
@@ -360,6 +369,32 @@ mod tests {
         // About the reactant gap past the border.
         let (left, _) = curve.split(bezier_rect_crossing(&curve, node.center, 40.0, 18.0));
         assert!((drawn.curve.p0.distance(left.p3) - REACTANT_GAP).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_bigger_arrowhead_on_a_curve() {
+        let mut m = Model::new();
+        let a = m.add_species(crate::geometry::pt(0.0, 0.0), 80.0, 36.0);
+        let b = m.add_species(crate::geometry::pt(400.0, 100.0), 80.0, 36.0);
+        let r = m.add_reaction(crate::geometry::pt(200.0, 50.0));
+        let r = m.find_reaction_mut(&r).unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.reactants.push(Participant::new(a, 1.0));
+        r.products.push(Participant::new(b.clone(), 1.0));
+        let r = m.reactions()[0].clone();
+        let node = m.find_species(&b).unwrap();
+        let curve = leg_curve(&m, &r, Role::Product, 0).unwrap();
+        let size = crate::render::draw::ArrowSize::for_width(6.0);
+        let plain = cut_leg(&curve, node, Role::Product);
+        let big = cut_leg_sized(&curve, node, Role::Product, &size);
+        let border = |leg: &DrawnLeg, inset: f64| {
+            let (tip, d) = leg.arrow.unwrap();
+            tip + d * inset
+        };
+        // Both measure from the same border point, at their own insets.
+        let at = border(&plain, ARROW_TIP_INSET);
+        assert!(border(&big, size.tip_inset).distance(at) < 1e-6);
+        assert!((big.curve.p3.distance(at) - size.line_gap).abs() < 1e-6);
     }
 
     #[test]

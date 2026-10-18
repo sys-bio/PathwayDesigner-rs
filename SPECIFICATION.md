@@ -367,6 +367,16 @@ The arrowhead is a filled isosceles triangle in the line colour, with
 `tip = T`, `base1/2 = T − d·12 ± perp(d)·5`, where `d` is the unit direction of
 travel.
 
+**Thick lines** (added in the Rust version, for the Escher theme, §8.7): for a
+reaction whose line width `w` is above the default 1.5, the arrow length,
+half-base and inset are multiplied by `k = √(w / 1.5)`, so the arrowhead stays in
+proportion to the line without swamping the diagram, and the product line ends
+halfway along the arrowhead (`3k + 6k` before the border) rather than 6 before it,
+so the thick line's end stays inside the arrowhead. `w` is the reaction's own
+width, not the wider one a selected reaction is drawn with, so selecting a
+reaction doesn't change its arrowheads. At the default width or less, nothing
+changes.
+
 **Border intersection for straight lines:** use the axis-aligned rectangle (ignore
 the rounded corners). Starting at the centre `C`, step towards an external point `P`
 along the unit vector `u`. The border point is `C + u·min(halfW/|uₓ|, halfH/|u_y|)`.

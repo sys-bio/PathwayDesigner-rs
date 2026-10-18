@@ -3,7 +3,7 @@
 //! The passes skip work the current options don't need, and never draw
 //! anything that depends on the selection when drawing for output (S §11.6).
 
-use crate::bezier::{Ctrl, cut_leg, leg_curve};
+use crate::bezier::{Ctrl, leg_curve};
 use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
     BorderDash, Compartment, Frame, Model, NodeShape, Reaction, ReactionMode, Rgba, Role,
@@ -311,6 +311,51 @@ pub fn reaction_line_width(r: &Reaction) -> f64 {
     pick_width(custom(&r.style).map(|s| s.line_width), DEFAULT_LINE_WIDTH)
 }
 
+/// A product leg's arrowhead and where the line ends under it (S §5.5).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArrowSize {
+    pub length: f64,
+    pub half_base: f64,
+    /// How far before the node's border the tip is.
+    pub tip_inset: f64,
+    /// How far before the node's border the line ends, under the arrowhead.
+    pub line_gap: f64,
+}
+
+impl ArrowSize {
+    /// The reference's arrowhead: for lines up to the default width.
+    pub const STANDARD: ArrowSize = ArrowSize {
+        length: ARROW_LENGTH,
+        half_base: ARROW_HALF_BASE,
+        tip_inset: ARROW_TIP_INSET,
+        line_gap: PRODUCT_LINE_GAP,
+    };
+
+    /// The arrowhead for a line `width` wide: the standard one up to the
+    /// default width; above it, every size times √(width / default), and the
+    /// line ending halfway along the arrowhead, so a thick line's end stays
+    /// inside it.
+    pub fn for_width(width: f64) -> ArrowSize {
+        if width.is_nan() || width <= DEFAULT_LINE_WIDTH {
+            return ArrowSize::STANDARD;
+        }
+        let k = (width / DEFAULT_LINE_WIDTH).sqrt();
+        let (length, tip_inset) = (ARROW_LENGTH * k, ARROW_TIP_INSET * k);
+        ArrowSize {
+            length,
+            half_base: ARROW_HALF_BASE * k,
+            tip_inset,
+            line_gap: tip_inset + length / 2.0,
+        }
+    }
+
+    /// The arrowheads of reaction `r`, from its own line width (not the
+    /// wider one it is drawn with while selected, so they don't jump).
+    pub fn of(r: &Reaction) -> ArrowSize {
+        ArrowSize::for_width(reaction_line_width(r))
+    }
+}
+
 /// Where a selected text's wrap handle is: the middle of its box's right
 /// edge (S §7.8).
 pub fn wrap_handle(t: &TextItem) -> Pt {
@@ -484,10 +529,11 @@ impl Drawer<'_> {
             ) else {
                 return;
             };
+            let size = ArrowSize::of(r);
             let start = leg_start(a, b.center);
-            let (end, tip) = leg_end(b, a.center);
+            let (end, tip) = leg_end_sized(b, a.center, &size);
             out.polyline(&[self.to_screen(start), self.to_screen(end)], stroke);
-            self.arrowhead(tip, b.center - a.center, stroke.color, out);
+            self.arrowhead(tip, b.center - a.center, stroke.color, &size, out);
             return;
         }
 
@@ -500,7 +546,8 @@ impl Drawer<'_> {
                     let Some(curve) = leg_curve(self.model, r, role, index) else {
                         continue;
                     };
-                    let leg = cut_leg(&curve, node, role);
+                    let size = ArrowSize::of(r);
+                    let leg = crate::bezier::cut_leg_sized(&curve, node, role, &size);
                     let c = leg.curve;
                     out.cubic(
                         self.to_screen(c.p0),
@@ -510,7 +557,7 @@ impl Drawer<'_> {
                         stroke,
                     );
                     if let Some((tip, dir)) = leg.arrow {
-                        self.arrowhead(tip, dir, stroke.color, out);
+                        self.arrowhead(tip, dir, stroke.color, &size, out);
                     }
                 }
             }
@@ -524,17 +571,18 @@ impl Drawer<'_> {
                 out.polyline(&[self.to_screen(start), self.to_screen(j)], stroke);
             }
         }
+        let size = ArrowSize::of(r);
         for p in &r.products {
             if let Some(node) = self.visible(&p.species) {
-                let (end, tip) = leg_end(node, j);
+                let (end, tip) = leg_end_sized(node, j, &size);
                 out.polyline(&[self.to_screen(j), self.to_screen(end)], stroke);
-                self.arrowhead(tip, node.center - j, stroke.color, out);
+                self.arrowhead(tip, node.center - j, stroke.color, &size, out);
             }
         }
     }
 
-    fn arrowhead(&self, tip: Pt, dir: Pt, color: Rgba, out: &mut dyn Renderer) {
-        let tri = filled_arrowhead(tip, dir, ARROW_LENGTH, ARROW_HALF_BASE);
+    fn arrowhead(&self, tip: Pt, dir: Pt, color: Rgba, size: &ArrowSize, out: &mut dyn Renderer) {
+        let tri = filled_arrowhead(tip, dir, size.length, size.half_base);
         out.polygon(&tri.map(|p| self.to_screen(p)), color);
     }
 
@@ -999,9 +1047,14 @@ pub fn leg_start(node: &SpeciesNode, toward: Pt) -> Pt {
 /// Where a product line ends and where its arrowhead's tip goes: the product
 /// line gap and the tip inset short of `node`'s border, coming from `from`.
 pub fn leg_end(node: &SpeciesNode, from: Pt) -> (Pt, Pt) {
+    leg_end_sized(node, from, &ArrowSize::STANDARD)
+}
+
+/// [`leg_end`] for an arrowhead of `size`.
+pub fn leg_end_sized(node: &SpeciesNode, from: Pt, size: &ArrowSize) -> (Pt, Pt) {
     let b = border(node, from);
     let back = normalize(from - node.center);
-    (b + back * PRODUCT_LINE_GAP, b + back * ARROW_TIP_INSET)
+    (b + back * size.line_gap, b + back * size.tip_inset)
 }
 
 /// The fill and border colours a species is drawn with: its custom colours
@@ -1721,6 +1774,92 @@ mod tests {
             assert!(verticals(&calls, GRID_MINOR).is_empty());
             assert!(verticals(&calls, GRID_MAJOR).is_empty());
         }
+    }
+
+    #[test]
+    fn arrowheads_grow_with_lines_thicker_than_the_default() {
+        assert_eq!(
+            ArrowSize::for_width(DEFAULT_LINE_WIDTH),
+            ArrowSize::STANDARD
+        );
+        assert_eq!(ArrowSize::for_width(1.0), ArrowSize::STANDARD);
+        assert_eq!(ArrowSize::for_width(f64::NAN), ArrowSize::STANDARD);
+        // Four times as wide: twice the size, the line ending halfway along.
+        let big = ArrowSize::for_width(4.0 * DEFAULT_LINE_WIDTH);
+        assert_eq!(
+            (big.length, big.half_base, big.tip_inset),
+            (
+                2.0 * ARROW_LENGTH,
+                2.0 * ARROW_HALF_BASE,
+                2.0 * ARROW_TIP_INSET
+            )
+        );
+        assert_eq!(big.line_gap, big.tip_inset + big.length / 2.0);
+        assert_eq!(ArrowSize::STANDARD.line_gap, PRODUCT_LINE_GAP);
+    }
+
+    /// The arrowhead drawn for A → B, Straight or Linear, with lines `width`
+    /// wide (0 for the default), selected or not: its triangle, and the end of
+    /// the product line under it.
+    fn drawn_arrow(width: f64, selected: bool, mode: ReactionMode) -> ([SPt; 3], SPt, f32) {
+        let mut m = uni_uni();
+        let r = m.reactions_mut().next().unwrap();
+        r.mode = mode;
+        if width > 0.0 {
+            r.style.has_custom_style = true;
+            r.style.line_width = width;
+        }
+        r.selected = selected;
+        let calls = draw(&m, &DrawOptions::default());
+        let tri = calls
+            .iter()
+            .find_map(|c| match c {
+                Call::Polygon(p, _) if p.len() == 3 => Some([p[0], p[1], p[2]]),
+                _ => None,
+            })
+            .unwrap();
+        // The product leg: the line that ends furthest right (from the
+        // junction, or from A for a Linear reaction).
+        let (end, w) = calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::Polyline(p, s) if p.len() == 2 && p[1].x > 300.0 => Some((p[1], s.width)),
+                _ => None,
+            })
+            .next()
+            .unwrap();
+        (tri, end, w)
+    }
+
+    #[test]
+    fn a_thick_line_ends_inside_its_bigger_arrowhead() {
+        for mode in [ReactionMode::Straight, ReactionMode::Linear] {
+            thick_line_ends_inside(mode);
+        }
+    }
+
+    fn thick_line_ends_inside(mode: ReactionMode) {
+        let (small, ..) = drawn_arrow(0.0, false, mode);
+        let (tri, end, width) = drawn_arrow(6.0, false, mode);
+        let len = |t: &[SPt; 3]| t[0].x - (t[1].x + t[2].x) / 2.0;
+        let half = |t: &[SPt; 3]| (t[1].y - t[2].y).abs() / 2.0;
+        assert!((len(&small) - 12.0).abs() < 1e-4, "the default stays");
+        assert!(
+            (len(&tri) - 24.0).abs() < 1e-4,
+            "twice as long at 4x the width"
+        );
+        assert!((half(&tri) - 10.0).abs() < 1e-4);
+        // The tip: 6 before B's border (at x 360).
+        assert!((tri[0].x - 354.0).abs() < 1e-4);
+        // The line's end, with its round cap, is inside the triangle: at
+        // that point the triangle is wider than the line.
+        let from_tip = tri[0].x - end.x;
+        assert!(from_tip > width / 2.0, "the cap doesn't reach the tip");
+        let tri_half_there = half(&tri) * from_tip / len(&tri);
+        assert!(tri_half_there > width / 2.0, "{tri_half_there} vs {width}");
+        // Selected, the line is drawn wider but the arrowhead stays the same.
+        let (sel, ..) = drawn_arrow(6.0, true, mode);
+        assert_eq!(sel, tri);
     }
 
     #[test]
