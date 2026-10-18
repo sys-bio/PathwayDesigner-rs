@@ -24,6 +24,8 @@ mod interchange;
 mod label_tests;
 mod properties;
 #[cfg(test)]
+mod reaction_label_tests;
+#[cfg(test)]
 mod resize_tests;
 #[cfg(test)]
 mod saved_style_tests;
@@ -246,11 +248,14 @@ struct SpeciesResizeDrag {
     delta: Pt,
 }
 
-/// Dragging a name drawn outside its node moves only the name (S §5.11).
+/// Dragging a name drawn outside its node moves only the name (S §5.11), as
+/// does dragging a reaction's name (S §5.12).
 #[derive(Clone, Debug)]
 struct LabelDrag {
     start: Pt,
     id: Id,
+    /// A reaction's name, not a species'.
+    reaction: bool,
     /// Its offset before the drag.
     orig: Pt,
     /// Where the name's centre was: it snaps to the grid (S §7.6).
@@ -722,6 +727,35 @@ impl DiagramView {
                         self.gesture = Gesture::Label(LabelDrag {
                             start: world,
                             id,
+                            reaction: false,
+                            orig,
+                            centre,
+                            before: Box::new(self.model.clone()),
+                            raw: Pt::ZERO,
+                            delta: Pt::ZERO,
+                        });
+                    }
+                }
+            }
+            Target::ReactionLabel(id) => {
+                let selected = self.model.find_reaction(&id).is_some_and(|r| r.selected);
+                if modifiers.shift {
+                    self.set_reaction_selected(&id, !selected);
+                } else {
+                    if !selected {
+                        self.model.clear_selection();
+                        self.set_reaction_selected(&id, true);
+                    }
+                    let m = &self.model;
+                    let at = m.find_reaction(&id).and_then(|r| {
+                        let j = crate::render::draw::effective_junction(m, r);
+                        r.label_offset.map(|o| (o, j + o))
+                    });
+                    if let Some((orig, centre)) = at {
+                        self.gesture = Gesture::Label(LabelDrag {
+                            start: world,
+                            id,
+                            reaction: true,
                             orig,
                             centre,
                             before: Box::new(self.model.clone()),
@@ -1449,8 +1483,13 @@ impl DiagramView {
     }
 
     fn apply_label_drag(&mut self, drag: &LabelDrag) {
-        if let Some(s) = self.model.find_species_mut(&drag.id) {
-            s.label_offset = Some(drag.orig + drag.delta);
+        let at = Some(drag.orig + drag.delta);
+        if drag.reaction {
+            if let Some(r) = self.model.find_reaction_mut(&drag.id) {
+                r.label_offset = at;
+            }
+        } else if let Some(s) = self.model.find_species_mut(&drag.id) {
+            s.label_offset = at;
         }
     }
 
@@ -1639,9 +1678,18 @@ impl DiagramView {
                 s.selected = true;
             }
         }
-        for r in self.model.reactions_mut() {
+        // A reaction by its junction or its name (S §5.12).
+        let names: Vec<Option<(Pt, Pt)>> = self
+            .model
+            .reactions()
+            .iter()
+            .map(|r| crate::render::draw::reaction_label_box(&self.model, r))
+            .collect();
+        for (r, name) in self.model.reactions_mut().zip(names) {
             let j = r.junction;
-            if (a.x..=b.x).contains(&j.x) && (a.y..=b.y).contains(&j.y) {
+            let on_name =
+                name.is_some_and(|(p, q)| q.x >= a.x && p.x <= b.x && q.y >= a.y && p.y <= b.y);
+            if (a.x..=b.x).contains(&j.x) && (a.y..=b.y).contains(&j.y) || on_name {
                 r.selected = true;
             }
         }
@@ -1733,7 +1781,7 @@ impl DiagramView {
                     s.selected = !(add && s.selected);
                 }
             }
-            Target::Junction(id) | Target::Leg(id) => {
+            Target::Junction(id) | Target::Leg(id) | Target::ReactionLabel(id) => {
                 if let Some(r) = self.model.find_reaction_mut(id) {
                     r.selected = !(add && r.selected);
                 }

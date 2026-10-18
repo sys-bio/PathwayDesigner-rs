@@ -307,6 +307,7 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         | Target::CompartmentCorner(..)
         | Target::SpeciesCorner(..)
         | Target::SpeciesLabel(_)
+        | Target::ReactionLabel(_)
         | Target::Empty => ui.close(),
     }
     chosen
@@ -372,7 +373,9 @@ fn style_kind(t: &Target) -> Option<pd_core::model::StyleKind> {
         Target::Species(_) | Target::SpeciesCorner(..) | Target::SpeciesLabel(_) => {
             Some(StyleKind::Species)
         }
-        Target::Junction(_) | Target::Leg(_) | Target::Handle(_) => Some(StyleKind::Reaction),
+        Target::Junction(_) | Target::Leg(_) | Target::Handle(_) | Target::ReactionLabel(_) => {
+            Some(StyleKind::Reaction)
+        }
         Target::Compartment(_) | Target::CompartmentCorner(..) => Some(StyleKind::Compartment),
         Target::Text(_) | Target::TextWrap(_) => Some(StyleKind::Text),
         Target::Empty => None,
@@ -516,7 +519,11 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
         Some(Target::Handle(_)) => CursorIcon::Crosshair,
         Some(
-            Target::Species(_) | Target::SpeciesLabel(_) | Target::Junction(_) | Target::Text(_),
+            Target::Species(_)
+            | Target::SpeciesLabel(_)
+            | Target::ReactionLabel(_)
+            | Target::Junction(_)
+            | Target::Text(_),
         ) => CursorIcon::Grab,
         Some(Target::TextWrap(_)) => CursorIcon::ResizeHorizontal,
         Some(Target::Compartment(_)) => CursorIcon::Grab,

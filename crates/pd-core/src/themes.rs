@@ -61,6 +61,8 @@ const ESCHER_COFACTOR_SIZE: f64 = 16.0;
 /// The size of a metabolite's name, and of a cofactor's.
 const ESCHER_METABOLITE_FONT: f64 = 18.0;
 const ESCHER_COFACTOR_FONT: f64 = 14.0;
+/// The size of a reaction's name (S §5.12).
+const ESCHER_REACTION_FONT: f64 = 16.0;
 
 /// The Escher theme's saved styles, kept as drawn.
 pub fn escher_styles() -> Vec<SavedStyle> {
@@ -95,6 +97,8 @@ pub fn escher_styles() -> Vec<SavedStyle> {
                     has_custom_style: true,
                     line_color: ESCHER_LINE,
                     line_width: 5.0,
+                    label_color: ESCHER_LINE,
+                    font_size: ESCHER_REACTION_FONT,
                     junction_visible: false,
                     ..VisualStyle::default()
                 },
@@ -230,21 +234,52 @@ fn theme_item(model: &mut Model, theme: Theme, kind: StyleKind, id: &str) {
     };
     // A name already outside (one taken outside now is placed at its new
     // size) and now a different size keeps its gap from the node, so a
-    // bigger one doesn't overlap it.
-    let was_outside = model
-        .find_species(id)
-        .filter(|s| s.label_offset.is_some())
-        .map(draw::label_size);
+    // bigger one doesn't overlap it. The same for a reaction's name.
+    let was_outside = match kind {
+        StyleKind::Species => model
+            .find_species(id)
+            .filter(|s| s.label_offset.is_some())
+            .map(draw::label_size),
+        StyleKind::Reaction => model
+            .find_reaction(id)
+            .filter(|r| r.label_offset.is_some())
+            .map(draw::reaction_label_size),
+        _ => None,
+    };
     styles::give_look(model, id, &look);
-    if let Some(size) = was_outside
-        && let Some(s) = model.find_species_mut(id)
-        && let Some(o) = s.label_offset
-    {
-        s.label_offset = Some(draw::label_offset_resized(s, o, size));
+    if let Some(size) = was_outside {
+        if let Some(s) = model
+            .find_species_mut(id)
+            .filter(|_| kind == StyleKind::Species)
+            && let Some(o) = s.label_offset
+        {
+            s.label_offset = Some(draw::label_offset_resized(s, o, size));
+        }
+        if let Some(r) = model
+            .find_reaction_mut(id)
+            .filter(|_| kind == StyleKind::Reaction)
+            && let Some(o) = r.label_offset
+        {
+            r.label_offset = Some(draw::reaction_label_offset_resized(r, o, size));
+        }
     }
     styles::set_link(model, kind, id, Some(name.to_owned()));
     if kind == StyleKind::Reaction {
         curve(model, id);
+        show_name(model, id);
+    }
+}
+
+/// Shows the reaction's name, as Escher does (S §8.7), beside its junction
+/// on the side clearest of its lines (S §5.12); a name already shown stays
+/// where it is.
+fn show_name(model: &mut Model, id: &str) {
+    let Some(r) = model.find_reaction(id).filter(|r| r.label_offset.is_none()) else {
+        return;
+    };
+    let place = draw::clear_reaction_label_offset(model, r);
+    if let Some(r) = model.find_reaction_mut(id) {
+        r.label_offset = Some(place);
     }
 }
 
@@ -310,6 +345,7 @@ pub fn apply(model: &mut Model, theme: Theme) {
             for r in model.reactions_mut() {
                 r.style = VisualStyle::default();
                 r.style_name = None;
+                r.label_offset = None;
             }
             for c in &mut model.compartments {
                 c.style = VisualStyle::default();

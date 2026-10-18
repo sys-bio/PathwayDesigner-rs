@@ -346,6 +346,14 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 7: reaction names (S §5.12).** A reaction may have `labelDx` and
+`labelDy`, after `styleName`: where its name's centre is drawn, from its junction.
+Both are written for a reaction showing its name and both left out otherwise; a
+reaction with only one, or a value that isn't a number, doesn't show its name, with
+a warning. A document in which a reaction shows its name is version 7; otherwise
+it is written as before. A list of styles on its own stays version 6, as nothing in
+a style needs 7.
+
 **Version 6: names outside the node (S §5.11).** A species may have `labelDx`
 and `labelDy`: where its name's centre is drawn, from the node's centre. Both are
 written for a name outside the node and both left out for one inside. A species

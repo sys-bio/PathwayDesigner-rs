@@ -162,5 +162,7 @@ pub enum Target {
     SpeciesCorner(Id, usize),
     /// A species' name drawn outside its node (S §5.11).
     SpeciesLabel(Id),
+    /// A reaction's name (S §5.12).
+    ReactionLabel(Id),
     Empty,
 }

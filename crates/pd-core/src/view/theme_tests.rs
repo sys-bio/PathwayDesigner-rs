@@ -357,11 +357,16 @@ fn the_file_keeps_the_theme() {
     assert!(!text.contains("\"theme\""));
     v.apply_theme(Theme::Escher);
     let text = crate::json::to_json(v.model());
-    assert!(text.contains("\"version\": 6"));
+    // Escher shows reaction names, which version 7 brought.
+    assert!(text.contains("\"version\": 7"));
     assert!(text.contains("\"theme\": \"escher\""));
     let back = crate::json::from_json(&text).unwrap();
     assert!(back.warnings.is_empty(), "{:?}", back.warnings);
     assert_eq!(back.model.theme, Some(Theme::Escher));
+    assert_eq!(
+        back.model.find_reaction("R1").unwrap().label_offset,
+        v.model().find_reaction("R1").unwrap().label_offset
+    );
     assert_eq!(
         back.model
             .find_species("ATP")

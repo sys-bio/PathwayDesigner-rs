@@ -18,7 +18,7 @@ use crate::render::constants::{
 };
 use crate::render::draw::{
     compartment_corners, compartment_label_box, effective_junction, effective_mode, leg_end,
-    leg_start, outside_label_box, species_corners, wrap_handle,
+    leg_start, outside_label_box, reaction_label_box, species_corners, wrap_handle,
 };
 use crate::textbox::text_box;
 use crate::view::input::{HandleId, Target};
@@ -102,6 +102,13 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
     };
     if let Some(s) = model.species().iter().rev().find(on_label) {
         return Target::SpeciesLabel(s.id.clone());
+    }
+    let on_name = |r: &&crate::model::Reaction| {
+        reaction_label_box(model, r)
+            .is_some_and(|(a, b)| (a.x..=b.x).contains(&p.x) && (a.y..=b.y).contains(&p.y))
+    };
+    if let Some(r) = model.reactions().iter().rev().find(on_name) {
+        return Target::ReactionLabel(r.id.clone());
     }
 
     if let Some(s) = model

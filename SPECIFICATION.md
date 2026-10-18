@@ -285,6 +285,7 @@ Each frame MUST be drawn in this order:
 4. Species nodes, which hide any part of a leg that falls inside them
 5. Selection halos
 6. Junction handles
+6a. Reaction names (§5.12; added in the Rust version), then free text
 7. Bézier control-point handles (for selected Bézier reactions only)
 8. In-progress reaction feedback (add-reaction mode only)
 9. Rubber-band rectangle
@@ -564,6 +565,40 @@ own setting.
   outside when the note says so **or** when its text glyph's centre lies outside
   the species glyph's box, as other tools write it; it is then drawn at that
   centre. Antimony has no layout.
+
+### 5.12 Reaction names
+
+*Added in the Rust version.* A reaction can show its **id** as text beside its
+junction, as Escher's metabolic maps label reactions. There is no separate display
+name: renaming the reaction renames the label.
+
+- **Shown or not** is the reaction's own setting, off by default: the **Show name**
+  tick box in the Reaction group (§8.1), for every selected reaction; one undo
+  step, *Show Name* or *Hide Name*. A name shown starts beside the junction on the
+  side clearest of its lines, as a species' name does (§5.11): of the same eight
+  directions, the one furthest from every line leaving the junction. A line
+  leaves towards its handle on a Bézier reaction (§5.6), otherwise towards its
+  species; modifier arcs count too. The name's box is `LABEL_GAP` (8) clear of the
+  junction's dot (radius 4) and half the line width. A name already shown stays
+  where it is.
+- **Where:** stored as an offset of the name's centre from the junction (for a
+  Linear reaction, the junction drawn on its line, §5.5), so moving the junction,
+  the reaction or the whole diagram carries the name. Dragging the name moves only
+  the name (*Move Label*), snapping its centre to the grid while Snap to grid is on
+  (§7.6), Alt to place it freely.
+- **Look:** drawn in the reaction style's `fontSize` (default 12) and `labelColor`
+  (default `#1A1A1A`), fields a reaction's style always had but never used, set by
+  **Name size** and **Name colour** in the Reaction group. Drawn after the junction
+  handles, over the lines. Not drawn below 2 screen points, as species names.
+- **Selecting:** clicking the name selects its reaction (Shift toggles it), a
+  rubber band touching the name selects it, and a selected reaction's name is
+  outlined like a species' name outside its node. Right-clicking it opens the
+  reaction's menu; its tooltip is the reaction's.
+- **Copy Style** and saved styles (§8.5, §8.6) carry the size and colour, but not
+  whether the name is shown or where.
+- **Zoom to fit** and output include the name (§11.6).
+- **Files.** JSON version 7 (SPEC-Rust §4.2), written only when some reaction shows
+  its name. SBML and Antimony don't carry it yet.
 
 ## 6. Interaction model
 
@@ -1428,13 +1463,15 @@ once. **View ▸ Theme** offers:
   |---|---|
   | *Escher metabolite* | orange circle (#E0865B, border #A24510, width 2), 26 across, name outside in 18 pt |
   | *Escher cofactor* | the same, 16 across, border width 1.5, name in 14 pt |
-  | *Escher reaction* | slate-blue line (#334E75), width 5, no junction dot |
+  | *Escher reaction* | slate-blue line (#334E75), width 5, no junction dot, name in 16 pt slate blue |
   | *Escher compartment* | light grey box (#FAFAFA, border #C8CDD3, width 1.5) |
 
   **Every** item takes the theme, those styled by hand too (a user recolours
   afterwards if they want): each species follows *Escher cofactor* if it is a
   cofactor, otherwise *Escher metabolite*; each reaction and compartment follows
-  its style, and each reaction becomes a **Bézier with a smooth junction**
+  its style and **shows its name** (§5.12; one already shown keeps its side and
+  gap, moved for its new size as a species' name is), and each reaction becomes
+  a **Bézier with a smooth junction**
   (§7.4.4), its handles set as the Smooth junction command sets them, those
   dragged by hand too (a Linear reaction's junction first goes halfway between
   its two species, as Set Straight does); each text keeps its size and alignment and takes a sans-serif face
@@ -1444,7 +1481,8 @@ once. **View ▸ Theme** offers:
   clearest of their lines (§5.11).
 - **Classic**, the usual look: every species becomes a rounded rectangle with its
   name inside, 80 × 36 or wide enough for its name, with the default colours and
-  border; every reaction, compartment and text has the default look (a
+  border; every reaction hides its name; every reaction, compartment and text
+  has the default look (a
   reaction keeps its shape: straight, Linear or Bézier is not part of a look);
   nothing
   follows a style, and Escher's styles leave the model.

@@ -384,12 +384,17 @@ impl PathwayApp {
         }
     }
 
-    /// The first time an edit makes the document need format version 4 (free
-    /// text), the status bar says the Delphi app can no longer open it
-    /// (SPEC-Rust §4.2). Opening a version 4 file says nothing.
+    /// The first time an edit makes the document need a version newer than
+    /// the Delphi app reads (free text, say), the status bar says it can no
+    /// longer open it (SPEC-Rust §4.2). Opening such a file says nothing, nor
+    /// does a later step up, which the Delphi app couldn't open either.
     fn note_version_change(&mut self) {
+        use pd_core::json::DELPHI_VERSION;
         let needed = pd_core::json::needed_version(self.view.model());
-        if needed > self.needed_version && self.view.is_modified() {
+        if needed > DELPHI_VERSION
+            && self.needed_version <= DELPHI_VERSION
+            && self.view.is_modified()
+        {
             self.notice = Some("This file now needs PathwayDesigner (Rust) to open".to_owned());
         }
         self.needed_version = needed;
@@ -1762,6 +1767,41 @@ mod tests {
         let at = h.centre("S1");
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(h.centre("S1"), at);
+    }
+
+    #[test]
+    fn the_delphi_notice_shows_only_when_a_file_first_outgrows_it() {
+        let notice = "This file now needs PathwayDesigner (Rust) to open";
+        let mut h = Harness::new();
+        h.app.perform(Action::New);
+        h.run(vec![]);
+        // Two species and a reaction: version 3, which the Delphi app reads.
+        h.app.view.set_tool(Tool::AddSpecies);
+        h.click(Pos2::new(400.0, 400.0));
+        h.time += 1.0;
+        h.click(Pos2::new(700.0, 400.0));
+        h.key(Key::Escape, Modifiers::NONE);
+        h.app.view.set_tool(Tool::UNI_UNI);
+        h.time += 1.0;
+        h.click(h.on_screen("S1"));
+        h.time += 1.0;
+        h.click(h.on_screen("S2"));
+        h.app.view.set_tool(Tool::Select);
+        assert_eq!(h.app.view.model().reactions().len(), 1);
+        h.app.notice = None;
+        h.run(vec![]);
+        assert_eq!(h.app.notice, None);
+        // A name outside its node: version 6, past the Delphi app.
+        h.app.view.select_all();
+        h.app.view.set_species_label_outside(true);
+        h.run(vec![]);
+        assert_eq!(h.app.notice.as_deref(), Some(notice));
+        // A reaction's name: version 7, but no news for the Delphi app.
+        h.app.notice = None;
+        h.app.view.set_reaction_label_shown(true);
+        h.run(vec![]);
+        assert_eq!(pd_core::json::needed_version(h.app.view.model()), 7);
+        assert_eq!(h.app.notice, None);
     }
 
     #[test]

@@ -26,6 +26,8 @@ pub enum ColourField {
     Label,
     /// Lines of the selected reactions.
     Line,
+    /// Names of the selected reactions (S §5.12).
+    ReactionLabel,
     /// The selected texts (S §7.8).
     Text,
     /// Fill of the selected compartments (S §7.9).
@@ -95,7 +97,9 @@ pub(super) fn style_target(t: &Target) -> Option<(StyleKind, Id)> {
         Target::Species(id) | Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => {
             (StyleKind::Species, id.clone())
         }
-        Target::Junction(id) | Target::Leg(id) => (StyleKind::Reaction, id.clone()),
+        Target::Junction(id) | Target::Leg(id) | Target::ReactionLabel(id) => {
+            (StyleKind::Reaction, id.clone())
+        }
         Target::Handle(h) => (StyleKind::Reaction, h.reaction.clone()),
         Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
             (StyleKind::Compartment, id.clone())
@@ -172,6 +176,11 @@ impl DiagramView {
                 if custom { s.style.label_color } else { LABEL }
             }),
             ColourField::Line => self.model.selected_reactions().next().map(line_colour),
+            ColourField::ReactionLabel => self
+                .model
+                .selected_reactions()
+                .next()
+                .map(crate::render::draw::reaction_label_colour),
             ColourField::CompartmentFill | ColourField::CompartmentBorder => {
                 let c = self.model.selected_compartments().next()?;
                 let (fill, border, _) = compartment_colours(c);
@@ -222,13 +231,19 @@ impl DiagramView {
                 })
             },
             |r| {
-                if field == ColourField::Line {
-                    r.line_color = colour;
-                    r.has_custom_style = true;
+                match field {
+                    ColourField::Line => Some(&mut r.line_color),
+                    ColourField::ReactionLabel => Some(&mut r.label_color),
+                    _ => None,
                 }
+                .into_iter()
+                .for_each(|c| {
+                    *c = colour;
+                    r.has_custom_style = true;
+                })
             },
-            field != ColourField::Line,
-            field == ColourField::Line,
+            !matches!(field, ColourField::Line | ColourField::ReactionLabel),
+            matches!(field, ColourField::Line | ColourField::ReactionLabel),
         )
     }
 
@@ -262,6 +277,62 @@ impl DiagramView {
             true,
             false,
         )
+    }
+
+    /// Sets the name size of every selected reaction (0 means the default,
+    /// 12). One undo step (S §5.12).
+    pub fn set_reaction_font_size(&mut self, size: f64) -> ViewResponse {
+        if !(size.is_finite() && size >= 0.0) {
+            return ViewResponse::default();
+        }
+        self.style_edit(
+            |_| {},
+            |r| {
+                r.font_size = size;
+                r.has_custom_style = true;
+            },
+            false,
+            true,
+        )
+    }
+
+    /// Shows or hides the names of the selected reactions. A name shown
+    /// starts beside its junction on the side clearest of its lines; one
+    /// already shown stays where it is. One undo step (S §5.12).
+    pub fn set_reaction_label_shown(&mut self, shown: bool) -> ViewResponse {
+        let before = self.model.clone();
+        let places: Vec<(String, Option<crate::geometry::Pt>)> = self
+            .model
+            .selected_reactions()
+            .map(|r| {
+                let place = match (shown, r.label_offset) {
+                    (false, _) => None,
+                    (true, Some(o)) => Some(o),
+                    (true, None) => Some(crate::render::draw::clear_reaction_label_offset(
+                        &self.model,
+                        r,
+                    )),
+                };
+                (r.id.clone(), place)
+            })
+            .collect();
+        for (id, place) in places {
+            if let Some(r) = self.model.find_reaction_mut(&id) {
+                r.label_offset = place;
+            }
+        }
+        let desc = if shown { "Show Name" } else { "Hide Name" };
+        self.record_if_changed(desc, before)
+    }
+
+    /// Whether the selected reactions show their names, if they all agree.
+    pub fn selected_reactions_label_shown(&self) -> Option<bool> {
+        let mut shown = self
+            .model
+            .selected_reactions()
+            .map(|r| r.label_offset.is_some());
+        let first = shown.next()?;
+        shown.all(|s| s == first).then_some(first)
     }
 
     /// Copy Style (S §8.5): remembers how `item` looks, a species, a reaction

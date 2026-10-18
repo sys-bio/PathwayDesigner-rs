@@ -25,6 +25,7 @@ enum Field {
     SpeciesHeight,
     FontSize,
     LineWidth,
+    ReactionFontSize,
     KineticLaw,
     TextSize,
     TextWrap,
@@ -49,6 +50,7 @@ pub struct Inspector {
     species_height: Draft,
     font_size: Draft,
     line_width: Draft,
+    reaction_font_size: Draft,
     law: Draft,
     text_size: Draft,
     text_wrap: Draft,
@@ -161,6 +163,7 @@ impl Inspector {
         let one_species = (species.len() == 1).then(|| species[0].clone());
         let first_species = species.first().cloned();
         let one_reaction = (reactions.len() == 1).then(|| reactions[0].clone());
+        let first_reaction = reactions.first().cloned();
         let texts = view.selected_text_ids();
         let one_text = (texts.len() == 1).then(|| texts[0].clone());
         let first_text = texts.first().cloned();
@@ -177,6 +180,7 @@ impl Inspector {
             (Field::SpeciesHeight, &first_species),
             (Field::FontSize, &first_species),
             (Field::LineWidth, &one_reaction),
+            (Field::ReactionFontSize, &first_reaction),
             (Field::KineticLaw, &one_reaction),
             (Field::TextSize, &first_text),
             (Field::TextWrap, &one_text),
@@ -406,6 +410,29 @@ impl Inspector {
                         if ui.checkbox(&mut visible, "").changed() {
                             view.set_junction_visible(visible);
                         }
+                        ui.end_row();
+
+                        // Its id beside the junction, for every selected
+                        // reaction (S §5.12). Where it is isn't part of a look.
+                        if !look_only {
+                            ui.label("Show name");
+                            let mut named = view.selected_reactions_label_shown() == Some(true);
+                            if ui
+                                .checkbox(&mut named, "")
+                                .on_hover_text(
+                                    "Draw the reaction's id beside it; drag it to move it",
+                                )
+                                .changed()
+                            {
+                                view.set_reaction_label_shown(named);
+                            }
+                            ui.end_row();
+                        }
+                        ui.label("Name size");
+                        self.number(ui, view, Field::ReactionFontSize, true, "");
+                        ui.end_row();
+                        ui.label("Name colour");
+                        self.swatch(ui, view, ColourField::ReactionLabel);
                         ui.end_row();
                     });
                 if !look_only {
@@ -657,6 +684,7 @@ impl Inspector {
             Field::SpeciesHeight => &self.species_height,
             Field::FontSize => &self.font_size,
             Field::LineWidth => &self.line_width,
+            Field::ReactionFontSize => &self.reaction_font_size,
             Field::KineticLaw => &self.law,
             Field::TextSize => &self.text_size,
             Field::TextWrap => &self.text_wrap,
@@ -674,6 +702,7 @@ impl Inspector {
             Field::SpeciesHeight => &mut self.species_height,
             Field::FontSize => &mut self.font_size,
             Field::LineWidth => &mut self.line_width,
+            Field::ReactionFontSize => &mut self.reaction_font_size,
             Field::KineticLaw => &mut self.law,
             Field::TextSize => &mut self.text_size,
             Field::TextWrap => &mut self.text_wrap,
@@ -704,6 +733,9 @@ impl Inspector {
             Field::LineWidth => m
                 .find_reaction(target)
                 .map(|r| size_text(draw::reaction_line_width(r))),
+            Field::ReactionFontSize => m
+                .find_reaction(target)
+                .map(|r| size_text(draw::reaction_label_size(r))),
             Field::KineticLaw => m.find_reaction(target).map(|r| r.kinetic_law.clone()),
             Field::TextSize => m.find_text(target).map(|t| t.size.to_string()),
             Field::TextWrap => m.find_text(target).map(|t| t.wrap_width.to_string()),
@@ -750,6 +782,10 @@ impl Inspector {
             }
             (Field::LineWidth, Some(v)) if v > 0.0 => {
                 view.set_line_width(&target, v);
+            }
+            // The size goes to every selected reaction.
+            (Field::ReactionFontSize, Some(v)) if v > 0.0 => {
+                view.set_reaction_font_size(v);
             }
             (Field::KineticLaw, _) => {
                 view.set_kinetic_law(&target, &text);

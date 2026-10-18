@@ -127,6 +127,9 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     for reaction in model.reactions() {
         d.junction(reaction, r);
     }
+    for reaction in model.reactions() {
+        d.reaction_name(reaction, r);
+    }
     for text in model.texts() {
         d.free_text(text, r);
     }
@@ -138,6 +141,7 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
             d.text_selection(text, r);
         }
         for reaction in model.selected_reactions() {
+            d.reaction_name_outline(reaction, r);
             d.bezier_handles(reaction, r);
         }
     }
@@ -211,6 +215,14 @@ pub fn clear_label_offset(model: &Model, s: &SpeciesNode) -> Pt {
             (len > 1e-9).then(|| pt(d.x / len, d.y / len))
         })
         .collect();
+    label_offset_towards(s, clearest_direction(&legs))
+}
+
+/// Of eight directions (right first, then left, above, below, then the
+/// corners), the one whose nearest line is furthest away: the smallest
+/// largest cosine with `lines`, unit directions; the first such on a tie,
+/// so right when there are none.
+fn clearest_direction(lines: &[Pt]) -> Pt {
     let h = std::f64::consts::FRAC_1_SQRT_2;
     let directions = [
         pt(1.0, 0.0),
@@ -225,7 +237,8 @@ pub fn clear_label_offset(model: &Model, s: &SpeciesNode) -> Pt {
     // The direction whose nearest line is furthest away: the smallest
     // largest cosine; the first such in the list on a tie.
     let closeness = |d: &Pt| {
-        legs.iter()
+        lines
+            .iter()
             .map(|l| l.x * d.x + l.y * d.y)
             .fold(f64::NEG_INFINITY, f64::max)
     };
@@ -237,7 +250,7 @@ pub fn clear_label_offset(model: &Model, s: &SpeciesNode) -> Pt {
             (best, best_close) = (*d, c);
         }
     }
-    label_offset_towards(s, best)
+    best
 }
 
 /// Where `s`'s name, at `offset` while it was `old_size` high, goes now that
@@ -246,14 +259,19 @@ pub fn clear_label_offset(model: &Model, s: &SpeciesNode) -> Pt {
 /// it is on (to the nearest eighth of a turn), so the gap between the name
 /// and the node stays the same.
 pub fn label_offset_resized(s: &SpeciesNode, offset: Pt, old_size: f64) -> Pt {
-    let half = |size: f64| {
-        let m = font_metrics(size);
-        pt(
-            text_width(s.primary_id(), size) / 2.0,
-            (m.ascent - m.descent) / 2.0,
-        )
-    };
-    let grow = half(label_size(s)) - half(old_size);
+    name_offset_resized(s.primary_id(), offset, old_size, label_size(s))
+}
+
+/// [`label_offset_resized`] for a reaction's name (S §5.12), from its
+/// junction.
+pub fn reaction_label_offset_resized(r: &Reaction, offset: Pt, old_size: f64) -> Pt {
+    name_offset_resized(&r.id, offset, old_size, reaction_label_size(r))
+}
+
+/// A name `text` at `offset`, `old_size` high and now `new_size`, moved by
+/// half the change in its width and height along the axes of its side.
+fn name_offset_resized(text: &str, offset: Pt, old_size: f64, new_size: f64) -> Pt {
+    let grow = name_half(text, new_size) - name_half(text, old_size);
     let eighth = std::f64::consts::FRAC_PI_4;
     let a = (offset.y.atan2(offset.x) / eighth).round() * eighth;
     // A cosine of 6e-17 is zero: the name is centred along that axis.
@@ -265,10 +283,24 @@ pub fn label_offset_resized(s: &SpeciesNode, offset: Pt, old_size: f64) -> Pt {
 /// part -1, 0 or 1 in sign): the name's box [`LABEL_GAP`] from the node's
 /// box along each axis `d` points along, centred along the others.
 fn label_offset_towards(s: &SpeciesNode, d: Pt) -> Pt {
-    let size = label_size(s);
-    let half_w = text_width(s.primary_id(), size) / 2.0;
+    beside(
+        pt(s.width / 2.0, s.height / 2.0),
+        name_half(s.primary_id(), label_size(s)),
+        d,
+    )
+}
+
+/// Half the width and height of `text` drawn at `size`.
+fn name_half(text: &str, size: f64) -> Pt {
     let m = font_metrics(size);
-    let half_h = (m.ascent - m.descent) / 2.0;
+    pt(text_width(text, size) / 2.0, (m.ascent - m.descent) / 2.0)
+}
+
+/// The offset of a name `label_half` in half-size from the centre of a box
+/// `node_half` in half-size, so the name is [`LABEL_GAP`] from the box in
+/// direction `d` (each part -1, 0 or 1 in sign) along each axis `d` points
+/// along, and centred along the others.
+fn beside(node_half: Pt, label_half: Pt, d: Pt) -> Pt {
     let along = |v: f64, node_half: f64, label_half: f64| {
         if v.abs() < 1e-9 {
             0.0
@@ -277,8 +309,66 @@ fn label_offset_towards(s: &SpeciesNode, d: Pt) -> Pt {
         }
     };
     pt(
-        along(d.x, s.width / 2.0, half_w),
-        along(d.y, s.height / 2.0, half_h),
+        along(d.x, node_half.x, label_half.x),
+        along(d.y, node_half.y, label_half.y),
+    )
+}
+
+/// The size a reaction's name is drawn at (S §5.12).
+pub fn reaction_label_size(r: &Reaction) -> f64 {
+    pick_width(custom(&r.style).map(|st| st.font_size), LABEL_FONT_SIZE)
+}
+
+/// The colour a reaction's name is drawn in (S §5.12).
+pub fn reaction_label_colour(r: &Reaction) -> Rgba {
+    pick(custom(&r.style).map(|st| st.label_color), LABEL)
+}
+
+/// The box round a reaction's name, with [`LABEL_BOX_PAD`] each side: what
+/// selects the reaction, and what is outlined while it is selected
+/// (S §5.12). `None` when the name isn't shown. Returns (min, max).
+pub fn reaction_label_box(model: &Model, r: &Reaction) -> Option<(Pt, Pt)> {
+    let offset = r.label_offset?;
+    let half = name_half(&r.id, reaction_label_size(r)) + pt(LABEL_BOX_PAD, LABEL_BOX_PAD);
+    let c = effective_junction(model, r) + offset;
+    Some((c - half, c + half))
+}
+
+/// Where a reaction's name starts when it is shown (S §5.12): beside its
+/// junction on the side clearest of its lines, as for a species' name
+/// (S §5.11). A line leaves the junction towards its handle on a Bézier
+/// reaction, otherwise towards its species. The name keeps [`LABEL_GAP`]
+/// from the junction's dot and the lines' width.
+pub fn clear_reaction_label_offset(model: &Model, r: &Reaction) -> Pt {
+    let j = effective_junction(model, r);
+    let bezier = effective_mode(r) == ReactionMode::Bezier;
+    let mut toward = Vec::new();
+    for role in [Role::Reactant, Role::Product, Role::Modifier] {
+        for (i, p) in r.participants(role).iter().enumerate() {
+            let curve = (bezier && role != Role::Modifier)
+                .then(|| leg_curve(model, r, role, i))
+                .flatten();
+            let to = match (curve, role) {
+                (Some(c), Role::Reactant) => Some(c.p2),
+                (Some(c), _) => Some(c.p1),
+                (None, _) => model.find_species(&p.species).map(|s| s.center),
+            };
+            toward.extend(to);
+        }
+    }
+    let lines: Vec<Pt> = toward
+        .into_iter()
+        .filter_map(|t| {
+            let d = t - j;
+            let len = d.x.hypot(d.y);
+            (len > 1e-9).then(|| pt(d.x / len, d.y / len))
+        })
+        .collect();
+    let clear = JUNCTION_RADIUS + reaction_line_width(r) / 2.0;
+    beside(
+        pt(clear, clear),
+        name_half(&r.id, reaction_label_size(r)),
+        clearest_direction(&lines),
     )
 }
 
@@ -405,6 +495,10 @@ pub fn content_bounds(model: &Model) -> (Pt, Pt) {
     }
     for r in model.reactions() {
         grow(r.junction);
+        if let Some((a, b)) = reaction_label_box(model, r) {
+            grow(a);
+            grow(b);
+        }
     }
     for t in model.texts() {
         let (a, b) = text_box(t);
@@ -1028,6 +1122,43 @@ impl Drawer<'_> {
             Some(HANDLE_FILL),
             Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
         );
+    }
+
+    // ----- Reaction names (S §5.12) -----------------------------------------
+
+    fn reaction_name(&self, r: &Reaction, out: &mut dyn Renderer) {
+        let Some(offset) = r.label_offset else {
+            return;
+        };
+        let size = reaction_label_size(r) * self.opts.zoom;
+        if size >= MIN_LABEL_SIZE_PX {
+            out.text(
+                self.to_screen(effective_junction(self.model, r) + offset),
+                &r.id,
+                size as f32,
+                TextFont::default(),
+                reaction_label_colour(r),
+            );
+        }
+    }
+
+    /// A selected reaction's name is outlined, as a species' name outside
+    /// its node is (S §5.11).
+    fn reaction_name_outline(&self, r: &Reaction, out: &mut dyn Renderer) {
+        let Some((a, b)) = reaction_label_box(self.model, r) else {
+            return;
+        };
+        let stroke = Stroke {
+            width: self.len(1.0),
+            color: SELECTION_HALO,
+            dash: self.dash(HALO_DASH),
+            round_cap: false,
+        };
+        let rect = SRect {
+            min: self.to_screen(a),
+            max: self.to_screen(b),
+        };
+        out.round_rect(rect, 0.0, None, Some(stroke));
     }
 
     // ----- Pass 6: junction handles (S §5.8) --------------------------------
@@ -1795,6 +1926,76 @@ mod tests {
             assert!(verticals(&calls, GRID_MINOR).is_empty());
             assert!(verticals(&calls, GRID_MAJOR).is_empty());
         }
+    }
+
+    #[test]
+    fn a_reaction_name_is_drawn_beside_its_junction() {
+        let mut m = uni_uni();
+        let id = m.reactions()[0].id.clone();
+        let names = |m: &Model, opts: &DrawOptions| -> Vec<Call> {
+            draw(m, opts)
+                .into_iter()
+                .filter(|c| matches!(c, Call::Text(_, s, ..) if *s == id))
+                .collect()
+        };
+        assert!(names(&m, &DrawOptions::default()).is_empty(), "hidden");
+        let r = m.find_reaction_mut(&id).unwrap();
+        r.label_offset = Some(pt(10.0, -20.0));
+        assert_eq!(
+            names(&m, &DrawOptions::default()),
+            vec![Call::Text(spt(210.0, -20.0), id.clone(), 12.0, LABEL)]
+        );
+        let r = m.find_reaction_mut(&id).unwrap();
+        r.style.has_custom_style = true;
+        r.style.font_size = 16.0;
+        r.style.label_color = Rgba::rgb(0xCC, 0, 0);
+        assert_eq!(
+            names(&m, &DrawOptions::default()),
+            vec![Call::Text(
+                spt(210.0, -20.0),
+                id.clone(),
+                16.0,
+                Rgba::rgb(0xCC, 0, 0)
+            )]
+        );
+        // Drawn over the lines and the junction.
+        let calls = draw(&m, &DrawOptions::default());
+        let name = calls
+            .iter()
+            .position(|c| matches!(c, Call::Text(_, s, ..) if *s == id))
+            .unwrap();
+        let last_line = calls
+            .iter()
+            .rposition(|c| matches!(c, Call::Polyline(..) | Call::Polygon(..)))
+            .unwrap();
+        assert!(name > last_line);
+    }
+
+    #[test]
+    fn a_selected_reactions_name_is_outlined_on_screen_only() {
+        let mut m = uni_uni();
+        let r = m.reactions_mut().next().unwrap();
+        r.label_offset = Some(pt(0.0, -20.0));
+        let outlines = |m: &Model, opts: &DrawOptions| {
+            draw(m, opts)
+                .into_iter()
+                .filter(|c| {
+                    matches!(c, Call::RoundRect(_, None, Some(s))
+                        if s.color == SELECTION_HALO && s.width == 1.0)
+                })
+                .count()
+        };
+        assert_eq!(outlines(&m, &DrawOptions::default()), 0);
+        m.reactions_mut().next().unwrap().selected = true;
+        assert_eq!(outlines(&m, &DrawOptions::default()), 1);
+        let output = DrawOptions {
+            for_output: true,
+            ..DrawOptions::default()
+        };
+        assert_eq!(outlines(&m, &output), 0);
+        // Hidden, nothing to outline.
+        m.reactions_mut().next().unwrap().label_offset = None;
+        assert_eq!(outlines(&m, &DrawOptions::default()), 0);
     }
 
     #[test]

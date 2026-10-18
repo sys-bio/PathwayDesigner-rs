@@ -451,6 +451,9 @@ pub struct Reaction {
     pub style: VisualStyle,
     /// The saved style it follows (S §8.6), by name, while it looks like it.
     pub style_name: Option<String>,
+    /// Where its name (its id) is drawn, from its junction (S §5.12);
+    /// `None` when the name isn't shown.
+    pub label_offset: Option<Pt>,
 }
 
 impl Reaction {
@@ -468,6 +471,7 @@ impl Reaction {
             selected: false,
             style: VisualStyle::default(),
             style_name: None,
+            label_offset: None,
         }
     }
 

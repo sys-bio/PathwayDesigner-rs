@@ -62,6 +62,9 @@ Delphi version does, and some more (see [Status](#status)).
   label colour and font size, for each item.
 - **Names outside the node**, as in Escher's metabolic maps: small circles with
   their names beside them, each name dragged where you want it.
+- **Reaction names**: show a reaction's id beside it (*Show name* in the
+  Properties panel), placed clear of its lines, with its own size and colour;
+  drag it where you want it.
 - **Copy Style** and **Paste Style** (Ctrl+Alt+C, Ctrl+Alt+V) copy a look from one
   item to others, like a format painter; an alias can take its species' look.
 - **Saved styles**: keep a look under a name and give it to other items, which then
@@ -71,8 +74,8 @@ Delphi version does, and some more (see [Status](#status)).
   styles to share them.
 - **Themes** (*View ▸ Theme*): **Escher** restyles the whole diagram as a metabolic
   map, with orange circles, smaller circles for cofactors such as ATP and NADH,
-  names placed clear of the lines, and thick blue reactions curving smoothly
-  through their junctions; new items follow
+  names placed clear of the lines, thick blue reactions curving smoothly
+  through their junctions, and every reaction's name shown; new items follow
   the theme. **Classic** puts back the default look. Undo reverses either.
 - Arrowheads grow with thick reaction lines.
 
