@@ -193,3 +193,110 @@ fn sbml_legs_end_at_the_stem() {
         "{xml}"
     );
 }
+
+fn sbml_back(m: &Model) -> Model {
+    let opts = crate::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let xml = crate::sbml::export(m).xml;
+    crate::sbml::import(&xml, &opts).unwrap().model
+}
+
+fn close(a: Option<(Pt, Pt)>, b: Option<(Pt, Pt)>) -> bool {
+    match (a, b) {
+        (Some((a1, a2)), Some((b1, b2))) => a1.distance(b1) < 1e-6 && a2.distance(b2) < 1e-6,
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+#[test]
+fn a_stem_is_the_sbml_reaction_glyph_s_curve() {
+    let v = view();
+    let xml = crate::sbml::export(v.model()).xml;
+    // The glyph's own curve: (160,0) → (200,0) → (240,0).
+    let curve = &xml[xml.find("<layout:reactionGlyph").unwrap()..];
+    let curve = &curve[..curve.find("<layout:listOfSpeciesReferenceGlyphs").unwrap()];
+    assert!(curve.contains("<layout:curve>"), "{curve}");
+    assert!(curve.contains(r#"<layout:start layout:x="160" layout:y="0""#));
+    assert!(curve.contains(r#"<layout:end layout:x="240" layout:y="0""#));
+    // Back again: the same stem, straight or Bézier.
+    let back = sbml_back(v.model());
+    assert!(close(back.find_reaction("R1").unwrap().stem, r1(&v).stem));
+    let mut m = v.model().clone();
+    {
+        let r = m.find_reaction_mut("R1").unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.stem = Some((pt(-40.0, -30.0), pt(40.0, 20.0)));
+        let p = &mut r.reactants[0];
+        (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (pt(40.0, -40.0), pt(120.0, -50.0), true);
+    }
+    let back = sbml_back(&m);
+    let r = back.find_reaction("R1").unwrap();
+    assert!(
+        close(r.stem, m.find_reaction("R1").unwrap().stem),
+        "{:?}",
+        r.stem
+    );
+    assert_eq!(r.mode, ReactionMode::Bezier);
+    let p = &r.reactants[0];
+    assert!(p.ctrl1.distance(pt(40.0, -40.0)) < 1e-6 && p.ctrl2.distance(pt(120.0, -50.0)) < 1e-6);
+    // No stem, no curve, and none comes back.
+    m.find_reaction_mut("R1").unwrap().stem = None;
+    let xml = crate::sbml::export(&m).xml;
+    let glyph = &xml[xml.find("<layout:reactionGlyph").unwrap()..];
+    let glyph = &glyph[..glyph.find("<layout:listOfSpeciesReferenceGlyphs").unwrap()];
+    assert!(!glyph.contains("<layout:curve>"));
+    assert_eq!(sbml_back(&m).find_reaction("R1").unwrap().stem, None);
+}
+
+#[test]
+fn another_tool_s_reaction_curve_is_read_either_way_round() {
+    // Written from the products' end to the reactants': still the stem the
+    // right way round.
+    let v = view();
+    let xml = crate::sbml::export(v.model())
+        .xml
+        .replace(
+            r#"<layout:start layout:x="160" layout:y="0""#,
+            r#"<layout:start layout:x="TMP" layout:y="0""#,
+        )
+        .replace(
+            r#"<layout:end layout:x="240" layout:y="0""#,
+            r#"<layout:end layout:x="160" layout:y="0""#,
+        )
+        .replace(
+            r#"<layout:start layout:x="TMP" layout:y="0""#,
+            r#"<layout:start layout:x="240" layout:y="0""#,
+        );
+    let opts = crate::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let back = crate::sbml::import(&xml, &opts).unwrap().model;
+    assert!(close(back.find_reaction("R1").unwrap().stem, r1(&v).stem));
+}
+
+#[test]
+fn an_escher_map_survives_sbml_with_its_stems() {
+    let map = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../Escher/e_coli_core.Core metabolism.json"
+    ))
+    .unwrap();
+    let m = crate::escher::import(&map).unwrap().model;
+    let with_stems = m.reactions().iter().filter(|r| r.stem.is_some()).count();
+    assert!(with_stems > 50, "{with_stems}");
+    let back = sbml_back(&m);
+    for r in m.reactions() {
+        let b = back.find_reaction(&r.id).unwrap();
+        assert!(
+            close(b.stem, r.stem),
+            "{}: {:?} vs {:?}",
+            r.id,
+            b.stem,
+            r.stem
+        );
+    }
+}

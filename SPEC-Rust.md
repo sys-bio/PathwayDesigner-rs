@@ -960,6 +960,16 @@ Import makes free text from every text glyph that has a `text` and labels nothin
 at its box's top-left corner, with the note's look if it has one and the defaults
 otherwise. Text glyphs that label a species are not free text.
 
+**Stems (S §5.13)** are written as the reaction glyph's own `curve`: two line
+segments, from the reactants' end of the stem to the junction and on to the
+products' end; each species reference glyph's curve ends (or starts) at its side's
+end. A reaction without a stem has no glyph curve. Reading, a reaction glyph with a
+curve gets a stem from the curve's first point to its last, turned round if the
+first is nearer the products and the last nearer the reactants (as another tool may
+write it), unless the reaction is Linear or has a smooth junction, or both ends are
+at the junction. The junction is still the glyph's box (or, without one, halfway
+along the curve).
+
 **Reaction names (S §5.12)** are written as a text glyph on the reaction's glyph,
 `graphicalObject` its id and `originOfText` the reaction, in the name's own box, so
 other tools show the name where it is drawn. Import shows a reaction's name when a

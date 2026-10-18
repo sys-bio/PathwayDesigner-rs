@@ -642,6 +642,36 @@ impl Builder {
             }
         }
 
+        // The reaction glyph's own curve is its stem (S §5.13): its first point
+        // the reactants' end, its last the products', whichever way round a
+        // tool wrote it.
+        if rx.mode != ReactionMode::Linear
+            && !rx.junction_smooth
+            && let Some(segs) = glyph.and_then(|g| g.curve.as_ref()).map(|c| &c.segments)
+            && let (Some(first), Some(last)) = (segs.first(), segs.last())
+        {
+            let p = |q: sb::Point| pt(q.x, q.y);
+            let (mut a, mut b) = (p(first.start()), p(last.end()));
+            let centre = |list: &[crate::model::Participant]| {
+                let pts: Vec<Pt> = list
+                    .iter()
+                    .filter_map(|p| self.model.find_species(&p.species))
+                    .map(|s| s.center)
+                    .collect();
+                (!pts.is_empty())
+                    .then(|| pts.iter().fold(Pt::ZERO, |s, &q| s + q) / pts.len() as f64)
+            };
+            if let (Some(cr), Some(cp)) = (centre(&rx.reactants), centre(&rx.products))
+                && a.distance(cr) + b.distance(cp) > a.distance(cp) + b.distance(cr)
+            {
+                std::mem::swap(&mut a, &mut b);
+            }
+            let j = rx.junction;
+            if a.distance(j) > 1e-9 || b.distance(j) > 1e-9 {
+                rx.stem = Some((a - j, b - j));
+            }
+        }
+
         // The passes every import gets (SPEC-Rust §8.4).
         if opts.convert_catalytic {
             passes::catalytic_rewrite(&mut rx);

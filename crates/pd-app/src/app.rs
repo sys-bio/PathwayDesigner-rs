@@ -2118,7 +2118,10 @@ k = 0.1",
         // The document came from a file, so Save would write back to it.
         assert_eq!(h.app.doc.name, "model9.json");
         h.app.doc.target = Some(crate::files::SaveTarget::Path("model9.json".into()));
-        let xml = h.app.view.export_sbml().xml;
+        // A reaction's name shown: the SBML imported needs version 7.
+        let mut named = h.app.view.model().clone();
+        named.reactions_mut().next().unwrap().label_offset = Some(Pt::ZERO);
+        let xml = pd_core::sbml::export(&named).xml;
         for (purpose, name, text) in [
             (Purpose::ImportSbml, "glycolysis.xml", xml),
             (
@@ -2141,6 +2144,13 @@ k = 0.1"
             assert!(h.app.doc.target.is_none(), "{purpose:?}");
             // Still one undo step.
             assert!(h.app.view.can_undo());
+            // Importing isn't an edit: the status bar says what came in.
+            h.run(vec![]);
+            assert_eq!(
+                h.app.notice,
+                Some(format!("Imported {name}")),
+                "{purpose:?}"
+            );
         }
     }
 

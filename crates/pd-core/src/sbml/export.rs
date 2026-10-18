@@ -484,6 +484,20 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             id: ids.unique(format!("rg_{}", r.id)),
             reaction: Some(r.id.clone()),
             bounding_box: Some(sb::BoundingBox::new(j.x, j.y, 0.0, 0.0)),
+            // Its stem (S §5.13) is the glyph's own curve: from the
+            // reactants' end through the junction to the products'.
+            curve: crate::render::draw::stem_line(r).map(|[a, m, b]| sb::Curve {
+                segments: vec![
+                    sb::Segment::Line {
+                        start: point(a),
+                        end: point(m),
+                    },
+                    sb::Segment::Line {
+                        start: point(m),
+                        end: point(b),
+                    },
+                ],
+            }),
             ..Default::default()
         };
         // Linear, and smooth junctions, which the curves can't say.

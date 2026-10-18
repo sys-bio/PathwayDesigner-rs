@@ -622,8 +622,9 @@ junction (dragging it, moving the reaction, alignment, layout) carries the stem.
   Set Bézier keeps it, and so does the Escher theme (§8.7), which leaves a reaction
   with a stem, and its handles, as they are. Undo puts it back.
 - **Files:** JSON version 8 (SPEC-Rust §4.2), written only when a reaction has a
-  stem. In SBML each leg ends at its end of the stem (the stem itself is written
-  in step 2).
+  stem. In SBML the stem is the reaction glyph's own curve, and each leg ends at
+  its end of it (SPEC-Rust §8.3); reading SBML, a reaction glyph's curve, from this
+  app or another tool, becomes the stem.
 
 ## 6. Interaction model
 

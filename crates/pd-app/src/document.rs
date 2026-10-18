@@ -331,6 +331,8 @@ impl PathwayApp {
             ..Document::default()
         };
         self.notice = Some(format!("Imported {name}"));
+        // What an imported file needs is no news either.
+        self.needed_version = pd_core::json::needed_version(self.view.model());
     }
 
     pub(crate) fn file_event(&mut self, event: FileEvent) {
