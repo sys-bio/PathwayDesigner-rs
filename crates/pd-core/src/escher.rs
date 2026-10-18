@@ -311,22 +311,32 @@ pub fn import(text: &str) -> Result<Imported, String> {
 fn merge(m: Pt, c1: Pt, c2: Pt, k: Pt, j: Pt) -> (Pt, Pt) {
     const OUTER: [f64; 7] = [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.2];
     const INNER: [f64; 7] = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
-    let mut path: Vec<Pt> = (0..=48)
-        .map(|i| cubic(m, c1, c2, k, f64::from(i) / 48.0))
-        .collect();
+    // Each curve as a polyline of this many pieces: as good a choice as 48
+    // on the E. coli core map, and quick enough in the browser.
+    const PIECES: u32 = 16;
+    let along = |a: Pt, b: Pt, c: Pt, d: Pt| -> Vec<Pt> {
+        (0..=PIECES)
+            .map(|i| cubic(a, b, c, d, f64::from(i) / f64::from(PIECES)))
+            .collect()
+    };
+    let mut path = along(m, c1, c2, k);
     path.push(j);
     let mut best = (f64::INFINITY, c1, k);
     for a in OUTER {
         for b in INNER {
             let (h1, h2) = (m + (c1 - m) * a, j + (k - j) * b);
-            let ours: Vec<Pt> = (0..=48)
-                .map(|i| cubic(m, h1, h2, j, f64::from(i) / 48.0))
-                .collect();
-            // The farther either path strays from the other.
-            let gap = |from: &[Pt], to: &[Pt]| {
-                from.iter().map(|&p| distance_to(p, to)).fold(0.0, f64::max)
-            };
-            let d = gap(&ours, &path).max(gap(&path, &ours));
+            let ours = along(m, h1, h2, j);
+            // The farther either path strays from the other, given up on as
+            // soon as it is no better than the best so far.
+            let mut d = 0.0_f64;
+            for (from, to) in [(&ours, &path), (&path, &ours)] {
+                for &p in from.iter() {
+                    d = d.max(distance_to(p, to));
+                    if d >= best.0 {
+                        break;
+                    }
+                }
+            }
             if d < best.0 - 1e-9 {
                 best = (d, h1, h2);
             }

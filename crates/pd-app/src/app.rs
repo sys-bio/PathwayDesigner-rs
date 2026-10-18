@@ -199,6 +199,9 @@ pub struct PathwayApp {
     /// The file version the model needed last frame, to say when it starts
     /// needing version 4 (SPEC-Rust §4.2).
     pub(crate) needed_version: u32,
+    /// A file read but not opened yet: it is opened on the next frame, after
+    /// this one has shown the busy cursor.
+    pub(crate) opening: Option<crate::files::FileEvent>,
     /// A file shortcut pressed while a text field had the keyboard: it runs
     /// next frame, once the field has let go and applied what was typed.
     pending_shortcut: Option<FileShortcut>,
@@ -261,6 +264,7 @@ impl PathwayApp {
             fit: None,
             canvas_centre: Pt::ZERO,
             needed_version: pd_core::json::DELPHI_VERSION,
+            opening: None,
             pending_shortcut: None,
             tree: crate::tree::TreeState::default(),
             layout_params: LayoutParams::default(),
@@ -1608,6 +1612,10 @@ impl eframe::App for PathwayApp {
         self.note_version_change();
         self.dialogs(&ctx);
         self.style_editor_window(&ctx);
+        // Last, so nothing over the canvas sets another.
+        if self.is_opening() {
+            ctx.set_cursor_icon(egui::CursorIcon::Wait);
+        }
     }
 }
 
@@ -1629,6 +1637,8 @@ mod tests {
         access: Option<egui::accesskit::TreeUpdate>,
         /// The window's size.
         size: Vec2,
+        /// The pointer's cursor after the last frame.
+        cursor: egui::CursorIcon,
     }
 
     impl Harness {
@@ -1641,6 +1651,7 @@ mod tests {
                 time: 0.0,
                 access: None,
                 size: egui::vec2(1400.0, 900.0),
+                cursor: egui::CursorIcon::Default,
             };
             h.run(vec![]);
             h
@@ -1660,6 +1671,7 @@ mod tests {
             let mut out = ctx.run_ui(input, |ui| app.ui(ui, frame));
             out.textures_delta.clear();
             self.access = out.platform_output.accesskit_update.take();
+            self.cursor = out.platform_output.cursor_icon;
         }
 
         /// The centre of the widget labelled `label`, from the accessibility
@@ -1767,6 +1779,31 @@ mod tests {
         h.run(vec![]);
         assert_eq!(h.app.view.model().reactions().len(), 1);
         assert!(h.app.warnings[0].contains("couldn't be read as an Escher map"));
+    }
+
+    #[test]
+    fn a_file_read_is_opened_a_frame_later_under_the_busy_cursor() {
+        let mut h = Harness::new();
+        let before = h.app.view.model().clone();
+        let text = pd_core::json::to_json(&pd_core::model::Model::new());
+        h.app.files.deliver(crate::files::FileEvent::Opened {
+            purpose: crate::files::Purpose::Open,
+            name: "next.json".into(),
+            text,
+            target: None,
+        });
+        // The frame it arrives: the busy cursor, and what is being opened.
+        h.run(vec![]);
+        assert!(h.app.is_opening());
+        assert_eq!(h.app.notice.as_deref(), Some("Opening next.json…"));
+        assert_eq!(h.app.view.model(), &before, "not opened yet");
+        assert_eq!(h.cursor, egui::CursorIcon::Wait);
+        // The next one opens it.
+        h.run(vec![]);
+        assert!(!h.app.is_opening());
+        assert_eq!(h.app.doc.name, "next.json");
+        assert_eq!(h.app.notice.as_deref(), Some("Opened next.json"));
+        assert_ne!(h.cursor, egui::CursorIcon::Wait);
     }
 
     #[test]
@@ -1986,6 +2023,7 @@ mod tests {
             time: 0.0,
             access: None,
             size: egui::vec2(1400.0, 900.0),
+            cursor: egui::CursorIcon::Default,
         };
         // The first frames see a small canvas, as a new browser tab can.
         h.size = egui::vec2(300.0, 150.0);

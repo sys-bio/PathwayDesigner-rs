@@ -1031,6 +1031,11 @@ line.
 | Save | `rfd::FileDialog::save_file`, then write the file. The path is remembered, so **Save writes back to the same file** | **File System Access API** where the browser has it (Chromium): keep the file handle so Save writes back to the same file. Otherwise download a Blob, so Save means "download a new copy". The status bar says which mode is in use. |
 | Drag-and-drop | `RawInput::dropped_files` (with path) | `RawInput::dropped_files` (with bytes) |
 
+A file that has been read (from a dialog or dropped) is opened on the **next
+frame**: the frame it arrives shows the busy cursor and *Opening <name>…* in the
+status bar, since converting a big file blocks the browser's only thread until it
+is done.
+
 - **Formats.** Accept `.json`, `.ant`/`.txt` and `.xml`/`.sbml`. Choose by file
   extension, and if that doesn't decide it, by content: `{` means JSON, `<sbml` means
   SBML, anything else Antimony.

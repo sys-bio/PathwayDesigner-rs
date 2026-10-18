@@ -1966,7 +1966,8 @@ Save never writes over the map. Opening it is not an edit, so the status bar say
   handle by the species points towards Escher's handle there, and its handle by the
   junction lies on the spine, so the leg leaves the metabolite and comes into the
   junction as Escher's does. The two handles' lengths are those, of a few tried,
-  that bring the curve closest to Escher's path. A segment with no handles has them
+  that bring the curve closest to Escher's path, each curve compared as 16 straight
+  pieces (as good a choice as 48 on the E. coli core map, and 20 times quicker). A segment with no handles has them
   a third of the way along; a metabolite joined straight to the `midmarker` keeps
   that segment's handles.
 - **Exchange reactions** draw only one side: the other gets a null node (§5.4)

@@ -294,12 +294,30 @@ impl PathwayApp {
         );
     }
 
-    /// Handles finished file operations and dropped files.
+    /// Handles finished file operations and dropped files. A file just read
+    /// is opened on the next frame, so this one can show the busy cursor and
+    /// say what is being opened first: reading a big file blocks the browser
+    /// until it is done.
     pub(crate) fn handle_files(&mut self) {
-        self.files.take_dropped(&self.ctx);
-        while let Some(event) = self.files.poll() {
+        if let Some(event) = self.opening.take() {
             self.file_event(event);
         }
+        self.files.take_dropped(&self.ctx);
+        while let Some(event) = self.files.poll() {
+            match event {
+                FileEvent::Opened { ref name, .. } if self.opening.is_none() => {
+                    self.notice = Some(format!("Opening {name}…"));
+                    self.opening = Some(event);
+                    self.ctx.request_repaint();
+                }
+                event => self.file_event(event),
+            }
+        }
+    }
+
+    /// True while a file read is waiting to be opened on the next frame.
+    pub(crate) fn is_opening(&self) -> bool {
+        self.opening.is_some()
     }
 
     /// After the diagram was replaced by a file's model (Import Antimony or

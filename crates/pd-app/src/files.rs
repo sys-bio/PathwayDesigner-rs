@@ -155,6 +155,14 @@ pub struct Files {
     busy: bool,
 }
 
+#[cfg(test)]
+impl Files {
+    /// As if a file operation had just finished.
+    pub fn deliver(&self, event: FileEvent) {
+        self.tx.send(event).expect("the receiver is ours");
+    }
+}
+
 impl Default for Files {
     fn default() -> Self {
         let (tx, rx) = channel();
