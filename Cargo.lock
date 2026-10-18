@@ -2345,7 +2345,7 @@ dependencies = [
 
 [[package]]
 name = "pd-app"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "eframe",
  "js-sys",
@@ -2363,7 +2363,7 @@ dependencies = [
 
 [[package]]
 name = "pd-core"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "antimony-rs",
  "harfrust",
@@ -2376,7 +2376,7 @@ dependencies = [
 
 [[package]]
 name = "pd-export"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "pd-core",
  "resvg",
