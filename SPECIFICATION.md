@@ -720,6 +720,20 @@ and BiBi (2,2).
   - The reaction is one undo step. The tool stays active for the next reaction of
     the same arity.
 
+**AddReaction(any)** (*added in the Rust version*), the **A+… -> B+…** button: any
+number of reactants and products.
+
+- Clicks on species pick **reactants** until **Enter**, then **products** until
+  **Enter** again, which creates the reaction as above. The button's tooltip and
+  the status bar say so, and the status bar counts the picks.
+- Enter before the first reactant, or before the first product, does nothing.
+  A species already picked is ignored, clicking empty canvas cancels, and Esc
+  drops the picks and returns to Select, as with the other tools.
+- The tool stays active, starting again with reactants. Enter does nothing with
+  the other reaction tools.
+- While picking, the dot at the cursor is green for reactants and red for
+  products (§5.9).
+
 ### 6.6 Other gestures
 
 | Gesture | Effect |

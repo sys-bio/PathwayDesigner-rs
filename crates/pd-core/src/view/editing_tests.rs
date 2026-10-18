@@ -45,6 +45,63 @@ fn law(v: &DiagramView, id: &str) -> String {
 // ----- AddSpecies and AddReaction (S §6.5) ----------------------------------
 
 #[test]
+fn the_open_reaction_tool_takes_any_number_of_each() {
+    let mut v = four_species();
+    v.set_tool(Tool::AddSpecies);
+    click(&mut v, 600.0, 0.0);
+    v.set_tool(Tool::ANY_REACTION);
+    let enter = |v: &mut DiagramView| v.handle(&ViewEvent::Confirm);
+    // Enter before any reactant does nothing.
+    assert!(!enter(&mut v).repaint);
+    assert!(!v.picking_products());
+    // Three reactants, one picked twice (ignored); Enter; two products.
+    for (x, y) in [(0.0, 0.0), (300.0, 0.0), (300.0, 0.0), (0.0, 200.0)] {
+        click(&mut v, x, y);
+    }
+    assert_eq!(v.picked(), (3, 0));
+    assert!(enter(&mut v).repaint);
+    assert!(v.picking_products());
+    assert!(v.model().reactions().is_empty(), "nothing made yet");
+    // Enter with no product yet does nothing.
+    assert!(!enter(&mut v).model_changed);
+    for (x, y) in [(300.0, 200.0), (600.0, 0.0)] {
+        click(&mut v, x, y);
+    }
+    assert!(v.model().reactions().is_empty(), "still open for more");
+    let r = enter(&mut v);
+    assert!(r.model_changed);
+    let rx = &v.model().reactions()[0];
+    let ids = |l: &[crate::model::Participant]| -> Vec<String> {
+        l.iter().map(|p| p.species.clone()).collect()
+    };
+    assert_eq!(ids(&rx.reactants), ["S1", "S2", "S3"]);
+    assert_eq!(ids(&rx.products), ["S4", "S5"]);
+    assert_eq!(
+        law(&v, &rx.id.clone()),
+        format!("k{}*S1*S2*S3", &rx.id[1..])
+    );
+    assert_eq!(v.undo_description(), Some("Add Reaction"));
+    // The tool stays, ready for the next reaction's reactants.
+    assert_eq!(v.tool(), Tool::ANY_REACTION);
+    assert_eq!(v.picked(), (0, 0));
+    assert!(!v.picking_products());
+    // One reactant and one product is fine too; Esc drops the picks.
+    click(&mut v, 0.0, 0.0);
+    enter(&mut v);
+    click(&mut v, 300.0, 0.0);
+    enter(&mut v);
+    assert_eq!(v.model().reactions().len(), 2);
+    click(&mut v, 0.0, 0.0);
+    v.handle(&ViewEvent::Cancel);
+    assert_eq!((v.tool(), v.picked()), (Tool::Select, (0, 0)));
+    // Enter does nothing with the other tools.
+    v.set_tool(Tool::UNI_BI);
+    click(&mut v, 0.0, 0.0);
+    assert!(!enter(&mut v).repaint);
+    assert_eq!(v.picked(), (1, 0));
+}
+
+#[test]
 fn add_species_tool_adds_one_species_per_click() {
     let mut v = DiagramView::default();
     v.set_view(2.0, pt(10.0, 10.0));

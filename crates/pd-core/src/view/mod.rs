@@ -122,6 +122,8 @@ pub struct DiagramView {
 struct Pending {
     reactants: Vec<Id>,
     products: Vec<Id>,
+    /// With the open reaction tool: Enter was pressed, clicks pick products.
+    to_products: bool,
 }
 
 /// The gesture in progress (S §6.1).
@@ -651,6 +653,7 @@ impl DiagramView {
                 r
             }
             ViewEvent::FocusLost => self.cancel_gesture(),
+            ViewEvent::Confirm => self.confirm_picks(),
             _ => ViewResponse::default(),
         };
         if self.selection_state() != before {

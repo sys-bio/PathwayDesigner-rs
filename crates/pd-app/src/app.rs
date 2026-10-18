@@ -54,7 +54,7 @@ const SAVE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::S)
 const HOME_PAGE: &str = "https://github.com/sys-bio/PathwayDesigner-rs";
 
 /// The tool palette, in the order of S §13.2, with tooltips.
-const TOOLS: [(Tool, &str, &str); 8] = [
+const TOOLS: [(Tool, &str, &str); 9] = [
     (Tool::Select, "Select", "Select, move and edit (Esc)"),
     (
         Tool::AddSpecies,
@@ -70,6 +70,12 @@ const TOOLS: [(Tool, &str, &str); 8] = [
         Tool::AddCompartment,
         "Compartment",
         "Add a compartment: drag out its box (species inside join it)",
+    ),
+    (
+        Tool::ANY_REACTION,
+        "A+… -> B+…",
+        "Add a reaction with any number of reactants and products: pick the \
+         reactants, press Enter, pick the products, then press Enter again",
     ),
     (
         Tool::BI_BI,
@@ -574,6 +580,11 @@ impl PathwayApp {
         }
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             self.view.handle(&ViewEvent::Cancel);
+        }
+        if self.view.tool().is_open_reaction()
+            && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter))
+        {
+            self.view.handle(&ViewEvent::Confirm);
         }
         // Arrow keys nudge the selection, by grid lines while snapping
         // (S §7.5, §7.6). (A focused widget, such as a row of the model tree,
@@ -1141,6 +1152,15 @@ impl PathwayApp {
             Tool::AddText => Some("Click where the text should go · Esc to stop".to_owned()),
             Tool::AddCompartment => {
                 Some("Drag out the compartment's box (a click makes a 300 × 200 box)".to_owned())
+            }
+            Tool::ANY_REACTION => {
+                let (r, p) = self.view.picked();
+                // Short, so it doesn't run into the pointer's coordinates.
+                Some(if self.view.picking_products() {
+                    format!("Pick products ({p} so far) · Enter to finish · Esc to cancel")
+                } else {
+                    format!("Pick reactants ({r} so far) · Enter for products · Esc to cancel")
+                })
             }
             Tool::AddReaction {
                 reactants,
@@ -1767,6 +1787,36 @@ mod tests {
         let at = h.centre("S1");
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(h.centre("S1"), at);
+    }
+
+    #[test]
+    fn enter_moves_the_open_reaction_tool_on() {
+        let mut h = Harness::new();
+        h.app.perform(Action::New);
+        h.run(vec![]);
+        h.app.view.set_tool(Tool::AddSpecies);
+        for x in [400.0, 550.0, 700.0] {
+            h.time += 1.0;
+            h.click(Pos2::new(x, 400.0));
+        }
+        h.key(Key::Escape, Modifiers::NONE);
+        // The button, then two reactants, Enter, one product, Enter.
+        h.time += 1.0;
+        h.click(h.widget("A+… -> B+…"));
+        assert_eq!(h.app.view.tool(), Tool::ANY_REACTION);
+        assert!(h.app.tool_hint().unwrap().contains("Enter for products"));
+        for id in ["S1", "S2"] {
+            h.time += 1.0;
+            h.click(h.on_screen(id));
+        }
+        h.key(Key::Enter, Modifiers::NONE);
+        assert!(h.app.tool_hint().unwrap().contains("Enter to finish"));
+        h.time += 1.0;
+        h.click(h.on_screen("S3"));
+        assert!(h.app.view.model().reactions().is_empty());
+        h.key(Key::Enter, Modifiers::NONE);
+        let r = &h.app.view.model().reactions()[0];
+        assert_eq!((r.reactants.len(), r.products.len()), (2, 1));
     }
 
     #[test]

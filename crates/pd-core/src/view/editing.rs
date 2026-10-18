@@ -147,7 +147,9 @@ impl DiagramView {
 
     /// AddReaction: a click on a species picks it as the next reactant, then
     /// the next product; a species already picked is ignored; a click on empty
-    /// canvas cancels (S §6.5).
+    /// canvas cancels (S §6.5). With the open reaction tool, clicks pick
+    /// reactants until Enter, then products until Enter again
+    /// ([`Self::confirm_picks`]).
     pub(super) fn pick_for_reaction(&mut self, pos: Pt) -> ViewResponse {
         let Tool::AddReaction {
             reactants,
@@ -167,6 +169,17 @@ impl DiagramView {
         if p.reactants.contains(&id) || p.products.contains(&id) {
             return ViewResponse::default();
         }
+        if self.tool.is_open_reaction() {
+            if p.to_products {
+                p.products.push(id);
+            } else {
+                p.reactants.push(id);
+            }
+            return ViewResponse {
+                repaint: true,
+                ..ViewResponse::default()
+            };
+        }
         if p.reactants.len() < reactants {
             p.reactants.push(id);
         } else {
@@ -181,6 +194,40 @@ impl DiagramView {
         // Everything picked: make the reaction, and stay in the tool.
         let picked = std::mem::take(&mut self.pending);
         self.create_reaction(&picked)
+    }
+
+    /// Enter with the open reaction tool (S §6.5): after at least one
+    /// reactant, go on to the products; after at least one product, make the
+    /// reaction and start again. Otherwise nothing.
+    pub(super) fn confirm_picks(&mut self) -> ViewResponse {
+        if !self.tool.is_open_reaction() {
+            return ViewResponse::default();
+        }
+        let p = &mut self.pending;
+        if !p.to_products {
+            if p.reactants.is_empty() {
+                return ViewResponse::default();
+            }
+            p.to_products = true;
+            return ViewResponse {
+                repaint: true,
+                ..ViewResponse::default()
+            };
+        }
+        if p.products.is_empty() {
+            return ViewResponse::default();
+        }
+        let picked = std::mem::take(&mut self.pending);
+        self.create_reaction(&picked)
+    }
+
+    /// True while a reaction tool's clicks pick products.
+    pub fn picking_products(&self) -> bool {
+        match self.tool {
+            Tool::AddReaction { .. } if self.tool.is_open_reaction() => self.pending.to_products,
+            Tool::AddReaction { reactants, .. } => self.pending.reactants.len() >= reactants,
+            _ => false,
+        }
     }
 
     /// The reaction from the picked species (S §6.5): junction halfway between
@@ -933,9 +980,9 @@ impl DiagramView {
     /// one to the cursor, and a dot at the cursor: green while reactants are
     /// still needed, red after.
     pub(super) fn draw_overlays(&self, r: &mut dyn Renderer) {
-        let Tool::AddReaction { reactants, .. } = self.tool else {
+        if !matches!(self.tool, Tool::AddReaction { .. }) {
             return;
-        };
+        }
         if !matches!(self.gesture, Gesture::Idle) {
             return;
         }
@@ -1001,10 +1048,10 @@ impl DiagramView {
                 },
             );
         }
-        let color = if self.pending.reactants.len() < reactants {
-            PENDING_REACTANT
-        } else {
+        let color = if self.picking_products() {
             PENDING_PRODUCT
+        } else {
+            PENDING_REACTANT
         };
         r.circle(cursor, PICK_DOT_RADIUS_PX, Some(color), None);
     }

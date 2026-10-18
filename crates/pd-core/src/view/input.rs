@@ -58,6 +58,9 @@ pub enum ViewEvent {
     PointerLeft,
     /// Esc: cancel the current gesture or mode and clear the selection.
     Cancel,
+    /// Enter: with the open reaction tool, go on from the reactants to the
+    /// products, or make the reaction (S §6.5).
+    Confirm,
     /// The window lost focus: a drag in progress is cancelled.
     FocusLost,
 }
@@ -130,6 +133,18 @@ impl Tool {
         reactants: 2,
         products: 2,
     };
+    /// Any number of reactants and products (S §6.5): pick the reactants,
+    /// Enter, pick the products, Enter. A count of 0 means "as many as are
+    /// picked".
+    pub const ANY_REACTION: Tool = Tool::AddReaction {
+        reactants: 0,
+        products: 0,
+    };
+
+    /// True for [`Tool::ANY_REACTION`].
+    pub fn is_open_reaction(self) -> bool {
+        self == Tool::ANY_REACTION
+    }
 }
 
 /// One Bézier handle: which reaction, which leg, which of its two handles.
