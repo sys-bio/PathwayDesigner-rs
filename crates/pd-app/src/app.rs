@@ -1169,6 +1169,14 @@ impl PathwayApp {
 
     /// What the current tool expects next.
     fn tool_hint(&self) -> Option<String> {
+        if let Some((_, role)) = self.view.new_line() {
+            return Some(if role == pd_core::model::Role::Reactant {
+                "Drop on a species to add it as a reactant · Esc to cancel".to_owned()
+            } else {
+                "Drop on a species to add it as a product (Shift: a reactant) · Esc to cancel"
+                    .to_owned()
+            });
+        }
         if let Some((id, role)) = self.view.adding_to() {
             let side = if role == pd_core::model::Role::Reactant {
                 "reactant"
@@ -1936,6 +1944,39 @@ mod tests {
             pt(0.0, 0.0),
         );
         assert_eq!(products(&h), 1);
+        // A new line from the + handle, with Shift: S3 joins as a reactant.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg(r.clone()), false);
+        let plus = {
+            let m = h.app.view.model();
+            let rx = &m.reactions()[0];
+            let at = pd_core::render::draw::add_line_handle(m, rx, h.app.view.zoom()).unwrap();
+            let p = h.app.view.world_to_screen(at);
+            Pos2::new(p.x as f32, p.y as f32)
+        };
+        h.run(vec![]);
+        h.pointer(plus, None);
+        h.pointer(plus, Some(true));
+        h.pointer(h.on_screen("S3"), None);
+        assert!(
+            h.app
+                .tool_hint()
+                .unwrap()
+                .contains("as a product (Shift: a reactant)")
+        );
+        // Shift goes down, and is still down as the button comes up.
+        h.run(vec![Event::ModifiersChanged(Modifiers::SHIFT)]);
+        assert!(h.app.tool_hint().unwrap().contains("as a reactant"));
+        h.run(vec![Event::PointerButton {
+            pos: h.on_screen("S3"),
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::SHIFT,
+        }]);
+        let reactants = h.app.view.model().reactions()[0].reactants.len();
+        assert_eq!(reactants, 2);
+        h.run(vec![Event::ModifiersChanged(Modifiers::NONE)]);
         // Add Stem, then Remove Stem.
         let stem = |h: &Harness| h.app.view.model().reactions()[0].stem;
         h.app.act(MenuAction::AddStem(r.clone()), pt(0.0, 0.0));

@@ -182,5 +182,8 @@ pub enum Target {
     /// An end of a selected reaction's stem (S §5.13): the reactants' end or
     /// the products'.
     StemEnd(Id, crate::model::Role),
+    /// The + handle by a selected reaction's junction: dragging from it adds
+    /// a line to a species (S §7.11).
+    AddLine(Id),
     Empty,
 }

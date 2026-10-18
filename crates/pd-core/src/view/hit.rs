@@ -55,6 +55,16 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
         }
     }
 
+    // The + handle by a selected reaction's junction (S §7.11).
+    let plus_tol = (crate::render::draw::ADD_LINE_RADIUS_PX + 2.0) / zoom;
+    for r in model.selected_reactions() {
+        if crate::render::draw::add_line_handle(model, r, zoom)
+            .is_some_and(|at| at.distance(p) <= plus_tol)
+        {
+            return Target::AddLine(r.id.clone());
+        }
+    }
+
     // The ends of a selected reaction's stem (S §5.13).
     for r in model.selected_reactions() {
         if let Some([a, _, b]) = crate::render::draw::stem_line(r) {

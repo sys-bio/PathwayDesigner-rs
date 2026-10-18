@@ -499,7 +499,9 @@ impl DiagramView {
             Target::TextWrap(id) => Target::Text(id),
             Target::CompartmentCorner(id, _) => Target::Compartment(id),
             Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => Target::Species(id),
-            Target::ReactionLabel(id) | Target::StemEnd(id, _) => Target::Leg(id),
+            Target::ReactionLabel(id) | Target::StemEnd(id, _) | Target::AddLine(id) => {
+                Target::Leg(id)
+            }
             t => t,
         };
         match &target {
@@ -534,6 +536,7 @@ impl DiagramView {
             | Target::SpeciesLabel(_)
             | Target::ReactionLabel(_)
             | Target::StemEnd(..)
+            | Target::AddLine(_)
             | Target::Empty => {
                 return ViewResponse::default();
             }
@@ -982,6 +985,32 @@ impl DiagramView {
 
     // ----- Feedback while picking (S §5.9) ----------------------------------
 
+    /// A new line from a reaction's junction to the pointer (S §7.11), dashed,
+    /// with a dot: red while it would add a product, green with Shift for a
+    /// reactant.
+    fn draw_new_line(&self, r: &mut dyn Renderer, id: &str, cursor: Pt) {
+        let Some(rx) = self.model.find_reaction(id) else {
+            return;
+        };
+        let j = self.world_to_screen(effective_junction(&self.model, rx));
+        let cursor = spt(cursor.x as f32, cursor.y as f32);
+        r.polyline(
+            &[spt(j.x as f32, j.y as f32), cursor],
+            Stroke {
+                width: 1.0,
+                color: GUIDE_LINE,
+                dash: Some(GUIDE_DASH_PX),
+                round_cap: false,
+            },
+        );
+        let color = if self.shift_held {
+            PENDING_REACTANT
+        } else {
+            PENDING_PRODUCT
+        };
+        r.circle(cursor, PICK_DOT_RADIUS_PX, Some(color), None);
+    }
+
     /// While adding to a reaction (S §7.11): a dashed guide from its
     /// junction to the cursor, and a dot there, green for a reactant and red
     /// for a product.
@@ -1015,6 +1044,10 @@ impl DiagramView {
     /// one to the cursor, and a dot at the cursor: green while reactants are
     /// still needed, red after.
     pub(super) fn draw_overlays(&self, r: &mut dyn Renderer) {
+        if let Gesture::NewLine { id, current } = &self.gesture {
+            self.draw_new_line(r, id, *current);
+            return;
+        }
         if self.pending.adding_to.is_some() {
             self.draw_adding_overlay(r);
             return;

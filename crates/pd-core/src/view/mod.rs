@@ -100,7 +100,8 @@ pub struct DiagramView {
     pub default_smooth: bool,
     undo: UndoHistory,
     gesture: Gesture,
-    /// Shift is held: a species resize keeps proportions (S §7.10).
+    /// Shift is held: a species resize keeps proportions (S §7.10), and a new
+    /// line dropped on a species adds a reactant (S §7.11).
     shift_held: bool,
     /// Alt is held: drag freely, without snapping to the grid (S §7.6).
     alt_held: bool,
@@ -151,6 +152,12 @@ enum Gesture {
     SpeciesResize(SpeciesResizeDrag),
     Label(LabelDrag),
     StemEnd(StemDrag),
+    /// A new line dragged from a reaction's + handle (S §7.11): the
+    /// reaction, and where the pointer is, on screen.
+    NewLine {
+        id: Id,
+        current: Pt,
+    },
     /// The Compartment tool: a box being drawn, corners in world coordinates.
     NewCompartment {
         start: Pt,
@@ -860,6 +867,13 @@ impl DiagramView {
             Target::Handle(h) => {
                 self.gesture = Gesture::Handle(self.begin_handle_drag(world, h));
             }
+            Target::AddLine(id) => {
+                self.gesture = Gesture::NewLine { id, current: pos };
+                return ViewResponse {
+                    repaint: true,
+                    ..ViewResponse::default()
+                };
+            }
             Target::StemEnd(id, role) => {
                 let end = self.model.find_reaction(&id).map(|r| r.leg_anchor(role));
                 if let Some(end) = end {
@@ -988,6 +1002,7 @@ impl DiagramView {
                 self.apply_stem_drag(&drag);
             }
             Gesture::NewCompartment { current, .. } => *current = placed,
+            Gesture::NewLine { current, .. } => *current = pos,
             Gesture::RubberBand { current, .. } => *current = pos,
         }
         ViewResponse {
@@ -1010,6 +1025,19 @@ impl DiagramView {
         crate::styles::drop_stale_links(&mut self.model);
         let cmd = match gesture {
             Gesture::Idle => return ViewResponse::default(),
+            // Dropped on a species: it joins the reaction (S §7.11).
+            Gesture::NewLine { id, current } => {
+                let role = self.new_line_role();
+                return match self.target_at(current) {
+                    Target::Species(s) | Target::SpeciesLabel(s) => {
+                        self.add_participant(&id, role, &s)
+                    }
+                    _ => ViewResponse {
+                        repaint: true,
+                        ..ViewResponse::default()
+                    },
+                };
+            }
             Gesture::NewCompartment { start, current } => {
                 return self.finish_new_compartment(start, current);
             }
@@ -1142,6 +1170,7 @@ impl DiagramView {
     fn cancel_gesture(&mut self) -> ViewResponse {
         match std::mem::take(&mut self.gesture) {
             Gesture::Idle => return ViewResponse::default(),
+            Gesture::NewLine { .. } => {}
             Gesture::Nodes(mut drag) => {
                 drag.delta = Pt::ZERO;
                 self.apply_node_drag(&drag);
@@ -1409,6 +1438,23 @@ impl DiagramView {
         }
     }
 
+    /// While a new line is dragged from a reaction (S §7.11): the reaction,
+    /// and the side a species dropped on would join.
+    pub fn new_line(&self) -> Option<(&str, Role)> {
+        match &self.gesture {
+            Gesture::NewLine { id, .. } => Some((id.as_str(), self.new_line_role())),
+            _ => None,
+        }
+    }
+
+    fn new_line_role(&self) -> Role {
+        if self.shift_held {
+            Role::Reactant
+        } else {
+            Role::Product
+        }
+    }
+
     /// Whether Alt is held, from the app every frame: while it is, drags
     /// and new items don't snap to the grid; pressing or letting go of it
     /// during a drag takes effect at once (S §7.6).
@@ -1494,7 +1540,8 @@ impl DiagramView {
     /// smaller than the smallest box.
     /// Whether Shift is held, from the app every frame: pressing or letting
     /// go of it during a species resize switches between keeping and not
-    /// keeping proportions at once.
+    /// keeping proportions at once, and a new line dropped on a species adds
+    /// a reactant (S §7.11).
     pub fn set_shift_held(&mut self, held: bool) -> ViewResponse {
         if self.shift_held == held {
             return ViewResponse::default();
@@ -1508,7 +1555,11 @@ impl DiagramView {
                 ..ViewResponse::default()
             };
         }
-        ViewResponse::default()
+        // The dot of a new line changes colour (S §7.11).
+        ViewResponse {
+            repaint: matches!(self.gesture, Gesture::NewLine { .. }),
+            ..ViewResponse::default()
+        }
     }
 
     /// Each species of the drag at its size before it, grown by twice the
@@ -1884,7 +1935,8 @@ impl DiagramView {
             Target::Junction(id)
             | Target::Leg(id)
             | Target::ReactionLabel(id)
-            | Target::StemEnd(id, _) => {
+            | Target::StemEnd(id, _)
+            | Target::AddLine(id) => {
                 if let Some(r) = self.model.find_reaction_mut(id) {
                     r.selected = !(add && r.selected);
                 }

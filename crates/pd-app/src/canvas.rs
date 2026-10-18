@@ -374,6 +374,7 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         | Target::SpeciesLabel(_)
         | Target::ReactionLabel(_)
         | Target::StemEnd(..)
+        | Target::AddLine(_)
         | Target::Empty => ui.close(),
     }
     chosen.or(item_chosen)
@@ -443,7 +444,8 @@ fn style_kind(t: &Target) -> Option<pd_core::model::StyleKind> {
         | Target::Leg(_)
         | Target::Handle(_)
         | Target::ReactionLabel(_)
-        | Target::StemEnd(..) => Some(StyleKind::Reaction),
+        | Target::StemEnd(..)
+        | Target::AddLine(_) => Some(StyleKind::Reaction),
         Target::Compartment(_) | Target::CompartmentCorner(..) => Some(StyleKind::Compartment),
         Target::Text(_) | Target::TextWrap(_) => Some(StyleKind::Text),
         Target::Empty => None,
@@ -585,7 +587,7 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
         return CursorIcon::Crosshair;
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
-        Some(Target::Handle(_) | Target::StemEnd(..)) => CursorIcon::Crosshair,
+        Some(Target::Handle(_) | Target::StemEnd(..) | Target::AddLine(_)) => CursorIcon::Crosshair,
         Some(
             Target::Species(_)
             | Target::SpeciesLabel(_)

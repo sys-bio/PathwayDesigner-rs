@@ -1279,6 +1279,14 @@ after it is made, whichever way it was made.
   guide runs from the junction to the cursor, with a green dot for a reactant
   and a red one for a product, and the status bar says what a click does. Esc, a
   click on empty canvas or choosing a tool stops it.
+- **The + handle:** a selected reaction shows a small white disc with a + in the
+  selection colour, 16 screen points up and right of its junction at any zoom
+  (never in output). Dragging from it draws a dashed line from the junction to the
+  pointer, with a dot: red for a product, green while Shift is held for a
+  reactant; the status bar and the handle's tooltip say so. Let go over a species
+  (or its name) and it joins the reaction as a product, or with Shift held as a
+  reactant, as Add Product… or Add Reactant… would add it (*Add Product*, *Add
+  Reactant*); let go anywhere else, or press Esc, and nothing changes.
 - A species already a reactant or product of the reaction is ignored (nodes are
   compared, as the reaction tools compare them, §6.5), and so is a null node. A
   modifier added becomes a participant and stops being a modifier. A side that

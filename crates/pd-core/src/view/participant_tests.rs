@@ -238,3 +238,102 @@ fn reactions_can_be_marked_reversible() {
     v.show_reversible = false;
     assert!(!v.shown().reversible);
 }
+
+fn drag_line(v: &mut DiagramView, from: Pt, to: Pt) -> ViewResponse {
+    v.handle(&ViewEvent::PointerDown {
+        pos: from,
+        button: Button::Primary,
+        modifiers: Modifiers::NONE,
+    });
+    v.handle(&ViewEvent::PointerMove { pos: to });
+    v.handle(&ViewEvent::PointerUp {
+        pos: to,
+        button: Button::Primary,
+    })
+}
+
+#[test]
+fn a_new_line_from_the_plus_handle_adds_a_product() {
+    let mut v = view();
+    // R1's junction is at (150,0); the + is 16 up and right on screen.
+    let plus = pt(166.0, -16.0);
+    assert_ne!(
+        v.target_at(plus),
+        Target::AddLine("R1".into()),
+        "only when selected"
+    );
+    v.select_item(&Target::Leg("R1".into()), false);
+    assert_eq!(v.target_at(plus), Target::AddLine("R1".into()));
+    // Midway, it says what a drop would do.
+    v.handle(&ViewEvent::PointerDown {
+        pos: plus,
+        button: Button::Primary,
+        modifiers: Modifiers::NONE,
+    });
+    v.handle(&ViewEvent::PointerMove {
+        pos: pt(250.0, 150.0),
+    });
+    assert_eq!(v.new_line(), Some(("R1", Role::Product)));
+    v.handle(&ViewEvent::PointerMove {
+        pos: pt(300.0, 200.0),
+    });
+    let r = v.handle(&ViewEvent::PointerUp {
+        pos: pt(300.0, 200.0),
+        button: Button::Primary,
+    });
+    assert!(r.model_changed);
+    assert_eq!(ids(&r1(&v).products), ["S2", "S4"]);
+    assert_eq!(v.undo_description(), Some("Add Product"));
+    assert_eq!(v.new_line(), None);
+    // The junction stayed where it was.
+    assert_eq!(r1(&v).junction, pt(150.0, 0.0));
+}
+
+#[test]
+fn with_shift_the_new_line_adds_a_reactant() {
+    let mut v = view();
+    v.select_item(&Target::Leg("R1".into()), false);
+    v.set_shift_held(true);
+    drag_line(&mut v, pt(166.0, -16.0), pt(0.0, 200.0));
+    assert_eq!(ids(&r1(&v).reactants), ["S1", "S3"]);
+    assert_eq!(r1(&v).kinetic_law, "k1*S1*S3");
+    assert_eq!(v.undo_description(), Some("Add Reactant"));
+}
+
+#[test]
+fn a_new_line_dropped_elsewhere_or_cancelled_adds_nothing() {
+    let mut v = view();
+    v.select_item(&Target::Leg("R1".into()), false);
+    let before = r1(&v);
+    // On empty canvas.
+    let r = drag_line(&mut v, pt(166.0, -16.0), pt(600.0, 600.0));
+    assert!(!r.model_changed);
+    assert_eq!(r1(&v), before);
+    // On a species already in it.
+    let r = drag_line(&mut v, pt(166.0, -16.0), pt(0.0, 0.0));
+    assert!(!r.model_changed);
+    // Esc in the middle.
+    v.handle(&ViewEvent::PointerDown {
+        pos: pt(166.0, -16.0),
+        button: Button::Primary,
+        modifiers: Modifiers::NONE,
+    });
+    v.handle(&ViewEvent::PointerMove {
+        pos: pt(300.0, 200.0),
+    });
+    v.handle(&ViewEvent::Cancel);
+    assert_eq!(v.new_line(), None);
+    assert_eq!(r1(&v).products.len(), 1);
+}
+
+#[test]
+fn the_plus_handle_stays_the_same_size_on_screen() {
+    let mut v = view();
+    v.select_item(&Target::Leg("R1".into()), false);
+    v.set_view(2.0, Pt::ZERO);
+    // At 2x, the junction (150,0) is at (300,0) on screen; the + 16 up and
+    // right of it.
+    assert_eq!(v.target_at(pt(316.0, -16.0)), Target::AddLine("R1".into()));
+    let at = crate::render::draw::add_line_handle(v.model(), &r1(&v), 2.0).unwrap();
+    assert_eq!(at, pt(158.0, -8.0));
+}

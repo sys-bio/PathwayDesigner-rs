@@ -152,6 +152,7 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
             d.reaction_name_outline(reaction, r);
             d.bezier_handles(reaction, r);
             d.stem_ends(reaction, r);
+            d.add_line_handle(reaction, r);
         }
     }
 }
@@ -587,6 +588,19 @@ pub fn stem_line(r: &Reaction) -> Option<[Pt; 3]> {
         r.junction,
         r.leg_anchor(Role::Product),
     ])
+}
+
+/// How far up and right of a selected reaction's junction its + handle is,
+/// and its radius, in screen points (S §7.11).
+pub const ADD_LINE_OFFSET_PX: f64 = 16.0;
+pub const ADD_LINE_RADIUS_PX: f64 = 6.0;
+
+/// Where a selected reaction's + handle is (S §7.11), at `zoom`: up and
+/// right of its junction, the same distance on screen at any zoom. `None`
+/// unless the reaction is selected.
+pub fn add_line_handle(model: &Model, r: &Reaction, zoom: f64) -> Option<Pt> {
+    r.selected
+        .then(|| effective_junction(model, r) + pt(ADD_LINE_OFFSET_PX, -ADD_LINE_OFFSET_PX) / zoom)
 }
 
 /// A Linear reaction's reactant and product centres, or `None` for any other
@@ -1205,6 +1219,28 @@ impl Drawer<'_> {
             Some(HANDLE_FILL),
             Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
         );
+    }
+
+    // ----- The + handle (S §7.11) ------------------------------------------
+
+    /// A white disc with a + in the selection colour, by the junction of a
+    /// selected reaction, to drag a new line from.
+    fn add_line_handle(&self, r: &Reaction, out: &mut dyn Renderer) {
+        let Some(at) = add_line_handle(self.model, r, self.opts.zoom) else {
+            return;
+        };
+        let c = self.to_screen(at);
+        let radius = ADD_LINE_RADIUS_PX as f32;
+        out.circle(
+            c,
+            radius,
+            Some(HANDLE_FILL),
+            Some(Stroke::solid(1.0, SELECTION_HALO)),
+        );
+        let arm = radius * 0.6;
+        let plus = Stroke::solid(1.5, SELECTION_HALO);
+        out.polyline(&[spt(c.x - arm, c.y), spt(c.x + arm, c.y)], plus);
+        out.polyline(&[spt(c.x, c.y - arm), spt(c.x, c.y + arm)], plus);
     }
 
     // ----- Stem ends (S §5.13) ---------------------------------------------
@@ -2164,6 +2200,28 @@ mod tests {
         };
         assert!(!DrawOptions::default().with(shown).show_reversible);
         assert!(DrawOptions::default().with(Shown::ALL).show_reversible);
+    }
+
+    #[test]
+    fn a_selected_reaction_has_a_plus_handle_on_screen_only() {
+        let mut m = uni_uni();
+        let plus = |m: &Model, opts: &DrawOptions| {
+            draw(m, opts)
+                .into_iter()
+                .filter(|c| {
+                    matches!(c, Call::Circle(_, r, Some(f), _)
+                        if *r == ADD_LINE_RADIUS_PX as f32 && *f == HANDLE_FILL)
+                })
+                .count()
+        };
+        assert_eq!(plus(&m, &DrawOptions::default()), 0);
+        m.reactions_mut().next().unwrap().selected = true;
+        assert_eq!(plus(&m, &DrawOptions::default()), 1);
+        let output = DrawOptions {
+            for_output: true,
+            ..DrawOptions::default()
+        };
+        assert_eq!(plus(&m, &output), 0);
     }
 
     #[test]
