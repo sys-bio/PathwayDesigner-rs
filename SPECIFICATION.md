@@ -1936,6 +1936,49 @@ rubber band and the pending-reaction feedback. The background is the canvas colo
 
 ---
 
+### 11.7 Escher maps (import)
+
+*Added in the Rust version.* **File ▸ Open** (and dropping a file on the window)
+opens an [Escher](https://escher.github.io) map: a `.json` file, or one with no
+extension, whose text is a JSON array `[header, map]` (a PathwayDesigner file is an
+object). It becomes a new, unsaved document called `<name> (from Escher).json`, so
+Save never writes over the map. Opening it is not an edit, so the status bar says
+*Opened the Escher map <name>*.
+
+- **Metabolites.** A map draws a metabolite as many times as it likes, each a
+  `metabolite` node. The first, in the order of the node ids, becomes the species,
+  at its place; every other becomes an alias of it (§7.3).
+- **Ids.** BiGG ids that are SBML ids are kept (`atp_c`); others get BiGG's own
+  prefix, with anything not allowed made `_`: `M_` for a metabolite (`13dpg_c` →
+  `M_13dpg_c`), `R_` for a reaction. The cofactor list (§8.7) ignores `M_`.
+- **Compartments** come from the id's suffix of one or two letters or digits
+  (`atp_c` is in `c`). Escher draws no boxes, so their boxes are hidden (§7.9).
+- **Reactions.** Each reaction's `midmarker` node is its junction; its listed
+  metabolites, by the sign of their coefficient, its reactants and products, with
+  the coefficient's size as stoichiometry; `reversibility` is kept. Escher has no
+  rate laws, so the law is empty. A metabolite listed but not drawn is left out,
+  with a warning; a reaction with no `midmarker` or nothing drawn is left out,
+  with a warning.
+- **Legs.** Escher draws each side of a reaction as a curve from the metabolite to a
+  `multimarker` on the reaction's spine (handles `b1` by the segment's `from` node
+  and `b2` by its `to` node), then a straight stub along the spine to the
+  `midmarker`. Here each leg is one Bézier from the species to the junction: its
+  handle by the species points towards Escher's handle there, and its handle by the
+  junction lies on the spine, so the leg leaves the metabolite and comes into the
+  junction as Escher's does. The two handles' lengths are those, of a few tried,
+  that bring the curve closest to Escher's path. A segment with no handles has them
+  a third of the way along; a metabolite joined straight to the `midmarker` keeps
+  that segment's handles.
+- **Exchange reactions** draw only one side: the other gets a null node (§5.4)
+  across the junction from the species, `NULL_OFFSET` away.
+- **Look.** The diagram takes the Escher theme (§8.7), keeping the map's handles
+  (no smooth junctions). Names are drawn where the map puts them: Escher's label
+  point is the start of the text on its baseline, so a name's centre is half its
+  width right of it and half its height above the baseline's middle. Reaction names
+  are shown (§5.12) at the reactions' label points.
+- **Text labels** become free text (§7.8) at their points.
+- Left out: genes and gene rules, the canvas size, and node "primary" flags.
+
 ## 12. Preferences
 
 Preferences are kept in a small JSON file in the user's settings folder:

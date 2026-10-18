@@ -18,6 +18,8 @@ use eframe::egui;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileKind {
     Json,
+    /// An Escher map (S §11.7): JSON, but an array.
+    Escher,
     Antimony,
     Sbml,
 }
@@ -28,13 +30,17 @@ impl FileKind {
     /// Antimony (SPEC-Rust §10.1).
     pub fn of(name: &str, text: &str) -> FileKind {
         let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
+        let escher = pd_core::escher::looks_like_escher(text);
         match ext.as_deref() {
+            Some("json") if escher => FileKind::Escher,
             Some("json") => FileKind::Json,
             Some("ant" | "txt" | "antimony") => FileKind::Antimony,
             Some("xml" | "sbml") => FileKind::Sbml,
             _ => {
                 let t = text.trim_start_matches('\u{FEFF}').trim_start();
-                if t.starts_with('{') {
+                if escher {
+                    FileKind::Escher
+                } else if t.starts_with('{') {
                     FileKind::Json
                 } else if t.starts_with("<?xml") || t.starts_with("<sbml") {
                     FileKind::Sbml
@@ -432,6 +438,10 @@ mod tests {
     #[test]
     fn kind_by_extension_then_content() {
         assert_eq!(FileKind::of("a.json", ""), FileKind::Json);
+        // An Escher map is JSON too, but an array (S §11.7).
+        assert_eq!(FileKind::of("map.json", " [{}, {}]"), FileKind::Escher);
+        assert_eq!(FileKind::of("map", "[{}, {}]"), FileKind::Escher);
+        assert_eq!(FileKind::of("a.json", "{\"version\": 7}"), FileKind::Json);
         assert_eq!(FileKind::of("a.JSON", ""), FileKind::Json);
         assert_eq!(FileKind::of("model.ant", "{"), FileKind::Antimony);
         assert_eq!(FileKind::of("m.txt", ""), FileKind::Antimony);

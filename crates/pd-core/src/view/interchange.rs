@@ -46,6 +46,17 @@ impl DiagramView {
         Ok((r, imported))
     }
 
+    /// Replaces the diagram with an Escher map's (S §11.7), as one undo
+    /// step. Returns what couldn't be carried over, or why it isn't a map.
+    pub fn import_escher(&mut self, text: &str) -> Result<Vec<String>, String> {
+        let imported = crate::escher::import(text)?;
+        self.cancel_layout();
+        self.cancel_gesture();
+        let before = std::mem::replace(&mut self.model, imported.model);
+        self.record("Import Escher", before);
+        Ok(imported.warnings)
+    }
+
     /// The diagram as SBML with its layout (S §11.5).
     pub fn export_sbml(&self) -> sbml::Exported {
         sbml::export(&self.model)

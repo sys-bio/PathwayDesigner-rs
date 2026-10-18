@@ -97,6 +97,9 @@ Delphi version does, and some more (see [Status](#status)).
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
   package, so positions, aliases and curves survive the round trip; shapes, names
   outside the node and compartment boxes come back too.
+- **Escher maps**: *File ▸ Open* reads an [Escher](https://escher.github.io) map
+  (`.json`), keeping its layout, curves and labels, each extra drawing of a
+  metabolite as an alias, in the Escher theme.
 - **Graphics**: SVG, PNG at any resolution, and vector PDF (Letter, A4 or the
   drawing's own size), and printing.
 

@@ -169,6 +169,30 @@ impl PathwayApp {
                     false
                 }
             }
+            FileKind::Escher => match self.view.import_escher(text) {
+                Ok(warnings) => {
+                    // Opening starts a new document: no undo back into the old one.
+                    let model = self.view.model().clone();
+                    self.view.set_model(model);
+                    self.view.mark_unsaved();
+                    // Saved as a PathwayDesigner file, never over the map.
+                    let stem = name.strip_suffix(".json").unwrap_or(name);
+                    self.doc = Document {
+                        name: format!("{stem} (from Escher).json"),
+                        ..Document::default()
+                    };
+                    self.warnings = warnings;
+                    self.notice = Some(format!("Opened the Escher map {name}"));
+                    self.fit_pending = true;
+                    true
+                }
+                Err(e) => {
+                    self.warnings = vec![format!(
+                        "{name} couldn't be read as an Escher map ({e}). The diagram wasn't changed."
+                    )];
+                    false
+                }
+            },
             FileKind::Sbml => {
                 if let Some(had_layout) = self.import_sbml(name, text) {
                     // Opening starts a new document: no undo back into the old one.
@@ -190,6 +214,11 @@ impl PathwayApp {
                 }
             }
         };
+        // What a file needs when opened is no news (an imported one is
+        // marked unsaved, but it wasn't edited).
+        if opened {
+            self.needed_version = pd_core::json::needed_version(self.view.model());
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let (true, Some(p)) = (opened, path) {
             self.recent.add(&p);

@@ -198,7 +198,7 @@ pub struct PathwayApp {
     canvas_centre: Pt,
     /// The file version the model needed last frame, to say when it starts
     /// needing version 4 (SPEC-Rust §4.2).
-    needed_version: u32,
+    pub(crate) needed_version: u32,
     /// A file shortcut pressed while a text field had the keyboard: it runs
     /// next frame, once the field has let go and applied what was typed.
     pending_shortcut: Option<FileShortcut>,
@@ -1727,6 +1727,46 @@ mod tests {
             let p = self.app.view.world_to_screen(self.centre(id));
             Pos2::new(p.x as f32, p.y as f32)
         }
+    }
+
+    #[test]
+    fn opening_an_escher_map() {
+        let map = r#"[{"map_name": "m"}, {"nodes": {
+            "1": {"node_type": "midmarker", "x": 100, "y": 0},
+            "2": {"node_type": "metabolite", "bigg_id": "a_c", "x": 0, "y": 0},
+            "3": {"node_type": "metabolite", "bigg_id": "b_c", "x": 200, "y": 0}},
+          "reactions": {"9": {"bigg_id": "R1", "metabolites": [
+            {"bigg_id": "a_c", "coefficient": -1}, {"bigg_id": "b_c", "coefficient": 1}],
+            "segments": {"s": {"from_node_id": "2", "to_node_id": "1"},
+                         "t": {"from_node_id": "1", "to_node_id": "3"}}}}}]"#;
+        let mut h = Harness::new();
+        h.app.perform(Action::OpenText {
+            name: "core.json".into(),
+            text: map.into(),
+            target: None,
+        });
+        h.run(vec![]);
+        h.run(vec![]);
+        // A new document, never saved over the map.
+        assert_eq!(h.app.doc.name, "core (from Escher).json");
+        assert!(h.app.doc.target.is_none());
+        assert!(h.app.view.is_modified());
+        assert!(!h.app.view.can_undo());
+        assert_eq!(h.app.view.model().reactions().len(), 1);
+        // Opening isn't an edit: the notice says what was opened.
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("Opened the Escher map core.json")
+        );
+        // Not a map: the diagram stays, and a warning says why.
+        h.app.perform(Action::OpenText {
+            name: "bad.json".into(),
+            text: "[1]".into(),
+            target: None,
+        });
+        h.run(vec![]);
+        assert_eq!(h.app.view.model().reactions().len(), 1);
+        assert!(h.app.warnings[0].contains("couldn't be read as an Escher map"));
     }
 
     #[test]

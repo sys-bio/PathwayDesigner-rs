@@ -1,0 +1,940 @@
+{
+  "version": 7,
+  "modelName": "",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "k1",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k2",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k3",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k4",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k5",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k6",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k7",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k8",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k9",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k10",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k11",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k12",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "S1",
+      "x": 75.7305221557617,
+      "y": 274.088500976562,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 2.29137921333313,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -31.089,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S2",
+      "x": 240.129608154297,
+      "y": 270.184875488281,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 3.77393865585327,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 0.0,
+      "labelDy": 33.257999999999996,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S3",
+      "x": 360.756439208984,
+      "y": 260.178039550781,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 3.57554221153259,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -0.7564392089839771,
+      "labelDy": 39.82196044921896,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S4",
+      "x": 545.957153320313,
+      "y": 213.947311401367,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.57153654098511,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 34.042846679687045,
+      "labelDy": 6.052688598633026,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S5",
+      "x": -20.0,
+      "y": 200.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 4.71112012863159,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -20.0,
+      "labelDy": -20.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S6",
+      "x": 115.333435058594,
+      "y": 506.558441162109,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 2.30572891235352,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -31.089,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S7",
+      "x": 260.0,
+      "y": 660.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.25539433956146,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 0.0,
+      "labelDy": 33.257999999999996,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S8",
+      "x": 405.401519775391,
+      "y": 504.264282226562,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 3.35264468193054,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -31.089,
+      "labelDy": -33.257999999999996,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S9",
+      "x": 527.33740234375,
+      "y": 508.050567626953,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.91261613368988,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 0.0,
+      "labelDy": 33.257999999999996,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "S10",
+      "x": 717.284545898438,
+      "y": 502.732391357422,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 4.72658109664917,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 36.236999999999995,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "r11",
+      "jx": 157.93006515502935,
+      "jy": 272.13668823242153,
+      "kineticLaw": "k1*S1",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0,
+          "ctrl1x": 104.50036220550538,
+          "ctrl1y": 273.40536651611285,
+          "ctrl2x": 129.1602251052857,
+          "ctrl2y": 272.81982269287073,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 186.69990520477302,
+          "ctrl1y": 271.45355377197234,
+          "ctrl2x": 211.35976810455332,
+          "ctrl2y": 270.8680099487302,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 0.0,
+      "labelDy": -25.396
+    },
+    {
+      "id": "r12",
+      "jx": 300.4430236816405,
+      "jy": 265.181457519531,
+      "kineticLaw": "k2*S2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 261.23930358886724,
+          "ctrl1y": 268.43367919921855,
+          "ctrl2x": 279.33332824707026,
+          "ctrl2y": 266.9326538085935,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 321.5527191162107,
+          "ctrl1y": 263.43026123046855,
+          "ctrl2x": 339.6467437744138,
+          "ctrl2y": 261.9292358398435,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 0.0,
+      "labelDy": -25.396
+    },
+    {
+      "id": "r13",
+      "jx": 420.0,
+      "jy": 160.0,
+      "kineticLaw": "k3*S3",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 360.0,
+          "ctrl1y": 200.0,
+          "ctrl2x": 387.5898750305174,
+          "ctrl2y": 168.09037742614746,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S4",
+          "stoichiometry": 1.0,
+          "ctrl1x": 452.4101249694826,
+          "ctrl1y": 151.90962257385254,
+          "ctrl2x": 480.0,
+          "ctrl2y": 160.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 0.0,
+      "labelDy": -25.396
+    },
+    {
+      "id": "r14",
+      "jx": 260.0,
+      "jy": 80.0,
+      "kineticLaw": "k4*S4",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S4",
+          "stoichiometry": 1.0,
+          "ctrl1x": 540.0,
+          "ctrl1y": 80.0,
+          "ctrl2x": 374.872722975489,
+          "ctrl2y": 57.025455404902196,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S5",
+          "stoichiometry": 1.0,
+          "ctrl1x": 160.0,
+          "ctrl1y": 100.0,
+          "ctrl2x": 85.0,
+          "ctrl2y": 165.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 0.0,
+      "labelDy": -25.396
+    },
+    {
+      "id": "r15",
+      "jx": 0.0,
+      "jy": 360.0,
+      "kineticLaw": "k5*S5",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S5",
+          "stoichiometry": 1.0,
+          "ctrl1x": -20.0,
+          "ctrl1y": 260.0,
+          "ctrl2x": -23.683351135253947,
+          "ctrl2y": 306.3522727966309,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S6",
+          "stoichiometry": 1.0,
+          "ctrl1x": 23.683351135253943,
+          "ctrl1y": 413.6477272033691,
+          "ctrl2x": 80.0,
+          "ctrl2y": 460.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": -60.0,
+      "labelDy": -19.999999999999986
+    },
+    {
+      "id": "r16",
+      "jx": 187.666717529297,
+      "jy": 583.2792205810545,
+      "kineticLaw": "k6*S6",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S6",
+          "stoichiometry": 1.0,
+          "ctrl1x": 141.1575134277346,
+          "ctrl1y": 522.492290496826,
+          "ctrl2x": 163.29243774414087,
+          "ctrl2y": 536.149875640869,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S7",
+          "stoichiometry": 1.0,
+          "ctrl1x": 214.9405944824221,
+          "ctrl1y": 568.0175743103028,
+          "ctrl2x": 234.17592163085936,
+          "ctrl2y": 644.0661506652831,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 12.333282470703022,
+      "labelDy": -23.279220581054503
+    },
+    {
+      "id": "r17",
+      "jx": 332.70075988769554,
+      "jy": 582.132141113281,
+      "kineticLaw": "k7*S7",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S7",
+          "stoichiometry": 1.0,
+          "ctrl1x": 284.9378364562989,
+          "ctrl1y": 643.6646728515624,
+          "ctrl2x": 305.84944152831997,
+          "ctrl2y": 609.0633544921875,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S8",
+          "stoichiometry": 1.0,
+          "ctrl1x": 360.8606009423171,
+          "ctrl1y": 562.2468777308754,
+          "ctrl2x": 380.4636833190922,
+          "ctrl2y": 520.5996093749997,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 27.299240112304478,
+      "labelDy": 17.867858886718935
+    },
+    {
+      "id": "r18",
+      "jx": 466.36946105957054,
+      "jy": 506.15742492675747,
+      "kineticLaw": "k8*S8",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S8",
+          "stoichiometry": 1.0,
+          "ctrl1x": 426.74029922485386,
+          "ctrl1y": 504.9268821716304,
+          "ctrl2x": 445.0306816101077,
+          "ctrl2y": 505.494824981689,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S9",
+          "stoichiometry": 1.0,
+          "ctrl1x": 487.7082405090334,
+          "ctrl1y": 506.8200248718259,
+          "ctrl2x": 505.99862289428717,
+          "ctrl2y": 507.38796768188456,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 0.0,
+      "labelDy": -25.396
+    },
+    {
+      "id": "r19",
+      "jx": 622.310974121094,
+      "jy": 505.3914794921875,
+      "kineticLaw": "k9*S9",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S9",
+          "stoichiometry": 1.0,
+          "ctrl1x": 560.5781524658204,
+          "ctrl1y": 507.1198867797851,
+          "ctrl2x": 589.0702239990236,
+          "ctrl2y": 506.32216033935543,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S10",
+          "stoichiometry": 1.0,
+          "ctrl1x": 655.5517242431644,
+          "ctrl1y": 504.46079864501957,
+          "ctrl2x": 684.0437957763676,
+          "ctrl2y": 503.6630722045899,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 0.0,
+      "labelDy": -25.396
+    },
+    {
+      "id": "r20",
+      "jx": 514.165283203125,
+      "jy": 378.276214599609,
+      "kineticLaw": "k10*S3",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 414.44953460693336,
+          "ctrl1y": 301.5124008178708,
+          "ctrl2x": 476.36948526839865,
+          "ctrl2y": 322.0360548092162,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S9",
+          "stoichiometry": 1.0,
+          "ctrl1x": 539.6306451330998,
+          "ctrl1y": 416.16868154885435,
+          "ctrl2x": 522.7271606445313,
+          "ctrl2y": 462.6295440673826,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 25.834716796874982,
+      "labelDy": -18.276214599608963
+    },
+    {
+      "id": "r21",
+      "jx": 458.645080566406,
+      "jy": 252.432723999023,
+      "kineticLaw": "k11*S3*S8",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 395.0174636840817,
+          "ctrl1y": 257.46717910766574,
+          "ctrl2x": 434.74230096042976,
+          "ctrl2y": 277.1273325104657,
+          "ctrlSet": true
+        },
+        {
+          "id": "S8",
+          "stoichiometry": 1.0,
+          "ctrl1x": 424.03676605224626,
+          "ctrl1y": 416.12323684692336,
+          "ctrl2x": 395.9884602420899,
+          "ctrl2y": 317.1649741835258,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S4",
+          "stoichiometry": 1.0,
+          "ctrl1x": 481.8718883865179,
+          "ctrl1y": 228.43648023393513,
+          "ctrl2x": 515.3979278564456,
+          "ctrl2y": 227.4172058105466,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": 21.354919433593995,
+      "labelDy": 27.567276000976975
+    },
+    {
+      "id": "r22",
+      "jx": 228.144775390625,
+      "jy": 396.616455078125,
+      "kineticLaw": "k12*S1*S9",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0,
+          "ctrl1x": 129.07551078796385,
+          "ctrl1y": 316.973284912109,
+          "ctrl2x": 286.3105899440733,
+          "ctrl2y": 360.53972403577313,
+          "ctrlSet": true
+        },
+        {
+          "id": "S9",
+          "stoichiometry": 1.0,
+          "ctrl1x": 460.0,
+          "ctrl1y": 400.0,
+          "ctrl2x": 323.10675585632123,
+          "ctrl2y": 337.7172914575084,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S6",
+          "stoichiometry": 1.0,
+          "ctrl1x": 181.29193692404647,
+          "ctrl1y": 425.6764324016834,
+          "ctrl2x": 140.0,
+          "ctrl2y": 400.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": -26.956,
+      "labelDy": -25.396
+    }
+  ],
+  "styles": [
+    {
+      "name": "Escher metabolite",
+      "kind": "species",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 26.0,
+      "h": 26.0
+    },
+    {
+      "name": "Escher reaction",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      }
+    }
+  ],
+  "theme": "escher"
+}
