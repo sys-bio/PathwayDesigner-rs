@@ -147,29 +147,73 @@ for more: aliases, renaming, locking, alignment, styles. The View menu has the
 grid, Snap to grid, zoom, and switches for the alias indicator and modifier
 lines.
 
-| Mouse | |
+## Mouse and keyboard
+
+On macOS, Cmd takes the place of Ctrl and Option of Alt.
+
+**On the canvas, with the Select tool**
+
+| Action | What it does |
 |---|---|
-| Click, Shift-click | Select; add to or take from the selection |
-| Drag on empty canvas | Select everything in a rectangle |
-| Drag a species, junction, handle, text or name | Move it |
-| Drag a corner of a selected species or compartment | Resize it (Shift keeps the proportions) |
-| Alt + drag | Place freely while Snap to grid is on |
-| Double-click a species | Rename it (a text: edit its words) |
-| Right-click | The menu for what is under the pointer |
+| Click | Select a species, reaction, compartment, text or name |
+| Shift-click | Add to or take from the selection |
+| Drag on empty canvas | Select everything the rectangle touches |
+| Drag a species, junction, text, name or compartment border | Move it (a compartment carries what is inside it) |
+| Drag a Bézier handle of a selected reaction | Reshape that line |
+| Drag a corner of a selected species or compartment | Resize it; Shift keeps the proportions |
+| Drag the small handle on a selected text's right edge | Set where its lines wrap |
+| Drag a square at an end of a selected reaction's stem | Move that end of the stem |
+| Drag the **+** by a selected reaction's junction onto a species | Add the species to the reaction as a product; hold Shift when letting go for a reactant |
+| Alt while dragging | Place freely while Snap to grid is on |
+| Double-click a species | Rename it |
+| Double-click a text | Edit its words |
+| Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add or Remove Stem, styles, alignment, locking and more) |
+| Rest the pointer on an item | A tooltip: a species' value, a reaction's rate law, a compartment's volume |
+
+**Adding things**
+
+| Tool or command | How |
+|---|---|
+| Species, Text | Click where it should go |
+| Compartment | Drag out its box (a click makes a 300 × 200 box) |
+| A → B, A + B → C, A → B + C, A + B → C + D | Click the reactants, then the products, in turn |
+| A+… → B+… | Click the reactants, press Enter, click the products, press Enter again |
+| Add Reactant…, Add Product… (a reaction's right-click menu) | Click species to add them; Esc or a click on empty canvas stops |
+| Any of these | A click on empty canvas, or Esc, cancels |
+
+**Getting around**
+
+| Action | What it does |
+|---|---|
 | Wheel, or two-finger scroll | Pan (Shift: sideways) |
 | Ctrl + wheel, or pinch | Zoom, keeping the point under the pointer still |
 | Middle-button drag, or Space + drag | Pan |
+| The − / % / + at the right of the status bar | Zoom out, zoom to fit, zoom in |
 
-| Keys (Cmd on macOS) | |
+**In the model tree (left)**
+
+| Action | What it does |
 |---|---|
-| Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y | Undo, redo |
+| Click | Select that item |
+| Ctrl-click | Add to or take from the selection |
+| Shift-click | Select everything from the last item clicked |
+| ↑ / ↓, Shift + ↑ / ↓ | Move through the list; extend the selection |
+
+**Keys**
+
+| Keys | What they do |
+|---|---|
+| Ctrl+Z | Undo |
+| Ctrl+Shift+Z, Ctrl+Y | Redo |
 | Ctrl+A | Select all (Edit also has Select All Species and Select All Reactions) |
 | Delete, Backspace | Delete the selection |
 | Arrow keys, Shift + arrow keys | Nudge the selection 1 unit, 10 units; with Snap to grid, one grid line, five (Alt for 1 and 10) |
 | Ctrl+Alt+C, Ctrl+Alt+V | Copy Style, Paste Style |
-| Esc | Cancel, back to the Select tool |
+| Enter | With A+… → B+…: on to the products, then make the reaction |
+| Esc | Cancel what is in progress (a drag, a reaction being picked, a layout) and go back to the Select tool |
 | Ctrl+S, Ctrl+Shift+S | Save, Save As |
-| Ctrl+O, Ctrl+N | Open, New (in a browser, Ctrl+N opens a new browser window: use File ▸ New) |
+| Ctrl+O | Open |
+| Ctrl+N | New (in a browser, Ctrl+N opens a new browser window: use File ▸ New) |
 
 ## File formats
 
