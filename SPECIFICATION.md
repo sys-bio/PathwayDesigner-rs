@@ -598,7 +598,9 @@ name: renaming the reaction renames the label.
   whether the name is shown or where.
 - **Zoom to fit** and output include the name (§11.6).
 - **Files.** JSON version 7 (SPEC-Rust §4.2), written only when some reaction shows
-  its name. SBML and Antimony don't carry it yet.
+  its name. In SBML, a text glyph on the reaction's glyph with the name's box
+  (SPEC-Rust §8.3), read back from this app's files and other tools'; its size and
+  colour are not carried. Antimony has no layout.
 
 ## 6. Interaction model
 

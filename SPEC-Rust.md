@@ -352,7 +352,7 @@ Both are written for a reaction showing its name and both left out otherwise; a
 reaction with only one, or a value that isn't a number, doesn't show its name, with
 a warning. A document in which a reaction shows its name is version 7; otherwise
 it is written as before. A list of styles on its own stays version 6, as nothing in
-a style needs 7.
+a style needs 7. `Models/reaction_label_1.json` is the sample file.
 
 **Version 6: names outside the node (S §5.11).** A species may have `labelDx`
 and `labelDy`: where its name's centre is drawn, from the node's centre. Both are
@@ -953,6 +953,13 @@ italic="true" align="center" color="#CC0000FF" wrapWidth="120"/>`, with only `si
 Import makes free text from every text glyph that has a `text` and labels nothing,
 at its box's top-left corner, with the note's look if it has one and the defaults
 otherwise. Text glyphs that label a species are not free text.
+
+**Reaction names (S §5.12)** are written as a text glyph on the reaction's glyph,
+`graphicalObject` its id and `originOfText` the reaction, in the name's own box, so
+other tools show the name where it is drawn. Import shows a reaction's name when a
+text glyph has its reaction glyph as `graphicalObject` (with or without
+`originOfText`), drawn at the glyph's centre. The name's size and colour are not
+carried, as SBML Layout has no fonts; they come back as the defaults.
 
 ### 8.4 Behaviour specific to PathwayDesigner
 

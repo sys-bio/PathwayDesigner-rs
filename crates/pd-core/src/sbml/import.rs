@@ -205,6 +205,9 @@ impl Builder {
         for r in &m.reactions {
             self.reaction(m, r, layout, &glyph_node, &nulls, opts);
         }
+        if let Some(l) = layout {
+            self.reaction_names(l);
+        }
         // Compartment boxes (S §7.9), and their style from PathwayDesigner's
         // note. Compartments without one are fitted around their species.
         if let Some(l) = m.layouts.first() {
@@ -396,6 +399,37 @@ impl Builder {
             }
         }
         (glyph_node, nulls)
+    }
+
+    /// A text glyph on a reaction glyph shows the reaction's name, its
+    /// centre where the name is drawn (S §5.12). Read once the reactions are
+    /// in, as the name is placed from the junction drawn.
+    fn reaction_names(&mut self, l: &sb::Layout) {
+        for t in &l.text_glyphs {
+            let (Some(gid), Some(bb)) = (&t.graphical_object, positioned(t.bounding_box.as_ref()))
+            else {
+                continue;
+            };
+            let Some(id) = l
+                .reaction_glyphs
+                .iter()
+                .find(|g| &g.id == gid)
+                .and_then(|g| g.reaction.clone())
+            else {
+                continue;
+            };
+            let Some(r) = self.model.find_reaction(&id) else {
+                continue;
+            };
+            let c = pt(
+                bb.position.x + bb.dimensions.width / 2.0,
+                bb.position.y + bb.dimensions.height / 2.0,
+            );
+            let j = crate::render::draw::effective_junction(&self.model, r);
+            if let Some(r) = self.model.find_reaction_mut(&id) {
+                r.label_offset = Some(c - j);
+            }
+        }
     }
 
     /// Puts species the layout didn't place at random, inside the layout if

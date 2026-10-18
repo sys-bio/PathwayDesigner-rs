@@ -539,6 +539,17 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                 ..Default::default()
             });
         }
+        // A name shown: a text glyph of the reaction's id on its glyph, in
+        // the name's own box (S §5.12).
+        if let Some((a, b)) = crate::render::draw::reaction_label_box(model, r) {
+            l.text_glyphs.push(sb::TextGlyph {
+                id: ids.unique(format!("tg_{}", r.id)),
+                graphical_object: Some(g.id.clone()),
+                origin_of_text: Some(r.id.clone()),
+                bounding_box: Some(sb::BoundingBox::new(a.x, a.y, b.x - a.x, b.y - a.y)),
+                ..Default::default()
+            });
+        }
         l.reaction_glyphs.push(g);
     }
     l

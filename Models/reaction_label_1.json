@@ -1,0 +1,209 @@
+{
+  "version": 7,
+  "modelName": "reaction_label_1",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "k1",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k2",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k3",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "Glc",
+      "x": 100.0,
+      "y": 60.0,
+      "w": 20.0,
+      "h": 20.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#F5A623FF",
+        "borderColor": "#8A5A00FF",
+        "labelColor": "#1A1A1AFF",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "labelDx": 34.0,
+      "labelDy": 0.0
+    },
+    {
+      "id": "G6P",
+      "x": 100.0,
+      "y": 180.0,
+      "w": 20.0,
+      "h": 20.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#F5A623FF",
+        "borderColor": "#8A5A00FF",
+        "labelColor": "#1A1A1AFF",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "labelDx": 34.0,
+      "labelDy": 0.0
+    },
+    {
+      "id": "F6P",
+      "x": 100.0,
+      "y": 300.0,
+      "w": 20.0,
+      "h": 20.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#F5A623FF",
+        "borderColor": "#8A5A00FF",
+        "labelColor": "#1A1A1AFF",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "labelDx": -34.0,
+      "labelDy": -16.0
+    },
+    {
+      "id": "FBP",
+      "x": 100.0,
+      "y": 420.0,
+      "w": 20.0,
+      "h": 20.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#F5A623FF",
+        "borderColor": "#8A5A00FF",
+        "labelColor": "#1A1A1AFF",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "labelDx": 34.0,
+      "labelDy": 0.0
+    },
+    {
+      "id": "ATP",
+      "x": 240.0,
+      "y": 120.0,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false
+    }
+  ],
+  "reactions": [
+    {
+      "id": "R1",
+      "jx": 100.0,
+      "jy": 120.0,
+      "kineticLaw": "k1*Glc",
+      "isReversible": false,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Glc",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "ATP"
+        }
+      ],
+      "labelDx": -24.0,
+      "labelDy": 0.0
+    },
+    {
+      "id": "R2",
+      "jx": 100.0,
+      "jy": 240.0,
+      "kineticLaw": "k2*G6P",
+      "isReversible": false,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "labelDx": -24.0,
+      "labelDy": 0.0
+    },
+    {
+      "id": "R3",
+      "jx": 100.0,
+      "jy": 360.0,
+      "kineticLaw": "k3*F6P",
+      "isReversible": false,
+      "isLinear": true,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "FBP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "labelDx": -24.0,
+      "labelDy": 0.0
+    }
+  ]
+}

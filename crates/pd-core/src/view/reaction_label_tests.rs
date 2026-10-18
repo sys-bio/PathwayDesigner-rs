@@ -378,3 +378,42 @@ fn a_name_already_shown_keeps_its_gap_under_escher() {
     assert!((top(&v) - before).abs() < 1e-9);
     assert_eq!(offset(&v).unwrap().x, 0.0);
 }
+
+#[test]
+fn names_come_back_from_sbml() {
+    let mut v = named();
+    v.model.find_reaction_mut("R1").unwrap().label_offset = Some(pt(10.0, -30.0));
+    // R2, Linear, its name placed from the junction drawn on its line.
+    let mut r2 = crate::model::Reaction::new("R2", pt(150.0, 500.0));
+    r2.mode = crate::model::ReactionMode::Linear;
+    r2.reactants = vec![Participant::new("A", 1.0)];
+    r2.products = vec![Participant::new("B", 1.0)];
+    r2.label_offset = Some(pt(0.0, 25.0));
+    v.model.push_reaction(r2).unwrap();
+    // R3, its name not shown.
+    let mut r3 = crate::model::Reaction::new("R3", pt(150.0, 200.0));
+    r3.reactants = vec![Participant::new("B", 1.0)];
+    r3.products = vec![Participant::new("A", 1.0)];
+    v.model.push_reaction(r3).unwrap();
+    let out = crate::sbml::export(v.model());
+    assert!(out.xml.contains("layout:graphicalObject=\"rg_R1\""));
+    assert!(!out.xml.contains("layout:graphicalObject=\"rg_R3\""));
+    let opts = crate::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let back = crate::sbml::import(&out.xml, &opts).unwrap().model;
+    let close = |id: &str, want: Pt| {
+        let o = back.find_reaction(id).unwrap().label_offset;
+        assert!(o.is_some_and(|o| o.distance(want) < 1e-6), "{id}: {o:?}");
+    };
+    close("R1", pt(10.0, -30.0));
+    close("R2", pt(0.0, 25.0));
+    assert_eq!(back.find_reaction("R3").unwrap().label_offset, None);
+    // Another tool may leave out originOfText: the glyph it labels is enough.
+    let plain = out.xml.replace(" layout:originOfText=\"R1\"", "");
+    assert_ne!(plain, out.xml);
+    let back = crate::sbml::import(&plain, &opts).unwrap().model;
+    let o = back.find_reaction("R1").unwrap().label_offset;
+    assert!(o.is_some_and(|o| o.distance(pt(10.0, -30.0)) < 1e-6));
+}
