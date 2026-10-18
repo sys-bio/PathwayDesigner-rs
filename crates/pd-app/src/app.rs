@@ -485,6 +485,12 @@ impl PathwayApp {
             MenuAction::RemoveParticipant(id, species) => {
                 self.view.remove_participant(&id, &species);
             }
+            MenuAction::AddStem(id) => {
+                self.view.add_stem(&id);
+            }
+            MenuAction::RemoveStem(id) => {
+                self.view.remove_stem(&id);
+            }
             MenuAction::MakeNice(id) => {
                 self.view.make_nice_reactions(&[id]);
             }
@@ -1925,9 +1931,17 @@ mod tests {
         h.key(Key::Escape, Modifiers::NONE);
         assert_eq!(h.app.tool_hint(), None);
         // Remove from Reaction.
-        h.app
-            .act(MenuAction::RemoveParticipant(r, "S3".into()), pt(0.0, 0.0));
+        h.app.act(
+            MenuAction::RemoveParticipant(r.clone(), "S3".into()),
+            pt(0.0, 0.0),
+        );
         assert_eq!(products(&h), 1);
+        // Add Stem, then Remove Stem.
+        let stem = |h: &Harness| h.app.view.model().reactions()[0].stem;
+        h.app.act(MenuAction::AddStem(r.clone()), pt(0.0, 0.0));
+        assert!(stem(&h).is_some());
+        h.app.act(MenuAction::RemoveStem(r), pt(0.0, 0.0));
+        assert!(stem(&h).is_none());
     }
 
     #[test]

@@ -150,6 +150,7 @@ enum Gesture {
     Resize(ResizeDrag),
     SpeciesResize(SpeciesResizeDrag),
     Label(LabelDrag),
+    StemEnd(StemDrag),
     /// The Compartment tool: a box being drawn, corners in world coordinates.
     NewCompartment {
         start: Pt,
@@ -274,6 +275,21 @@ struct LabelDrag {
     orig: Pt,
     /// Where the name's centre was: it snaps to the grid (S §7.6).
     centre: Pt,
+    before: Box<Model>,
+    /// The pointer's movement; `delta` is it snapped.
+    raw: Pt,
+    delta: Pt,
+}
+
+/// Dragging an end of a reaction's stem (S §5.13): the lines on that side
+/// follow, their handles by the stem moving with it.
+#[derive(Clone, Debug)]
+struct StemDrag {
+    start: Pt,
+    id: Id,
+    role: Role,
+    /// Where the end was: it snaps to the grid (S §7.6).
+    end: Pt,
     before: Box<Model>,
     /// The pointer's movement; `delta` is it snapped.
     raw: Pt,
@@ -844,6 +860,20 @@ impl DiagramView {
             Target::Handle(h) => {
                 self.gesture = Gesture::Handle(self.begin_handle_drag(world, h));
             }
+            Target::StemEnd(id, role) => {
+                let end = self.model.find_reaction(&id).map(|r| r.leg_anchor(role));
+                if let Some(end) = end {
+                    self.gesture = Gesture::StemEnd(StemDrag {
+                        start: world,
+                        id,
+                        role,
+                        end,
+                        before: Box::new(self.model.clone()),
+                        raw: Pt::ZERO,
+                        delta: Pt::ZERO,
+                    });
+                }
+            }
             Target::Junction(id) => {
                 if !modifiers.shift {
                     self.model.clear_selection();
@@ -951,6 +981,12 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_label_drag(&drag);
             }
+            Gesture::StemEnd(drag) => {
+                drag.raw = world - drag.start;
+                drag.delta = snap_delta(snap, Some(drag.end), drag.raw);
+                let drag = drag.clone();
+                self.apply_stem_drag(&drag);
+            }
             Gesture::NewCompartment { current, .. } => *current = placed,
             Gesture::RubberBand { current, .. } => *current = pos,
         }
@@ -980,6 +1016,12 @@ impl DiagramView {
             Gesture::SpeciesResize(drag) if drag.delta == Pt::ZERO => None,
             Gesture::SpeciesResize(drag) => Some(Command::Snapshot {
                 desc: "Resize Species",
+                before: drag.before,
+                after: Box::new(self.model.clone()),
+            }),
+            Gesture::StemEnd(drag) if drag.delta == Pt::ZERO => None,
+            Gesture::StemEnd(drag) => Some(Command::Snapshot {
+                desc: "Move Stem End",
                 before: drag.before,
                 after: Box::new(self.model.clone()),
             }),
@@ -1124,6 +1166,10 @@ impl DiagramView {
             Gesture::Label(mut drag) => {
                 drag.delta = Pt::ZERO;
                 self.apply_label_drag(&drag);
+            }
+            Gesture::StemEnd(mut drag) => {
+                drag.delta = Pt::ZERO;
+                self.apply_stem_drag(&drag);
             }
             Gesture::RubberBand { .. } | Gesture::NewCompartment { .. } => {}
         }
@@ -1404,6 +1450,11 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_label_drag(&drag);
             }
+            Gesture::StemEnd(drag) => {
+                drag.delta = snap_delta(snap, Some(drag.end), drag.raw);
+                let drag = drag.clone();
+                self.apply_stem_drag(&drag);
+            }
             _ => return ViewResponse::default(),
         }
         ViewResponse {
@@ -1499,6 +1550,34 @@ impl DiagramView {
             if let Some(s) = self.model.find_species_mut(id) {
                 // Its name, if outside, moves with the edge.
                 s.resize(size.0, size.1);
+            }
+        }
+    }
+
+    /// The stem's end at its first place plus the drag, and each line on
+    /// that side with stored handles: its handle by the stem moved as much.
+    fn apply_stem_drag(&mut self, drag: &StemDrag) {
+        let Some(old) = drag.before.find_reaction(&drag.id).cloned() else {
+            return;
+        };
+        let Some(r) = self.model.find_reaction_mut(&drag.id) else {
+            return;
+        };
+        if let (Some((a, b)), Some(old_stem)) = (r.stem.as_mut().map(|(a, b)| (a, b)), old.stem) {
+            if drag.role == Role::Reactant {
+                *a = old_stem.0 + drag.delta;
+            } else {
+                *b = old_stem.1 + drag.delta;
+            }
+        }
+        let inner = HandleCtrl::inner(drag.role);
+        for (p, o) in r
+            .participants_mut(drag.role)
+            .iter_mut()
+            .zip(old.participants(drag.role))
+        {
+            if o.ctrl_pts_set {
+                inner.set(p, inner.get(o) + drag.delta);
             }
         }
     }
@@ -1802,7 +1881,10 @@ impl DiagramView {
                     s.selected = !(add && s.selected);
                 }
             }
-            Target::Junction(id) | Target::Leg(id) | Target::ReactionLabel(id) => {
+            Target::Junction(id)
+            | Target::Leg(id)
+            | Target::ReactionLabel(id)
+            | Target::StemEnd(id, _) => {
                 if let Some(r) = self.model.find_reaction_mut(id) {
                     r.selected = !(add && r.selected);
                 }

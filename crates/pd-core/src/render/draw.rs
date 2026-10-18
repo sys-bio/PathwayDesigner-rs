@@ -151,6 +151,7 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
         for reaction in model.selected_reactions() {
             d.reaction_name_outline(reaction, r);
             d.bezier_handles(reaction, r);
+            d.stem_ends(reaction, r);
         }
     }
 }
@@ -1206,6 +1207,23 @@ impl Drawer<'_> {
         );
     }
 
+    // ----- Stem ends (S §5.13) ---------------------------------------------
+
+    /// A selected reaction's stem has a square handle at each end, to drag.
+    fn stem_ends(&self, r: &Reaction, out: &mut dyn Renderer) {
+        let Some([a, _, b]) = stem_line(r) else {
+            return;
+        };
+        for p in [a, b] {
+            out.round_rect(
+                self.rect(p, HANDLE_RADIUS, HANDLE_RADIUS),
+                0.0,
+                Some(HANDLE_FILL),
+                Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
+            );
+        }
+    }
+
     // ----- Reaction names (S §5.12) -----------------------------------------
 
     fn reaction_name(&self, r: &Reaction, out: &mut dyn Renderer) {
@@ -2037,6 +2055,22 @@ mod tests {
                 .iter()
                 .any(|l| l.len() == 2 && l[0] == spt(240.0, 0.0))
         );
+        // Selected, each end has a square handle; never in output.
+        let handles = |m: &Model, opts: &DrawOptions| {
+            draw(m, opts)
+                .into_iter()
+                .filter(|c| matches!(c, Call::RoundRect(_, Some(f), _) if *f == HANDLE_FILL))
+                .count()
+        };
+        assert_eq!(handles(&m, &DrawOptions::default()), 0);
+        m.reactions_mut().next().unwrap().selected = true;
+        assert_eq!(handles(&m, &DrawOptions::default()), 2);
+        let output = DrawOptions {
+            for_output: true,
+            ..DrawOptions::default()
+        };
+        assert_eq!(handles(&m, &output), 0);
+        m.reactions_mut().next().unwrap().selected = false;
         // Linear: one line, no stem.
         m.reactions_mut().next().unwrap().mode = ReactionMode::Linear;
         let calls = draw(&m, &DrawOptions::default());

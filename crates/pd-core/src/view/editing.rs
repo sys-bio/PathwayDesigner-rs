@@ -499,7 +499,7 @@ impl DiagramView {
             Target::TextWrap(id) => Target::Text(id),
             Target::CompartmentCorner(id, _) => Target::Compartment(id),
             Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => Target::Species(id),
-            Target::ReactionLabel(id) => Target::Leg(id),
+            Target::ReactionLabel(id) | Target::StemEnd(id, _) => Target::Leg(id),
             t => t,
         };
         match &target {
@@ -533,6 +533,7 @@ impl DiagramView {
             | Target::SpeciesCorner(..)
             | Target::SpeciesLabel(_)
             | Target::ReactionLabel(_)
+            | Target::StemEnd(..)
             | Target::Empty => {
                 return ViewResponse::default();
             }

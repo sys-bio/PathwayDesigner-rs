@@ -58,6 +58,9 @@ pub enum MenuAction {
     AddParticipant(String, pd_core::model::Role),
     /// Remove from Reaction: the reaction and the species.
     RemoveParticipant(String, String),
+    /// Add Stem and Remove Stem (S §5.13).
+    AddStem(String),
+    RemoveStem(String),
     MakeNice(String),
     Arrange(Arrange),
     EditText(String),
@@ -324,6 +327,15 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                     item_chosen = removed;
                 }
             }
+            if view
+                .model()
+                .find_reaction(id)
+                .is_some_and(|r| r.stem.is_some())
+            {
+                item(ui, "Remove Stem", MenuAction::RemoveStem(id.clone()));
+            } else {
+                item(ui, "Add Stem", MenuAction::AddStem(id.clone()));
+            }
             ui.separator();
             item(
                 ui,
@@ -361,6 +373,7 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         | Target::SpeciesCorner(..)
         | Target::SpeciesLabel(_)
         | Target::ReactionLabel(_)
+        | Target::StemEnd(..)
         | Target::Empty => ui.close(),
     }
     chosen.or(item_chosen)
@@ -426,9 +439,11 @@ fn style_kind(t: &Target) -> Option<pd_core::model::StyleKind> {
         Target::Species(_) | Target::SpeciesCorner(..) | Target::SpeciesLabel(_) => {
             Some(StyleKind::Species)
         }
-        Target::Junction(_) | Target::Leg(_) | Target::Handle(_) | Target::ReactionLabel(_) => {
-            Some(StyleKind::Reaction)
-        }
+        Target::Junction(_)
+        | Target::Leg(_)
+        | Target::Handle(_)
+        | Target::ReactionLabel(_)
+        | Target::StemEnd(..) => Some(StyleKind::Reaction),
         Target::Compartment(_) | Target::CompartmentCorner(..) => Some(StyleKind::Compartment),
         Target::Text(_) | Target::TextWrap(_) => Some(StyleKind::Text),
         Target::Empty => None,
@@ -570,7 +585,7 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
         return CursorIcon::Crosshair;
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
-        Some(Target::Handle(_)) => CursorIcon::Crosshair,
+        Some(Target::Handle(_) | Target::StemEnd(..)) => CursorIcon::Crosshair,
         Some(
             Target::Species(_)
             | Target::SpeciesLabel(_)

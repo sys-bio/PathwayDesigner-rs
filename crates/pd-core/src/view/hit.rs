@@ -55,6 +55,17 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
         }
     }
 
+    // The ends of a selected reaction's stem (S §5.13).
+    for r in model.selected_reactions() {
+        if let Some([a, _, b]) = crate::render::draw::stem_line(r) {
+            for (role, at) in [(Role::Reactant, a), (Role::Product, b)] {
+                if at.distance(p) <= handle_tol {
+                    return Target::StemEnd(r.id.clone(), role);
+                }
+            }
+        }
+    }
+
     for t in model.selected_texts() {
         if wrap_handle(t).distance(p) <= handle_tol {
             return Target::TextWrap(t.id.clone());

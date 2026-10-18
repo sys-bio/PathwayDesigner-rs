@@ -133,6 +133,58 @@ impl DiagramView {
         self.record("Remove from Reaction", before)
     }
 
+    /// Add Stem (S §5.13): a straight stem through the junction, along the
+    /// way from the reactants to the products, [`STEM_HALF`] each side. A
+    /// Linear reaction becomes Straight and a smooth junction stops being
+    /// smooth; each line's handle by the junction moves to its end of the
+    /// stem. A Linear reaction's junction is put where it was drawn on its
+    /// line. One undo step. Nothing for a reaction that has a stem.
+    pub fn add_stem(&mut self, id: &str) -> ViewResponse {
+        let Some(r) = self.model.find_reaction(id).filter(|r| r.stem.is_none()) else {
+            return ViewResponse::default();
+        };
+        let centre = |list: &[Participant]| {
+            let pts: Vec<crate::geometry::Pt> = list
+                .iter()
+                .filter_map(|p| self.model.find_species(&p.species))
+                .map(|s| s.center)
+                .collect();
+            (!pts.is_empty()).then(|| {
+                pts.iter().fold(crate::geometry::Pt::ZERO, |a, &p| a + p) / pts.len() as f64
+            })
+        };
+        let along = match (centre(&r.reactants), centre(&r.products)) {
+            (Some(a), Some(b)) if a.distance(b) > 1e-9 => (b - a) / a.distance(b),
+            _ => crate::geometry::pt(1.0, 0.0),
+        };
+        let before = self.model.clone();
+        let stem = (along * -STEM_HALF, along * STEM_HALF);
+        // A Linear reaction's junction is where it is drawn on its line.
+        let drawn = crate::render::draw::effective_junction(&self.model, r);
+        let r = self.model.find_reaction_mut(id).expect("found above");
+        if r.mode == ReactionMode::Linear {
+            r.mode = ReactionMode::Straight;
+            r.junction = drawn;
+        }
+        r.junction_smooth = false;
+        r.stem = Some(stem);
+        shift_inner_handles(r, stem);
+        self.record("Add Stem", before)
+    }
+
+    /// Remove Stem (S §5.13): the lines meet at the junction again, each
+    /// handle by the stem moving back with it. One undo step.
+    pub fn remove_stem(&mut self, id: &str) -> ViewResponse {
+        let Some(stem) = self.model.find_reaction(id).and_then(|r| r.stem) else {
+            return ViewResponse::default();
+        };
+        let before = self.model.clone();
+        let r = self.model.find_reaction_mut(id).expect("found above");
+        r.stem = None;
+        shift_inner_handles(r, (stem.0 * -1.0, stem.1 * -1.0));
+        self.record("Remove Stem", before)
+    }
+
     fn is_null(&self, species: &str) -> bool {
         self.model
             .find_species(species)
@@ -156,6 +208,29 @@ impl DiagramView {
             .is_some_and(|r| r.mode == ReactionMode::Bezier && r.junction_smooth);
         if smooth {
             apply_smooth_handles(&mut self.model, id);
+        }
+    }
+}
+
+/// How far Add Stem puts each end of a new stem from the junction.
+pub const STEM_HALF: f64 = 30.0;
+
+/// Moves the stored handle by the junction of each reactant by `by.0` and of
+/// each product by `by.1`.
+fn shift_inner_handles(
+    r: &mut crate::model::Reaction,
+    by: (crate::geometry::Pt, crate::geometry::Pt),
+) {
+    use crate::bezier::Ctrl;
+    for (role, d) in [(Role::Reactant, by.0), (Role::Product, by.1)] {
+        let inner = Ctrl::inner(role);
+        for p in r
+            .participants_mut(role)
+            .iter_mut()
+            .filter(|p| p.ctrl_pts_set)
+        {
+            let at = inner.get(p);
+            inner.set(p, at + d);
         }
     }
 }

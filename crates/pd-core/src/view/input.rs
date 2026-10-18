@@ -179,5 +179,8 @@ pub enum Target {
     SpeciesLabel(Id),
     /// A reaction's name (S §5.12).
     ReactionLabel(Id),
+    /// An end of a selected reaction's stem (S §5.13): the reactants' end or
+    /// the products'.
+    StemEnd(Id, crate::model::Role),
     Empty,
 }

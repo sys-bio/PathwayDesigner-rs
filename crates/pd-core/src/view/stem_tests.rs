@@ -300,3 +300,110 @@ fn an_escher_map_survives_sbml_with_its_stems() {
         );
     }
 }
+
+#[test]
+fn a_selected_reaction_s_stem_ends_can_be_dragged() {
+    let mut v = view();
+    // Not selected: the end is just part of the reaction.
+    assert_eq!(v.target_at(pt(160.0, 0.0)), Target::Leg("R1".into()));
+    v.select_item(&Target::Leg("R1".into()), false);
+    assert_eq!(
+        v.target_at(pt(160.0, 0.0)),
+        Target::StemEnd("R1".into(), Role::Reactant)
+    );
+    assert_eq!(
+        v.target_at(pt(240.0, 0.0)),
+        Target::StemEnd("R1".into(), Role::Product)
+    );
+    // Drag the reactants' end up: only that end moves.
+    drag(&mut v, pt(160.0, 0.0), pt(150.0, -40.0));
+    let r = r1(&v);
+    assert_eq!(r.stem, Some((pt(-50.0, -40.0), pt(40.0, 0.0))));
+    assert_eq!(r.junction, pt(200.0, 0.0));
+    assert_eq!(v.undo_description(), Some("Move Stem End"));
+    v.undo();
+    assert_eq!(r1(&v).stem, Some((pt(-40.0, 0.0), pt(40.0, 0.0))));
+    // Esc in the middle puts it back.
+    v.select_item(&Target::Leg("R1".into()), false);
+    v.handle(&ViewEvent::PointerDown {
+        pos: pt(240.0, 0.0),
+        button: Button::Primary,
+        modifiers: Modifiers::NONE,
+    });
+    v.handle(&ViewEvent::PointerMove {
+        pos: pt(260.0, 30.0),
+    });
+    assert_eq!(r1(&v).stem.unwrap().1, pt(60.0, 30.0));
+    v.handle(&ViewEvent::Cancel);
+    assert_eq!(r1(&v).stem.unwrap().1, pt(40.0, 0.0));
+}
+
+#[test]
+fn a_dragged_end_takes_its_lines_handles_and_snaps() {
+    let mut v = view();
+    {
+        let r = v.model.find_reaction_mut("R1").unwrap();
+        r.mode = ReactionMode::Bezier;
+        let p = &mut r.reactants[0];
+        (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (pt(40.0, -30.0), pt(120.0, -10.0), true);
+    }
+    v.select_item(&Target::Leg("R1".into()), false);
+    v.snap_to_grid = true;
+    drag(&mut v, pt(160.0, 0.0), pt(173.0, -27.0));
+    let r = r1(&v);
+    // The end on the grid point nearest (173,-27): (180,-20).
+    assert_eq!(r.leg_anchor(Role::Reactant), pt(180.0, -20.0));
+    // The handle by the stem moved as much; the one by the species stayed.
+    let p = &r.reactants[0];
+    assert_eq!(p.ctrl2, pt(140.0, -30.0));
+    assert_eq!(p.ctrl1, pt(40.0, -30.0));
+}
+
+#[test]
+fn a_stem_can_be_added_and_removed() {
+    let mut v = view();
+    v.model.find_reaction_mut("R1").unwrap().stem = None;
+    // Along the way from A (0,0) to B (400,0), STEM_HALF each side.
+    v.add_stem("R1");
+    assert_eq!(v.undo_description(), Some("Add Stem"));
+    assert_eq!(r1(&v).stem, Some((pt(-30.0, 0.0), pt(30.0, 0.0))));
+    // Once it has one, Add Stem does nothing.
+    assert!(!v.add_stem("R1").model_changed);
+    v.remove_stem("R1");
+    assert_eq!(v.undo_description(), Some("Remove Stem"));
+    assert_eq!(r1(&v).stem, None);
+    assert!(!v.remove_stem("R1").model_changed);
+    v.undo();
+    assert!(r1(&v).stem.is_some());
+    // A Linear reaction becomes Straight, a smooth junction stops being
+    // smooth, and stored handles by the junction move to the stem's ends.
+    let mut v = view();
+    {
+        let r = v.model.find_reaction_mut("R1").unwrap();
+        r.stem = None;
+        r.mode = ReactionMode::Bezier;
+        r.junction_smooth = true;
+        let p = &mut r.products[0];
+        (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (pt(220.0, 0.0), pt(360.0, 20.0), true);
+    }
+    v.add_stem("R1");
+    let r = r1(&v);
+    assert!(!r.junction_smooth);
+    assert_eq!(r.products[0].ctrl1, pt(250.0, 0.0));
+    assert_eq!(r.products[0].ctrl2, pt(360.0, 20.0));
+    v.remove_stem("R1");
+    assert_eq!(r1(&v).products[0].ctrl1, pt(220.0, 0.0));
+    let mut v = view();
+    {
+        let r = v.model.find_reaction_mut("R1").unwrap();
+        r.stem = None;
+        r.mode = ReactionMode::Linear;
+        // A Linear reaction's stored junction can be anywhere.
+        r.junction = pt(200.0, 300.0);
+    }
+    let drawn = crate::render::draw::effective_junction(v.model(), &r1(&v));
+    v.add_stem("R1");
+    assert_eq!(r1(&v).mode, ReactionMode::Straight);
+    assert_eq!(r1(&v).junction, drawn, "where it was drawn, on the line");
+    assert_eq!(drawn.y, 0.0);
+}

@@ -624,6 +624,17 @@ junction (dragging it, moving the reaction, alignment, layout) carries the stem.
   ends at the junction. A Linear reaction is drawn as one line and shows no stem.
 - **Clicking** the stem selects the reaction, as its legs do. A name shown (§5.12)
   starts clear of the stem: the lines leaving the junction are the stem's.
+- **Dragging an end:** a selected reaction's stem shows a small square handle at
+  each end. Dragging one moves that end only (*Move Stem End*), snapping to the
+  grid while Snap to grid is on (§7.6); the lines on that side follow, and each one
+  with stored handles has its handle by the stem moved as much. Esc puts it back.
+- **Add Stem** and **Remove Stem** (the reaction's context menu, §13.4; one
+  shown, as the reaction has a stem or not). Add Stem gives a reaction a straight
+  stem through its junction along the way from its reactants' centre to its
+  products', 30 each side; a Linear reaction becomes Straight and a smooth
+  junction stops being smooth; each stored handle by the junction moves to its
+  side's end. Remove Stem has the lines meet at the junction again, those handles
+  moving back. One undo step each.
 - **Commands that reshape the reaction remove it:** Set Straight, Toggle Linear,
   Make Nice, and turning Smooth junction on (smooth handles meet at the junction).
   Set Bézier keeps it, and so does the Escher theme (§8.7), which leaves a reaction
@@ -2118,7 +2129,7 @@ Which items appear depends on what was right-clicked:
 | Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
 | Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
-| Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
+| Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Add Stem or Remove Stem (§5.13) · Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 | Free text (§7.8) | Edit Text · Delete Text · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 

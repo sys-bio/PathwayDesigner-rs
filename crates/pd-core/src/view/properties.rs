@@ -99,9 +99,10 @@ pub(super) fn style_target(t: &Target) -> Option<(StyleKind, Id)> {
         Target::Species(id) | Target::SpeciesCorner(id, _) | Target::SpeciesLabel(id) => {
             (StyleKind::Species, id.clone())
         }
-        Target::Junction(id) | Target::Leg(id) | Target::ReactionLabel(id) => {
-            (StyleKind::Reaction, id.clone())
-        }
+        Target::Junction(id)
+        | Target::Leg(id)
+        | Target::ReactionLabel(id)
+        | Target::StemEnd(id, _) => (StyleKind::Reaction, id.clone()),
         Target::Handle(h) => (StyleKind::Reaction, h.reaction.clone()),
         Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
             (StyleKind::Compartment, id.clone())
