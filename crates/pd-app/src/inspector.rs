@@ -906,15 +906,20 @@ impl Inspector {
     fn swatch(&mut self, ui: &mut egui::Ui, view: &mut DiagramView, field: ColourField) {
         let current = view.swatch_colour(field);
         let (rect, resp) = ui.allocate_exact_size(SWATCH, Sense::click());
-        let fill = current.map_or(Color32::TRANSPARENT, color);
-        ui.painter().rect_filled(rect, 3.0, fill);
+        paint_colour(ui.painter(), rect, current);
         ui.painter().rect_stroke(
             rect,
             3.0,
             ui.visuals().widgets.inactive.fg_stroke,
             egui::StrokeKind::Inside,
         );
-        let resp = resp.on_hover_text("Choose a colour");
+        let tip = if current.is_some_and(Rgba::is_transparent) {
+            "No fill. Choose a colour"
+        } else {
+            "Choose a colour"
+        };
+        let resp = resp.on_hover_text(tip);
+        let none = can_leave_out(field);
         if resp.clicked() {
             self.hex = current
                 .map(|c| to_hex(c)[..7].to_owned())
@@ -923,7 +928,7 @@ impl Inspector {
         egui::Popup::from_toggle_button_response(&resp)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
             .show(|ui| {
-                if let Some(c) = self.picker(ui, current) {
+                if let Some(c) = self.picker(ui, current, none) {
                     view.apply_colour(field, c);
                     ui.close();
                 }
@@ -932,8 +937,27 @@ impl Inspector {
 
     /// The colour picker: 40 swatches, a preview with its `#RRGGBB` value, and
     /// a hex field (red while invalid). Returns the colour chosen, if any.
-    fn picker(&mut self, ui: &mut egui::Ui, current: Option<Rgba>) -> Option<Rgba> {
+    fn picker(&mut self, ui: &mut egui::Ui, current: Option<Rgba>, none: bool) -> Option<Rgba> {
         let mut chosen = None;
+        if none {
+            let pressed = current.is_some_and(Rgba::is_transparent);
+            ui.horizontal(|ui| {
+                let (rect, r) = ui.allocate_exact_size(Vec2::splat(20.0), Sense::click());
+                paint_colour(ui.painter(), rect, Some(Rgba::TRANSPARENT));
+                let stroke = if pressed {
+                    egui::Stroke::new(2.0, Color32::BLACK)
+                } else {
+                    egui::Stroke::new(1.0, Color32::from_gray(160))
+                };
+                ui.painter()
+                    .rect_stroke(rect, 2.0, stroke, egui::StrokeKind::Inside);
+                let b = ui.selectable_label(pressed, "No fill (transparent)");
+                if r.clicked() || b.clicked() {
+                    chosen = Some(Rgba::TRANSPARENT);
+                }
+            });
+            ui.separator();
+        }
         egui::Grid::new("swatches")
             .spacing([3.0, 3.0])
             .show(ui, |ui| {
@@ -982,6 +1006,26 @@ impl Inspector {
     }
 }
 
+/// Whether the picker offers "No fill" for `field`: only a fill can be left
+/// out; a border, a line or text must be seen.
+fn can_leave_out(field: ColourField) -> bool {
+    matches!(field, ColourField::Fill | ColourField::CompartmentFill)
+}
+
+/// A colour in a swatch: no fill is white with a red slash across it.
+fn paint_colour(painter: &egui::Painter, rect: egui::Rect, c: Option<Rgba>) {
+    match c {
+        Some(c) if c.is_transparent() => {
+            painter.rect_filled(rect, 2.0, Color32::WHITE);
+            let slash = egui::Stroke::new(1.5, Color32::from_rgb(0xD0, 0x30, 0x30));
+            painter.line_segment([rect.left_bottom(), rect.right_top()], slash);
+        }
+        _ => {
+            painter.rect_filled(rect, 2.0, c.map_or(Color32::TRANSPARENT, color));
+        }
+    }
+}
+
 fn typeface_name(f: Typeface) -> &'static str {
     match f {
         Typeface::Sans => "Sans (Noto Sans)",
@@ -1003,6 +1047,22 @@ fn parse_hex6(s: &str) -> Option<Rgba> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_fills_can_be_left_out() {
+        assert!(can_leave_out(ColourField::Fill));
+        assert!(can_leave_out(ColourField::CompartmentFill));
+        for f in [
+            ColourField::Border,
+            ColourField::Label,
+            ColourField::Line,
+            ColourField::ReactionLabel,
+            ColourField::Text,
+            ColourField::CompartmentBorder,
+        ] {
+            assert!(!can_leave_out(f), "{f:?}");
+        }
+    }
 
     #[test]
     fn hex_field_accepts_six_digits_only() {

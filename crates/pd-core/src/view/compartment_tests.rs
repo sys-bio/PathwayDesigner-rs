@@ -318,3 +318,46 @@ fn renamed_to_the_default_compartment_its_box_goes() {
             .hidden
     );
 }
+
+#[test]
+fn a_fill_can_be_left_out() {
+    use crate::model::Rgba;
+    use crate::render::draw::{compartment_colours, species_colours};
+    let mut v = view();
+    let c = draw_around_a(&mut v);
+    v.select_item(&Target::Compartment(c.clone()), false);
+    v.apply_colour(ColourField::CompartmentFill, Rgba::TRANSPARENT);
+    assert_eq!(v.undo_description(), Some("Compartment Colour"));
+    let comp = v.model().find_compartment(&c).unwrap();
+    assert_eq!(compartment_colours(comp).0, Rgba::TRANSPARENT);
+    assert_eq!(
+        v.swatch_colour(ColourField::CompartmentFill),
+        Some(Rgba::TRANSPARENT)
+    );
+    // Not the "use the default" sentinel, and the border stays.
+    assert!(Rgba::TRANSPARENT.is_transparent());
+    assert!(!Rgba::DEFAULT.is_transparent());
+    assert!(!Rgba::rgb(1, 2, 3).is_transparent());
+    let (_, border, _) = compartment_colours(comp);
+    assert!(!border.is_transparent());
+    // A species' fill too.
+    v.select_item(&Target::Species("S1".into()), false);
+    v.apply_colour(ColourField::Fill, Rgba::TRANSPARENT);
+    let s = v.model().find_species("S1").unwrap();
+    assert_eq!(species_colours(s, true).0, Rgba::TRANSPARENT);
+    // The file keeps it as #FFFFFF00, not as the default.
+    let text = crate::json::to_json(v.model());
+    assert!(text.contains("\"fillColor\": \"#FFFFFF00\""), "{text}");
+    let back = crate::json::from_json(&text).unwrap().model;
+    assert_eq!(
+        compartment_colours(back.find_compartment(&c).unwrap()).0,
+        Rgba::TRANSPARENT
+    );
+    assert_eq!(
+        species_colours(back.find_species("S1").unwrap(), true).0,
+        Rgba::TRANSPARENT
+    );
+    // So does SBML, in the compartment's note.
+    let xml = crate::sbml::export(v.model()).xml;
+    assert!(xml.contains("fill=\"#FFFFFF00\""), "{xml}");
+}

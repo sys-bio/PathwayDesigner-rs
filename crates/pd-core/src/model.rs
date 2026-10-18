@@ -31,12 +31,21 @@ impl Rgba {
     /// The "use the default" sentinel.
     pub const DEFAULT: Rgba = Rgba([0, 0, 0, 0]);
 
+    /// No fill at all (S §8.2): transparent, but white, so it isn't the
+    /// "use the default" sentinel.
+    pub const TRANSPARENT: Rgba = Rgba([255, 255, 255, 0]);
+
     pub const fn rgb(r: u8, g: u8, b: u8) -> Rgba {
         Rgba([r, g, b, 255])
     }
 
     pub fn is_default(self) -> bool {
         self == Rgba::DEFAULT
+    }
+
+    /// Fully see-through, and not the default sentinel: no fill.
+    pub fn is_transparent(self) -> bool {
+        self.0[3] == 0 && !self.is_default()
     }
 }
 

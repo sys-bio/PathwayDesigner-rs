@@ -1320,6 +1320,11 @@ are (§15, D-4).
 
 A popup appears below the swatch that opened it. It contains:
 
+- For a **fill** (a species' or a compartment's), first, **No fill
+  (transparent)** (*added in the Rust version*): what is behind shows through,
+  and the border stays. It is stored as `#FFFFFF00`, transparent white, since
+  `#00000000` means "use the default" (§3.6). Its swatch is white with a red slash.
+  A border, a line or text can't be left out.
 - **40 palette swatches** in 8 columns × 5 rows (Appendix 17.2). The palette includes
   every default diagram colour, so a user can always set an item back to its default
   look.
