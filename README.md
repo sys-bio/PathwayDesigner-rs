@@ -14,6 +14,10 @@ This was developed with the assistance of claude. Stop here if you aren't comfor
 
 ![PathwayDesigner in the browser](docs/screenshot.png)
 
+The same model in the Escher theme (*View ▸ Theme ▸ Escher*), for metabolic maps:
+
+![The same model in the Escher theme](docs/screenshot-escher.png)
+
 This is a re-implementation of the Delphi PathwayDesigner. It does everything the
 Delphi version does, and some more (see [Status](#status)).
 
@@ -65,6 +69,11 @@ Delphi version does, and some more (see [Status](#status)).
   ("My Styles") and saved in the model file for the styles it uses, so a model
   given to someone else carries them. Edit a style directly, and export and import
   styles to share them.
+- **Themes** (*View ▸ Theme*): **Escher** restyles the whole diagram as a metabolic
+  map, with orange circles, smaller circles for cofactors such as ATP and NADH,
+  names placed clear of the lines, and thick blue reaction lines; new items follow
+  the theme. **Classic** puts back the default look. Undo reverses either.
+- Arrowheads grow with thick reaction lines.
 
 **Layout**
 - Force-directed **auto-layout**, animated, with an optional pass that shapes the
