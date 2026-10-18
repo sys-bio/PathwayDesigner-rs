@@ -625,6 +625,29 @@ impl Inspector {
                 )
                 .weak(),
             );
+            // The diagram itself (S §8.8).
+            if !look_only {
+                ui.add_space(8.0);
+                heading(ui, &mut shown, "Diagram");
+                egui::Grid::new("diagram")
+                    .num_columns(2)
+                    .spacing([8.0, 6.0])
+                    .show(ui, |ui| {
+                        ui.label("Background");
+                        ui.horizontal(|ui| {
+                            self.swatch(ui, view, ColourField::Background);
+                            let custom = !view.model().background.is_default();
+                            if ui
+                                .add_enabled(custom, egui::Button::new("Default"))
+                                .on_hover_text("The usual light grey")
+                                .clicked()
+                            {
+                                view.set_background(Rgba::DEFAULT);
+                            }
+                        });
+                        ui.end_row();
+                    });
+            }
         }
     }
 

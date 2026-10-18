@@ -21,8 +21,11 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought reaction stems (S §5.13).
-pub const FORMAT_VERSION: u32 = 8;
+/// one that brought the diagram's background colour (S §8.8).
+pub const FORMAT_VERSION: u32 = 9;
+
+/// The version that brought reaction stems (S §5.13).
+pub const STEM_VERSION: u32 = 8;
 
 /// The version that brought reaction names (S §5.12).
 pub const NAME_VERSION: u32 = 7;
@@ -42,7 +45,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 8 if a reaction has a stem, 7 if a reaction shows its
+/// (SPEC-Rust §4.2): 9 if the diagram has its own background colour, 8 if a
+/// reaction has a stem, 7 if a reaction shows its
 /// name, 6 if a species has its name outside, a species or
 /// compartment has no border, or an item follows a saved style, 5 if one has a
 /// shape other than the rounded rectangle or a border style other than
@@ -50,8 +54,10 @@ pub const DELPHI_VERSION: u32 = 3;
 pub fn needed_version(model: &Model) -> u32 {
     let no_border = model.species().iter().any(|s| s.style.no_border)
         || model.compartments.iter().any(|c| c.style.no_border);
-    if model.reactions().iter().any(|r| r.stem.is_some()) {
+    if !model.background.is_default() {
         FORMAT_VERSION
+    } else if model.reactions().iter().any(|r| r.stem.is_some()) {
+        STEM_VERSION
     } else if model.reactions().iter().any(|r| r.label_offset.is_some()) {
         NAME_VERSION
     } else if model.species().iter().any(|s| s.label_offset.is_some())
@@ -198,6 +204,10 @@ struct FileModel {
     /// Version 6: the diagram's theme (S §8.7), `"escher"`. Left out for none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     theme: Option<String>,
+    /// Version 9: the diagram's background colour (S §8.8). Left out for the
+    /// default.
+    #[serde(default, with = "colour", skip_serializing_if = "is_default_colour")]
+    background: Rgba,
 }
 
 /// A list of saved styles on its own.
@@ -753,6 +763,7 @@ impl FileModel {
             }),
         };
         link_styles(&mut model, &mut warnings);
+        model.background = self.background;
 
         model.recompute_id_counter();
         Loaded {
@@ -1086,6 +1097,7 @@ impl FileModel {
                 .map(saved_style_to_file)
                 .collect(),
             theme: m.theme.map(|t| t.key().to_owned()),
+            background: m.background,
         }
     }
 }
@@ -1483,7 +1495,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 9, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 10, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);

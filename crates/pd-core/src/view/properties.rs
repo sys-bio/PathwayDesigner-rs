@@ -32,6 +32,8 @@ pub enum ColourField {
     Text,
     /// Fill of the selected compartments (S §7.9).
     CompartmentFill,
+    /// The diagram's background (S §8.8), whatever is selected.
+    Background,
     /// Border of the selected compartments.
     CompartmentBorder,
 }
@@ -190,6 +192,7 @@ impl DiagramView {
                     border
                 })
             }
+            ColourField::Background => Some(crate::render::draw::background_colour(&self.model)),
             ColourField::Text => self
                 .model
                 .selected_texts()
@@ -201,6 +204,9 @@ impl DiagramView {
     /// Applies a colour to every selected item of the matching kind, and
     /// makes their styles custom. One undo step (S §8.2).
     pub fn apply_colour(&mut self, field: ColourField, colour: Rgba) -> ViewResponse {
+        if field == ColourField::Background {
+            return self.set_background(colour);
+        }
         if field == ColourField::Text {
             return self.on_selected_texts("Text Colour", |t| t.color = colour);
         }
@@ -260,6 +266,14 @@ impl DiagramView {
             }
             s.has_custom_style = true;
         })
+    }
+
+    /// Sets the diagram's background colour (S §8.8); [`Rgba::DEFAULT`] puts
+    /// the usual one back. One undo step.
+    pub fn set_background(&mut self, colour: Rgba) -> ViewResponse {
+        let before = self.model.clone();
+        self.model.background = colour;
+        self.record_if_changed("Background Colour", before)
     }
 
     /// Sets the label font size of every selected species (0 means the

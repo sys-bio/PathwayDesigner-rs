@@ -8,6 +8,8 @@
 
 mod arrange;
 #[cfg(test)]
+mod background_tests;
+#[cfg(test)]
 mod bezier_tests;
 mod circle;
 #[cfg(test)]

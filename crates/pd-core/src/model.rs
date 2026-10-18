@@ -753,6 +753,9 @@ pub struct Model {
     pub styles: Vec<SavedStyle>,
     /// The diagram's theme (S §8.7): items added later take its look.
     pub theme: Option<crate::themes::Theme>,
+    /// The diagram's background colour (S §8.8), on screen and in output;
+    /// [`Rgba::DEFAULT`] for the usual one.
+    pub background: Rgba,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -772,6 +775,7 @@ impl Default for Model {
             assignment_rules: Vec::new(),
             styles: Vec::new(),
             theme: None,
+            background: Rgba::DEFAULT,
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),

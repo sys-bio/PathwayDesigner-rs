@@ -346,6 +346,10 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 9: background colour (S §8.8).** A top-level `"background"`, after
+`theme`, as `#RRGGBBAA`; left out for the default. A document with its own
+background is version 9.
+
 **Version 8: stems (S §5.13).** A reaction may have `stem`, after `labelDy`:
 `[rdx, rdy, pdx, pdy]`, where its reactants' lines end and its products' lines
 start, each from the junction. Left out for a reaction without one; anything but

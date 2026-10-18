@@ -95,7 +95,7 @@ const LOCK_INSET: f64 = 9.0;
 pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
     let d = Drawer { model, opts };
     if let Some(bg) = opts.background {
-        r.round_rect(bg, 0.0, Some(BACKGROUND), None);
+        r.round_rect(bg, 0.0, Some(background_colour(model)), None);
         if opts.grid && !opts.for_output {
             d.grid(bg, r);
         }
@@ -145,6 +145,11 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
             d.bezier_handles(reaction, r);
         }
     }
+}
+
+/// The colour the diagram is drawn on (S §8.8): its own, or the default.
+pub fn background_colour(model: &Model) -> Rgba {
+    pick(Some(model.background), BACKGROUND)
 }
 
 /// A selected species' four corner handles, at the corners of its

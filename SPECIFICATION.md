@@ -1579,6 +1579,15 @@ Applying a theme is **one undo step**, *Escher Theme* or *Classic Theme*.
 
 ---
 
+### 8.8 Background colour
+
+*Added in the Rust version.* The diagram has a **background colour**, `#F8F9FA`
+by default. With nothing selected, the Properties panel shows a **Diagram** group
+with its **Background** swatch: the colour picker (§8.2) sets it, and **Default**
+puts the usual one back. It is one undo step (*Background Colour*), saved in the
+diagram (JSON version 9, SPEC-Rust §4.2) and used on screen and in every output
+(SVG, PNG, PDF). SBML and Antimony don't carry it.
+
 ## 9. Undo / redo
 
 ### 9.1 Behaviour
