@@ -247,6 +247,40 @@ impl DiagramView {
         Ok(self.record_if_changed("Change Style", before))
     }
 
+    /// Edit Style (S §8.6): the style `name` of `kind` takes `look`, kept as
+    /// drawn, and every item following it changes with it; My Styles' copy
+    /// changes too, if there is one. A style only in My Styles changes there
+    /// alone. The model's part is one undo step.
+    pub fn edit_style(
+        &mut self,
+        kind: StyleKind,
+        name: &str,
+        look: Look,
+    ) -> Result<ViewResponse, StyleError> {
+        if look.kind() != kind {
+            return Err(StyleError::NoItem);
+        }
+        if self.look_named(kind, name).is_none() {
+            return Err(StyleError::NoStyle(name.to_owned()));
+        }
+        let style = SavedStyle {
+            name: name.to_owned(),
+            look: styles::resolved(look),
+        };
+        if styles::find_in(&self.my_styles, kind, name).is_some() {
+            styles::put(&mut self.my_styles, style.clone());
+        }
+        if styles::find(&self.model, kind, name).is_none() {
+            return Ok(ViewResponse::default());
+        }
+        let before = self.model.clone();
+        for user in styles::users(&self.model, kind, name) {
+            styles::give_look(&mut self.model, &user, &style.look);
+        }
+        styles::put(&mut self.model.styles, style);
+        Ok(self.record_if_changed("Edit Style", before))
+    }
+
     /// Renames the style `old` of `kind` to `new`, in the model and in My
     /// Styles, wherever it is; items following it follow it under its new
     /// name. A name its kind has in either is refused. The model's part is one

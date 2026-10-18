@@ -10,6 +10,7 @@ use pd_core::render::draw::{DrawOptions, content_bounds, draw_model};
 use pd_core::styles::StyleEntry;
 use pd_core::view::{DiagramView, Target};
 
+use crate::inspector::Inspector;
 use crate::renderer::EguiRenderer;
 
 /// The size of a style's picture.
@@ -23,6 +24,8 @@ pub enum StylesAction {
     Rename(StyleKind, String),
     /// Say something in the status bar.
     Notice(String),
+    /// Open the Edit Style window for the style.
+    Edit(StyleKind, String),
     /// Export My Styles… to a file.
     Export,
     /// Import Styles… from a file.
@@ -210,6 +213,14 @@ fn row(
             ui.close();
         }
         ui.separator();
+        if ui
+            .button("Edit Style…")
+            .on_hover_text("Change the style's colours, border, shape and so on")
+            .clicked()
+        {
+            action = Some(StylesAction::Edit(kind, e.name.clone()));
+            ui.close();
+        }
         if ui.button("Rename…").clicked() {
             action = Some(StylesAction::Rename(kind, e.name.clone()));
             ui.close();
@@ -260,6 +271,103 @@ fn apply(view: &mut DiagramView, kind: StyleKind, name: &str) -> Option<StylesAc
     }
     view.apply_style(kind, name);
     None
+}
+
+/// The Edit Style window (S §8.6): a picture of the style on its own item,
+/// in a small diagram of its own, with the Properties fields that are part of
+/// a look. OK gives the style the item's look.
+pub struct StyleEditor {
+    kind: StyleKind,
+    name: String,
+    view: DiagramView,
+    inspector: Inspector,
+}
+
+/// How the Edit Style window was closed.
+pub enum EditorOutcome {
+    Ok(StyleKind, String, pd_core::model::Look),
+    Cancel,
+}
+
+impl StyleEditor {
+    pub fn new(kind: StyleKind, name: String, look: pd_core::model::Look) -> Self {
+        let mut view = DiagramView::new(pd_core::styles::preview(&look));
+        view.select_item(&Self::item(kind), false);
+        Self {
+            kind,
+            name,
+            view,
+            inspector: Inspector::for_styles(),
+        }
+    }
+
+    /// The one item of the preview (see `pd_core::styles::preview`).
+    fn item(kind: StyleKind) -> Target {
+        match kind {
+            StyleKind::Species => Target::Species("A".into()),
+            StyleKind::Reaction => Target::Leg("R".into()),
+            StyleKind::Compartment => Target::Compartment("c".into()),
+            StyleKind::Text => Target::Text("T".into()),
+        }
+    }
+
+    /// The window's own small diagram, for tests.
+    #[cfg(test)]
+    pub fn view_mut(&mut self) -> &mut DiagramView {
+        &mut self.view
+    }
+
+    /// The look as edited so far.
+    pub fn look(&self) -> Option<pd_core::model::Look> {
+        let id = match Self::item(self.kind) {
+            Target::Species(id) | Target::Leg(id) | Target::Compartment(id) | Target::Text(id) => {
+                id
+            }
+            _ => return None,
+        };
+        pd_core::styles::look_of(self.view.model(), self.kind, &id)
+    }
+
+    /// The window. Returns how it was closed, once it is.
+    pub fn show(&mut self, ctx: &egui::Context) -> Option<EditorOutcome> {
+        let mut outcome = None;
+        let mut open = true;
+        egui::Window::new(format!("Edit Style: {}", self.name))
+            .id(egui::Id::new("edit-style"))
+            .collapsible(false)
+            .resizable(false)
+            // Beside the right panel, clear of the diagram's top left.
+            .default_pos(ctx.content_rect().right_top() + egui::vec2(-660.0, 60.0))
+            .open(&mut open)
+            .show(ctx, |ui| {
+                if let Some(look) = self.look() {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(240.0, 90.0), Sense::hover());
+                    preview(ui, rect, &look);
+                }
+                ui.add_space(4.0);
+                self.inspector.show(ui, &mut self.view);
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("OK")
+                        .on_hover_text(
+                            "Give the style this look; everything following it changes too",
+                        )
+                        .clicked()
+                        && let Some(look) = self.look()
+                    {
+                        outcome = Some(EditorOutcome::Ok(self.kind, self.name.clone(), look));
+                    }
+                    if ui.button("Cancel").clicked() {
+                        outcome = Some(EditorOutcome::Cancel);
+                    }
+                });
+            });
+        if !open {
+            outcome = Some(EditorOutcome::Cancel);
+        }
+        outcome
+    }
 }
 
 /// The style drawn on a tiny model, scaled to fit `rect`.

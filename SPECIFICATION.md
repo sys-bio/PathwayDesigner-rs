@@ -1310,11 +1310,19 @@ model.
 - **The Styles tab** (§13.3) lists the styles of each kind, each with a small
   picture of the look, its name, where it is kept ("this model", "My Styles",
   both, or "this model; differs from My Styles") and how many items follow it. A
-  click applies it. Its right-click menu: *Apply to Selected*, *Change Style to
-  Match Selected*, *Select Items Using It*, *Rename…*, *Keep in My Styles* (a
+  click applies it. Its right-click menu: *Apply to Selected*, *Edit Style…*,
+  *Change Style to Match Selected*, *Select Items Using It*, *Rename…*, *Keep in
+  My Styles* (a
   style only in the model, as from someone else's file), *Replace My Style with
   This One* (when they differ), *Delete from This Model*, *Remove from My
   Styles*.
+- **Edit Style…** opens a window with a picture of the style on its own item and
+  the Properties fields that are part of a look (§8.5; for a species, its size
+  only when the name is outside), without ids, values, rate laws or words. Changes
+  show in the picture at once. **OK** gives the style the look, kept as drawn, in
+  the model and in My Styles wherever it is, and every item following it in the
+  model changes to match: one undo step, *Edit Style*. **Cancel** (or closing the
+  window) changes nothing. No item needs to use the style.
 - **Rename…** renames it in the model and in My Styles, wherever it is; items
   following it follow it under the new name. A name its kind has in either is
   refused. The model's part is one undo step, *Rename Style*.

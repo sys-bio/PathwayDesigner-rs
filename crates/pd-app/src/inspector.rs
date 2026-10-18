@@ -65,6 +65,9 @@ pub struct Inspector {
     edit_text: Option<String>,
     /// The colour picker's hex field.
     hex: String,
+    /// Only the rows that are part of a look (S §8.5): the Edit Style
+    /// window's fields (S §8.6).
+    look_only: bool,
 }
 
 /// A size as the field shows it: whole numbers as they are, others to one
@@ -136,6 +139,15 @@ const SWATCH: Vec2 = Vec2::new(28.0, 18.0);
 const WORDS_ID: &str = "text-words";
 
 impl Inspector {
+    /// The panel for the Edit Style window: only the rows that are part of a
+    /// look, without ids, values, rate laws, words or saved styles.
+    pub fn for_styles() -> Self {
+        Self {
+            look_only: true,
+            ..Self::default()
+        }
+    }
+
     /// Asks for the keyboard to go to the words field once `id` is the one
     /// selected text, with its words selected so typing replaces them.
     pub fn edit_text(&mut self, id: &str) {
@@ -154,6 +166,7 @@ impl Inspector {
         let first_text = texts.first().cloned();
         let compartments = view.selected_compartment_ids();
         let one_compartment = (compartments.len() == 1).then(|| compartments[0].clone());
+        let look_only = self.look_only;
 
         // Drafts typed for an item that is no longer the one shown go to that
         // item first (SPEC-Rust §11.2).
@@ -186,19 +199,23 @@ impl Inspector {
         let mut shown = false;
         if !species.is_empty() {
             heading(ui, &mut shown, "Species");
-            style_row(ui, view, StyleKind::Species);
+            if !look_only {
+                style_row(ui, view, StyleKind::Species);
+            }
             ui.scope(|ui| {
                 egui::Grid::new("species")
                     .num_columns(2)
                     .spacing([8.0, 6.0])
                     .show(ui, |ui| {
-                        ui.label("Id");
-                        ui.label(match &one_species {
-                            Some(id) => view.rename_initial(id).unwrap_or_default(),
-                            None if species.is_empty() => String::new(),
-                            None => format!("{} selected", species.len()),
-                        });
-                        ui.end_row();
+                        if !look_only {
+                            ui.label("Id");
+                            ui.label(match &one_species {
+                                Some(id) => view.rename_initial(id).unwrap_or_default(),
+                                None if species.is_empty() => String::new(),
+                                None => format!("{} selected", species.len()),
+                            });
+                            ui.end_row();
+                        }
 
                         ui.label("Fill");
                         self.swatch(ui, view, ColourField::Fill);
@@ -283,29 +300,36 @@ impl Inspector {
                         }
                         ui.end_row();
 
-                        // For every selected species (S §7.10).
-                        ui.label("Width");
-                        self.number(ui, view, Field::SpeciesWidth, true, "")
-                            .on_hover_text("Or drag a corner of the selection");
-                        ui.end_row();
-                        ui.label("Height");
-                        self.number(ui, view, Field::SpeciesHeight, true, "")
-                            .on_hover_text("Shift while dragging a corner keeps the proportions");
-                        ui.end_row();
-                        ui.label("");
-                        // A name outside doesn't set the node's width.
-                        let fits = view.selected_species_label_outside() != Some(true);
-                        if ui
-                            .add_enabled(fits, egui::Button::new("Fit to Name"))
-                            .on_hover_text(
-                                "Make the selected species just wide enough for their names",
-                            )
-                            .on_disabled_hover_text("Their names are drawn outside the node")
-                            .clicked()
-                        {
-                            view.fit_species_to_names();
+                        // For every selected species (S §7.10). Part of a look only
+                        // with the name outside (S §5.11).
+                        if !look_only || view.selected_species_label_outside() == Some(true) {
+                            ui.label("Width");
+                            self.number(ui, view, Field::SpeciesWidth, true, "")
+                                .on_hover_text("Or drag a corner of the selection");
+                            ui.end_row();
+                            ui.label("Height");
+                            self.number(ui, view, Field::SpeciesHeight, true, "")
+                                .on_hover_text(
+                                    "Shift while dragging a corner keeps the proportions",
+                                );
+                            ui.end_row();
                         }
-                        ui.end_row();
+                        if !look_only {
+                            ui.label("");
+                            // A name outside doesn't set the node's width.
+                            let fits = view.selected_species_label_outside() != Some(true);
+                            if ui
+                                .add_enabled(fits, egui::Button::new("Fit to Name"))
+                                .on_hover_text(
+                                    "Make the selected species just wide enough for their names",
+                                )
+                                .on_disabled_hover_text("Their names are drawn outside the node")
+                                .clicked()
+                            {
+                                view.fit_species_to_names();
+                            }
+                            ui.end_row();
+                        }
 
                         // For every selected species (S §5.10).
                         ui.label("Shape");
@@ -327,42 +351,48 @@ impl Inspector {
                             view.set_species_shape(shape);
                         }
                         ui.end_row();
-                        ui.label("Concentration");
-                        self.number(ui, view, Field::Concentration, one_species.is_some(), "");
-                        ui.end_row();
+                        if !look_only {
+                            ui.label("Concentration");
+                            self.number(ui, view, Field::Concentration, one_species.is_some(), "");
+                            ui.end_row();
 
-                        ui.label("Boundary");
-                        let all = !species.is_empty()
-                            && species.iter().all(|id| {
-                                let m = view.model();
-                                let p = m.find_species(id).map(|s| s.primary_id().to_owned());
-                                p.and_then(|p| m.find_species(&p))
-                                    .is_some_and(|s| s.is_boundary)
-                            });
-                        let mut boundary = all;
-                        if ui.checkbox(&mut boundary, "").changed() {
-                            view.set_boundary(boundary);
+                            ui.label("Boundary");
+                            let all = !species.is_empty()
+                                && species.iter().all(|id| {
+                                    let m = view.model();
+                                    let p = m.find_species(id).map(|s| s.primary_id().to_owned());
+                                    p.and_then(|p| m.find_species(&p))
+                                        .is_some_and(|s| s.is_boundary)
+                                });
+                            let mut boundary = all;
+                            if ui.checkbox(&mut boundary, "").changed() {
+                                view.set_boundary(boundary);
+                            }
+                            ui.end_row();
                         }
-                        ui.end_row();
                     });
             });
         }
 
         if !reactions.is_empty() {
             heading(ui, &mut shown, "Reaction");
-            style_row(ui, view, StyleKind::Reaction);
+            if !look_only {
+                style_row(ui, view, StyleKind::Reaction);
+            }
             ui.scope(|ui| {
                 egui::Grid::new("reaction")
                     .num_columns(2)
                     .spacing([8.0, 6.0])
                     .show(ui, |ui| {
-                        ui.label("Id");
-                        ui.label(match &one_reaction {
-                            Some(id) => id.clone(),
-                            None if reactions.is_empty() => String::new(),
-                            None => format!("{} selected", reactions.len()),
-                        });
-                        ui.end_row();
+                        if !look_only {
+                            ui.label("Id");
+                            ui.label(match &one_reaction {
+                                Some(id) => id.clone(),
+                                None if reactions.is_empty() => String::new(),
+                                None => format!("{} selected", reactions.len()),
+                            });
+                            ui.end_row();
+                        }
 
                         ui.label("Line");
                         self.swatch(ui, view, ColourField::Line);
@@ -378,31 +408,37 @@ impl Inspector {
                         }
                         ui.end_row();
                     });
-                ui.label("Rate law");
-                self.law_field(ui, view, one_reaction.is_some());
+                if !look_only {
+                    ui.label("Rate law");
+                    self.law_field(ui, view, one_reaction.is_some());
+                }
             });
         }
 
         if !compartments.is_empty() {
             heading(ui, &mut shown, "Compartment");
-            style_row(ui, view, StyleKind::Compartment);
+            if !look_only {
+                style_row(ui, view, StyleKind::Compartment);
+            }
             ui.scope(|ui| {
                 egui::Grid::new("compartment")
                     .num_columns(2)
                     .spacing([8.0, 6.0])
                     .show(ui, |ui| {
-                        ui.label("Id");
-                        if one_compartment.is_some() {
-                            self.number(ui, view, Field::CompartmentId, true, "");
-                        } else if compartments.is_empty() {
-                            ui.label("");
-                        } else {
-                            ui.label(format!("{} selected", compartments.len()));
+                        if !look_only {
+                            ui.label("Id");
+                            if one_compartment.is_some() {
+                                self.number(ui, view, Field::CompartmentId, true, "");
+                            } else if compartments.is_empty() {
+                                ui.label("");
+                            } else {
+                                ui.label(format!("{} selected", compartments.len()));
+                            }
+                            ui.end_row();
+                            ui.label("Volume");
+                            self.number(ui, view, Field::Volume, one_compartment.is_some(), "");
+                            ui.end_row();
                         }
-                        ui.end_row();
-                        ui.label("Volume");
-                        self.number(ui, view, Field::Volume, one_compartment.is_some(), "");
-                        ui.end_row();
                         ui.label("Fill");
                         self.swatch(ui, view, ColourField::CompartmentFill);
                         ui.end_row();
@@ -420,29 +456,31 @@ impl Inspector {
                         .on_hover_text("0 for no border");
                         ui.end_row();
 
-                        // Ticked only if every selected box is shown. The default
-                        // compartment is never drawn, so it has no box to show.
-                        let m = view.model();
-                        let boxes: Vec<_> = compartments
-                            .iter()
-                            .filter_map(|id| m.find_compartment(id))
-                            .filter(|c| !c.is_default())
-                            .collect();
-                        let mut shown = !boxes.is_empty() && boxes.iter().all(|c| !c.hidden);
-                        ui.label("Show box");
-                        if ui
-                            .add_enabled(
-                                !boxes.is_empty(),
-                                egui::Checkbox::without_text(&mut shown),
-                            )
-                            .on_hover_text(
-                                "Untick to hide the box; the compartment and its species stay",
-                            )
-                            .changed()
-                        {
-                            view.set_compartment_hidden(!shown);
+                        if !look_only {
+                            // Ticked only if every selected box is shown. The default
+                            // compartment is never drawn, so it has no box to show.
+                            let m = view.model();
+                            let boxes: Vec<_> = compartments
+                                .iter()
+                                .filter_map(|id| m.find_compartment(id))
+                                .filter(|c| !c.is_default())
+                                .collect();
+                            let mut shown = !boxes.is_empty() && boxes.iter().all(|c| !c.hidden);
+                            ui.label("Show box");
+                            if ui
+                                .add_enabled(
+                                    !boxes.is_empty(),
+                                    egui::Checkbox::without_text(&mut shown),
+                                )
+                                .on_hover_text(
+                                    "Untick to hide the box; the compartment and its species stay",
+                                )
+                                .changed()
+                            {
+                                view.set_compartment_hidden(!shown);
+                            }
+                            ui.end_row();
                         }
-                        ui.end_row();
                     });
                 if let Some(e) = &self.rename_error {
                     ui.label(RichText::new(e).color(ERROR).small());
@@ -452,9 +490,13 @@ impl Inspector {
 
         if !texts.is_empty() {
             heading(ui, &mut shown, "Text");
-            style_row(ui, view, StyleKind::Text);
+            if !look_only {
+                style_row(ui, view, StyleKind::Text);
+            }
             ui.scope(|ui| {
-                self.words_field(ui, view, one_text.as_deref());
+                if !look_only {
+                    self.words_field(ui, view, one_text.as_deref());
+                }
                 let m = view.model();
                 let selected: Vec<_> = texts.iter().filter_map(|id| m.find_text(id)).collect();
                 let face = selected
@@ -533,10 +575,18 @@ impl Inspector {
                         self.swatch(ui, view, ColourField::Text);
                         ui.end_row();
 
-                        ui.label("Wrap width");
-                        self.number(ui, view, Field::TextWrap, one_text.is_some(), "0 = no wrap")
+                        if !look_only {
+                            ui.label("Wrap width");
+                            self.number(
+                                ui,
+                                view,
+                                Field::TextWrap,
+                                one_text.is_some(),
+                                "0 = no wrap",
+                            )
                             .on_hover_text("Or drag the small square on the text's right edge");
-                        ui.end_row();
+                            ui.end_row();
+                        }
                     });
             });
         }

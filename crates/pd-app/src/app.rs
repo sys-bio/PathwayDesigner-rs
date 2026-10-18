@@ -160,6 +160,8 @@ pub struct PathwayApp {
     pub(crate) antimony: AntimonyPanel,
     /// Which of the right panel's tabs is shown.
     pub(crate) right_tab: RightTab,
+    /// The Edit Style window, while it is open (S §8.6).
+    pub(crate) style_editor: Option<crate::styles_panel::StyleEditor>,
     prefs: Preferences,
     pub(crate) dialog: Option<Dialog>,
     pub(crate) files: Files,
@@ -226,6 +228,7 @@ impl PathwayApp {
             inspector: Inspector::default(),
             antimony: AntimonyPanel::default(),
             right_tab: RightTab::default(),
+            style_editor: None,
             prefs: Preferences::load(cc.storage),
             dialog: None,
             files: Files::default(),
@@ -1089,6 +1092,25 @@ impl PathwayApp {
         }
     }
 
+    /// The Edit Style window, if open; OK gives the style its look.
+    fn style_editor_window(&mut self, ctx: &egui::Context) {
+        use crate::styles_panel::EditorOutcome;
+        let Some(editor) = &mut self.style_editor else {
+            return;
+        };
+        match editor.show(ctx) {
+            None => {}
+            Some(EditorOutcome::Cancel) => self.style_editor = None,
+            Some(EditorOutcome::Ok(kind, name, look)) => {
+                match self.view.edit_style(kind, &name, look) {
+                    Ok(_) => self.notice = Some(format!("Changed the style “{name}”")),
+                    Err(e) => self.warnings = vec![format!("Can't change the style: {e}.")],
+                }
+                self.style_editor = None;
+            }
+        }
+    }
+
     fn dialogs(&mut self, ctx: &egui::Context) {
         let Some(dialog) = &mut self.dialog else {
             return;
@@ -1424,6 +1446,18 @@ impl eframe::App for PathwayApp {
             }
             Some(crate::styles_panel::StylesAction::Notice(text)) => self.notice = Some(text),
             Some(crate::styles_panel::StylesAction::Export) => self.export_styles(),
+            Some(crate::styles_panel::StylesAction::Edit(kind, name)) => {
+                let look = self
+                    .view
+                    .style_entries(kind)
+                    .into_iter()
+                    .find(|e| e.name == name)
+                    .map(|e| e.look);
+                if let Some(look) = look {
+                    self.style_editor =
+                        Some(crate::styles_panel::StyleEditor::new(kind, name, look));
+                }
+            }
             Some(crate::styles_panel::StylesAction::Import) => {
                 self.files.open(
                     &self.ctx,
@@ -1465,6 +1499,7 @@ impl eframe::App for PathwayApp {
         }
         self.note_version_change();
         self.dialogs(&ctx);
+        self.style_editor_window(&ctx);
     }
 }
 
@@ -1861,6 +1896,69 @@ k = 0.1"
                 "{id} followed the pointer after release"
             );
         }
+    }
+
+    #[test]
+    fn the_edit_style_window_changes_a_style() {
+        use pd_core::model::{NodeShape, StyleKind};
+        let mut h = Harness::new();
+        // A species style, followed by the first species.
+        let id = h.app.view.model().species()[0].id.clone();
+        let target = pd_core::view::Target::Species(id.clone());
+        h.app.view.save_style(&target, "Enzyme").unwrap();
+        h.app.right_tab = RightTab::Styles;
+        let look = h.app.view.model().styles[0].look;
+        h.app.style_editor = Some(crate::styles_panel::StyleEditor::new(
+            StyleKind::Species,
+            "Enzyme".into(),
+            look,
+        ));
+        h.run(vec![]);
+        // Only the rows that make a look.
+        let labels: Vec<String> = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter_map(|(_, n)| n.value().map(str::to_owned))
+            .collect();
+        for row in ["Fill", "Border width", "Shape", "Name"] {
+            assert!(labels.iter().any(|l| l == row), "{row}");
+        }
+        for row in ["Concentration", "Boundary", "Id", "Width"] {
+            assert!(!labels.iter().any(|l| l == row), "{row}");
+        }
+        // A change in the window, then OK: the style and its species change.
+        let ed = h.app.style_editor.as_mut().unwrap();
+        ed.view_mut().set_species_shape(NodeShape::Hexagon);
+        h.run(vec![]);
+        h.click(h.widget("OK"));
+        h.run(vec![]);
+        assert!(h.app.style_editor.is_none(), "closed");
+        assert_eq!(h.app.notice.as_deref(), Some("Changed the style “Enzyme”"));
+        let s = h.app.view.model().find_species(&id).unwrap();
+        assert_eq!(s.shape, NodeShape::Hexagon);
+        assert_eq!(s.style_name.as_deref(), Some("Enzyme"));
+        assert_eq!(h.app.view.undo_description(), Some("Edit Style"));
+        // Cancel changes nothing.
+        let look = h.app.view.model().styles[0].look;
+        h.app.style_editor = Some(crate::styles_panel::StyleEditor::new(
+            StyleKind::Species,
+            "Enzyme".into(),
+            look,
+        ));
+        h.app
+            .style_editor
+            .as_mut()
+            .unwrap()
+            .view_mut()
+            .set_species_shape(NodeShape::Ellipse);
+        h.run(vec![]);
+        h.click(h.widget("Cancel"));
+        h.run(vec![]);
+        assert!(h.app.style_editor.is_none());
+        assert_eq!(h.app.view.model().styles[0].look, look);
     }
 
     #[test]

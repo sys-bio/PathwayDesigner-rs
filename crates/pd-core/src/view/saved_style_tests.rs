@@ -903,3 +903,68 @@ fn styles_read_from_a_file_are_kept_as_drawn() {
     assert_eq!(border_dash, BorderDash::Solid);
     assert!(!alias);
 }
+
+// ----- Edit Style -------------------------------------------------------------
+
+#[test]
+fn edit_style_changes_the_style_and_everything_following_it() {
+    let mut v = with_enzyme();
+    select(&mut v, &[sp("S2")]);
+    v.apply_style(StyleKind::Species, "Enzyme");
+    // The look as the Edit Style window leaves it: on a picture of the style.
+    let mut m = crate::styles::preview(&v.model().styles[0].look);
+    m.find_species_mut("A").unwrap().shape = NodeShape::Hexagon;
+    m.find_species_mut("A").unwrap().style.no_border = true;
+    let look = crate::styles::look_of(&m, StyleKind::Species, "A").unwrap();
+    v.edit_style(StyleKind::Species, "Enzyme", look).unwrap();
+    assert_eq!(v.undo_description(), Some("Edit Style"));
+    for id in ["S1", "S2"] {
+        let s = v.model().find_species(id).unwrap();
+        assert_eq!(s.shape, NodeShape::Hexagon, "{id}");
+        assert!(s.style.no_border, "{id}");
+        assert_eq!(
+            link(&v, &sp(id)).as_deref(),
+            Some("Enzyme"),
+            "still follows it"
+        );
+    }
+    let stored = v.model().styles[0].look;
+    assert_eq!(stored, crate::styles::resolved(look), "kept as drawn");
+    assert_eq!(v.my_styles()[0].look, stored, "My Styles too");
+    // One undo step puts the model back; My Styles keeps the edit.
+    v.undo();
+    assert_eq!(
+        v.model().find_species("S2").unwrap().shape,
+        NodeShape::Ellipse
+    );
+    assert_eq!(v.my_styles()[0].look, stored);
+    // A style only in My Styles changes there alone.
+    v.set_model(view().model().clone());
+    let r = v.edit_style(StyleKind::Species, "Enzyme", look).unwrap();
+    assert!(!r.model_changed);
+    assert!(v.model().styles.is_empty());
+    // One that isn't there, or a look of another kind, is refused.
+    assert_eq!(
+        v.edit_style(StyleKind::Species, "Nope", look),
+        Err(StyleError::NoStyle("Nope".into()))
+    );
+    assert!(v.edit_style(StyleKind::Reaction, "Enzyme", look).is_err());
+}
+
+#[test]
+fn an_edited_style_is_kept_as_drawn() {
+    // "Automatic" border style chosen in the Edit Style window: the style
+    // keeps the border as drawn on a primary, solid.
+    let mut v = with_enzyme();
+    let mut m = crate::styles::preview(&v.model().styles[0].look);
+    m.find_species_mut("A").unwrap().border_dash = BorderDash::Automatic;
+    let look = crate::styles::look_of(&m, StyleKind::Species, "A").unwrap();
+    v.edit_style(StyleKind::Species, "Enzyme", look).unwrap();
+    assert!(matches!(
+        v.model().styles[0].look,
+        crate::model::Look::Species {
+            border_dash: BorderDash::Solid,
+            ..
+        }
+    ));
+}
