@@ -8,7 +8,7 @@ biology world as Antimony or SBML with layout.
 It is written in Rust with [egui](https://github.com/emilk/egui). The same code
 runs in the browser and as a desktop app for Windows, macOS and Linux.
 
-This was developed with the assistance of claude. Stop here is you aren't comfortable with AI assisted code generation.
+This was developed with the assistance of claude. Stop here if you aren't comfortable with AI assisted code generation.
 
 **Try it:** https://sys-bio.github.io/PathwayDesigner-rs/
 
@@ -36,25 +36,54 @@ Delphi version does, and some more (see [Status](#status)).
 - Three ways to draw a reaction: **Straight** (legs meet at a junction), **Linear**
   (one straight line, for A → B), and **Bézier** curves with handles you can drag,
   optionally with a smooth junction.
-- **Aliases** (a second drawing of the same species), **modifiers** (drawn as
-  dashed arcs, found from the rate law), and **null nodes** for sources and sinks.
-- An inspector for colours, line widths, initial values, boundary species and
-  rate laws, with errors in a rate law shown as you type.
-- A model tree listing every species and reaction, usable from the keyboard.
+- **Aliases** (a second drawing of the same species), with commands to split a
+  species into aliases, split off chosen reactions, and merge aliases back.
+- **Modifiers** (drawn as dashed arcs, found from the rate law), and **null
+  nodes** for sources and sinks.
+- **Compartments**, drawn as boxes you can move and resize; species move with
+  their compartment, and a box can be hidden.
+- **Free text** for titles and notes, with typeface, size, bold, italic, colour,
+  alignment and wrapping.
+- A right-hand panel with **Properties** for what is selected (colours, line and
+  border widths, values, boundary species, rate laws, with errors in a rate law
+  shown as you type), the live **Antimony** text, and the saved **Styles**.
+- A model tree listing every species, reaction and compartment, usable from the
+  keyboard.
 - Undo and redo for every change.
+
+**How things look**
+- Species **shapes**: rounded rectangle, rectangle, ellipse, circle or hexagon;
+  **resize** them by their corners or by number, or fit them to their names.
+- Fill, border colour, border width (0 for no border), solid or dashed border,
+  label colour and font size, for each item.
+- **Names outside the node**, as in Escher's metabolic maps: small circles with
+  their names beside them, each name dragged where you want it.
+- **Copy Style** and **Paste Style** (Ctrl+Alt+C, Ctrl+Alt+V) copy a look from one
+  item to others, like a format painter; an alias can take its species' look.
+- **Saved styles**: keep a look under a name and give it to other items, which then
+  follow it, so changing the style changes them all. Styles are kept with the app
+  ("My Styles") and saved in the model file for the styles it uses, so a model
+  given to someone else carries them. Edit a style directly, and export and import
+  styles to share them.
 
 **Layout**
 - Force-directed **auto-layout**, animated, with an optional pass that shapes the
   Bézier curves. Locked nodes stay where they are.
-- **Align and distribute** species and junctions, and nudge the selection with the
-  arrow keys.
+- **Align and distribute** species and junctions, and **Arrange in Circle**.
+- A **grid** to line things up, and **Snap to grid**: dragged items, new items,
+  corners, Bézier handles, names and arrow-key moves land on grid points (hold Alt
+  to place freely).
+- Nudge the selection with the arrow keys.
+- The pointer's position on the diagram is shown in the status bar.
 - A random network generator, for trying things out.
 
 **Files**
-- PathwayDesigner's own JSON format, compatible with the Delphi version's files.
+- PathwayDesigner's own JSON format. It reads the Delphi version's files, and a
+  model that uses nothing new is still saved in the Delphi version's format.
 - **Antimony**: import and export, with a live Antimony panel next to the drawing.
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
-  package, so positions, aliases and curves survive the round trip.
+  package, so positions, aliases and curves survive the round trip; shapes, names
+  outside the node and compartment boxes come back too.
 - **Graphics**: SVG, PNG at any resolution, and vector PDF (Letter, A4 or the
   drawing's own size), and printing.
 
@@ -79,14 +108,18 @@ turn. **Select** is for selecting, dragging and editing. Esc goes back to Select
 
 The toolbar shapes the selected reactions (Linear, Bézier, Straight, smooth
 junction, Make Nice) and runs the auto-layout. Right-click a species or a reaction
-for more: aliases, renaming, locking, alignment.
+for more: aliases, renaming, locking, alignment, styles. The View menu has the
+grid, Snap to grid, zoom, and switches for the alias indicator and modifier
+lines.
 
 | Mouse | |
 |---|---|
 | Click, Shift-click | Select; add to or take from the selection |
 | Drag on empty canvas | Select everything in a rectangle |
-| Drag a species, junction or handle | Move it |
-| Double-click a species | Rename it |
+| Drag a species, junction, handle, text or name | Move it |
+| Drag a corner of a selected species or compartment | Resize it (Shift keeps the proportions) |
+| Alt + drag | Place freely while Snap to grid is on |
+| Double-click a species | Rename it (a text: edit its words) |
 | Right-click | The menu for what is under the pointer |
 | Wheel, or two-finger scroll | Pan (Shift: sideways) |
 | Ctrl + wheel, or pinch | Zoom, keeping the point under the pointer still |
@@ -97,7 +130,8 @@ for more: aliases, renaming, locking, alignment.
 | Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y | Undo, redo |
 | Ctrl+A | Select all (Edit also has Select All Species and Select All Reactions) |
 | Delete, Backspace | Delete the selection |
-| Arrow keys, Shift + arrow keys | Nudge the selection 1 unit, 10 units |
+| Arrow keys, Shift + arrow keys | Nudge the selection 1 unit, 10 units; with Snap to grid, one grid line, five (Alt for 1 and 10) |
+| Ctrl+Alt+C, Ctrl+Alt+V | Copy Style, Paste Style |
 | Esc | Cancel, back to the Select tool |
 | Ctrl+S, Ctrl+Shift+S | Save, Save As |
 | Ctrl+O, Ctrl+N | Open, New (in a browser, Ctrl+N opens a new browser window: use File ▸ New) |
@@ -184,8 +218,10 @@ installer has been tried by hand.
 
 Beyond the Delphi version, this one adds SBML import, SVG export, a drawing-sized
 PDF page, the model tree, animated auto-layout, keyboard nudging, aligning
-junctions, offline use and autosave, and fixes the defects listed in
-SPECIFICATION.md §15.
+junctions, Arrange in Circle, more alias commands, drawn compartments, free text,
+species shapes and resizing, names outside the node, Copy and Paste Style, saved
+styles, the grid and Snap to grid, offline use and autosave, and fixes the defects
+listed in SPECIFICATION.md §15.
 
 ## Documents
 
@@ -228,7 +264,7 @@ The files are:
 | File | What it is |
 |---|---|
 | `index.html` | The page |
-| `pathway-designer-<hash>.js` and `pathway-designer-<hash>_bg.wasm` | The app (the `.wasm` file is about 10 MB) |
+| `pathway-designer-<hash>.js` and `pathway-designer-<hash>_bg.wasm` | The app (the `.wasm` file is about 15 MB) |
 | `sw.js` | Lets the app work offline |
 | `THIRD-PARTY.html` | The licences of the software it is built from |
 | `README.md` | These instructions |
