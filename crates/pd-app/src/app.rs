@@ -268,6 +268,7 @@ impl PathwayApp {
         app.view.selected_reaction_colour = app.prefs.selected_reaction;
         app.view.show_modifiers = app.prefs.show_modifiers;
         app.view.show_grid = app.prefs.show_grid;
+        app.view.snap_to_grid = app.prefs.snap_to_grid;
         app.view.set_my_styles(crate::my_styles::load(cc.storage));
         app.perform(Action::OpenSample(START_SAMPLE));
         app.notice = None;
@@ -811,6 +812,10 @@ impl PathwayApp {
                 ui.checkbox(&mut self.view.show_grid, "Grid").on_hover_text(
                     "Lines every 20 units behind the diagram, as a guide; never exported",
                 );
+                ui.checkbox(&mut self.view.snap_to_grid, "Snap to grid")
+                    .on_hover_text(
+                        "Dragged and new items land on grid points; hold Alt to place freely",
+                    );
             });
             // On macOS, About is in the application menu (macos_menu.rs).
             #[cfg(not(target_os = "macos"))]
@@ -1401,6 +1406,7 @@ impl eframe::App for PathwayApp {
         // View ▸ Modifier lines changes the view directly.
         self.prefs.show_modifiers = self.view.show_modifiers;
         self.prefs.show_grid = self.view.show_grid;
+        self.prefs.snap_to_grid = self.view.snap_to_grid;
         self.prefs.save(storage);
         crate::my_styles::save(self.view.my_styles(), storage);
         self.autosave(storage);

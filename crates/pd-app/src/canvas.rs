@@ -86,6 +86,8 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut CanvasState) 
     let space = ui.input(|i| i.key_down(Key::Space)) && !ui.ctx().egui_wants_keyboard_input();
     // Shift during a species resize keeps proportions (S §7.10).
     result.merge(view.set_shift_held(ui.input(|i| i.modifiers.shift)));
+    // Alt turns snapping to the grid off while it is held (S §7.6).
+    result.merge(view.set_alt_held(ui.input(|i| i.modifiers.alt)));
     let multi_touch = ui.input(|i| i.multi_touch().is_some());
     let panning = response.dragged_by(PointerButton::Middle)
         || (space && response.dragged_by(PointerButton::Primary))

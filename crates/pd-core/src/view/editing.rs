@@ -92,7 +92,7 @@ impl DiagramView {
     /// AddSpecies: a click adds an 80 × 36 species centred on it (S §6.5).
     pub(super) fn add_species_at(&mut self, pos: Pt) -> ViewResponse {
         let before = self.model.clone();
-        let world = self.screen_to_world(pos);
+        let world = self.place(self.screen_to_world(pos));
         let id = self
             .model
             .add_species(world, DEFAULT_SPECIES_WIDTH, DEFAULT_SPECIES_HEIGHT);
@@ -105,7 +105,7 @@ impl DiagramView {
     /// in its editor (S §7.8).
     pub(super) fn add_text_at(&mut self, pos: Pt) -> ViewResponse {
         let before = self.model.clone();
-        let world = self.screen_to_world(pos);
+        let world = self.place(self.screen_to_world(pos));
         let id = self.model.add_text(world, NEW_TEXT);
         self.model.clear_selection();
         if let Some(t) = self.model.find_text_mut(&id) {

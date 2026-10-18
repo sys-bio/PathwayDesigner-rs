@@ -912,7 +912,7 @@ the circle. Both handles are 0.35 of the leg's length.
 junction at the centre of its species and automatic handles (smooth handles
 recomputed). Without this, the mean movement could put the junction anywhere.
 
-### 7.6 View toggles (not undoable; Modifier lines and Grid are remembered)
+### 7.6 View toggles (not undoable; Modifier lines, Grid and Snap to grid are remembered)
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border
   of aliases on or off.
@@ -925,8 +925,25 @@ recomputed). Without this, the mean movement could put the junction anywhere.
   every **20** units, with a darker line every **100**, as a guide for lining
   things up; they follow zoom and scroll. Lines that would be closer than **8**
   screen points are left out (the fine ones first), so zooming out never turns
-  the background grey. Remembered between sessions. Things don't snap to it yet;
-  snapping is planned. *Not in the reference; added at the user's request.*
+  the background grey. Remembered between sessions. *Not in the reference; added
+  at the user's request.*
+- **Snap to grid** on/off (View menu). Default **off**; it works whether the grid
+  is shown or not. While it is on:
+  - **Dragging** puts the point of the item grabbed on the nearest grid point
+    (every 20 units): a species' centre, a junction, a text's top-left corner, a
+    compartment's box's top-left corner. The rest of the selection, and what a
+    compartment carries, moves by the same amount, so the arrangement keeps its
+    shape. A click that doesn't move the pointer moves nothing. A locked species
+    grabbed doesn't move, so it doesn't snap the rest either.
+  - **New items** go on the nearest grid point: a species' centre, a text's
+    top-left corner, and both corners of a compartment drawn with the
+    Compartment tool.
+  - Holding **Alt** places freely; pressing or letting go of it during a drag
+    takes effect at once.
+  - Not snapped: Bézier handles, a name drawn outside its node (§5.11), resizing
+    by a corner, the arrow keys, and automatic layout.
+  Remembered between sessions. *Not in the reference; added at the user's
+  request.*
 
 Exported pictures (SVG, PNG, PDF, print) follow these settings, except the grid,
 which is never exported or printed.

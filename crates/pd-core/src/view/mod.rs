@@ -29,6 +29,8 @@ mod resize_tests;
 mod saved_style_tests;
 mod saved_styles;
 #[cfg(test)]
+mod snap_tests;
+#[cfg(test)]
 mod style_tests;
 #[cfg(test)]
 mod text_tests;
@@ -75,6 +77,8 @@ pub struct DiagramView {
     pub show_modifiers: bool,
     /// The grid drawn behind the diagram (S §7.6). Never in output.
     pub show_grid: bool,
+    /// Dragged and new items land on grid points (S §7.6), unless Alt is held.
+    pub snap_to_grid: bool,
     /// The colour a selected reaction is drawn in (a preference).
     pub selected_reaction_colour: crate::model::Rgba,
     /// New reactions are Bézier (S §6.5). The reference starts with it on.
@@ -85,6 +89,8 @@ pub struct DiagramView {
     gesture: Gesture,
     /// Shift is held: a species resize keeps proportions (S §7.10).
     shift_held: bool,
+    /// Alt is held: drag freely, without snapping to the grid (S §7.6).
+    alt_held: bool,
     /// What Copy Style took, for Paste Style (S §8.5). Not part of the model,
     /// so undo leaves it alone.
     copied_style: Option<crate::model::Look>,
@@ -178,6 +184,11 @@ struct NodeDrag {
     /// The model at the start, when the drag moves more than positions
     /// (stored handles, smooth junctions): it is undone as a snapshot (S §9.2).
     before: Option<Box<Model>>,
+    /// The point of the item grabbed that snaps to the grid (S §7.6), where
+    /// it was: a species' centre, a text's or compartment's top-left corner.
+    anchor: Option<Pt>,
+    /// The pointer's movement; `delta` is it snapped.
+    raw: Pt,
     delta: Pt,
 }
 
@@ -234,6 +245,23 @@ struct LabelDrag {
     delta: Pt,
 }
 
+/// The grid point nearest `p` (S §7.6).
+pub fn snap_point(p: Pt) -> Pt {
+    use crate::render::constants::GRID_SPACING;
+    let to = |v: f64| (v / GRID_SPACING).round() * GRID_SPACING + 0.0;
+    pt(to(p.x), to(p.y))
+}
+
+/// A drag's movement: the pointer's, or while snapping, the one that puts the
+/// grabbed point `anchor` on the nearest grid point. Nothing moves until the
+/// pointer does, so a click never moves what it selects.
+fn snap_delta(snap: bool, anchor: Option<Pt>, raw: Pt) -> Pt {
+    match anchor {
+        Some(a) if snap && raw != Pt::ZERO => snap_point(a + raw) - a,
+        _ => raw,
+    }
+}
+
 /// Which way a corner moves as a box grows: x and y, clockwise from the top
 /// left.
 const CORNER_SIGNS: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -259,6 +287,8 @@ struct JunctionDrag {
     /// A smooth junction's stored inner handles move with it (S §6.4).
     handles: Vec<HandleRef>,
     before: Option<Box<Model>>,
+    /// The pointer's movement; `delta` is it snapped (S §7.6).
+    raw: Pt,
     delta: Pt,
 }
 
@@ -277,6 +307,7 @@ impl DiagramView {
             show_alias_indicator: true,
             show_modifiers: true,
             show_grid: false,
+            snap_to_grid: false,
             show_null_species: true,
             selected_reaction_colour: crate::render::constants::SELECTED_REACTION,
             default_bezier: true,
@@ -284,6 +315,7 @@ impl DiagramView {
             undo: UndoHistory::new(),
             gesture: Gesture::Idle,
             shift_held: false,
+            alt_held: false,
             copied_style: None,
             my_styles: Vec::new(),
             tool: Tool::Select,
@@ -617,7 +649,7 @@ impl DiagramView {
             Tool::AddReaction { .. } => return self.pick_for_reaction(pos),
             Tool::AddText => return self.add_text_at(pos),
             Tool::AddCompartment => {
-                let at = self.screen_to_world(pos);
+                let at = self.place(self.screen_to_world(pos));
                 self.gesture = Gesture::NewCompartment {
                     start: at,
                     current: at,
@@ -629,7 +661,9 @@ impl DiagramView {
             }
         }
         let world = self.screen_to_world(pos);
-        match self.target_at(pos) {
+        let target = self.target_at(pos);
+        let anchor = self.snap_anchor(&target);
+        match target {
             Target::Species(id) => {
                 let selected = self.model.find_species(&id).is_some_and(|s| s.selected);
                 if modifiers.shift {
@@ -751,6 +785,9 @@ impl DiagramView {
                 };
             }
         }
+        if let Gesture::Nodes(drag) = &mut self.gesture {
+            drag.anchor = anchor;
+        }
         ViewResponse {
             repaint: true,
             ..ViewResponse::default()
@@ -783,15 +820,19 @@ impl DiagramView {
 
     fn pointer_move(&mut self, pos: Pt) -> ViewResponse {
         let world = self.screen_to_world(pos);
+        let snap = self.snapping();
+        let placed = self.place(world);
         match &mut self.gesture {
             Gesture::Idle => return ViewResponse::default(),
             Gesture::Nodes(drag) => {
-                drag.delta = world - drag.start;
+                drag.raw = world - drag.start;
+                drag.delta = snap_delta(snap, drag.anchor, drag.raw);
                 let drag = drag.clone();
                 self.apply_node_drag(&drag);
             }
             Gesture::Junction(drag) => {
-                drag.delta = world - drag.start;
+                drag.raw = world - drag.start;
+                drag.delta = snap_delta(snap, Some(drag.orig), drag.raw);
                 let drag = drag.clone();
                 self.apply_junction_drag(&drag);
             }
@@ -820,7 +861,7 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_label_drag(&drag);
             }
-            Gesture::NewCompartment { current, .. } => *current = world,
+            Gesture::NewCompartment { current, .. } => *current = placed,
             Gesture::RubberBand { current, .. } => *current = pos,
         }
         ViewResponse {
@@ -1118,6 +1159,8 @@ impl DiagramView {
             smooth,
             linear,
             before,
+            anchor: None,
+            raw: Pt::ZERO,
             delta: Pt::ZERO,
         }
     }
@@ -1152,6 +1195,7 @@ impl DiagramView {
             before: smooth.then(|| Box::new(self.model.clone())),
             reaction,
             handles,
+            raw: Pt::ZERO,
             delta: Pt::ZERO,
         }
     }
@@ -1226,6 +1270,61 @@ impl DiagramView {
             } else {
                 (drag.base + drag.delta.x).max(MIN_WRAP_WIDTH)
             };
+        }
+    }
+
+    /// Whether Alt is held, from the app every frame: while it is, drags
+    /// and new items don't snap to the grid; pressing or letting go of it
+    /// during a drag takes effect at once (S §7.6).
+    pub fn set_alt_held(&mut self, held: bool) -> ViewResponse {
+        if self.alt_held == held {
+            return ViewResponse::default();
+        }
+        self.alt_held = held;
+        let snap = self.snapping();
+        match &mut self.gesture {
+            Gesture::Nodes(drag) => {
+                drag.delta = snap_delta(snap, drag.anchor, drag.raw);
+                let drag = drag.clone();
+                self.apply_node_drag(&drag);
+            }
+            Gesture::Junction(drag) => {
+                drag.delta = snap_delta(snap, Some(drag.orig), drag.raw);
+                let drag = drag.clone();
+                self.apply_junction_drag(&drag);
+            }
+            _ => return ViewResponse::default(),
+        }
+        ViewResponse {
+            repaint: true,
+            ..ViewResponse::default()
+        }
+    }
+
+    /// True while dragged and new items snap to the grid.
+    fn snapping(&self) -> bool {
+        self.snap_to_grid && !self.alt_held
+    }
+
+    /// Where a new item goes for a click at world point `p`: the nearest grid
+    /// point while snapping, otherwise `p` (S §7.6).
+    fn place(&self, p: Pt) -> Pt {
+        if self.snapping() { snap_point(p) } else { p }
+    }
+
+    /// The point of the item at `target` that snaps when it is dragged: a
+    /// species' centre (unless it is locked, so doesn't move), a text's
+    /// top-left corner, a compartment's box's top-left corner.
+    fn snap_anchor(&self, target: &Target) -> Option<Pt> {
+        let m = &self.model;
+        match target {
+            Target::Species(id) => m.find_species(id).filter(|s| !s.locked).map(|s| s.center),
+            Target::Text(id) => m.find_text(id).map(|t| t.position),
+            Target::Compartment(id) => m
+                .find_compartment(id)
+                .and_then(|c| c.frame)
+                .map(|f| f.min()),
+            _ => None,
         }
     }
 
