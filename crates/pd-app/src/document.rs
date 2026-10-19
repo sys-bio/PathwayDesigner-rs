@@ -41,6 +41,8 @@ pub enum Action {
     New,
     Open,
     OpenSample(&'static str),
+    /// An example from the Gallery, to be fetched (S §11.8).
+    OpenGallery(crate::gallery::Example),
     /// A file already read: dropped on the window.
     OpenText {
         name: String,
@@ -86,6 +88,7 @@ impl PathwayApp {
                     self.open_text(&format!("{name}.json"), text, None);
                 }
             }
+            Action::OpenGallery(example) => self.gallery.start(&self.ctx, example),
             Action::OpenText { name, text, target } => {
                 self.open_text(&name, &text, target);
             }
@@ -299,6 +302,14 @@ impl PathwayApp {
     /// say what is being opened first: reading a big file blocks the browser
     /// until it is done.
     pub(crate) fn handle_files(&mut self) {
+        if let Some((example, text)) = self.gallery.poll() {
+            if self.open_text(example.name(), &text, None) {
+                self.gallery.open = false;
+            } else {
+                let why = self.warnings.first().cloned().unwrap_or_default();
+                self.gallery.failed(&example, &why);
+            }
+        }
         if let Some(event) = self.opening.take() {
             self.file_event(event);
         }

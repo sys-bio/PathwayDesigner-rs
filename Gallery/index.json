@@ -1,0 +1,81 @@
+{
+  "examples": [
+    {
+      "file": "ExampleModels/upper_glycolysis.json",
+      "group": "Small examples",
+      "title": "Upper glycolysis",
+      "description": "Glucose to the triose phosphates, in a cytosol compartment",
+      "version": 6
+    },
+    {
+      "file": "ExampleModels/compartment_1.json",
+      "group": "Small examples",
+      "title": "Compartments",
+      "description": "Two compartments, 12 reactions",
+      "version": 4
+    },
+    {
+      "file": "ExampleModels/circle_1.json",
+      "group": "Small examples",
+      "title": "Circle 1",
+      "description": "14 species and 10 reactions laid out in a circle",
+      "version": 3
+    },
+    {
+      "file": "ExampleModels/circle_2.json",
+      "group": "Small examples",
+      "title": "Circle 2",
+      "description": "12 species and 12 reactions laid out in a circle",
+      "version": 3
+    },
+    {
+      "file": "ExampleModels/circle_3.json",
+      "group": "Small examples",
+      "title": "Circle 3",
+      "description": "10 species and 12 reactions laid out in a circle",
+      "version": 4
+    },
+    {
+      "file": "ExampleModels/circle_4.json",
+      "group": "Small examples",
+      "title": "Circle 4",
+      "description": "10 species and 12 reactions laid out in a circle",
+      "version": 3
+    },
+    {
+      "file": "ExampleModels/ExampleEscher_Small.json",
+      "group": "Small examples",
+      "title": "A small network in the Escher theme",
+      "description": "12 reactions drawn in the Escher theme",
+      "version": 7
+    },
+    {
+      "file": "ExampleModels/GepasiYeastGlycolysis.json",
+      "group": "Large models",
+      "title": "Yeast glycolysis",
+      "description": "The Gepasi yeast glycolysis model, 19 reactions",
+      "version": 3
+    },
+    {
+      "file": "ExampleModels/E_coli_Millard2016.json",
+      "group": "Large models",
+      "title": "E. coli central metabolism (Millard 2016)",
+      "description": "Central carbon and energy metabolism, 68 reactions",
+      "version": 4
+    },
+    {
+      "file": "ExampleModels/e_coli_core.json",
+      "group": "Large models",
+      "title": "E. coli core (BiGG)",
+      "description": "The BiGG e_coli_core model, 95 reactions",
+      "version": 4
+    },
+    {
+      "file": "Escher/e_coli_core.Core metabolism.json",
+      "group": "Escher maps",
+      "title": "E. coli core metabolism",
+      "description": "Escher's own map of e_coli_core, opened through the Escher import",
+      "version": 0
+    }
+  ]
+}

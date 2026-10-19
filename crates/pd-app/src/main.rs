@@ -9,6 +9,7 @@ mod document;
 mod export;
 mod files;
 mod fonts;
+mod gallery;
 mod inspector;
 mod keys_help;
 #[cfg(target_os = "macos")]

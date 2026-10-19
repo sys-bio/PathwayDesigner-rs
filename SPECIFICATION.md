@@ -595,7 +595,7 @@ name: renaming the reaction renames the label.
   (§7.6), Alt to place it freely.
 - **Look:** drawn in the reaction style's `fontSize` (default 12) and `labelColor`
   (default `#1A1A1A`), fields a reaction's style always had but never used, set by
-  **Font size** and **Name colour** in the Reaction group. Drawn after the junction
+  **Font size** and **Id colour** in the Reaction group. Drawn after the junction
   handles, over the lines. Not drawn below 2 screen points, as species names.
 - **Selecting:** clicking the name selects its reaction (Shift toggles it), a
   rubber band touching the name selects it, and a selected reaction's name is
@@ -2064,6 +2064,55 @@ Save never writes over the map. Opening it is not an edit, so the status bar say
 - **Text labels** become free text (§7.8) at their points.
 - Left out: genes and gene rules, the canvas size, and node "primary" flags.
 
+### 11.8 The Gallery (online examples)
+
+*Added in the Rust version.* **File ▸ Open from Gallery…** opens example models
+that live in the repository, not in the app, so they can be added to or changed
+by a commit to `main`, with no new build or release. The few small samples built
+into the app (**Open sample**) stay, for when there is no network.
+
+- **The index.** `Gallery/index.json` in the repository lists the examples:
+  ```json
+  { "examples": [
+      { "file": "ExampleModels/E_coli_Millard2016.json",
+        "group": "Large models",
+        "title": "E. coli central metabolism",
+        "description": "Millard et al. 2016, 68 reactions",
+        "version": 4 } ] }
+  ```
+  `file` is a path from the repository's root, so an example can be any file in
+  it (a model in `ExampleModels/`, the map in `Escher/`) without a second copy.
+  `group` is the heading it is listed under, in the order the groups first
+  appear; `description` is optional. `version` is the PathwayDesigner format
+  version the file needs (§11.1), or `0` for a file that is not PathwayDesigner
+  JSON (an Escher map, SBML, Antimony); it is left out of the app's check.
+- **Where from.** Both the index and the files are read from
+  `https://raw.githubusercontent.com/sys-bio/PathwayDesigner-rs/main/`, in the
+  browser and on the desktop alike. GitHub serves these to any web page and
+  caches them for a few minutes, so a change pushed to `main` reaches the app
+  within about five minutes. (To try a Gallery before pushing it, build the app
+  with the environment variable `PD_GALLERY_URL` set to another address, ending
+  in `/`, that serves the same files.)
+- **The window.** Not modal. While the index is fetched it says *Fetching the
+  Gallery…* (with the busy cursor). Then it lists the examples under their
+  groups, each with its title, its description and an **Open**
+  button. An example whose `version` is newer than this app's format version is
+  shown greyed, with *Needs a newer PathwayDesigner*. **Refresh** fetches the
+  index again; otherwise it is fetched once per session.
+- **Opening.** Like Open (§13.1): first the prompt to save unsaved changes, then
+  the file is fetched (busy cursor) and opened by its kind, as if opened from a
+  file of that name (Escher maps by §11.7). The document is new and unsaved: Save
+  asks for a name (on the web, downloads), and it is not on the recent list.
+  Once it has opened, the window closes.
+- **Failures.** No network, a missing index or file, or a file that can't be read
+  gives a message in the window (*Couldn't reach the Gallery: …*, *Couldn't open
+  <title>: …*, such as *not found (404)*), opening the window if it was closed,
+  and leaves the current diagram as it was. An index entry that
+  can't be read is skipped, the others are listed.
+- **Checked by the tests.** Every entry's file exists, opens without errors, and
+  needs the `version` its entry says; groups and titles are not empty, and no two
+  entries share a file. So a broken index fails CI on the push that breaks it.
+
 ## 12. Preferences
 
 Preferences are kept in a small JSON file in the user's settings folder:
@@ -2097,7 +2146,7 @@ file name when a file is open).
 
 | Menu | Items |
 |---|---|
-| **File** | New · Open… · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
+| **File** | New · Open… · Open from Gallery… (§11.8) · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
 | **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Preferences… |
 | **Help** | Mouse and Keyboard (added in the Rust version: a window, not modal, listing the mouse actions and keyboard shortcuts as the README does; on the macOS desktop app it names Cmd and Option, elsewhere it notes them) · About (shows the version and build date) |
 

@@ -170,6 +170,8 @@ pub struct PathwayApp {
     /// Help ▸ Mouse and Keyboard is open. Not modal: it can stay open while
     /// drawing.
     pub(crate) keys_help: bool,
+    /// File ▸ Open from Gallery… (S §11.8).
+    pub(crate) gallery: crate::gallery::Gallery,
     pub(crate) files: Files,
     pub(crate) doc: Document,
     /// What to do once a Save requested by the unsaved-changes prompt is done.
@@ -251,6 +253,7 @@ impl PathwayApp {
             prefs: Preferences::load(cc.storage),
             dialog: None,
             keys_help: false,
+            gallery: Default::default(),
             files: Files::default(),
             doc: Document::default(),
             after_save: None,
@@ -666,6 +669,10 @@ impl PathwayApp {
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 self.recent_menu(ui);
+                if item(ui, "Open from Gallery…", None) {
+                    self.gallery.open = true;
+                    ui.close();
+                }
                 ui.menu_button("Open sample", |ui| {
                     for (name, _) in SAMPLES {
                         if ui.button(*name).clicked() {
@@ -1644,8 +1651,11 @@ impl eframe::App for PathwayApp {
         self.dialogs(&ctx);
         self.style_editor_window(&ctx);
         crate::keys_help::show(&ctx, &mut self.keys_help);
+        if let Some(example) = self.gallery.show(&ctx) {
+            self.request(Action::OpenGallery(example));
+        }
         // Last, so nothing over the canvas sets another.
-        if self.is_opening() {
+        if self.is_opening() || self.gallery.busy() {
             ctx.set_cursor_icon(egui::CursorIcon::Wait);
         }
     }
@@ -1789,6 +1799,193 @@ mod tests {
         h.click(h.widget("Close window"));
         h.run(vec![]);
         assert!(!h.app.keys_help);
+    }
+
+    /// The Gallery fetched from this checkout instead of GitHub.
+    fn local(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        let path = url
+            .strip_prefix(crate::gallery::BASE_URL)
+            .unwrap()
+            .replace("%20", " ");
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../");
+        let text = std::fs::read_to_string(format!("{root}{path}")).map_err(|e| e.to_string());
+        std::sync::Arc::new(std::sync::Mutex::new(Some(text)))
+    }
+
+    fn offline(_: &egui::Context, _: String) -> crate::gallery::Pending {
+        std::sync::Arc::new(std::sync::Mutex::new(Some(Err("no network".into()))))
+    }
+
+    fn garbage(_: &egui::Context, _: String) -> crate::gallery::Pending {
+        std::sync::Arc::new(std::sync::Mutex::new(Some(Ok("{ not a model".into()))))
+    }
+
+    /// A download that never finishes.
+    fn waiting(_: &egui::Context, _: String) -> crate::gallery::Pending {
+        Default::default()
+    }
+
+    /// The Open button on the row of the example titled `title`: where it
+    /// is, and whether it is enabled.
+    fn gallery_open(h: &Harness, title: &str) -> (Pos2, bool) {
+        let title = h.text(title);
+        let tree = h.access.as_ref().unwrap();
+        let n = tree
+            .nodes
+            .iter()
+            .map(|(_, n)| n)
+            .filter(|n| n.label() == Some("Open"))
+            .find(|n| {
+                n.bounds()
+                    .is_some_and(|b| b.y0 <= title.y as f64 && title.y as f64 <= b.y1 + 4.0)
+            })
+            .expect("an Open on its row");
+        let b = n.bounds().unwrap();
+        let at = Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32);
+        (at, !n.is_disabled())
+    }
+
+    fn example(file: &str) -> crate::gallery::Example {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../");
+        let text = std::fs::read_to_string(format!("{root}{}", crate::gallery::INDEX)).unwrap();
+        crate::gallery::Index::parse(&text)
+            .unwrap()
+            .examples
+            .into_iter()
+            .find(|e| e.file == file)
+            .unwrap()
+    }
+
+    #[test]
+    fn opening_from_the_gallery() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = local;
+        h.click(h.widget("File"));
+        h.click(h.widget("Open from Gallery…"));
+        assert!(h.app.gallery.open);
+        h.run(vec![]);
+        h.run(vec![]);
+        // The examples, under their groups.
+        h.text("Large models");
+        h.text("Escher maps");
+        h.text("E. coli central metabolism (Millard 2016)");
+        let (open, _) = gallery_open(&h, "Upper glycolysis");
+        h.click(open);
+        h.run(vec![]);
+        assert_eq!(h.app.doc.name, "upper_glycolysis.json");
+        assert!(h.app.doc.target.is_none(), "new and unsaved");
+        assert_eq!(h.app.view.model().reactions().len(), 4);
+        assert!(!h.app.gallery.open, "the window closes once it has opened");
+        // An Escher map goes through the import.
+        h.app.perform(Action::OpenGallery(example(
+            "Escher/e_coli_core.Core metabolism.json",
+        )));
+        h.run(vec![]);
+        assert_eq!(
+            h.app.doc.name,
+            "e_coli_core.Core metabolism (from Escher).json"
+        );
+        assert_eq!(h.app.view.model().reactions().len(), 95);
+    }
+
+    #[test]
+    fn the_gallery_asks_before_replacing_unsaved_changes() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = local;
+        h.app.view.select_all();
+        h.app.view.delete_selection();
+        assert!(h.app.view.is_modified());
+        h.app.gallery.open = true;
+        // Twice: a new window takes a frame to find its size and place.
+        h.run(vec![]);
+        h.run(vec![]);
+        let (open, _) = gallery_open(&h, "Circle 1");
+        h.click(open);
+        assert!(matches!(h.app.dialog, Some(Dialog::ConfirmDiscard(_))));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert_ne!(h.app.doc.name, "circle_1.json", "not without asking");
+        h.click(h.widget("Don't Save"));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert_eq!(h.app.doc.name, "circle_1.json");
+    }
+
+    #[test]
+    fn an_example_too_new_for_this_app_cant_be_opened() {
+        fn index(_: &egui::Context, _: String) -> crate::gallery::Pending {
+            let text = format!(
+                r#"{{"examples": [
+                    {{"file": "a.json", "group": "G", "title": "Old", "version": 3}},
+                    {{"file": "b.json", "group": "G", "title": "New", "version": {}}}]}}"#,
+                pd_core::json::FORMAT_VERSION + 1
+            );
+            std::sync::Arc::new(std::sync::Mutex::new(Some(Ok(text))))
+        }
+        let mut h = Harness::new();
+        h.app.gallery.fetch = index;
+        h.app.gallery.open = true;
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(gallery_open(&h, "Old").1);
+        assert!(!gallery_open(&h, "New").1);
+        h.text("Needs a newer PathwayDesigner");
+    }
+
+    #[test]
+    fn the_gallery_shows_the_busy_cursor_and_what_went_wrong() {
+        let mut h = Harness::new();
+        // Fetching the index: the busy cursor while the window is open.
+        h.app.gallery.fetch = waiting;
+        h.app.gallery.open = true;
+        h.run(vec![]);
+        h.run(vec![]);
+        h.text("Fetching the Gallery…");
+        assert_eq!(h.cursor, egui::CursorIcon::Wait);
+        h.app.gallery.open = false;
+        h.run(vec![]);
+        assert_ne!(h.cursor, egui::CursorIcon::Wait);
+        // Fetching a file.
+        let before = h.app.view.model().clone();
+        h.app
+            .perform(Action::OpenGallery(example("ExampleModels/circle_1.json")));
+        h.run(vec![]);
+        assert_eq!(h.cursor, egui::CursorIcon::Wait);
+        assert_eq!(h.app.view.model(), &before);
+        // No network: the window says so, and the diagram stays.
+        let mut h = Harness::new();
+        let before = h.app.view.model().clone();
+        h.app.gallery.fetch = offline;
+        h.app.gallery.open = true;
+        h.run(vec![]);
+        h.run(vec![]);
+        h.text("Couldn't reach the Gallery: no network");
+        h.app
+            .perform(Action::OpenGallery(example("ExampleModels/circle_1.json")));
+        h.run(vec![]);
+        h.run(vec![]);
+        h.text("Couldn't open Circle 1: no network");
+        assert_eq!(h.app.view.model(), &before);
+        assert_ne!(h.cursor, egui::CursorIcon::Wait);
+        // A file that arrives but can't be read.
+        let mut h = Harness::new();
+        let before = h.app.view.model().clone();
+        let mut bad = example("ExampleModels/circle_1.json");
+        bad.title = "Bad".into();
+        h.app.gallery.fetch = garbage;
+        h.app.perform(Action::OpenGallery(bad));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(h.app.gallery.open, "opened to say why");
+        assert_eq!(h.app.view.model(), &before);
+        h.run(vec![]);
+        let tree = h.access.as_ref().unwrap();
+        assert!(
+            tree.nodes.iter().any(|(_, n)| n
+                .value()
+                .is_some_and(|v| v.starts_with("Couldn't open Bad:"))),
+            "the window says why"
+        );
     }
 
     #[test]
