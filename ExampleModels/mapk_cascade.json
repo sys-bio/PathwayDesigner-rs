@@ -1,5 +1,5 @@
 {
-  "version": 11,
+  "version": 12,
   "modelName": "mapk_cascade",
   "compartments": [],
   "parameters": [
@@ -322,7 +322,9 @@
             112.0,
             360.0884582897505,
             115.65307497385034
-          ]
+          ],
+          "symbolSize": 20.0,
+          "symbolGap": 10.0
         }
       ],
       "style": {

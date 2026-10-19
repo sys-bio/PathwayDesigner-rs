@@ -40,7 +40,7 @@
       "group": "Showcase",
       "title": "MAPK cascade with negative feedback",
       "description": "After Kholodenko (2000): three tiers of phosphorylation cycles; MAPK-PP's feedback is an inhibitor line routed round the diagram",
-      "version": 11
+      "version": 12
     },
     {
       "file": "ExampleModels/repressilator.json",
