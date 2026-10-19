@@ -554,8 +554,8 @@ The right-click menu of an arc shows which modifier it is above its items.
 
 #### 5.7.2 A modifier line's look (Rust version)
 
-*Added in the Rust version; designed with the user. Step 1 (done): the model,
-drawing, JSON and the panel. Step 2: the SBML note.* Each modifier line has its
+*Added in the Rust version; designed with the user, built in two steps: the
+model, drawing, JSON and the panel; then the SBML note.* Each modifier line has its
 own look, set by hand. Every setting starts as **default**, which draws the arc
 exactly as §5.7 and §5.7.1 say, so existing diagrams don't change.
 

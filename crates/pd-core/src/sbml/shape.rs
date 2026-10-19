@@ -21,8 +21,8 @@
 
 use crate::json::colour::{from_hex, to_hex};
 use crate::model::{
-    BorderDash, Compartment, NodeShape, Reaction, ReactionMode, Rgba, SpeciesNode, TextAlign,
-    TextFont, TextItem, Typeface, VisualStyle,
+    BorderDash, Compartment, LinePattern, ModifierLook, NodeShape, Reaction, ReactionMode, Rgba,
+    SpeciesNode, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
 };
 
 /// The namespace of PathwayDesigner's note.
@@ -126,6 +126,64 @@ pub fn species_note(s: &SpeciesNode) -> Option<String> {
         attrs.push_str(r#" noBorder="true""#);
     }
     (!attrs.is_empty()).then(|| format!("\n<pd:species xmlns:pd=\"{NS}\"{attrs}/>\n"))
+}
+
+/// The note for a modifier's species reference glyph: its line's own look
+/// (S §5.7.2), or `None` when all of it is the default. SBML Layout has no
+/// such settings; other tools ignore the note.
+///
+/// ```xml
+/// <pd:modifier xmlns:pd="…" lineColor="#C80000FF" lineWidth="3" pattern="solid"
+///              symbolSize="30" symbolGap="12"/>
+/// ```
+pub fn modifier_note(look: &ModifierLook) -> Option<String> {
+    let mut attrs = String::new();
+    if let Some(c) = look.colour {
+        attrs.push_str(&format!(
+            " lineColor=\"{}\"",
+            crate::json::colour::to_hex(c)
+        ));
+    }
+    if let Some(w) = look.width {
+        attrs.push_str(&format!(" lineWidth=\"{w}\""));
+    }
+    if let Some(p) = look.pattern.key() {
+        attrs.push_str(&format!(" pattern=\"{p}\""));
+    }
+    if let Some(v) = look.symbol_size {
+        attrs.push_str(&format!(" symbolSize=\"{v}\""));
+    }
+    if let Some(v) = look.symbol_gap {
+        attrs.push_str(&format!(" symbolGap=\"{v}\""));
+    }
+    (!attrs.is_empty()).then(|| format!("\n<pd:modifier xmlns:pd=\"{NS}\"{attrs}/>\n"))
+}
+
+/// A modifier glyph's note, or `None` without one. A value that doesn't
+/// read, or is out of bounds (a width or size that isn't positive, a
+/// negative distance), is the default, as in a JSON file.
+pub fn read_modifier(annotation: &str) -> Option<ModifierLook> {
+    let wrapped = format!("<a>{annotation}</a>");
+    let doc = roxmltree::Document::parse(&wrapped).ok()?;
+    let note = doc
+        .descendants()
+        .find(|n| n.tag_name().namespace() == Some(NS) && n.tag_name().name() == "modifier")?;
+    let number = |key: &str| {
+        note.attribute(key)
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .filter(|v| v.is_finite())
+    };
+    Some(ModifierLook {
+        colour: note
+            .attribute("lineColor")
+            .and_then(crate::json::colour::from_hex),
+        width: number("lineWidth").filter(|v| *v > 0.0),
+        pattern: note
+            .attribute("pattern")
+            .map_or(LinePattern::Dashed, LinePattern::from_key),
+        symbol_size: number("symbolSize").filter(|v| *v > 0.0),
+        symbol_gap: number("symbolGap").filter(|v| *v >= 0.0),
+    })
 }
 
 /// What a species glyph's note says. A value this version doesn't know is
@@ -282,6 +340,37 @@ pub fn read_text(annotation: &str) -> Option<TextLook> {
 mod tests {
     use super::*;
     use crate::geometry::Pt;
+
+    #[test]
+    fn modifier_notes_carry_the_look() {
+        use crate::model::{LinePattern, ModifierLook, Rgba};
+        assert_eq!(modifier_note(&ModifierLook::default()), None);
+        let look = ModifierLook {
+            colour: Some(Rgba::rgb(1, 2, 3)),
+            width: Some(2.5),
+            pattern: LinePattern::Solid,
+            symbol_size: Some(20.0),
+            symbol_gap: Some(0.0),
+        };
+        let note = modifier_note(&look).unwrap();
+        assert!(note.contains(r##"lineColor="#010203FF""##), "{note}");
+        assert_eq!(read_modifier(&note), Some(look));
+        // Only what is set is written.
+        let width_only = ModifierLook {
+            width: Some(4.0),
+            ..ModifierLook::default()
+        };
+        let note = modifier_note(&width_only).unwrap();
+        assert!(!note.contains("pattern") && !note.contains("lineColor"));
+        assert_eq!(read_modifier(&note), Some(width_only));
+        // Next to another tool's annotation; nonsense reads as the default.
+        let odd = format!(
+            r#"<x:y xmlns:x="urn:x"/><pd:modifier xmlns:pd="{NS}" lineColor="glow" lineWidth="-2" pattern="wavy" symbolSize="0" symbolGap="-1"/>"#
+        );
+        assert_eq!(read_modifier(&odd), Some(ModifierLook::default()));
+        assert_eq!(read_modifier("<x:y xmlns:x=\"urn:x\"/>"), None);
+        assert_eq!(read_modifier("<broken"), None);
+    }
 
     #[test]
     fn a_compartment_note_round_trips() {

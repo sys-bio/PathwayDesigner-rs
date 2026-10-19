@@ -565,6 +565,13 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                 species_glyph: glyph_of[node.id.as_str()].clone(),
                 species_reference: leg.reference.clone(),
                 role: Some(role),
+                // A modifier line's own look (S §5.7.2).
+                meta: sb::Meta {
+                    annotation: (leg.role == Role::Modifier)
+                        .then(|| super::shape::modifier_note(&p.look))
+                        .flatten(),
+                    ..Default::default()
+                },
                 curve: Some(sb::Curve {
                     segments: match (leg.role, modifier_route(model, r, p)) {
                         // A modifier's arc through its corner points (S §5.7.1).

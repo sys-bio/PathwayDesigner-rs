@@ -591,3 +591,28 @@ fn files_keep_a_modifier_line_s_look_in_version_12() {
     assert_eq!(look.pattern, LinePattern::Dashed);
     assert_eq!(look.width, None);
 }
+
+#[test]
+fn sbml_keeps_a_modifier_line_s_look() {
+    use crate::model::{LinePattern, Rgba};
+    let opts = crate::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let mut v = view();
+    // All default: no note at all.
+    let xml = crate::sbml::export(v.model()).xml;
+    assert!(!xml.contains("pd:modifier"));
+    v.set_modifier_colour("R1", 0, Some(Rgba::rgb(200, 0, 0)));
+    v.set_modifier_width("R1", 0, Some(3.0));
+    v.set_modifier_pattern("R1", 0, LinePattern::Dotted);
+    v.set_modifier_symbol_size("R1", 0, Some(30.0));
+    v.set_modifier_symbol_gap("R1", 0, Some(12.5));
+    let xml = crate::sbml::export(v.model()).xml;
+    assert_eq!(xml.matches("<pd:modifier").count(), 1);
+    let back = crate::sbml::import(&xml, &opts).unwrap().model;
+    assert_eq!(
+        back.find_reaction("R1").unwrap().modifiers[0].look,
+        v.modifier_look("R1", 0).unwrap()
+    );
+}

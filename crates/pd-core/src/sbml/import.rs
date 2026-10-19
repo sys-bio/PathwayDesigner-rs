@@ -633,6 +633,14 @@ impl Builder {
                         _ => {}
                     }
                     p.points = corner_points(srg.curve.as_ref(), junction);
+                    if let Some(look) = srg
+                        .meta
+                        .annotation
+                        .as_deref()
+                        .and_then(super::shape::read_modifier)
+                    {
+                        p.look = look;
+                    }
                 }
                 if prole != crate::model::Role::Modifier
                     && let Some((a, b, c1, c2)) = handles
