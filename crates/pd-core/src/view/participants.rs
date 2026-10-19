@@ -168,6 +168,7 @@ impl DiagramView {
         }
         r.junction_smooth = false;
         r.stem = Some(stem);
+        r.stem_straight = true;
         shift_inner_handles(r, stem);
         self.record("Add Stem", before)
     }
@@ -208,6 +209,42 @@ impl DiagramView {
         self.record("Straighten Stem", before)
     }
 
+    /// Straight stem (S §5.13): keeps the selected reactions' stems
+    /// straight, straightening a bent one first ([`Self::straightened_stem`]),
+    /// or lets their ends move freely. One undo step.
+    pub fn set_stem_straight(&mut self, straight: bool) -> ViewResponse {
+        let before = self.model.clone();
+        let ids: Vec<Id> = self
+            .model
+            .selected_reactions()
+            .filter(|r| r.stem.is_some())
+            .map(|r| r.id.clone())
+            .collect();
+        for id in ids {
+            let bent = straight.then(|| self.straightened_stem(&id)).flatten();
+            let r = self.model.find_reaction_mut(&id).expect("listed above");
+            if let Some(s) = bent {
+                let old = r.stem.expect("has a stem");
+                r.stem = Some(s);
+                shift_inner_handles(r, (s.0 - old.0, s.1 - old.1));
+            }
+            r.stem_straight = straight;
+        }
+        self.record_if_changed("Straight Stem", before)
+    }
+
+    /// Whether the selected reactions with a stem keep it straight, if they
+    /// all agree; `None` also when none has a stem.
+    pub fn selected_stems_straight(&self) -> Option<bool> {
+        let mut s = self
+            .model
+            .selected_reactions()
+            .filter(|r| r.stem.is_some())
+            .map(|r| r.stem_straight);
+        let first = s.next()?;
+        s.all(|v| v == first).then_some(first)
+    }
+
     /// Remove Stem (S §5.13): the lines meet at the junction again, each
     /// handle by the stem moving back with it. One undo step.
     pub fn remove_stem(&mut self, id: &str) -> ViewResponse {
@@ -217,6 +254,7 @@ impl DiagramView {
         let before = self.model.clone();
         let r = self.model.find_reaction_mut(id).expect("found above");
         r.stem = None;
+        r.stem_straight = false;
         shift_inner_handles(r, (stem.0 * -1.0, stem.1 * -1.0));
         self.record("Remove Stem", before)
     }

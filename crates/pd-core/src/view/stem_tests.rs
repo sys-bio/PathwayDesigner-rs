@@ -138,12 +138,37 @@ fn a_name_starts_clear_of_the_stem() {
 
 #[test]
 fn the_file_keeps_the_stem_in_version_8() {
-    let v = view();
+    // Kept straight, as most stems are: version 8, and nothing more to say.
+    let mut v = view();
+    v.model.find_reaction_mut("R1").unwrap().stem_straight = true;
     let text = crate::json::to_json(v.model());
     assert!(text.contains("\"version\": 8"));
+    assert!(!text.contains("stemStraight"));
     let back = crate::json::from_json(&text).unwrap();
     assert!(back.warnings.is_empty(), "{:?}", back.warnings);
-    assert_eq!(back.model.find_reaction("R1").unwrap().stem, r1(&v).stem);
+    let r = back.model.find_reaction("R1").unwrap();
+    assert_eq!(r.stem, r1(&v).stem);
+    assert!(r.stem_straight, "a straight stem is read as kept straight");
+    // Straight but free to bend: that has to be said, in version 10.
+    let v = view();
+    let text = crate::json::to_json(v.model());
+    assert!(text.contains("\"stemStraight\": false"), "{text}");
+    assert!(text.contains("\"version\": 10"));
+    let back = crate::json::from_json(&text).unwrap();
+    assert!(!back.model.find_reaction("R1").unwrap().stem_straight);
+    // A bent stem is read as free to bend, with nothing written.
+    let mut m = v.model().clone();
+    m.find_reaction_mut("R1").unwrap().stem = Some((pt(-40.0, -30.0), pt(40.0, 0.0)));
+    let text = crate::json::to_json(&m);
+    assert!(!text.contains("stemStraight"));
+    assert!(
+        !crate::json::from_json(&text)
+            .unwrap()
+            .model
+            .find_reaction("R1")
+            .unwrap()
+            .stem_straight
+    );
     // Without one, it isn't written and nothing needs version 8.
     let mut m = v.model().clone();
     m.find_reaction_mut("R1").unwrap().stem = None;
@@ -447,4 +472,107 @@ fn a_bent_stem_can_be_straightened() {
     // No stem, no command.
     v.model.find_reaction_mut("R1").unwrap().stem = None;
     assert_eq!(v.straightened_stem("R1"), None);
+}
+
+#[test]
+fn a_straight_stem_pivots_about_the_junction() {
+    let mut v = view();
+    {
+        let r = v.model.find_reaction_mut("R1").unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.stem_straight = true;
+        let p = &mut r.products[0];
+        (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (pt(260.0, 0.0), pt(360.0, 0.0), true);
+    }
+    v.select_item(&Target::Leg("R1".into()), false);
+    // The reactants' end, 40 left of the junction, dragged up to (200,-60):
+    // 60 above it.
+    drag(&mut v, pt(160.0, 0.0), pt(200.0, -60.0));
+    let (a, b) = r1(&v).stem.unwrap();
+    assert!(a.distance(pt(0.0, -60.0)) < 1e-9, "where it was dragged");
+    // The products' end swings to stay opposite, still 40 away.
+    assert!(b.distance(pt(0.0, 40.0)) < 1e-9, "{b:?}");
+    assert!(crate::model::stem_is_straight((a, b)));
+    // The product line's handle by the stem moved with its end.
+    let p = &r1(&v).products[0];
+    assert!(p.ctrl1.distance(pt(260.0, 0.0) + (b - pt(40.0, 0.0))) < 1e-9);
+    assert_eq!(p.ctrl2, pt(360.0, 0.0));
+    assert_eq!(v.undo_description(), Some("Move Stem End"));
+    v.undo();
+    assert_eq!(r1(&v).stem, Some((pt(-40.0, 0.0), pt(40.0, 0.0))));
+}
+
+#[test]
+fn the_straight_stem_box_straightens_and_keeps_it_so() {
+    let mut v = view();
+    v.model.find_reaction_mut("R1").unwrap().stem = Some((pt(-40.0, -30.0), pt(40.0, 0.0)));
+    assert_eq!(v.selected_stems_straight(), None, "nothing selected");
+    v.select_item(&Target::Leg("R1".into()), false);
+    assert_eq!(v.selected_stems_straight(), Some(false));
+    v.set_stem_straight(true);
+    assert_eq!(v.undo_description(), Some("Straight Stem"));
+    let r = r1(&v);
+    assert!(r.stem_straight);
+    assert!(
+        crate::model::stem_is_straight(r.stem.unwrap()),
+        "straightened at once"
+    );
+    assert_eq!(v.selected_stems_straight(), Some(true));
+    // Unticked: the ends move freely again, and the stem stays as it is.
+    v.set_stem_straight(false);
+    assert!(!r1(&v).stem_straight);
+    assert_eq!(r1(&v).stem, r.stem);
+    v.undo();
+    v.undo();
+    assert_eq!(r1(&v).stem, Some((pt(-40.0, -30.0), pt(40.0, 0.0))));
+    // A reaction without a stem has no say.
+    v.model.find_reaction_mut("R1").unwrap().stem = None;
+    assert_eq!(v.selected_stems_straight(), None);
+}
+
+#[test]
+fn new_and_imported_stems_are_kept_straight_when_straight() {
+    use crate::model::stem_is_straight;
+    assert!(stem_is_straight((pt(-1.0, 0.0), pt(2.0, 0.0))));
+    assert!(
+        stem_is_straight((pt(0.0, 0.0), pt(2.0, 5.0))),
+        "one end at the junction"
+    );
+    assert!(!stem_is_straight((pt(-1.0, 0.0), pt(2.0, 0.5))));
+    assert!(
+        !stem_is_straight((pt(1.0, 0.0), pt(2.0, 0.0))),
+        "both on one side"
+    );
+    // Add Stem.
+    let mut v = view();
+    v.model.find_reaction_mut("R1").unwrap().stem = None;
+    v.add_stem("R1");
+    assert!(r1(&v).stem_straight);
+    v.remove_stem("R1");
+    assert!(!r1(&v).stem_straight);
+    // SBML: straight read back as kept straight, bent as free.
+    let mut m = view().model().clone();
+    m.find_reaction_mut("R1").unwrap().stem_straight = true;
+    assert!(sbml_back(&m).find_reaction("R1").unwrap().stem_straight);
+    m.find_reaction_mut("R1").unwrap().stem = Some((pt(-40.0, -30.0), pt(40.0, 0.0)));
+    assert!(!sbml_back(&m).find_reaction("R1").unwrap().stem_straight);
+    // Escher: the map's straight spines are kept straight.
+    let map = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../Escher/e_coli_core.Core metabolism.json"
+    ))
+    .unwrap();
+    let m = crate::escher::import(&map).unwrap().model;
+    for r in m.reactions() {
+        if let Some(s) = r.stem {
+            assert_eq!(r.stem_straight, stem_is_straight(s), "{}", r.id);
+        }
+    }
+    // 45 of its spines are exactly straight (and a few have one end at the
+    // junction); the TCA cycle's bend by a few degrees to follow the circle,
+    // so they stay free and keep the map's shape.
+    assert!(m.reactions().iter().filter(|r| r.stem_straight).count() >= 45);
+    for id in ["CS", "MDH", "AKGDH", "ICDHyr"] {
+        assert!(!m.find_reaction(id).unwrap().stem_straight, "{id}");
+    }
 }

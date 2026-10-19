@@ -162,7 +162,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Drag a Bézier handle of a selected reaction | Reshape that line |
 | Drag a corner of a selected species or compartment | Resize it; Shift keeps the proportions |
 | Drag the small handle on a selected text's right edge | Set where its lines wrap |
-| Drag a square at an end of a selected reaction's stem | Move that end of the stem |
+| Drag a square at an end of a selected reaction's stem | Move that end of the stem; with *Straight stem* ticked (Properties), the stem pivots about the junction instead of bending |
 | Drag the **+** by a selected reaction's junction onto a species | Add the species to the reaction as a product; hold Shift when letting go for a reactant |
 | Alt while dragging | Place freely while Snap to grid is on |
 | Double-click a species | Rename it |

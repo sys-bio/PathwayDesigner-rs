@@ -21,8 +21,11 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought the diagram's background colour (S §8.8).
-pub const FORMAT_VERSION: u32 = 9;
+/// one that brought stems free to bend while straight (S §5.13).
+pub const FORMAT_VERSION: u32 = 10;
+
+/// The version that brought the diagram's background colour (S §8.8).
+pub const BACKGROUND_VERSION: u32 = 9;
 
 /// The version that brought reaction stems (S §5.13).
 pub const STEM_VERSION: u32 = 8;
@@ -45,7 +48,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 9 if the diagram has its own background colour, 8 if a
+/// (SPEC-Rust §4.2): 10 if a straight stem is free to bend (S §5.13), 9 if
+/// the diagram has its own background colour, 8 if a
 /// reaction has a stem, 7 if a reaction shows its
 /// name, 6 if a species has its name outside, a species or
 /// compartment has no border, or an item follows a saved style, 5 if one has a
@@ -54,8 +58,10 @@ pub const DELPHI_VERSION: u32 = 3;
 pub fn needed_version(model: &Model) -> u32 {
     let no_border = model.species().iter().any(|s| s.style.no_border)
         || model.compartments.iter().any(|c| c.style.no_border);
-    if !model.background.is_default() {
+    if model.reactions().iter().any(needs_stem_straight) {
         FORMAT_VERSION
+    } else if !model.background.is_default() {
+        BACKGROUND_VERSION
     } else if model.reactions().iter().any(|r| r.stem.is_some()) {
         STEM_VERSION
     } else if model.reactions().iter().any(|r| r.label_offset.is_some()) {
@@ -77,6 +83,14 @@ pub fn needed_version(model: &Model) -> u32 {
     } else {
         DELPHI_VERSION
     }
+}
+
+/// Whether a reaction's file entry needs `stemStraight`: only when reading
+/// it back would guess wrong, a straight stem free to bend (S §5.13). A
+/// stem without the key is straight-kept exactly when it is straight.
+fn needs_stem_straight(r: &Reaction) -> bool {
+    r.stem
+        .is_some_and(|s| crate::model::stem_is_straight(s) && !r.stem_straight)
 }
 
 /// The result of reading a file.
@@ -423,6 +437,11 @@ struct FileReaction {
     /// reactants' lines end and the products' lines start, from the junction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     stem: Option<Vec<f64>>,
+    /// Version 10: `false` for a straight stem whose ends may move freely
+    /// (S §5.13). Left out otherwise: a stem is kept straight exactly when
+    /// it is straight.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stem_straight: Option<bool>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -676,6 +695,9 @@ impl FileModel {
                     None
                 }
             };
+            reaction.stem_straight = reaction
+                .stem
+                .is_some_and(|s| r.stem_straight.unwrap_or(crate::model::stem_is_straight(s)));
             reaction.label_offset = match (r.label_dx, r.label_dy) {
                 (None, None) => None,
                 (Some(dx), Some(dy)) if dx.is_finite() && dy.is_finite() => Some(pt(dx, dy)),
@@ -1215,6 +1237,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         label_dx: r.label_offset.map(|o| o.x),
         label_dy: r.label_offset.map(|o| o.y),
         stem: r.stem.map(|(a, b)| vec![a.x, a.y, b.x, b.y]),
+        stem_straight: needs_stem_straight(r).then_some(false),
     }
 }
 
@@ -1495,7 +1518,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 10, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 11, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);

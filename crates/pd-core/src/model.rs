@@ -467,6 +467,19 @@ pub struct Reaction {
     /// the reactants' lines end to where the products' lines start, both
     /// from the junction. `None`: they all meet at the junction.
     pub stem: Option<(Pt, Pt)>,
+    /// The stem is kept straight (S §5.13): dragging an end pivots it about
+    /// the junction instead of bending it.
+    pub stem_straight: bool,
+}
+
+/// True if a stem's ends, offsets from the junction, are on one straight
+/// line through it, on either side (or one of them at the junction).
+pub fn stem_is_straight((a, b): (Pt, Pt)) -> bool {
+    let (la, lb) = (a.x.hypot(a.y), b.x.hypot(b.y));
+    if la < 1e-9 || lb < 1e-9 {
+        return true;
+    }
+    (a.x * b.y - a.y * b.x).abs() <= 1e-6 * la * lb && a.x * b.x + a.y * b.y < 0.0
 }
 
 impl Reaction {
@@ -497,6 +510,7 @@ impl Reaction {
             style_name: None,
             label_offset: None,
             stem: None,
+            stem_straight: false,
         }
     }
 

@@ -419,6 +419,23 @@ impl Inspector {
                         // For every selected reaction (S §8.1); drawn with
                         // arrowheads at both ends (S §5.5). Not part of a look.
                         if !look_only {
+                            // Only for reactions with a stem (S §5.13).
+                            let has_stem =
+                                view.model().selected_reactions().any(|r| r.stem.is_some());
+                            if has_stem {
+                                ui.label("Straight stem");
+                                let mut on = view.selected_stems_straight() == Some(true);
+                                if ui
+                                    .checkbox(&mut on, "")
+                                    .on_hover_text(
+                                        "Keep the stem straight: dragging an end pivots it about the junction",
+                                    )
+                                    .changed()
+                                {
+                                    view.set_stem_straight(on);
+                                }
+                                ui.end_row();
+                            }
                             ui.label("Reversible");
                             let mut rev = view.selected_reactions_reversible() == Some(true);
                             if ui

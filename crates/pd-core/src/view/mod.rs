@@ -1614,21 +1614,40 @@ impl DiagramView {
         let Some(r) = self.model.find_reaction_mut(&drag.id) else {
             return;
         };
-        if let (Some((a, b)), Some(old_stem)) = (r.stem.as_mut().map(|(a, b)| (a, b)), old.stem) {
-            if drag.role == Role::Reactant {
-                *a = old_stem.0 + drag.delta;
-            } else {
-                *b = old_stem.1 + drag.delta;
-            }
-        }
-        let inner = HandleCtrl::inner(drag.role);
-        for (p, o) in r
-            .participants_mut(drag.role)
-            .iter_mut()
-            .zip(old.participants(drag.role))
-        {
-            if o.ctrl_pts_set {
-                inner.set(p, inner.get(o) + drag.delta);
+        let Some((oa, ob)) = old.stem else {
+            return;
+        };
+        // The dragged end goes where it is dragged. On a straight stem the
+        // other swings round to stay opposite, as far from the junction as
+        // it was (S §5.13).
+        let (mine, other) = if drag.role == Role::Reactant {
+            (oa, ob)
+        } else {
+            (ob, oa)
+        };
+        let moved = mine + drag.delta;
+        let len = |v: Pt| v.x.hypot(v.y);
+        let swung = if r.stem_straight && len(moved) > 1e-9 {
+            moved / len(moved) * -len(other)
+        } else {
+            other
+        };
+        let (na, nb) = if drag.role == Role::Reactant {
+            (moved, swung)
+        } else {
+            (swung, moved)
+        };
+        r.stem = Some((na, nb));
+        for (role, shift) in [(Role::Reactant, na - oa), (Role::Product, nb - ob)] {
+            let inner = HandleCtrl::inner(role);
+            for (p, o) in r
+                .participants_mut(role)
+                .iter_mut()
+                .zip(old.participants(role))
+            {
+                if o.ctrl_pts_set {
+                    inner.set(p, inner.get(o) + shift);
+                }
             }
         }
     }

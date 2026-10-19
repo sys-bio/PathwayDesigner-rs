@@ -167,6 +167,9 @@ pub struct PathwayApp {
     pub(crate) style_editor: Option<crate::styles_panel::StyleEditor>,
     prefs: Preferences,
     pub(crate) dialog: Option<Dialog>,
+    /// Help ▸ Mouse and Keyboard is open. Not modal: it can stay open while
+    /// drawing.
+    pub(crate) keys_help: bool,
     pub(crate) files: Files,
     pub(crate) doc: Document,
     /// What to do once a Save requested by the unsaved-changes prompt is done.
@@ -247,6 +250,7 @@ impl PathwayApp {
             style_editor: None,
             prefs: Preferences::load(cc.storage),
             dialog: None,
+            keys_help: false,
             files: Files::default(),
             doc: Document::default(),
             after_save: None,
@@ -372,6 +376,7 @@ impl PathwayApp {
         };
         match command {
             MenuCommand::About => self.dialog = Some(Dialog::About),
+            MenuCommand::KeysHelp => self.keys_help = true,
             MenuCommand::Preferences => self.dialog = Some(Dialog::Preferences(self.prefs)),
             // Asks about unsaved changes first, as closing the window does.
             MenuCommand::Quit => self.request(Action::Quit),
@@ -892,6 +897,11 @@ impl PathwayApp {
             // On macOS, About is in the application menu (macos_menu.rs).
             #[cfg(not(target_os = "macos"))]
             ui.menu_button("Help", |ui| {
+                if ui.button("Mouse and Keyboard").clicked() {
+                    self.keys_help = true;
+                    ui.close();
+                }
+                ui.separator();
                 if ui.button("About PathwayDesigner").clicked() {
                     self.dialog = Some(Dialog::About);
                     ui.close();
@@ -1633,6 +1643,7 @@ impl eframe::App for PathwayApp {
         self.note_version_change();
         self.dialogs(&ctx);
         self.style_editor_window(&ctx);
+        crate::keys_help::show(&ctx, &mut self.keys_help);
         // Last, so nothing over the canvas sets another.
         if self.is_opening() {
             ctx.set_cursor_icon(egui::CursorIcon::Wait);
@@ -1760,6 +1771,24 @@ mod tests {
             let p = self.app.view.world_to_screen(self.centre(id));
             Pos2::new(p.x as f32, p.y as f32)
         }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn help_shows_the_mouse_and_keyboard() {
+        let mut h = Harness::new();
+        assert!(!h.app.keys_help);
+        h.click(h.widget("Help"));
+        h.click(h.widget("Mouse and Keyboard"));
+        assert!(h.app.keys_help);
+        h.run(vec![]);
+        // The window lists the shortcuts.
+        h.text("Copy Style, Paste Style");
+        h.text("A+… → B+…");
+        // Its close button shuts it.
+        h.click(h.widget("Close window"));
+        h.run(vec![]);
+        assert!(!h.app.keys_help);
     }
 
     #[test]
@@ -1989,6 +2018,8 @@ mod tests {
             use pd_core::view::{Button, Modifiers as M, Target, ViewEvent};
             let v = &mut h.app.view;
             v.select_item(&Target::Leg(r.clone()), false);
+            // Free to bend (Add Stem keeps it straight).
+            v.set_stem_straight(false);
             let m = v.model();
             let rx = &m.reactions()[0];
             let end = v.world_to_screen(rx.leg_anchor(pd_core::model::Role::Reactant));

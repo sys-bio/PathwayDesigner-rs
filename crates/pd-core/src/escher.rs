@@ -227,7 +227,9 @@ pub fn import(text: &str) -> Result<Imported, String> {
         // or the midmarker itself); a stem only if one isn't the midmarker.
         let (r_end, p_end) = (reactant_end.unwrap_or(j), product_end.unwrap_or(j));
         if r_end != j || p_end != j {
-            rx.stem = Some((r_end - j, p_end - j));
+            let stem = (r_end - j, p_end - j);
+            rx.stem = Some(stem);
+            rx.stem_straight = crate::model::stem_is_straight(stem);
         }
         if rx.reactants.is_empty() && rx.products.is_empty() {
             warnings.push(format!(
@@ -280,8 +282,21 @@ pub fn import(text: &str) -> Result<Imported, String> {
     themes::apply(&mut model, Theme::Escher);
     for (id, old) in shapes {
         if let Some(r) = model.find_reaction_mut(&id) {
-            (r.reactants, r.products, r.mode, r.junction_smooth, r.stem) =
-                (old.reactants, old.products, old.mode, false, old.stem);
+            (
+                r.reactants,
+                r.products,
+                r.mode,
+                r.junction_smooth,
+                r.stem,
+                r.stem_straight,
+            ) = (
+                old.reactants,
+                old.products,
+                old.mode,
+                false,
+                old.stem,
+                old.stem_straight,
+            );
         }
     }
     // Labels where Escher draws them: its point is the start of the text, on

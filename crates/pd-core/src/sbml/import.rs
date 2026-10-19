@@ -668,7 +668,9 @@ impl Builder {
             }
             let j = rx.junction;
             if a.distance(j) > 1e-9 || b.distance(j) > 1e-9 {
-                rx.stem = Some((a - j, b - j));
+                let stem = (a - j, b - j);
+                rx.stem = Some(stem);
+                rx.stem_straight = crate::model::stem_is_straight(stem);
             }
         }
 

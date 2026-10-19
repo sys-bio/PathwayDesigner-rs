@@ -346,6 +346,11 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 10: free straight stems (S §5.13).** A reaction may have
+`"stemStraight": false`, after `stem`: its stem is straight but its ends may move
+freely. Left out otherwise, since a stem without it is kept straight exactly when it
+is straight. A document with such a stem is version 10.
+
 **Version 9: background colour (S §8.8).** A top-level `"background"`, after
 `theme`, as `#RRGGBBAA`; left out for the default. A document with its own
 background is version 9.
@@ -1410,8 +1415,8 @@ been compiled and tested natively since R0, it is mostly platform work:
   (`Modifiers::COMMAND`); the window icon; packaging (§14.1); the **macOS menu
   bar** (`crates/pd-app/src/macos_menu.rs`, with the `muda` crate): the
   application menu (About PathwayDesigner, Settings… Cmd+,, Services, Hide, Hide
-  Others, Show All, Quit PathwayDesigner Cmd+Q) and a Window menu (Minimize, Zoom,
-  Full Screen). Quit is the app's own item, so it asks about unsaved changes as
+  Others, Show All, Quit PathwayDesigner Cmd+Q), a Window menu (Minimize, Zoom,
+  Full Screen) and a Help menu (Mouse and Keyboard). Quit is the app's own item, so it asks about unsaved changes as
   closing the window does (the system's Quit ends the app at once). There is no
   native Edit menu: its key equivalents would take Cmd+C, Cmd+V, Cmd+Z and Cmd+A
   from egui. On macOS the in-window menus leave out Preferences, Quit and the Help

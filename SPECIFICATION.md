@@ -635,6 +635,16 @@ junction (dragging it, moving the reaction, alignment, layout) carries the stem.
   junction stops being smooth; each stored handle by the junction moves to its
   side's end. Remove Stem has the lines meet at the junction again, those handles
   moving back. One undo step each.
+- **Straight stem** (a tick box in the Reaction group, shown when a selected
+  reaction has a stem; one undo step, *Straight Stem*): while it is ticked,
+  dragging an end pivots the stem about the junction instead of bending it. The
+  dragged end goes where it is dragged; the other swings round to stay opposite,
+  as far from the junction as it was; the lines on both sides follow, their
+  handles by the stem moving with their ends. Ticking it straightens a bent stem
+  at once, as Straighten Stem does. Add Stem gives a straight-kept stem, and a
+  stem read from a file, an Escher map or SBML is kept straight exactly when it is
+  straight (an Escher map's spines that bend, as the TCA cycle's do to follow the
+  circle, stay free and keep their shape). Remove Stem clears it.
 - **Straighten Stem** (the context menu, under a reaction with a stem; disabled
   when it is straight): puts both ends on one straight line through the junction,
   along the way from the reactants' end to the products' end, each as far from the
@@ -2089,7 +2099,7 @@ file name when a file is open).
 |---|---|
 | **File** | New · Open… · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
 | **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Preferences… |
-| **Help** | About (shows the version and build date) |
+| **Help** | Mouse and Keyboard (added in the Rust version: a window, not modal, listing the mouse actions and keyboard shortcuts as the README does; on the macOS desktop app it names Cmd and Option, elsewhere it notes them) · About (shows the version and build date) |
 
 File dialogs: Open and Save use `*.json`. Antimony uses `*.ant` and `*.txt`. SBML
 uses `*.xml`. Export offers `diagram.png` and `diagram.pdf` and asks before
