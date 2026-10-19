@@ -1,0 +1,1010 @@
+{
+  "version": 6,
+  "modelName": "lower_glycolysis",
+  "compartments": [
+    {
+      "id": "cytosol",
+      "size": 1.0,
+      "dimensions": 3,
+      "x": 320.0,
+      "y": 480.0,
+      "w": 520.0,
+      "h": 880.0
+    }
+  ],
+  "parameters": [
+    {
+      "variable": "k1",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k2",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k3",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k4",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k5",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k6",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "GAP",
+      "x": 200.0,
+      "y": 120.0,
+      "w": 24.0,
+      "h": 24.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.8,
+      "labelDy": 0.0,
+      "styleName": "Metabolite"
+    },
+    {
+      "id": "BPG",
+      "x": 200.0,
+      "y": 240.0,
+      "w": 24.0,
+      "h": 24.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.8,
+      "labelDy": 0.0,
+      "styleName": "Metabolite"
+    },
+    {
+      "id": "PG3",
+      "x": 200.0,
+      "y": 360.0,
+      "w": 24.0,
+      "h": 24.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.8,
+      "labelDy": 0.0,
+      "styleName": "Metabolite"
+    },
+    {
+      "id": "PG2",
+      "x": 200.0,
+      "y": 480.0,
+      "w": 24.0,
+      "h": 24.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.8,
+      "labelDy": 0.0,
+      "styleName": "Metabolite"
+    },
+    {
+      "id": "PEP",
+      "x": 200.0,
+      "y": 600.0,
+      "w": 24.0,
+      "h": 24.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.8,
+      "labelDy": 0.0,
+      "styleName": "Metabolite"
+    },
+    {
+      "id": "Pyr",
+      "x": 200.0,
+      "y": 720.0,
+      "w": 24.0,
+      "h": 24.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.8,
+      "labelDy": 0.0,
+      "styleName": "Metabolite"
+    },
+    {
+      "id": "Lac",
+      "x": 200.0,
+      "y": 840.0,
+      "w": 24.0,
+      "h": 24.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.8,
+      "labelDy": 0.0,
+      "styleName": "Metabolite"
+    },
+    {
+      "id": "NAD",
+      "x": 320.0,
+      "y": 160.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 26.8,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "Pi",
+      "x": 320.0,
+      "y": 130.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 23.2,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NADH",
+      "x": 320.0,
+      "y": 200.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.4,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "GAPDH",
+      "x": 480.0,
+      "y": 180.0,
+      "w": 80.0,
+      "h": 32.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E3F2FDFF",
+        "borderColor": "#1565C0FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Enzyme"
+    },
+    {
+      "id": "ADP",
+      "x": 320.0,
+      "y": 280.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 26.8,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "ATP",
+      "x": 320.0,
+      "y": 320.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 26.8,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "PGK",
+      "x": 480.0,
+      "y": 300.0,
+      "w": 80.0,
+      "h": 32.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E3F2FDFF",
+        "borderColor": "#1565C0FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Enzyme"
+    },
+    {
+      "id": "PGM",
+      "x": 480.0,
+      "y": 420.0,
+      "w": 80.0,
+      "h": 32.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E3F2FDFF",
+        "borderColor": "#1565C0FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Enzyme"
+    },
+    {
+      "id": "H2O",
+      "x": 320.0,
+      "y": 560.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 26.8,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "ENO",
+      "x": 480.0,
+      "y": 540.0,
+      "w": 80.0,
+      "h": 32.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E3F2FDFF",
+        "borderColor": "#1565C0FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Enzyme"
+    },
+    {
+      "id": "ADP_2",
+      "x": 320.0,
+      "y": 640.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 26.8,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "ATP_2",
+      "x": 320.0,
+      "y": 680.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 26.8,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "PYK",
+      "x": 480.0,
+      "y": 660.0,
+      "w": 80.0,
+      "h": 32.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E3F2FDFF",
+        "borderColor": "#1565C0FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Enzyme"
+    },
+    {
+      "id": "NADH_2",
+      "x": 320.0,
+      "y": 760.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 30.4,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NAD_2",
+      "x": 320.0,
+      "y": 800.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 26.8,
+      "labelDy": 0.0,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "LDH",
+      "x": 480.0,
+      "y": 780.0,
+      "w": 80.0,
+      "h": 32.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E3F2FDFF",
+        "borderColor": "#1565C0FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Enzyme"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "gapdh",
+      "jx": 200.0,
+      "jy": 180.0,
+      "kineticLaw": "GAPDH*k1*GAP*NAD*Pi",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "Pi",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "BPG",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "GAPDH"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Flux"
+    },
+    {
+      "id": "pgk",
+      "jx": 200.0,
+      "jy": 300.0,
+      "kineticLaw": "PGK*k2*BPG*ADP",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "BPG",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "ADP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PG3",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "ATP",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PGK"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Flux"
+    },
+    {
+      "id": "pgm",
+      "jx": 200.0,
+      "jy": 420.0,
+      "kineticLaw": "PGM*k3*PG3",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "PG3",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PG2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PGM"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Flux"
+    },
+    {
+      "id": "eno",
+      "jx": 200.0,
+      "jy": 540.0,
+      "kineticLaw": "ENO*k4*PG2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "PG2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "H2O",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "ENO"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Flux"
+    },
+    {
+      "id": "pyk",
+      "jx": 200.0,
+      "jy": 660.0,
+      "kineticLaw": "PYK*k5*PEP*ADP_2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "PEP",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "ADP_2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "Pyr",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "ATP_2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PYK"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Flux"
+    },
+    {
+      "id": "ldh",
+      "jx": 200.0,
+      "jy": 780.0,
+      "kineticLaw": "LDH*k6*Pyr*NADH_2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Pyr",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NADH_2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "Lac",
+          "stoichiometry": 1.0
+        },
+        {
+          "id": "NAD_2",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "LDH"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Flux"
+    }
+  ],
+  "texts": [
+    {
+      "id": "T1",
+      "x": 80.0,
+      "y": 72.0,
+      "text": "Lower glycolysis",
+      "size": 22.0,
+      "bold": true
+    }
+  ],
+  "styles": [
+    {
+      "name": "Metabolite",
+      "kind": "species",
+      "style": {
+        "fillColor": "#FFD54FFF",
+        "borderColor": "#8D6E00FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 24.0,
+      "h": 24.0
+    },
+    {
+      "name": "Cofactor",
+      "kind": "species",
+      "style": {
+        "fillColor": "#E0E0E0FF",
+        "borderColor": "#757575FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 16.0,
+      "h": 16.0
+    },
+    {
+      "name": "Enzyme",
+      "kind": "species",
+      "style": {
+        "fillColor": "#E3F2FDFF",
+        "borderColor": "#1565C0FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "name": "Flux",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      }
+    }
+  ]
+}

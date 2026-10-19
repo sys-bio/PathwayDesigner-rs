@@ -1,0 +1,901 @@
+{
+  "version": 6,
+  "modelName": "repressilator",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "alpha0",
+      "expression": "0.03"
+    },
+    {
+      "variable": "alpha",
+      "expression": "29.97"
+    },
+    {
+      "variable": "beta",
+      "expression": "0.2"
+    },
+    {
+      "variable": "nH",
+      "expression": "2.0"
+    },
+    {
+      "variable": "kd_m",
+      "expression": "1.0"
+    },
+    {
+      "variable": "kd_p",
+      "expression": "0.2"
+    },
+    {
+      "variable": "kt",
+      "expression": "1.0"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "mLacI",
+      "x": 280.0,
+      "y": 300.0,
+      "w": 76.0,
+      "h": 34.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E1F5FEFF",
+        "borderColor": "#0277BDFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "ellipse",
+      "borderDash": "solid",
+      "styleName": "mRNA"
+    },
+    {
+      "id": "LacI",
+      "x": 280.0,
+      "y": 470.0,
+      "w": 84.0,
+      "h": 40.0,
+      "initialValue": 5.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#F3E5F5FF",
+        "borderColor": "#6A1B9AFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid",
+      "styleName": "Protein"
+    },
+    {
+      "id": "CI_2",
+      "x": 210.0,
+      "y": 180.0,
+      "w": 84.0,
+      "h": 40.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "CI",
+      "style": {
+        "fillColor": "#F3E5F5FF",
+        "borderColor": "#6A1B9AFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid",
+      "styleName": "Protein"
+    },
+    {
+      "id": "mLacI_src",
+      "x": 140.0,
+      "y": 300.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "mLacI_sink",
+      "x": 420.0,
+      "y": 300.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "LacI_src",
+      "x": 140.0,
+      "y": 470.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "LacI_sink",
+      "x": 420.0,
+      "y": 470.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "mTetR",
+      "x": 620.0,
+      "y": 300.0,
+      "w": 76.0,
+      "h": 34.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E1F5FEFF",
+        "borderColor": "#0277BDFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "ellipse",
+      "borderDash": "solid",
+      "styleName": "mRNA"
+    },
+    {
+      "id": "TetR",
+      "x": 620.0,
+      "y": 470.0,
+      "w": 84.0,
+      "h": 40.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#F3E5F5FF",
+        "borderColor": "#6A1B9AFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid",
+      "styleName": "Protein"
+    },
+    {
+      "id": "mTetR_src",
+      "x": 480.0,
+      "y": 300.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "mTetR_sink",
+      "x": 760.0,
+      "y": 300.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "TetR_src",
+      "x": 480.0,
+      "y": 470.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "TetR_sink",
+      "x": 760.0,
+      "y": 470.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "mCI",
+      "x": 960.0,
+      "y": 300.0,
+      "w": 76.0,
+      "h": 34.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#E1F5FEFF",
+        "borderColor": "#0277BDFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "ellipse",
+      "borderDash": "solid",
+      "styleName": "mRNA"
+    },
+    {
+      "id": "CI",
+      "x": 960.0,
+      "y": 470.0,
+      "w": 84.0,
+      "h": 40.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#F3E5F5FF",
+        "borderColor": "#6A1B9AFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid",
+      "styleName": "Protein"
+    },
+    {
+      "id": "mCI_src",
+      "x": 820.0,
+      "y": 300.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "mCI_sink",
+      "x": 1100.0,
+      "y": 300.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "CI_src",
+      "x": 820.0,
+      "y": 470.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    },
+    {
+      "id": "CI_sink",
+      "x": 1100.0,
+      "y": 470.0,
+      "w": 18.0,
+      "h": 18.0,
+      "initialValue": 0.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "isNullNode": true
+    }
+  ],
+  "reactions": [
+    {
+      "id": "transcribe_lacI",
+      "jx": 210.0,
+      "jy": 300.0,
+      "kineticLaw": "alpha0+alpha/(1+CI_2^nH)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "mLacI_src",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "mLacI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "CI_2"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Synthesis"
+    },
+    {
+      "id": "decay_mLacI",
+      "jx": 350.0,
+      "jy": 300.0,
+      "kineticLaw": "kd_m*mLacI",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "mLacI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "mLacI_sink",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#9E9E9EFF",
+        "lineWidth": 1.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Decay"
+    },
+    {
+      "id": "translate_lacI",
+      "jx": 210.0,
+      "jy": 470.0,
+      "kineticLaw": "kt*beta*mLacI",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "LacI_src",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "LacI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "mLacI"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Synthesis"
+    },
+    {
+      "id": "decay_LacI",
+      "jx": 350.0,
+      "jy": 470.0,
+      "kineticLaw": "kd_p*LacI",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "LacI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "LacI_sink",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#9E9E9EFF",
+        "lineWidth": 1.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Decay"
+    },
+    {
+      "id": "transcribe_tetR",
+      "jx": 550.0,
+      "jy": 300.0,
+      "kineticLaw": "alpha0+alpha/(1+LacI^nH)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "mTetR_src",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "mTetR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "LacI"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Synthesis"
+    },
+    {
+      "id": "decay_mTetR",
+      "jx": 690.0,
+      "jy": 300.0,
+      "kineticLaw": "kd_m*mTetR",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "mTetR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "mTetR_sink",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#9E9E9EFF",
+        "lineWidth": 1.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Decay"
+    },
+    {
+      "id": "translate_tetR",
+      "jx": 550.0,
+      "jy": 470.0,
+      "kineticLaw": "kt*beta*mTetR",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "TetR_src",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "TetR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "mTetR"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Synthesis"
+    },
+    {
+      "id": "decay_TetR",
+      "jx": 690.0,
+      "jy": 470.0,
+      "kineticLaw": "kd_p*TetR",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "TetR",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "TetR_sink",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#9E9E9EFF",
+        "lineWidth": 1.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Decay"
+    },
+    {
+      "id": "transcribe_cI",
+      "jx": 890.0,
+      "jy": 300.0,
+      "kineticLaw": "alpha0+alpha/(1+TetR^nH)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "mCI_src",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "mCI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "TetR"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Synthesis"
+    },
+    {
+      "id": "decay_mCI",
+      "jx": 1030.0,
+      "jy": 300.0,
+      "kineticLaw": "kd_m*mCI",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "mCI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "mCI_sink",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#9E9E9EFF",
+        "lineWidth": 1.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Decay"
+    },
+    {
+      "id": "translate_cI",
+      "jx": 890.0,
+      "jy": 470.0,
+      "kineticLaw": "kt*beta*mCI",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "CI_src",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "CI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "mCI"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Synthesis"
+    },
+    {
+      "id": "decay_CI",
+      "jx": 1030.0,
+      "jy": 470.0,
+      "kineticLaw": "kd_p*CI",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": false,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "CI",
+          "stoichiometry": 1.0
+        }
+      ],
+      "products": [
+        {
+          "id": "CI_sink",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#9E9E9EFF",
+        "lineWidth": 1.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Decay"
+    }
+  ],
+  "texts": [
+    {
+      "id": "G1",
+      "x": 260.0,
+      "y": 230.0,
+      "text": "lacI",
+      "size": 18.0,
+      "bold": true,
+      "italic": true,
+      "color": "#0277BDFF"
+    },
+    {
+      "id": "G2",
+      "x": 600.0,
+      "y": 230.0,
+      "text": "tetR",
+      "size": 18.0,
+      "bold": true,
+      "italic": true,
+      "color": "#0277BDFF"
+    },
+    {
+      "id": "G3",
+      "x": 940.0,
+      "y": 230.0,
+      "text": "cI",
+      "size": 18.0,
+      "bold": true,
+      "italic": true,
+      "color": "#0277BDFF"
+    },
+    {
+      "id": "T1",
+      "x": 40.0,
+      "y": 30.0,
+      "text": "The repressilator",
+      "size": 22.0,
+      "bold": true
+    },
+    {
+      "id": "T2",
+      "x": 40.0,
+      "y": 64.0,
+      "text": "After Elowitz and Leibler (2000). Each gene's protein represses the next gene: LacI represses tetR, TetR represses cI, and cI represses lacI (drawn from an alias of CI, top left).",
+      "size": 13.0,
+      "italic": true,
+      "color": "#546E7AFF",
+      "wrapWidth": 520.0
+    }
+  ],
+  "styles": [
+    {
+      "name": "mRNA",
+      "kind": "species",
+      "style": {
+        "fillColor": "#E1F5FEFF",
+        "borderColor": "#0277BDFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "ellipse",
+      "borderDash": "solid"
+    },
+    {
+      "name": "Protein",
+      "kind": "species",
+      "style": {
+        "fillColor": "#F3E5F5FF",
+        "borderColor": "#6A1B9AFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "hexagon",
+      "borderDash": "solid"
+    },
+    {
+      "name": "Synthesis",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#37474FFF",
+        "lineWidth": 2.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      }
+    },
+    {
+      "name": "Decay",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#9E9E9EFF",
+        "lineWidth": 1.5,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      }
+    }
+  ]
+}

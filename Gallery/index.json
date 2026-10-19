@@ -22,6 +22,34 @@
       "version": 0
     },
     {
+      "file": "ExampleModels/lower_glycolysis.json",
+      "group": "Showcase",
+      "title": "Lower glycolysis",
+      "description": "The companion to upper glycolysis, to lactate. Each step has its own aliases of NAD, NADH, ADP and ATP",
+      "version": 6
+    },
+    {
+      "file": "ExampleModels/tca_cycle.json",
+      "group": "Showcase",
+      "title": "The TCA cycle",
+      "description": "Bézier arcs on a circle, cofactors joining along the flow, shown reaction names",
+      "version": 7
+    },
+    {
+      "file": "ExampleModels/mapk_cascade.json",
+      "group": "Showcase",
+      "title": "MAPK cascade with negative feedback",
+      "description": "After Kholodenko (2000): three tiers of phosphorylation cycles, with Michaelis-Menten rate laws",
+      "version": 7
+    },
+    {
+      "file": "ExampleModels/repressilator.json",
+      "group": "Showcase",
+      "title": "The repressilator",
+      "description": "After Elowitz and Leibler (2000): three genes, each protein repressing the next",
+      "version": 6
+    },
+    {
       "file": "ExampleModels/compartment_1.json",
       "group": "Small examples",
       "title": "Compartments",

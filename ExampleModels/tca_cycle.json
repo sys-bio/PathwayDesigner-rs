@@ -1,0 +1,1328 @@
+{
+  "version": 7,
+  "modelName": "tca_cycle",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "k1",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k2",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k3",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k4",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k5",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k6",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k7",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k8",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "OAA",
+      "x": 520.0,
+      "y": 250.0,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 0.0,
+      "labelDy": -34.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "Cit",
+      "x": 675.56,
+      "y": 314.44,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 32.5,
+      "labelDy": -24.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "Icit",
+      "x": 740.0,
+      "y": 470.0,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 46.0,
+      "labelDy": 0.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "AKG",
+      "x": 675.56,
+      "y": 625.56,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 32.5,
+      "labelDy": 24.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "SucCoA",
+      "x": 520.0,
+      "y": 690.0,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 0.0,
+      "labelDy": 34.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "Suc",
+      "x": 364.44,
+      "y": 625.56,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -32.5,
+      "labelDy": 24.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "Fum",
+      "x": 300.0,
+      "y": 470.0,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -46.0,
+      "labelDy": 0.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "Mal",
+      "x": 364.44,
+      "y": 314.44,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -32.5,
+      "labelDy": -24.0,
+      "styleName": "Intermediate"
+    },
+    {
+      "id": "AcCoA",
+      "x": 607.85,
+      "y": 179.51,
+      "w": 30.0,
+      "h": 30.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#FFE0B2FF",
+        "borderColor": "#E65100FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 16.8,
+      "labelDy": -29.6,
+      "styleName": "Input"
+    },
+    {
+      "id": "CoA",
+      "x": 663.29,
+      "y": 202.47,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 11.5,
+      "labelDy": -20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NAD",
+      "x": 810.49,
+      "y": 557.85,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 27.7,
+      "labelDy": 8.4,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NADH",
+      "x": 787.53,
+      "y": 613.29,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 27.7,
+      "labelDy": 8.4,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "CO2",
+      "x": 772.22,
+      "y": 650.24,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 27.7,
+      "labelDy": 8.4,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NAD_2",
+      "x": 663.29,
+      "y": 737.53,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 11.5,
+      "labelDy": 20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "CoA_2",
+      "x": 700.24,
+      "y": 722.22,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "aliasOf": "CoA",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 11.5,
+      "labelDy": 20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NADH_2",
+      "x": 607.85,
+      "y": 760.49,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 11.5,
+      "labelDy": 20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "CO2_2",
+      "x": 570.9,
+      "y": 775.8,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "aliasOf": "CO2",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 11.5,
+      "labelDy": 20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "GDP",
+      "x": 432.15,
+      "y": 760.49,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -11.5,
+      "labelDy": 20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "GTP",
+      "x": 376.71,
+      "y": 737.53,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -11.5,
+      "labelDy": 20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "CoA_3",
+      "x": 339.76,
+      "y": 722.22,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "aliasOf": "CoA",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -11.5,
+      "labelDy": 20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "FAD",
+      "x": 252.47,
+      "y": 613.29,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -27.7,
+      "labelDy": 8.4,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "FADH2",
+      "x": 229.51,
+      "y": 557.85,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -27.7,
+      "labelDy": 8.4,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "H2O",
+      "x": 229.51,
+      "y": 382.15,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -27.7,
+      "labelDy": -8.4,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NAD_3",
+      "x": 376.71,
+      "y": 202.47,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -11.5,
+      "labelDy": -20.3,
+      "styleName": "Cofactor"
+    },
+    {
+      "id": "NADH_3",
+      "x": 432.15,
+      "y": 179.51,
+      "w": 14.0,
+      "h": 14.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -11.5,
+      "labelDy": -20.3,
+      "styleName": "Cofactor"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "CS",
+      "jx": 604.19,
+      "jy": 266.75,
+      "kineticLaw": "k1*OAA*AcCoA",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "OAA",
+          "stoichiometry": 1.0,
+          "ctrl1x": 548.89,
+          "ctrl1y": 250.0,
+          "ctrl2x": 577.5,
+          "ctrl2y": 255.69,
+          "ctrlSet": true
+        },
+        {
+          "id": "AcCoA",
+          "stoichiometry": 1.0,
+          "ctrl1x": 596.37,
+          "ctrl1y": 207.23,
+          "ctrl2x": 567.23,
+          "ctrl2y": 251.44,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "Cit",
+          "stoichiometry": 1.0,
+          "ctrl1x": 630.88,
+          "ctrl1y": 277.81,
+          "ctrl2x": 655.13,
+          "ctrl2y": 294.01,
+          "ctrlSet": true
+        },
+        {
+          "id": "CoA",
+          "stoichiometry": 1.0,
+          "ctrl1x": 641.15,
+          "ctrl1y": 282.06,
+          "ctrl2x": 651.81,
+          "ctrl2y": 230.19,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": -13.0,
+      "labelDy": 24.0
+    },
+    {
+      "id": "ACN",
+      "jx": 723.25,
+      "jy": 385.81,
+      "kineticLaw": "k2*Cit",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Cit",
+          "stoichiometry": 1.0,
+          "ctrl1x": 695.99,
+          "ctrl1y": 334.87,
+          "ctrl2x": 712.19,
+          "ctrl2y": 359.12,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "Icit",
+          "stoichiometry": 1.0,
+          "ctrl1x": 734.31,
+          "ctrl1y": 412.5,
+          "ctrl2x": 740.0,
+          "ctrl2y": 441.11,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": -31.4,
+      "labelDy": 9.9
+    },
+    {
+      "id": "IDH",
+      "jx": 723.25,
+      "jy": 554.19,
+      "kineticLaw": "k3*Icit*NAD",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Icit",
+          "stoichiometry": 1.0,
+          "ctrl1x": 740.0,
+          "ctrl1y": 498.89,
+          "ctrl2x": 734.31,
+          "ctrl2y": 527.5,
+          "ctrlSet": true
+        },
+        {
+          "id": "NAD",
+          "stoichiometry": 1.0,
+          "ctrl1x": 782.77,
+          "ctrl1y": 546.37,
+          "ctrl2x": 738.56,
+          "ctrl2y": 517.23,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "AKG",
+          "stoichiometry": 1.0,
+          "ctrl1x": 712.19,
+          "ctrl1y": 580.88,
+          "ctrl2x": 695.99,
+          "ctrl2y": 605.13,
+          "ctrlSet": true
+        },
+        {
+          "id": "NADH",
+          "stoichiometry": 1.0,
+          "ctrl1x": 707.94,
+          "ctrl1y": 591.15,
+          "ctrl2x": 759.81,
+          "ctrl2y": 601.81,
+          "ctrlSet": true
+        },
+        {
+          "id": "CO2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 707.94,
+          "ctrl1y": 591.15,
+          "ctrl2x": 744.5,
+          "ctrl2y": 638.76,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": -31.4,
+      "labelDy": -9.9
+    },
+    {
+      "id": "KGDH",
+      "jx": 604.19,
+      "jy": 673.25,
+      "kineticLaw": "k4*AKG*NAD_2*CoA_2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "AKG",
+          "stoichiometry": 1.0,
+          "ctrl1x": 655.13,
+          "ctrl1y": 645.99,
+          "ctrl2x": 630.88,
+          "ctrl2y": 662.19,
+          "ctrlSet": true
+        },
+        {
+          "id": "NAD_2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 651.81,
+          "ctrl1y": 709.81,
+          "ctrl2x": 641.15,
+          "ctrl2y": 657.94,
+          "ctrlSet": true
+        },
+        {
+          "id": "CoA_2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 688.76,
+          "ctrl1y": 694.5,
+          "ctrl2x": 641.15,
+          "ctrl2y": 657.94,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "SucCoA",
+          "stoichiometry": 1.0,
+          "ctrl1x": 577.5,
+          "ctrl1y": 684.31,
+          "ctrl2x": 548.89,
+          "ctrl2y": 690.0,
+          "ctrlSet": true
+        },
+        {
+          "id": "NADH_2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 567.23,
+          "ctrl1y": 688.56,
+          "ctrl2x": 596.37,
+          "ctrl2y": 732.77,
+          "ctrlSet": true
+        },
+        {
+          "id": "CO2_2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 567.23,
+          "ctrl1y": 688.56,
+          "ctrl2x": 559.42,
+          "ctrl2y": 748.08,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": -13.0,
+      "labelDy": -24.0
+    },
+    {
+      "id": "SCS",
+      "jx": 435.81,
+      "jy": 673.25,
+      "kineticLaw": "k5*SucCoA*GDP",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "SucCoA",
+          "stoichiometry": 1.0,
+          "ctrl1x": 491.11,
+          "ctrl1y": 690.0,
+          "ctrl2x": 462.5,
+          "ctrl2y": 684.31,
+          "ctrlSet": true
+        },
+        {
+          "id": "GDP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 443.63,
+          "ctrl1y": 732.77,
+          "ctrl2x": 472.77,
+          "ctrl2y": 688.56,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "Suc",
+          "stoichiometry": 1.0,
+          "ctrl1x": 409.12,
+          "ctrl1y": 662.19,
+          "ctrl2x": 384.87,
+          "ctrl2y": 645.99,
+          "ctrlSet": true
+        },
+        {
+          "id": "GTP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 398.85,
+          "ctrl1y": 657.94,
+          "ctrl2x": 388.19,
+          "ctrl2y": 709.81,
+          "ctrlSet": true
+        },
+        {
+          "id": "CoA_3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 398.85,
+          "ctrl1y": 657.94,
+          "ctrl2x": 351.24,
+          "ctrl2y": 694.5,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": 13.0,
+      "labelDy": -24.0
+    },
+    {
+      "id": "SDH",
+      "jx": 316.75,
+      "jy": 554.19,
+      "kineticLaw": "k6*Suc*FAD",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Suc",
+          "stoichiometry": 1.0,
+          "ctrl1x": 344.01,
+          "ctrl1y": 605.13,
+          "ctrl2x": 327.81,
+          "ctrl2y": 580.88,
+          "ctrlSet": true
+        },
+        {
+          "id": "FAD",
+          "stoichiometry": 1.0,
+          "ctrl1x": 280.19,
+          "ctrl1y": 601.81,
+          "ctrl2x": 332.06,
+          "ctrl2y": 591.15,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "Fum",
+          "stoichiometry": 1.0,
+          "ctrl1x": 305.69,
+          "ctrl1y": 527.5,
+          "ctrl2x": 300.0,
+          "ctrl2y": 498.89,
+          "ctrlSet": true
+        },
+        {
+          "id": "FADH2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 301.44,
+          "ctrl1y": 517.23,
+          "ctrl2x": 257.23,
+          "ctrl2y": 546.37,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": 31.4,
+      "labelDy": -9.9
+    },
+    {
+      "id": "FUM",
+      "jx": 316.75,
+      "jy": 385.81,
+      "kineticLaw": "k7*Fum*H2O",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Fum",
+          "stoichiometry": 1.0,
+          "ctrl1x": 300.0,
+          "ctrl1y": 441.11,
+          "ctrl2x": 305.69,
+          "ctrl2y": 412.5,
+          "ctrlSet": true
+        },
+        {
+          "id": "H2O",
+          "stoichiometry": 1.0,
+          "ctrl1x": 257.23,
+          "ctrl1y": 393.63,
+          "ctrl2x": 301.44,
+          "ctrl2y": 422.77,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "Mal",
+          "stoichiometry": 1.0,
+          "ctrl1x": 327.81,
+          "ctrl1y": 359.12,
+          "ctrl2x": 344.01,
+          "ctrl2y": 334.87,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": 31.4,
+      "labelDy": 9.9
+    },
+    {
+      "id": "MDH",
+      "jx": 435.81,
+      "jy": 266.75,
+      "kineticLaw": "k8*Mal*NAD_3",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "Mal",
+          "stoichiometry": 1.0,
+          "ctrl1x": 384.87,
+          "ctrl1y": 294.01,
+          "ctrl2x": 409.12,
+          "ctrl2y": 277.81,
+          "ctrlSet": true
+        },
+        {
+          "id": "NAD_3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 388.19,
+          "ctrl1y": 230.19,
+          "ctrl2x": 398.85,
+          "ctrl2y": 282.06,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "OAA",
+          "stoichiometry": 1.0,
+          "ctrl1x": 462.5,
+          "ctrl1y": 255.69,
+          "ctrl2x": 491.11,
+          "ctrl2y": 250.0,
+          "ctrlSet": true
+        },
+        {
+          "id": "NADH_3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 472.77,
+          "ctrl1y": 251.44,
+          "ctrl2x": 443.63,
+          "ctrl2y": 207.23,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Cycle",
+      "labelDx": 13.0,
+      "labelDy": 24.0
+    }
+  ],
+  "texts": [
+    {
+      "id": "T1",
+      "x": 40.0,
+      "y": 40.0,
+      "text": "The TCA cycle",
+      "size": 24.0,
+      "bold": true,
+      "color": "#00695CFF"
+    },
+    {
+      "id": "T2",
+      "x": 40.0,
+      "y": 76.0,
+      "text": "Each reaction has its own copies (aliases) of NAD, NADH, CoA and CO2, so no line crosses the cycle.",
+      "size": 13.0,
+      "italic": true,
+      "color": "#546E7AFF",
+      "wrapWidth": 300.0
+    }
+  ],
+  "styles": [
+    {
+      "name": "Intermediate",
+      "kind": "species",
+      "style": {
+        "fillColor": "#B2DFDBFF",
+        "borderColor": "#00695CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 30.0,
+      "h": 30.0
+    },
+    {
+      "name": "Cofactor",
+      "kind": "species",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#78909CFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 14.0,
+      "h": 14.0
+    },
+    {
+      "name": "Input",
+      "kind": "species",
+      "style": {
+        "fillColor": "#FFE0B2FF",
+        "borderColor": "#E65100FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 30.0,
+      "h": 30.0
+    },
+    {
+      "name": "Cycle",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00695CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#00695CFF",
+        "lineWidth": 3.0,
+        "fontSize": 13.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      }
+    }
+  ]
+}

@@ -1901,16 +1901,16 @@ mod tests {
         // Twice: a new window takes a frame to find its size and place.
         h.run(vec![]);
         h.run(vec![]);
-        let (open, _) = gallery_open(&h, "Circle 1");
+        let (open, _) = gallery_open(&h, "The TCA cycle");
         h.click(open);
         assert!(matches!(h.app.dialog, Some(Dialog::ConfirmDiscard(_))));
         h.run(vec![]);
         h.run(vec![]);
-        assert_ne!(h.app.doc.name, "circle_1.json", "not without asking");
+        assert_ne!(h.app.doc.name, "tca_cycle.json", "not without asking");
         h.click(h.widget("Don't Save"));
         h.run(vec![]);
         h.run(vec![]);
-        assert_eq!(h.app.doc.name, "circle_1.json");
+        assert_eq!(h.app.doc.name, "tca_cycle.json");
     }
 
     #[test]

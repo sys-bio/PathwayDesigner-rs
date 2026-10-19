@@ -1,0 +1,909 @@
+{
+  "version": 7,
+  "modelName": "mapk_cascade",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "V1",
+      "expression": "2.5"
+    },
+    {
+      "variable": "Ki",
+      "expression": "9.0"
+    },
+    {
+      "variable": "n",
+      "expression": "1.0"
+    },
+    {
+      "variable": "K1",
+      "expression": "10.0"
+    },
+    {
+      "variable": "V2",
+      "expression": "0.25"
+    },
+    {
+      "variable": "KK2",
+      "expression": "8.0"
+    },
+    {
+      "variable": "k3",
+      "expression": "0.025"
+    },
+    {
+      "variable": "KK3",
+      "expression": "15.0"
+    },
+    {
+      "variable": "k4",
+      "expression": "0.025"
+    },
+    {
+      "variable": "KK4",
+      "expression": "15.0"
+    },
+    {
+      "variable": "V5",
+      "expression": "0.75"
+    },
+    {
+      "variable": "KK5",
+      "expression": "15.0"
+    },
+    {
+      "variable": "V6",
+      "expression": "0.75"
+    },
+    {
+      "variable": "KK6",
+      "expression": "15.0"
+    },
+    {
+      "variable": "k7",
+      "expression": "0.025"
+    },
+    {
+      "variable": "KK7",
+      "expression": "15.0"
+    },
+    {
+      "variable": "k8",
+      "expression": "0.025"
+    },
+    {
+      "variable": "KK8",
+      "expression": "15.0"
+    },
+    {
+      "variable": "V9",
+      "expression": "0.5"
+    },
+    {
+      "variable": "KK9",
+      "expression": "15.0"
+    },
+    {
+      "variable": "V10",
+      "expression": "0.5"
+    },
+    {
+      "variable": "KK10",
+      "expression": "15.0"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "MKKK",
+      "x": 220.0,
+      "y": 210.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 90.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#607D8BFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Inactive"
+    },
+    {
+      "id": "MKKK_P",
+      "x": 500.0,
+      "y": 210.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 10.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#FFCCBCFF",
+        "borderColor": "#D84315FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Active"
+    },
+    {
+      "id": "MKK",
+      "x": 220.0,
+      "y": 430.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 280.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#607D8BFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Inactive"
+    },
+    {
+      "id": "MKK_P",
+      "x": 500.0,
+      "y": 430.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 10.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#FFCCBCFF",
+        "borderColor": "#D84315FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Active"
+    },
+    {
+      "id": "MKK_PP",
+      "x": 780.0,
+      "y": 430.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 10.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#FFCCBCFF",
+        "borderColor": "#D84315FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Active"
+    },
+    {
+      "id": "MAPK",
+      "x": 500.0,
+      "y": 650.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 280.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#607D8BFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Inactive"
+    },
+    {
+      "id": "MAPK_P",
+      "x": 780.0,
+      "y": 650.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 10.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#FFCCBCFF",
+        "borderColor": "#D84315FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Active"
+    },
+    {
+      "id": "MAPK_PP",
+      "x": 1060.0,
+      "y": 650.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 10.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "style": {
+        "fillColor": "#FFCCBCFF",
+        "borderColor": "#D84315FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Active"
+    },
+    {
+      "id": "MAPK_PP_2",
+      "x": 780.0,
+      "y": 130.0,
+      "w": 92.0,
+      "h": 36.0,
+      "initialValue": 10.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MAPK_PP",
+      "style": {
+        "fillColor": "#FFCCBCFF",
+        "borderColor": "#D84315FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid",
+      "styleName": "Active"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "J1",
+      "jx": 360.0,
+      "jy": 158.0,
+      "kineticLaw": "V1*MKKK/((1+(MAPK_PP_2/Ki)^n)*(K1+MKKK))",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MKKK",
+          "stoichiometry": 1.0,
+          "ctrl1x": 253.6,
+          "ctrl1y": 168.4,
+          "ctrl2x": 298.4,
+          "ctrl2y": 158.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MKKK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 421.6,
+          "ctrl1y": 158.0,
+          "ctrl2x": 466.4,
+          "ctrl2y": 168.4,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "MAPK_PP_2"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#BF360CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#D84315FF",
+        "lineWidth": 2.5,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Phosphorylation",
+      "labelDx": 0.0,
+      "labelDy": -30.0
+    },
+    {
+      "id": "J2",
+      "jx": 360.0,
+      "jy": 262.0,
+      "kineticLaw": "V2*MKKK_P/(KK2+MKKK_P)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MKKK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 466.4,
+          "ctrl1y": 251.6,
+          "ctrl2x": 421.6,
+          "ctrl2y": 262.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MKKK",
+          "stoichiometry": 1.0,
+          "ctrl1x": 298.4,
+          "ctrl1y": 262.0,
+          "ctrl2x": 253.6,
+          "ctrl2y": 251.6,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#455A64FF",
+        "borderWidth": 0.0,
+        "lineColor": "#607D8BFF",
+        "lineWidth": 2.0,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Dephosphorylation",
+      "labelDx": 0.0,
+      "labelDy": 30.0
+    },
+    {
+      "id": "J3",
+      "jx": 360.0,
+      "jy": 378.0,
+      "kineticLaw": "k3*MKKK_P*MKK/(KK3+MKK)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MKK",
+          "stoichiometry": 1.0,
+          "ctrl1x": 253.6,
+          "ctrl1y": 388.4,
+          "ctrl2x": 298.4,
+          "ctrl2y": 378.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MKK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 421.6,
+          "ctrl1y": 378.0,
+          "ctrl2x": 466.4,
+          "ctrl2y": 388.4,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "MKKK_P"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#BF360CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#D84315FF",
+        "lineWidth": 2.5,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Phosphorylation",
+      "labelDx": 0.0,
+      "labelDy": -30.0
+    },
+    {
+      "id": "J4",
+      "jx": 640.0,
+      "jy": 378.0,
+      "kineticLaw": "k4*MKKK_P*MKK_P/(KK4+MKK_P)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MKK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 533.6,
+          "ctrl1y": 388.4,
+          "ctrl2x": 578.4,
+          "ctrl2y": 378.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MKK_PP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 701.6,
+          "ctrl1y": 378.0,
+          "ctrl2x": 746.4,
+          "ctrl2y": 388.4,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "MKKK_P"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#BF360CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#D84315FF",
+        "lineWidth": 2.5,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Phosphorylation",
+      "labelDx": 0.0,
+      "labelDy": -30.0
+    },
+    {
+      "id": "J5",
+      "jx": 640.0,
+      "jy": 482.0,
+      "kineticLaw": "V5*MKK_PP/(KK5+MKK_PP)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MKK_PP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 746.4,
+          "ctrl1y": 471.6,
+          "ctrl2x": 701.6,
+          "ctrl2y": 482.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MKK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 578.4,
+          "ctrl1y": 482.0,
+          "ctrl2x": 533.6,
+          "ctrl2y": 471.6,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#455A64FF",
+        "borderWidth": 0.0,
+        "lineColor": "#607D8BFF",
+        "lineWidth": 2.0,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Dephosphorylation",
+      "labelDx": 0.0,
+      "labelDy": 30.0
+    },
+    {
+      "id": "J6",
+      "jx": 360.0,
+      "jy": 482.0,
+      "kineticLaw": "V6*MKK_P/(KK6+MKK_P)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MKK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 466.4,
+          "ctrl1y": 471.6,
+          "ctrl2x": 421.6,
+          "ctrl2y": 482.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MKK",
+          "stoichiometry": 1.0,
+          "ctrl1x": 298.4,
+          "ctrl1y": 482.0,
+          "ctrl2x": 253.6,
+          "ctrl2y": 471.6,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#455A64FF",
+        "borderWidth": 0.0,
+        "lineColor": "#607D8BFF",
+        "lineWidth": 2.0,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Dephosphorylation",
+      "labelDx": 0.0,
+      "labelDy": 30.0
+    },
+    {
+      "id": "J7",
+      "jx": 640.0,
+      "jy": 598.0,
+      "kineticLaw": "k7*MKK_PP*MAPK/(KK7+MAPK)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MAPK",
+          "stoichiometry": 1.0,
+          "ctrl1x": 533.6,
+          "ctrl1y": 608.4,
+          "ctrl2x": 578.4,
+          "ctrl2y": 598.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MAPK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 701.6,
+          "ctrl1y": 598.0,
+          "ctrl2x": 746.4,
+          "ctrl2y": 608.4,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "MKK_PP"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#BF360CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#D84315FF",
+        "lineWidth": 2.5,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Phosphorylation",
+      "labelDx": 0.0,
+      "labelDy": -30.0
+    },
+    {
+      "id": "J8",
+      "jx": 920.0,
+      "jy": 598.0,
+      "kineticLaw": "k8*MKK_PP*MAPK_P/(KK8+MAPK_P)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MAPK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 813.6,
+          "ctrl1y": 608.4,
+          "ctrl2x": 858.4,
+          "ctrl2y": 598.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MAPK_PP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 981.6,
+          "ctrl1y": 598.0,
+          "ctrl2x": 1026.4,
+          "ctrl2y": 608.4,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "MKK_PP"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#BF360CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#D84315FF",
+        "lineWidth": 2.5,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Phosphorylation",
+      "labelDx": 0.0,
+      "labelDy": -30.0
+    },
+    {
+      "id": "J9",
+      "jx": 920.0,
+      "jy": 702.0,
+      "kineticLaw": "V9*MAPK_PP/(KK9+MAPK_PP)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MAPK_PP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 1026.4,
+          "ctrl1y": 691.6,
+          "ctrl2x": 981.6,
+          "ctrl2y": 702.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MAPK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 858.4,
+          "ctrl1y": 702.0,
+          "ctrl2x": 813.6,
+          "ctrl2y": 691.6,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#455A64FF",
+        "borderWidth": 0.0,
+        "lineColor": "#607D8BFF",
+        "lineWidth": 2.0,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Dephosphorylation",
+      "labelDx": 0.0,
+      "labelDy": 30.0
+    },
+    {
+      "id": "J10",
+      "jx": 640.0,
+      "jy": 702.0,
+      "kineticLaw": "V10*MAPK_P/(KK10+MAPK_P)",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": false,
+      "reactants": [
+        {
+          "id": "MAPK_P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 746.4,
+          "ctrl1y": 691.6,
+          "ctrl2x": 701.6,
+          "ctrl2y": 702.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "MAPK",
+          "stoichiometry": 1.0,
+          "ctrl1x": 578.4,
+          "ctrl1y": 702.0,
+          "ctrl2x": 533.6,
+          "ctrl2y": 691.6,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#455A64FF",
+        "borderWidth": 0.0,
+        "lineColor": "#607D8BFF",
+        "lineWidth": 2.0,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "styleName": "Dephosphorylation",
+      "labelDx": 0.0,
+      "labelDy": 30.0
+    }
+  ],
+  "texts": [
+    {
+      "id": "T1",
+      "x": 60.0,
+      "y": 40.0,
+      "text": "MAPK cascade with negative feedback",
+      "size": 22.0,
+      "bold": true
+    },
+    {
+      "id": "T2",
+      "x": 60.0,
+      "y": 74.0,
+      "text": "After Kholodenko (2000). MAPK-PP inhibits the first step; with this feedback the cascade oscillates.",
+      "size": 13.0,
+      "italic": true,
+      "color": "#546E7AFF",
+      "wrapWidth": 560.0
+    },
+    {
+      "id": "T3",
+      "x": 60.0,
+      "y": 200.0,
+      "text": "MAPKKK",
+      "size": 14.0,
+      "bold": true,
+      "color": "#78909CFF"
+    },
+    {
+      "id": "T4",
+      "x": 60.0,
+      "y": 420.0,
+      "text": "MAPKK",
+      "size": 14.0,
+      "bold": true,
+      "color": "#78909CFF"
+    },
+    {
+      "id": "T5",
+      "x": 340.0,
+      "y": 640.0,
+      "text": "MAPK",
+      "size": 14.0,
+      "bold": true,
+      "color": "#78909CFF"
+    }
+  ],
+  "styles": [
+    {
+      "name": "Inactive",
+      "kind": "species",
+      "style": {
+        "fillColor": "#ECEFF1FF",
+        "borderColor": "#607D8BFF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "name": "Active",
+      "kind": "species",
+      "style": {
+        "fillColor": "#FFCCBCFF",
+        "borderColor": "#D84315FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "name": "Phosphorylation",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#BF360CFF",
+        "borderWidth": 0.0,
+        "lineColor": "#D84315FF",
+        "lineWidth": 2.5,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      }
+    },
+    {
+      "name": "Dephosphorylation",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#455A64FF",
+        "borderWidth": 0.0,
+        "lineColor": "#607D8BFF",
+        "lineWidth": 2.0,
+        "fontSize": 12.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      }
+    }
+  ]
+}
