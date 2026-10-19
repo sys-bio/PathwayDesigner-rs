@@ -21,8 +21,9 @@ pd-export = { path = "crates/pd-export" }
 sbml-io = { path = "crates/sbml-io" }
 # eframe's defaults minus `default_fonts`: the app uses only the bundled font
 # (SPEC-Rust §5.4), and egui's own fonts include one under the Ubuntu Font Licence.
-eframe = { version = "0.36", default-features = false, features = [
+eframe = { version = "0.37", default-features = false, features = [
     "accesskit",
+    "clipboard",
     "links",
     # Preferences saved between sessions (localStorage on the web, S §12).
     "persistence",
@@ -31,7 +32,7 @@ eframe = { version = "0.36", default-features = false, features = [
     "wgpu",
     "x11",
 ] }
-# Text shaping and font metrics. These are the versions egui 0.36 uses, so the
+# Text shaping and font metrics. These are the versions egui 0.37 uses, so the
 # app ships one copy of each and pd-core measures text exactly the way egui
 # lays it out (SPEC-Rust §5.4).
 harfrust = "0.12"

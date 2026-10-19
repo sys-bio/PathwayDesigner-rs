@@ -132,7 +132,7 @@ pub(crate) fn dialog(
         ExportKind::Pdf => ("Export PDF", "Export"),
         ExportKind::Print => ("Print", "Print"),
     };
-    let modal = egui::Modal::new(egui::Id::new("export")).show(ctx, |ui| {
+    let modal = egui::Modal::new(egui::Id::unique("export")).show(ctx, |ui| {
         ui.heading(title);
         ui.add_space(4.0);
         if kind == ExportKind::Png {

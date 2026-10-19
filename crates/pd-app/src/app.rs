@@ -1271,7 +1271,7 @@ impl PathwayApp {
                 focus,
             } => {
                 let mut submit = false;
-                let modal = egui::Modal::new(egui::Id::new("rename")).show(ctx, |ui| {
+                let modal = egui::Modal::new(egui::Id::unique("rename")).show(ctx, |ui| {
                     ui.heading("Rename species");
                     ui.add_space(4.0);
                     let edit = ui.add(egui::TextEdit::singleline(text).desired_width(240.0));
@@ -1306,7 +1306,7 @@ impl PathwayApp {
                 focus,
             } => {
                 let mut submit = false;
-                let modal = egui::Modal::new(egui::Id::new("rename-style")).show(ctx, |ui| {
+                let modal = egui::Modal::new(egui::Id::unique("rename-style")).show(ctx, |ui| {
                     ui.heading("Rename style");
                     ui.add_space(4.0);
                     let edit = ui.add(egui::TextEdit::singleline(text).desired_width(240.0));
@@ -1340,7 +1340,7 @@ impl PathwayApp {
                 focus,
             } => {
                 let mut submit = false;
-                let modal = egui::Modal::new(egui::Id::new("save-style")).show(ctx, |ui| {
+                let modal = egui::Modal::new(egui::Id::unique("save-style")).show(ctx, |ui| {
                     ui.heading("Save style");
                     ui.label("A name for this look:");
                     ui.add_space(4.0);
@@ -1372,7 +1372,7 @@ impl PathwayApp {
                 let mut ok = false;
                 let catalytic_changed = draft.convert_catalytic != self.prefs.convert_catalytic;
                 let will_reimport = catalytic_changed && self.antimony.last_import().is_some();
-                let modal = egui::Modal::new(egui::Id::new("preferences")).show(ctx, |ui| {
+                let modal = egui::Modal::new(egui::Id::unique("preferences")).show(ctx, |ui| {
                     ui.heading("Preferences");
                     ui.add_space(4.0);
                     ui.checkbox(&mut draft.convert_catalytic, "Convert catalytic reactions")
@@ -1427,7 +1427,7 @@ impl PathwayApp {
             Dialog::ConfirmDiscard(action) => {
                 let (mut save, mut discard) = (false, false);
                 let name = self.doc.name.clone();
-                let modal = egui::Modal::new(egui::Id::new("confirm-discard")).show(ctx, |ui| {
+                let modal = egui::Modal::new(egui::Id::unique("confirm-discard")).show(ctx, |ui| {
                     ui.heading(format!("Save changes to {name}?"));
                     ui.label("Your changes will be lost if you don't save them.");
                     ui.add_space(4.0);
@@ -1449,7 +1449,7 @@ impl PathwayApp {
             Dialog::Recover(a) => {
                 let (mut recover, mut discard) = (false, false);
                 let (name, age) = (a.name.clone(), a.age(autosave::now()));
-                let modal = egui::Modal::new(egui::Id::new("recover")).show(ctx, |ui| {
+                let modal = egui::Modal::new(egui::Id::unique("recover")).show(ctx, |ui| {
                     ui.heading("Recover unsaved changes?");
                     ui.label(format!(
                         "{name} had unsaved changes when PathwayDesigner last closed ({age})."
@@ -1476,7 +1476,7 @@ impl PathwayApp {
                 }
             }
             Dialog::About => {
-                let modal = egui::Modal::new(egui::Id::new("about")).show(ctx, |ui| {
+                let modal = egui::Modal::new(egui::Id::unique("about")).show(ctx, |ui| {
                     ui.heading("PathwayDesigner");
                     ui.label(format!(
                         "Version {} · built {}",
@@ -1789,6 +1789,7 @@ mod tests {
         let mut h = Harness::new();
         assert!(!h.app.keys_help);
         h.click(h.widget("Help"));
+        h.run(vec![]);
         h.click(h.widget("Mouse and Keyboard"));
         assert!(h.app.keys_help);
         h.run(vec![]);
@@ -1861,6 +1862,7 @@ mod tests {
         let mut h = Harness::new();
         h.app.gallery.fetch = local;
         h.click(h.widget("File"));
+        h.run(vec![]);
         h.click(h.widget("Open from Gallery…"));
         assert!(h.app.gallery.open);
         h.run(vec![]);
@@ -2563,6 +2565,7 @@ k = 0.1"
             "Enzyme".into(),
             look,
         ));
+        h.run(vec![]);
         h.run(vec![]);
         // Only the rows that make a look.
         let labels: Vec<String> = h

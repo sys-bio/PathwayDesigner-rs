@@ -696,7 +696,7 @@ impl Inspector {
     /// The words of the one selected text, applied as they are typed (one
     /// undo step for a run of typing). Enter starts a new line.
     fn words_field(&mut self, ui: &mut egui::Ui, view: &mut DiagramView, one: Option<&str>) {
-        let id = egui::Id::new(WORDS_ID);
+        let id = egui::Id::unique(WORDS_ID);
         let focused = ui.memory(|m| m.has_focus(id));
         // Another text selected: show its words, and stop typing into the old one.
         if self.words_for.as_deref() != one {

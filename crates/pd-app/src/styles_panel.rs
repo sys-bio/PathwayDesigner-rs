@@ -333,7 +333,7 @@ impl StyleEditor {
         let mut outcome = None;
         let mut open = true;
         egui::Window::new(format!("Edit Style: {}", self.name))
-            .id(egui::Id::new("edit-style"))
+            .id(egui::Id::unique("edit-style"))
             .collapsible(false)
             .resizable(false)
             // Beside the right panel, clear of the diagram's top left.

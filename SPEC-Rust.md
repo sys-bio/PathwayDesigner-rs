@@ -502,7 +502,7 @@ same on every platform**:
   outlines from the font data, so no font needs to be installed.
 - **Measure** label width in `pd-core::text` from that font's own data, not with
   egui. Then the width is the same in a headless test, a desktop build and a browser.
-  Shape the text with **harfrust**, the shaper egui 0.36 uses, so GPOS kerning is
+  Shape the text with **harfrust**, the shaper egui 0.37 uses, so GPOS kerning is
   applied exactly as egui draws it. (`ab_glyph` only reads the old `kern` table, so
   its widths would differ from the screen.) A test in `pd-app` checks that the two
   agree to within 1 point.
