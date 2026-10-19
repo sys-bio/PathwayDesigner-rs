@@ -128,6 +128,10 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
                 "Arrow keys, Shift + arrow keys",
                 "Nudge the selection 1 unit, 10 units; with Snap to grid, one grid line, five (Alt for 1 and 10)",
             ),
+            (
+                "Arrow keys after clicking a corner point",
+                "Move that point instead, by the same steps; a click elsewhere or Esc goes back to the selection",
+            ),
             ("Ctrl+Alt+C, Ctrl+Alt+V", "Copy Style, Paste Style"),
             (
                 "Enter",

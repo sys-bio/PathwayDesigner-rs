@@ -459,14 +459,25 @@ impl DiagramView {
     /// selected item moves to the next grid line that way (five lines with
     /// Shift), and the rest by as much; across, nothing moves.
     pub fn nudge_key(&mut self, dir: Pt, big: bool, free: bool) -> ViewResponse {
+        // A current corner point takes the keys (S §5.7.1).
+        if let Some(p) = self.current_corner_point() {
+            let delta = self.key_step(dir, big, free, Some(p));
+            return self.nudge_corner(delta).unwrap_or_default();
+        }
+        let delta = self.key_step(dir, big, free, self.nudge_anchor());
+        self.nudge(delta)
+    }
+
+    /// How far an arrow key moves things whose leading point is `anchor`.
+    fn key_step(&self, dir: Pt, big: bool, free: bool, anchor: Option<Pt>) -> Pt {
         use crate::render::constants::{GRID_MAJOR_EVERY, GRID_SPACING};
         if !self.snap_to_grid || free {
             let step = if big { NUDGE_STEP_SHIFT } else { NUDGE_STEP };
-            return self.nudge(dir * step);
+            return dir * step;
         }
         let lines = if big { GRID_MAJOR_EVERY as f64 } else { 1.0 };
-        let Some(a) = self.nudge_anchor() else {
-            return self.nudge(dir * (GRID_SPACING * lines));
+        let Some(a) = anchor else {
+            return dir * (GRID_SPACING * lines);
         };
         // The next grid line beyond `v` that way, then more lines with Shift.
         let along = |v: f64, d: f64| -> f64 {
@@ -481,7 +492,7 @@ impl DiagramView {
             };
             (next + d * (lines - 1.0)) * GRID_SPACING - v
         };
-        self.nudge(pt(along(a.x, dir.x), along(a.y, dir.y)))
+        pt(along(a.x, dir.x), along(a.y, dir.y))
     }
 
     /// The point of the first selected item that lands on the grid when

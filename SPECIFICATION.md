@@ -510,6 +510,15 @@ coordinates on the modifier's participant, in order from the modifier.
   Corner Point** (where it was clicked) and **Straighten Modifier Line**
   (removes all its corner points; disabled when it has none). Right-click a
   corner point: **Remove Corner Point**.
+- **The current corner point.** The corner point last clicked or dragged is
+  *current*, drawn filled with the selected reaction colour. While there is one,
+  the arrow keys move it instead of the selection, by the same steps as nudging
+  (§7.5, §7.6: 1 unit, 10 with Shift; with Snap to grid, to the next grid line,
+  five with Shift; Alt moves freely), and a run of presses is one undo step
+  ("Move Corner Point"). It stops being current on a click on anything else, a
+  change of selection, Esc, Undo or Redo, adding, removing or straightening
+  that arc's points, or when its reaction is no longer selected or arcs are
+  hidden.
 - The Reaction group (§8.1), for one selected reaction, lists its modifiers
   under the rate law ("Modifiers"), each by its primary's name with a kind
   drop-down.

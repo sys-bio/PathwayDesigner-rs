@@ -216,6 +216,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Ctrl+A | Select all (Edit also has Select All Species and Select All Reactions) |
 | Delete, Backspace | Delete the selection |
 | Arrow keys, Shift + arrow keys | Nudge the selection 1 unit, 10 units; with Snap to grid, one grid line, five (Alt for 1 and 10) |
+| Arrow keys after clicking a corner point | Move that point instead, by the same steps; a click elsewhere or Esc goes back to the selection |
 | Ctrl+Alt+C, Ctrl+Alt+V | Copy Style, Paste Style |
 | Enter | With A+… → B+…: on to the products, then make the reaction |
 | Esc | Cancel what is in progress (a drag, a reaction being picked, a layout) and go back to the Select tool |

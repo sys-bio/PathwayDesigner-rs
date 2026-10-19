@@ -294,3 +294,177 @@ fn sbml_keeps_corner_points_and_kinds() {
         [pt(360.0, -200.0), pt(360.0, 0.0)]
     );
 }
+
+#[test]
+fn the_arrow_keys_move_the_current_corner_point() {
+    let mut v = view();
+    set_points(&mut v, &[pt(360.0, -200.0), pt(360.0, -20.0)]);
+    v.select_item(&Target::Leg("R1".into()), false);
+    assert_eq!(v.current_corner_point(), None, "none until one is clicked");
+    // A click on the second point makes it current.
+    press(&mut v, pt(360.0, -20.0), Button::Primary);
+    v.handle(&ViewEvent::PointerUp {
+        pos: pt(360.0, -20.0),
+        button: Button::Primary,
+    });
+    assert_eq!(v.current_corner_point(), Some(pt(360.0, -20.0)));
+    let junction = v.model().find_reaction("R1").unwrap().junction;
+    // 1 unit, then 10 with Shift; the reaction stays put.
+    v.nudge_key(pt(1.0, 0.0), false, false);
+    v.nudge_key(pt(0.0, -1.0), true, false);
+    assert_eq!(points(&v), [pt(360.0, -200.0), pt(361.0, -30.0)]);
+    assert_eq!(v.model().find_reaction("R1").unwrap().junction, junction);
+    assert_eq!(v.current_corner_point(), Some(pt(361.0, -30.0)));
+    // One undo step for the run; undoing lets the point go.
+    assert_eq!(v.undo_description(), Some("Move Corner Point"));
+    v.undo();
+    assert_eq!(points(&v), [pt(360.0, -200.0), pt(360.0, -20.0)]);
+    assert_eq!(v.current_corner_point(), None);
+    // While snapping: to the next grid line, five with Shift; Alt is free.
+    v.select_item(&Target::Leg("R1".into()), false);
+    press(&mut v, pt(360.0, -20.0), Button::Primary);
+    v.handle(&ViewEvent::PointerUp {
+        pos: pt(360.0, -20.0),
+        button: Button::Primary,
+    });
+    v.snap_to_grid = true;
+    set_points(&mut v, &[pt(360.0, -200.0), pt(363.0, -20.0)]);
+    v.nudge_key(pt(1.0, 0.0), false, false);
+    assert_eq!(points(&v)[1], pt(380.0, -20.0));
+    v.nudge_key(pt(0.0, 1.0), true, false);
+    assert_eq!(points(&v)[1], pt(380.0, 80.0));
+    v.nudge_key(pt(-1.0, 0.0), false, true);
+    assert_eq!(points(&v)[1], pt(379.0, 80.0));
+    v.snap_to_grid = false;
+    // A click elsewhere lets it go: the keys move the selection again.
+    press(&mut v, pt(0.0, 0.0), Button::Primary);
+    v.handle(&ViewEvent::PointerUp {
+        pos: pt(0.0, 0.0),
+        button: Button::Primary,
+    });
+    assert_eq!(v.current_corner_point(), None);
+    v.nudge_key(pt(1.0, 0.0), false, false);
+    assert_eq!(v.model().find_species("A").unwrap().center, pt(1.0, 0.0));
+    assert_eq!(points(&v)[1], pt(379.0, 80.0));
+}
+
+#[test]
+fn the_current_corner_point_is_let_go() {
+    let make = || {
+        let mut v = view();
+        set_points(&mut v, &[pt(360.0, -200.0)]);
+        v.select_item(&Target::Leg("R1".into()), false);
+        drag(&mut v, pt(360.0, -200.0), pt(360.0, -180.0));
+        assert_eq!(
+            v.current_corner_point(),
+            Some(pt(360.0, -180.0)),
+            "a drag too"
+        );
+        v
+    };
+    // Esc.
+    let mut v = make();
+    v.handle(&ViewEvent::Cancel);
+    assert_eq!(v.current_corner_point(), None);
+    // Another selection.
+    let mut v = make();
+    v.select_item(&Target::Species("A".into()), false);
+    assert_eq!(v.current_corner_point(), None);
+    // The reaction no longer selected.
+    let mut v = make();
+    v.model.find_reaction_mut("R1").unwrap().selected = false;
+    assert_eq!(v.current_corner_point(), None);
+    // Arcs hidden.
+    let mut v = make();
+    v.show_modifiers = false;
+    assert_eq!(v.current_corner_point(), None);
+    // Points added, removed or straightened away.
+    let mut v = make();
+    v.add_corner_point("R1", 0, 0, pt(300.0, -200.0));
+    assert_eq!(v.current_corner_point(), None);
+    let mut v = make();
+    v.remove_corner_point("R1", 0, 0);
+    assert_eq!(v.current_corner_point(), None);
+    let mut v = make();
+    v.straighten_modifier_line("R1", 0);
+    assert_eq!(v.current_corner_point(), None);
+}
+
+#[test]
+fn removing_another_point_lets_the_current_one_go_too() {
+    let mut v = view();
+    set_points(&mut v, &[pt(360.0, -200.0), pt(360.0, -20.0)]);
+    v.select_item(&Target::Leg("R1".into()), false);
+    drag(&mut v, pt(360.0, -200.0), pt(360.0, -190.0));
+    assert_eq!(v.current_corner_point(), Some(pt(360.0, -190.0)));
+    v.remove_corner_point("R1", 0, 1);
+    assert_eq!(v.current_corner_point(), None);
+}
+
+/// Counts the squares the screen drawing fills with `fill`.
+struct Squares {
+    fill: crate::model::Rgba,
+    count: usize,
+}
+
+impl crate::render::Renderer for Squares {
+    fn round_rect(
+        &mut self,
+        _: crate::render::SRect,
+        _: f32,
+        fill: Option<crate::model::Rgba>,
+        _: Option<crate::render::Stroke>,
+    ) {
+        self.count += usize::from(fill == Some(self.fill));
+    }
+    fn circle(
+        &mut self,
+        _: crate::render::SPt,
+        _: f32,
+        _: Option<crate::model::Rgba>,
+        _: Option<crate::render::Stroke>,
+    ) {
+    }
+    fn polyline(&mut self, _: &[crate::render::SPt], _: crate::render::Stroke) {}
+    fn cubic(
+        &mut self,
+        _: crate::render::SPt,
+        _: crate::render::SPt,
+        _: crate::render::SPt,
+        _: crate::render::SPt,
+        _: crate::render::Stroke,
+    ) {
+    }
+    fn polygon(&mut self, _: &[crate::render::SPt], _: crate::model::Rgba) {}
+    fn text(
+        &mut self,
+        _: crate::render::SPt,
+        _: &str,
+        _: f32,
+        _: crate::model::TextFont,
+        _: crate::model::Rgba,
+    ) {
+    }
+}
+
+#[test]
+fn the_screen_shows_the_current_corner_point_filled() {
+    let mut v = view();
+    set_points(&mut v, &[pt(360.0, -200.0)]);
+    v.select_item(&Target::Leg("R1".into()), false);
+    let filled = |v: &DiagramView| {
+        let mut s = Squares {
+            fill: v.selected_reaction_colour,
+            count: 0,
+        };
+        let area = crate::render::SRect {
+            min: crate::render::spt(0.0, 0.0),
+            max: crate::render::spt(800.0, 600.0),
+        };
+        v.draw(&mut s, area);
+        s.count
+    };
+    assert_eq!(filled(&v), 0);
+    drag(&mut v, pt(360.0, -200.0), pt(360.0, -190.0));
+    assert_eq!(filled(&v), 1);
+}

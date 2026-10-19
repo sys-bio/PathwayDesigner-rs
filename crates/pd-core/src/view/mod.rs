@@ -128,6 +128,9 @@ pub struct DiagramView {
     /// The undo history's version and the selection after the last keyboard
     /// nudge, so the next one can join its undo step.
     nudged: Option<(u64, SelectionState)>,
+    /// The corner point last clicked or dragged, which the arrow keys move
+    /// (S §5.7.1): the reaction, the modifier's index and the point's.
+    current_corner: Option<(Id, usize, usize)>,
     /// The undo history's version after the last change to a text's words,
     /// and which text: typing more joins that undo step (S §7.8).
     text_edited: Option<(u64, Id)>,
@@ -411,6 +414,7 @@ impl DiagramView {
             hover: None,
             layout: None,
             nudged: None,
+            current_corner: None,
             text_edited: None,
         }
     }
@@ -516,6 +520,7 @@ impl DiagramView {
             show_reversible: self.show_reversible,
             selected_reaction: self.selected_reaction_colour,
             grid: self.show_grid,
+            current_corner: self.current_corner_point(),
         };
         draw_model(&self.model, &opts, r);
         self.draw_overlays(r);
@@ -714,6 +719,7 @@ impl DiagramView {
                 r
             }
             ViewEvent::Cancel => {
+                self.current_corner = None;
                 let mut r = self.cancel_gesture();
                 self.set_tool(Tool::Select);
                 self.model.clear_selection();
@@ -760,6 +766,12 @@ impl DiagramView {
             // A modifier's arc is a line of its reaction (S §5.7.1).
             Target::ModifierLine(id, ..) => Target::Leg(id),
             t => t,
+        };
+        // A corner point clicked becomes the one the arrow keys move; a
+        // click on anything else lets it go.
+        self.current_corner = match &target {
+            Target::CornerPoint(id, modifier, point) => Some((id.clone(), *modifier, *point)),
+            _ => None,
         };
         let anchor = self.snap_anchor(&target);
         match target {
@@ -2048,6 +2060,7 @@ impl DiagramView {
     /// (the model tree, SPEC-Rust §11.3). With `add`, it is toggled in or out
     /// of the selection instead.
     pub fn select_item(&mut self, item: &Target, add: bool) -> ViewResponse {
+        self.current_corner = None;
         let before = self.selection_state();
         if !add {
             self.model.clear_selection();
@@ -2122,6 +2135,7 @@ impl DiagramView {
     }
 
     fn undo_or_redo(&mut self, undo: bool) -> ViewResponse {
+        self.current_corner = None;
         self.cancel_layout();
         self.cancel_gesture();
         // Typing after an undo or redo starts a new step.

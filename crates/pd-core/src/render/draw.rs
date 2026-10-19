@@ -39,6 +39,9 @@ pub struct DrawOptions {
     pub selected_reaction: Rgba,
     /// Draw the grid on the background (S §7.6). Never drawn for output.
     pub grid: bool,
+    /// The current corner point, which the arrow keys move (S §5.7.1):
+    /// drawn filled.
+    pub current_corner: Option<Pt>,
 }
 
 impl Default for DrawOptions {
@@ -54,6 +57,7 @@ impl Default for DrawOptions {
             show_reversible: true,
             selected_reaction: SELECTED_REACTION,
             grid: false,
+            current_corner: None,
         }
     }
 }
@@ -918,10 +922,15 @@ impl Drawer<'_> {
             .filter(|m| self.visible(&m.species).is_some())
         {
             for &p in &m.points {
+                let current = self.opts.current_corner == Some(p);
                 out.round_rect(
                     self.rect(p, HANDLE_RADIUS, HANDLE_RADIUS),
                     0.0,
-                    Some(HANDLE_FILL),
+                    Some(if current {
+                        self.opts.selected_reaction
+                    } else {
+                        HANDLE_FILL
+                    }),
                     Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
                 );
             }
@@ -1978,6 +1987,18 @@ mod tests {
         m.find_reaction_mut("R3").unwrap().selected = true;
         let calls = draw(&m, &DrawOptions::default());
         assert_eq!(square(&calls), 2);
+        // The current one is filled with the selected reaction's colour.
+        let opts = DrawOptions {
+            current_corner: Some(pt(360.0, -10.0)),
+            ..DrawOptions::default()
+        };
+        let calls = draw(&m, &opts);
+        assert_eq!(square(&calls), 1);
+        let filled = calls
+            .iter()
+            .filter(|c| matches!(c, Call::RoundRect(_, Some(f), _) if *f == opts.selected_reaction))
+            .count();
+        assert_eq!(filled, 1);
         // Hidden arcs hide their points too; output never shows them.
         let hidden = DrawOptions::default().with(Shown {
             modifiers: false,
