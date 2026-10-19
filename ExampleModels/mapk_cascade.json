@@ -308,7 +308,7 @@
       "id": "J1",
       "jx": 360.0,
       "jy": 158.0,
-      "kineticLaw": "V1*MKKK/((1+(MAPK_PP_2/Ki)^n)*(K1+MKKK))",
+      "kineticLaw": "V1*MKKK/((1+(MAPK_PP/Ki)^n)*(K1+MKKK))",
       "isReversible": false,
       "isLinear": false,
       "isBezier": true,

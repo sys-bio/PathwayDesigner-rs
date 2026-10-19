@@ -341,7 +341,7 @@
       "id": "transcribe_lacI",
       "jx": 210.0,
       "jy": 300.0,
-      "kineticLaw": "alpha0+alpha/(1+CI_2^nH)",
+      "kineticLaw": "alpha0+alpha/(1+CI^nH)",
       "isReversible": false,
       "isLinear": false,
       "isBezier": false,
