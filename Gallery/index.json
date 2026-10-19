@@ -39,8 +39,8 @@
       "file": "ExampleModels/mapk_cascade.json",
       "group": "Showcase",
       "title": "MAPK cascade with negative feedback",
-      "description": "After Kholodenko (2000): three tiers of phosphorylation cycles, with Michaelis-Menten rate laws",
-      "version": 7
+      "description": "After Kholodenko (2000): three tiers of phosphorylation cycles; MAPK-PP's feedback is an inhibitor line routed round the diagram",
+      "version": 11
     },
     {
       "file": "ExampleModels/repressilator.json",

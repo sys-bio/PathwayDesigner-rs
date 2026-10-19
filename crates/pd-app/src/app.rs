@@ -2284,34 +2284,34 @@ mod tests {
         assert_eq!(h.app.view.undo_description(), Some("Modifier Kind"));
         // The right-click menu's choice.
         h.app.act(
-            MenuAction::ModifierKind("J1".into(), "MAPK_PP_2".into(), ModifierKind::Inhibitor),
+            MenuAction::ModifierKind("J1".into(), "MAPK_PP".into(), ModifierKind::Catalyst),
             pt(0.0, 0.0),
         );
-        assert_eq!(kind(&h, "J1"), ModifierKind::Inhibitor);
+        assert_eq!(kind(&h, "J1"), ModifierKind::Catalyst);
         // Corner points from the arc's and the point's menus (S §5.7.1).
         let points = |h: &Harness| {
-            h.app.view.model().find_reaction("J1").unwrap().modifiers[0]
+            h.app.view.model().find_reaction("J3").unwrap().modifiers[0]
                 .points
                 .clone()
         };
         let at = pt(800.0, 100.0);
         h.app.act(
-            MenuAction::AddCornerPoint("J1".into(), 0, 0, at),
+            MenuAction::AddCornerPoint("J3".into(), 0, 0, at),
             pt(0.0, 0.0),
         );
         assert_eq!(points(&h), [at]);
         h.app.act(
-            MenuAction::AddCornerPoint("J1".into(), 0, 1, pt(500.0, 100.0)),
+            MenuAction::AddCornerPoint("J3".into(), 0, 1, pt(500.0, 100.0)),
             pt(0.0, 0.0),
         );
         assert_eq!(points(&h).len(), 2);
         h.app.act(
-            MenuAction::RemoveCornerPoint("J1".into(), 0, 0),
+            MenuAction::RemoveCornerPoint("J3".into(), 0, 0),
             pt(0.0, 0.0),
         );
         assert_eq!(points(&h), [pt(500.0, 100.0)]);
         h.app.act(
-            MenuAction::StraightenModifierLine("J1".into(), 0),
+            MenuAction::StraightenModifierLine("J3".into(), 0),
             pt(0.0, 0.0),
         );
         assert!(points(&h).is_empty());

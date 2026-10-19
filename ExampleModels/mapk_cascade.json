@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 11,
   "modelName": "mapk_cascade",
   "compartments": [],
   "parameters": [
@@ -277,30 +277,6 @@
       },
       "borderDash": "solid",
       "styleName": "Active"
-    },
-    {
-      "id": "MAPK_PP_2",
-      "x": 780.0,
-      "y": 130.0,
-      "w": 92.0,
-      "h": 36.0,
-      "initialValue": 10.0,
-      "isBoundary": false,
-      "isConstant": false,
-      "aliasOf": "MAPK_PP",
-      "style": {
-        "fillColor": "#FFCCBCFF",
-        "borderColor": "#D84315FF",
-        "labelColor": "#00000000",
-        "borderWidth": 2.0,
-        "lineColor": "#00000000",
-        "lineWidth": 0.0,
-        "fontSize": 0.0,
-        "junctionColor": "#00000000",
-        "junctionVisible": true
-      },
-      "borderDash": "solid",
-      "styleName": "Active"
     }
   ],
   "reactions": [
@@ -337,7 +313,16 @@
       ],
       "modifiers": [
         {
-          "id": "MAPK_PP_2"
+          "id": "MAPK_PP",
+          "kind": "inhibitor",
+          "points": [
+            1160.0,
+            650.0,
+            1160.0,
+            112.0,
+            420.0,
+            112.0
+          ]
         }
       ],
       "style": {
