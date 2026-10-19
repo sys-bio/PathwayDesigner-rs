@@ -51,7 +51,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 11 if a modifier has a kind (S §5.7.1), 10 if a
+/// (SPEC-Rust §4.2): 11 if a modifier has a kind or corner points
+/// (S §5.7.1), 10 if a
 /// straight stem is free to bend (S §5.13), 9 if
 /// the diagram has its own background colour, 8 if a
 /// reaction has a stem, 7 if a reaction shows its
@@ -62,10 +63,11 @@ pub const DELPHI_VERSION: u32 = 3;
 pub fn needed_version(model: &Model) -> u32 {
     let no_border = model.species().iter().any(|s| s.style.no_border)
         || model.compartments.iter().any(|c| c.style.no_border);
-    let kinds = model
-        .reactions()
-        .iter()
-        .any(|r| r.modifiers.iter().any(|m| m.kind != ModifierKind::Modifier));
+    let kinds = model.reactions().iter().any(|r| {
+        r.modifiers
+            .iter()
+            .any(|m| m.kind != ModifierKind::Modifier || !m.points.is_empty())
+    });
     if kinds {
         FORMAT_VERSION
     } else if model.reactions().iter().any(needs_stem_straight) {
@@ -484,6 +486,10 @@ struct FileParticipantObject {
     /// `"inhibitor"` or `"catalyst"`. Left out for a plain modifier.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<String>,
+    /// Version 11: a modifier's corner points (S §5.7.1), as
+    /// `[x1, y1, x2, y2, …]`. Left out when it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    points: Option<Vec<f64>>,
 }
 
 /// A style object. Missing keys mean 0 (use the default), or true for
@@ -1010,6 +1016,15 @@ fn participant_from_file(p: FileParticipant) -> Participant {
                     .kind
                     .as_deref()
                     .map_or(ModifierKind::Modifier, ModifierKind::from_key),
+                // An odd number leaves the last one out.
+                points: o
+                    .points
+                    .unwrap_or_default()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&[x, y]| pt(x, y))
+                    .collect(),
             }
         }
     }
@@ -1219,6 +1234,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     ctrl2y: set.then_some(c2.y),
                     ctrl_set: set.then_some(true),
                     kind: None,
+                    points: None,
                 })
             })
             .collect()
@@ -1249,6 +1265,8 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     ctrl2y: None,
                     ctrl_set: None,
                     kind: p.kind.key().map(str::to_owned),
+                    points: (!p.points.is_empty())
+                        .then(|| p.points.iter().flat_map(|q| [q.x, q.y]).collect()),
                 })
             })
             .collect(),

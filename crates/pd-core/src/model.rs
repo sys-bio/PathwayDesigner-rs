@@ -408,6 +408,10 @@ pub struct Participant {
     pub ctrl_pts_set: bool,
     /// What a modifier does (S §5.7.1). Only used in a modifier list.
     pub kind: ModifierKind,
+    /// A modifier's corner points (S §5.7.1): its arc runs from the node
+    /// through them, in order, to the junction. World coordinates. Only used
+    /// in a modifier list.
+    pub points: Vec<Pt>,
 }
 
 impl Participant {
@@ -419,6 +423,7 @@ impl Participant {
             ctrl2: Pt::ZERO,
             ctrl_pts_set: false,
             kind: ModifierKind::Modifier,
+            points: Vec::new(),
         }
     }
 }
@@ -464,6 +469,36 @@ impl ModifierKind {
             ModifierKind::Activator => Some("activator"),
             ModifierKind::Inhibitor => Some("inhibitor"),
             ModifierKind::Catalyst => Some("catalyst"),
+        }
+    }
+
+    /// Its SBO term on an SBML `modifierSpeciesReference` (S §5.7.1); none
+    /// for a plain modifier.
+    pub fn sbo_term(self) -> Option<&'static str> {
+        match self {
+            ModifierKind::Modifier => None,
+            ModifierKind::Activator => Some("SBO:0000459"),
+            ModifierKind::Inhibitor => Some("SBO:0000020"),
+            ModifierKind::Catalyst => Some("SBO:0000013"),
+        }
+    }
+
+    /// The kind an SBO term means, its narrower terms included: stimulators
+    /// (essential and non-essential activators, potentiators), inhibitors
+    /// (complete, partial, competitive, non-competitive) and catalysts
+    /// (enzymatic). Anything else, SBO:0000019 among them, is a plain
+    /// modifier.
+    pub fn from_sbo(term: &str) -> ModifierKind {
+        let n: u32 = term
+            .trim()
+            .strip_prefix("SBO:")
+            .and_then(|n| n.parse().ok())
+            .unwrap_or(0);
+        match n {
+            459 | 461 | 462 | 21 => ModifierKind::Activator,
+            20 | 206 | 207 | 536 | 537 => ModifierKind::Inhibitor,
+            13 | 460 => ModifierKind::Catalyst,
+            _ => ModifierKind::Modifier,
         }
     }
 
@@ -1374,6 +1409,21 @@ pub fn replace_whole_word(text: &str, from: &str, to: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sbo_terms_name_modifier_kinds() {
+        use super::ModifierKind as K;
+        for k in K::ALL {
+            let term = k.sbo_term().unwrap_or("SBO:0000019");
+            assert_eq!(K::from_sbo(term), k, "{term}");
+        }
+        // Narrower terms count as their kind; others, and nonsense, are plain.
+        assert_eq!(K::from_sbo("SBO:0000461"), K::Activator);
+        assert_eq!(K::from_sbo(" SBO:0000536"), K::Inhibitor);
+        assert_eq!(K::from_sbo("SBO:0000460"), K::Catalyst);
+        assert_eq!(K::from_sbo("SBO:0000594"), K::Modifier);
+        assert_eq!(K::from_sbo("glow"), K::Modifier);
+    }
+
     use super::*;
     use crate::geometry::pt;
 

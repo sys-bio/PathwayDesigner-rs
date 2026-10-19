@@ -11,8 +11,8 @@ use crate::expr::{self, Ast};
 use crate::geometry::{Pt, pt};
 use crate::layout::Rng;
 use crate::model::{
-    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, Parameter, Participant, Reaction,
-    ReactionMode, SpeciesNode, is_valid_sid,
+    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, ModifierKind, Parameter, Participant,
+    Reaction, ReactionMode, SpeciesNode, is_valid_sid,
 };
 use crate::passes::{self, NullPlace};
 
@@ -531,8 +531,13 @@ impl Builder {
                     crate::model::Role::Modifier,
                     rx.modifiers.len(),
                 ));
-                rx.modifiers
-                    .push(Participant::new(mr.species.as_str(), 1.0));
+                let mut p = Participant::new(mr.species.as_str(), 1.0);
+                // Its kind from its SBO term (S §5.7.1); a layout role
+                // given below wins.
+                if let Some(term) = &mr.meta.sbo_term {
+                    p.kind = ModifierKind::from_sbo(term);
+                }
+                rx.modifiers.push(p);
             }
         }
 
@@ -621,6 +626,14 @@ impl Builder {
                 let junction = rx.junction;
                 let p = &mut rx.participants_mut(prole)[index];
                 p.species = node.clone();
+                if prole == crate::model::Role::Modifier {
+                    match srg.role {
+                        Some(sb::Role::Activator) => p.kind = ModifierKind::Activator,
+                        Some(sb::Role::Inhibitor) => p.kind = ModifierKind::Inhibitor,
+                        _ => {}
+                    }
+                    p.points = corner_points(srg.curve.as_ref(), junction);
+                }
                 if prole != crate::model::Role::Modifier
                     && let Some((a, b, c1, c2)) = handles
                 {
@@ -747,6 +760,22 @@ fn junction_of(g: &sb::ReactionGlyph) -> Option<Pt> {
 /// A curve's ends and handles: (start, end, base point 1, base point 2), or
 /// `None` unless it has a Bézier segment. With several segments, the first
 /// segment gives the first handle and the last the second.
+/// A modifier's corner points from its glyph's curve (S §5.7.1): where its
+/// segments meet, in order from the modifier. A curve written from the
+/// junction end is turned round; Bézier segments count as straight.
+fn corner_points(curve: Option<&sb::Curve>, junction: Pt) -> Vec<Pt> {
+    let Some(segs) = curve.map(|c| &c.segments).filter(|s| s.len() > 1) else {
+        return Vec::new();
+    };
+    let p = |q: sb::Point| pt(q.x, q.y);
+    let mut points: Vec<Pt> = segs[..segs.len() - 1].iter().map(|s| p(s.end())).collect();
+    let (first, last) = (p(segs[0].start()), p(segs[segs.len() - 1].end()));
+    if first.distance(junction) < last.distance(junction) {
+        points.reverse();
+    }
+    points
+}
+
 fn handles(curve: Option<&sb::Curve>) -> Option<(Pt, Pt, Pt, Pt)> {
     let segs = &curve?.segments;
     if !segs.iter().any(|s| matches!(s, sb::Segment::Bezier { .. })) {

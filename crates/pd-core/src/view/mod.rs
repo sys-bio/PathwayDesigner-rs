@@ -25,6 +25,9 @@ mod interchange;
 #[cfg(test)]
 mod label_tests;
 #[cfg(test)]
+mod modifier_line_tests;
+mod modifier_lines;
+#[cfg(test)]
 mod participant_tests;
 mod participants;
 mod properties;
@@ -86,6 +89,9 @@ pub struct DiagramView {
     pub show_null_species: bool,
     /// Modifier arcs drawn (S §7.6).
     pub show_modifiers: bool,
+    /// Where the last context menu was asked for, in world coordinates:
+    /// Add Corner Point puts its point there (S §5.7.1).
+    context_point: Option<Pt>,
     /// View ▸ Reversible arrowheads (S §7.6).
     pub show_reversible: bool,
     /// The grid drawn behind the diagram (S §7.6). Never in output.
@@ -152,6 +158,8 @@ enum Gesture {
     SpeciesResize(SpeciesResizeDrag),
     Label(LabelDrag),
     StemEnd(StemDrag),
+    /// A corner point of a modifier's arc (S §5.7.1).
+    Corner(CornerDrag),
     /// A new line dragged from a reaction's + handle (S §7.11): the
     /// reaction, and where the pointer is, on screen.
     NewLine {
@@ -201,6 +209,10 @@ struct NodeDrag {
     /// the compartment they end up in (S §7.9).
     reassign: Vec<Id>,
     handles: Vec<HandleRef>,
+    /// Modifiers whose node and reaction's junction both move: their corner
+    /// points move too (S §5.7.1). The reaction, the modifier's index and
+    /// the points where they were.
+    corners: Vec<(Id, usize, Vec<Pt>)>,
     /// Smooth reactions whose junction moves: their handles are recomputed
     /// as it goes (S §6.4).
     smooth: Vec<Id>,
@@ -303,6 +315,22 @@ struct StemDrag {
     delta: Pt,
 }
 
+/// Dragging a corner point of a modifier's arc (S §5.7.1).
+#[derive(Clone, Debug)]
+struct CornerDrag {
+    start: Pt,
+    id: Id,
+    /// The modifier's index, and the point's.
+    modifier: usize,
+    point: usize,
+    /// Where the point was: it snaps to the grid (S §7.6).
+    orig: Pt,
+    before: Box<Model>,
+    /// The pointer's movement; `delta` is it snapped.
+    raw: Pt,
+    delta: Pt,
+}
+
 /// The grid point nearest `p` (S §7.6).
 pub fn snap_point(p: Pt) -> Pt {
     use crate::render::constants::GRID_SPACING;
@@ -364,6 +392,7 @@ impl DiagramView {
             scroll: Pt::ZERO,
             show_alias_indicator: true,
             show_modifiers: true,
+            context_point: None,
             show_reversible: true,
             show_grid: false,
             snap_to_grid: false,
@@ -527,11 +556,12 @@ impl DiagramView {
 
     /// What is under a screen point (S §6.2).
     pub fn target_at(&self, screen: Pt) -> Target {
-        hit_test(
+        hit::hit_test_with(
             &self.model,
             self.screen_to_world(screen),
             self.zoom,
             self.show_null_species,
+            self.show_modifiers,
         )
     }
 
@@ -726,9 +756,32 @@ impl DiagramView {
             }
         }
         let world = self.screen_to_world(pos);
-        let target = self.target_at(pos);
+        let target = match self.target_at(pos) {
+            // A modifier's arc is a line of its reaction (S §5.7.1).
+            Target::ModifierLine(id, ..) => Target::Leg(id),
+            t => t,
+        };
         let anchor = self.snap_anchor(&target);
         match target {
+            Target::ModifierLine(..) => {}
+            Target::CornerPoint(id, modifier, point) => {
+                let orig = self
+                    .model
+                    .find_reaction(&id)
+                    .and_then(|r| r.modifiers.get(modifier)?.points.get(point).copied());
+                if let Some(orig) = orig {
+                    self.gesture = Gesture::Corner(CornerDrag {
+                        start: world,
+                        id,
+                        modifier,
+                        point,
+                        orig,
+                        before: Box::new(self.model.clone()),
+                        raw: Pt::ZERO,
+                        delta: Pt::ZERO,
+                    });
+                }
+            }
             Target::Species(id) => {
                 let selected = self.model.find_species(&id).is_some_and(|s| s.selected);
                 if modifiers.shift {
@@ -1001,6 +1054,12 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_stem_drag(&drag);
             }
+            Gesture::Corner(drag) => {
+                drag.raw = world - drag.start;
+                drag.delta = snap_delta(snap, Some(drag.orig), drag.raw);
+                let drag = drag.clone();
+                self.apply_corner_drag(&drag);
+            }
             Gesture::NewCompartment { current, .. } => *current = placed,
             Gesture::NewLine { current, .. } => *current = pos,
             Gesture::RubberBand { current, .. } => *current = pos,
@@ -1044,6 +1103,12 @@ impl DiagramView {
             Gesture::SpeciesResize(drag) if drag.delta == Pt::ZERO => None,
             Gesture::SpeciesResize(drag) => Some(Command::Snapshot {
                 desc: "Resize Species",
+                before: drag.before,
+                after: Box::new(self.model.clone()),
+            }),
+            Gesture::Corner(drag) if drag.delta == Pt::ZERO => None,
+            Gesture::Corner(drag) => Some(Command::Snapshot {
+                desc: "Move Corner Point",
                 before: drag.before,
                 after: Box::new(self.model.clone()),
             }),
@@ -1200,6 +1265,10 @@ impl DiagramView {
                 drag.delta = Pt::ZERO;
                 self.apply_stem_drag(&drag);
             }
+            Gesture::Corner(mut drag) => {
+                drag.delta = Pt::ZERO;
+                self.apply_corner_drag(&drag);
+            }
             Gesture::RubberBand { .. } | Gesture::NewCompartment { .. } => {}
         }
         ViewResponse {
@@ -1253,6 +1322,7 @@ impl DiagramView {
 
         let mut junctions = Vec::new();
         let mut handles = Vec::new();
+        let mut corners = Vec::new();
         let mut smooth = Vec::new();
         let mut linear = Vec::new();
         for r in m.reactions() {
@@ -1274,6 +1344,13 @@ impl DiagramView {
                 && let Some(t) = linear_junction_t(m, r)
             {
                 linear.push((r.id.clone(), r.junction, t));
+            }
+            if junction_moves {
+                for (mi, mo) in r.modifiers.iter().enumerate() {
+                    if !mo.points.is_empty() && is_moved(&mo.species) {
+                        corners.push((r.id.clone(), mi, mo.points.clone()));
+                    }
+                }
             }
             // Stored handles follow the end they belong to (S §5.6.1): the
             // species-side handle is ctrl1 on a reactant and ctrl2 on a product.
@@ -1311,7 +1388,11 @@ impl DiagramView {
         // needs a snapshot taken now (S §9.2). With compartments on the
         // diagram a move may change a species' compartment.
         let framed = m.compartments.iter().any(|c| c.drawn_frame().is_some());
-        let before = (!handles.is_empty() || !smooth.is_empty() || !texts.is_empty() || framed)
+        let before = (!handles.is_empty()
+            || !corners.is_empty()
+            || !smooth.is_empty()
+            || !texts.is_empty()
+            || framed)
             .then(|| Box::new(m.clone()));
         NodeDrag {
             start,
@@ -1321,6 +1402,7 @@ impl DiagramView {
             compartments,
             reassign,
             handles,
+            corners,
             smooth,
             linear,
             before,
@@ -1393,6 +1475,15 @@ impl DiagramView {
             }
         }
         self.move_handles(&drag.handles, drag.delta);
+        for (id, mi, orig) in &drag.corners {
+            if let Some(m) = self
+                .model
+                .find_reaction_mut(id)
+                .and_then(|r| r.modifiers.get_mut(*mi))
+            {
+                m.points = orig.iter().map(|&p| p + drag.delta).collect();
+            }
+        }
         // A Linear reaction's junction keeps its place along the line, so the
         // modifier arcs that end at it don't slide into a node.
         for (id, orig, t) in &drag.linear {
@@ -1501,6 +1592,11 @@ impl DiagramView {
                 let drag = drag.clone();
                 self.apply_stem_drag(&drag);
             }
+            Gesture::Corner(drag) => {
+                drag.delta = snap_delta(snap, Some(drag.orig), drag.raw);
+                let drag = drag.clone();
+                self.apply_corner_drag(&drag);
+            }
             _ => return ViewResponse::default(),
         }
         ViewResponse {
@@ -1607,6 +1703,17 @@ impl DiagramView {
 
     /// The stem's end at its first place plus the drag, and each line on
     /// that side with stored handles: its handle by the stem moved as much.
+    fn apply_corner_drag(&mut self, drag: &CornerDrag) {
+        if let Some(p) = self
+            .model
+            .find_reaction_mut(&drag.id)
+            .and_then(|r| r.modifiers.get_mut(drag.modifier))
+            .and_then(|m| m.points.get_mut(drag.point))
+        {
+            *p = drag.orig + drag.delta;
+        }
+    }
+
     fn apply_stem_drag(&mut self, drag: &StemDrag) {
         let Some(old) = drag.before.find_reaction(&drag.id).cloned() else {
             return;
@@ -1955,7 +2062,9 @@ impl DiagramView {
             | Target::Leg(id)
             | Target::ReactionLabel(id)
             | Target::StemEnd(id, _)
-            | Target::AddLine(id) => {
+            | Target::AddLine(id)
+            | Target::ModifierLine(id, ..)
+            | Target::CornerPoint(id, ..) => {
                 if let Some(r) = self.model.find_reaction_mut(id) {
                     r.selected = !(add && r.selected);
                 }

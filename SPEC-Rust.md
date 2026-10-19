@@ -346,10 +346,13 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
-**Version 11: modifier kinds (S §5.7.1).** A modifier object may have `"kind"`,
-after its id: `"activator"`, `"inhibitor"` or `"catalyst"`; left out for a plain
-modifier, and anything else reads as one. A document with a modifier of another
-kind is version 11. (Corner points, `"points"`, are planned for the same version.)
+**Version 11: modifier kinds and corner points (S §5.7.1).** A modifier object
+may have `"kind"`, after its id: `"activator"`, `"inhibitor"` or `"catalyst"`;
+left out for a plain modifier, and anything else reads as one. It may also have
+`"points"`, after `kind`: its arc's corner points as `[x1, y1, x2, y2, …]`, in
+order from the modifier; left out when it has none, and an odd last number is
+ignored. A document with a modifier of another kind, or with corner points, is
+version 11.
 
 **Version 10: free straight stems (S §5.13).** A reaction may have
 `"stemStraight": false`, after `stem`: its stem is straight but its ends may move
@@ -813,11 +816,13 @@ which that reader accepted and Antimony does not.
   app. Show them next to the text in the Antimony panel (§11.1). On any error the
   current model MUST stay unchanged.
 - **What a diagram cannot hold** (functions, units, events, rate rules, algebraic
-  rules, constraints, objectives, interactions, other models in the file, names,
+  rules, constraints, objectives, other models in the file, names,
   notes and annotations, units on symbols) gives a **warning** saying it was skipped,
   not a failure (S §16.2 F-10). The crate's own warnings are passed on too, except
   that a name used without a value is not one: here it is a parameter or species
-  at 0, by design.
+  at 0, by design. Interactions (`X -| J1`, `X -o J1`) give modifier kinds
+  (S §5.7.1); one naming no reaction, or a reactant or product of it, is skipped
+  with a warning.
 - **What still gives an error:** text that is not Antimony, a species' value or a
   compartment's size that is an expression rather than a number, two reactions
   with one name, and a rate law that `pd-core::expr` cannot read (it has no `%` or

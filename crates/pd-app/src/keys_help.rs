@@ -48,8 +48,12 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
             ("Double-click a species", "Rename it"),
             ("Double-click a text", "Edit its words"),
             (
+                "Double-click a modifier line",
+                "Add a corner point there, so the line can turn a corner; drag the small square to move it, right-click it to remove it",
+            ),
+            (
                 "Right-click",
-                "The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, styles, alignment, locking and more)",
+                "The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more)",
             ),
             (
                 "Rest the pointer on an item",

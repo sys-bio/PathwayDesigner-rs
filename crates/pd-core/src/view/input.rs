@@ -185,5 +185,11 @@ pub enum Target {
     /// The + handle by a selected reaction's junction: dragging from it adds
     /// a line to a species (S §7.11).
     AddLine(Id),
+    /// A piece of a modifier's arc (S §5.7.1): the reaction, the modifier's
+    /// index in its list, and the piece's (0 from the node).
+    ModifierLine(Id, usize, usize),
+    /// A corner point of a selected reaction's modifier arc: the reaction,
+    /// the modifier's index and the point's.
+    CornerPoint(Id, usize, usize),
     Empty,
 }

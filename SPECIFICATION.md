@@ -458,10 +458,9 @@ For each modifier of a reaction:
   under the modifier node.
 - If the modifier's centre is less than 1 unit from the junction, skip it.
 
-#### 5.7.1 Modifier kinds and routed arcs (Rust version, planned)
+#### 5.7.1 Modifier kinds and routed arcs (Rust version)
 
-*Added in the Rust version; the design agreed with the user, to be built in
-three steps.* The reference's arc above stays the default: a modifier the user
+*Added in the Rust version; designed with the user and built in three steps.* The reference's arc above stays the default: a modifier the user
 hasn't touched is drawn exactly as described.
 
 **Kinds.** Each modifier of a reaction has a kind, after SBGN, which decides the
@@ -502,8 +501,9 @@ coordinates on the modifier's participant, in order from the modifier.
   points are drawn as small squares (like stem ends, §5.13) and can be dragged
   ("Move Corner Point"; snapping, Alt, Esc and undo as for other drags).
 - **Double-click** an arc of a selected reaction to add a corner point there
-  ("Add Corner Point"), between the two points of the piece clicked; it can be
-  dragged at once.
+  ("Add Corner Point"), between the two points of the piece clicked. (The
+  first click of the two selects the reaction, so any arc can be
+  double-clicked.)
 - Right-click a reaction: **Modifier Kind ▸** Modifier / Activator / Inhibitor /
   Catalyst, with a submenu per modifier when it has several (one undo step,
   "Modifier Kind"). Right-click an arc: the same, for that modifier, plus **Add
@@ -538,9 +538,10 @@ coordinates on the modifier's participant, in order from the modifier.
   (adding `X` as a modifier if it isn't one). Export writes those lines for
   inhibitors and activators.
 
-**Steps.** 1 (done): kinds (model, drawing, JSON, the reaction's right-click menu, Reaction group).
-2: kinds in SBML and Antimony. 3: corner points (drawing, hitting, adding,
-dragging, removing, Straighten Modifier Line, JSON and SBML).
+**Steps (all done).** 1: kinds (model, drawing, JSON, the reaction's right-click
+menu, Reaction group). 2: kinds in SBML and Antimony. 3: corner points (drawing,
+hitting, adding, dragging, removing, Straighten Modifier Line, JSON and SBML).
+The right-click menu of an arc shows which modifier it is above its items.
 
 ### 5.8 Junction handle
 
@@ -1983,6 +1984,10 @@ Sections are separated by blank lines and introduced by `// Section` comments.
    - Boundary species get a `$` prefix.
    - An empty rate law is written as `v`.
    - The arrow is always `->`.
+3a. *(Rust version.)* `X -| <rid>;` for each inhibitor and `X -o <rid>;` for each
+   activator (§5.7.1), `X` the modifier's primary, in an `// Interactions`
+   section; one line for a species that modifies a reaction through several
+   aliases.
 4. `k = <expression>;` for each parameter.
 5. `S = <initialValue>;` for each primary, non-null species.
 6. `x := <expression>;` for each assignment rule.
@@ -2063,7 +2068,9 @@ libSBML. The reference writes the XML itself.
 - **One `reactionGlyph` per reaction.** `id="rg_<rid>"`, with a zero-size bounding
   box at the junction.
 - **One `speciesReferenceGlyph` per reactant and product.** Modifiers SHOULD also get
-  one, with `role="modifier"`.
+  one, with `role="modifier"`. *(Rust version:)* `role="activator"` or
+  `role="inhibitor"` for those kinds (§5.7.1), and the `modifierSpeciesReference`
+  gets the kind's SBO term.
   - Reactants: `id="srg_<rid>_sub_<sid>"`, `role="substrate"`.
   - Products: `id="srg_<rid>_prod_<sid>"`, `role="product"`.
   - Each points at the glyph of the node actually used, which may be an alias.

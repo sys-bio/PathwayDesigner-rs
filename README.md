@@ -56,7 +56,10 @@ Delphi version does, and some more (see [Status](#status)).
 - **Aliases** (a second drawing of the same species), with commands to split a
   species into aliases, split off chosen reactions, and merge aliases back.
 - **Modifiers** (drawn as dashed arcs, found from the rate law), and **null
-  nodes** for sources and sinks.
+  nodes** for sources and sinks. A modifier can be an **activator** (open
+  arrowhead), **inhibitor** (blunt bar) or **catalyst** (open circle), carried to
+  and from SBML and Antimony (`-o`, `-|`), and its line can be routed round the
+  diagram through **corner points**.
 - **Compartments**, drawn as boxes you can move and resize; species move with
   their compartment, a box can be hidden, and its name can be any size.
 - **Free text** for titles and notes, with typeface, size, bold, italic, colour,
@@ -171,7 +174,8 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Alt while dragging | Place freely while Snap to grid is on |
 | Double-click a species | Rename it |
 | Double-click a text | Edit its words |
-| Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, styles, alignment, locking and more) |
+| Double-click a modifier line | Add a corner point there, so the line can turn a corner; drag the small square to move it, right-click it to remove it |
+| Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more) |
 | Rest the pointer on an item | A tooltip: a species' value, a reaction's rate law, a compartment's volume |
 
 **Adding things**

@@ -103,7 +103,9 @@ pub(super) fn style_target(t: &Target) -> Option<(StyleKind, Id)> {
         | Target::Leg(id)
         | Target::ReactionLabel(id)
         | Target::StemEnd(id, _)
-        | Target::AddLine(id) => (StyleKind::Reaction, id.clone()),
+        | Target::AddLine(id)
+        | Target::ModifierLine(id, ..)
+        | Target::CornerPoint(id, ..) => (StyleKind::Reaction, id.clone()),
         Target::Handle(h) => (StyleKind::Reaction, h.reaction.clone()),
         Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
             (StyleKind::Compartment, id.clone())

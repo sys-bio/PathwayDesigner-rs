@@ -481,6 +481,12 @@ impl DiagramView {
                 request: Some(Request::EditText(id)),
                 ..ViewResponse::default()
             },
+            // A corner point where a modifier's arc was double-clicked
+            // (S §5.7.1).
+            Target::ModifierLine(id, modifier, piece) => {
+                let at = self.screen_to_world(pos);
+                self.add_corner_point(&id, modifier, piece, at)
+            }
             _ => ViewResponse::default(),
         }
     }
@@ -504,7 +510,15 @@ impl DiagramView {
             }
             t => t,
         };
+        // Add Corner Point puts the point where the menu was asked for.
+        self.context_point = Some(self.screen_to_world(pos));
         match &target {
+            Target::ModifierLine(id, ..) | Target::CornerPoint(id, ..) => {
+                if !self.model.find_reaction(id).is_some_and(|r| r.selected) {
+                    self.model.clear_selection();
+                    self.set_reaction_selected(id, true);
+                }
+            }
             Target::Species(id) => {
                 if !self.model.find_species(id).is_some_and(|s| s.selected) {
                     self.model.clear_selection();

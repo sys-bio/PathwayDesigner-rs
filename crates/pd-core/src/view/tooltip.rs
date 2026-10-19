@@ -43,7 +43,9 @@ impl DiagramView {
             | Target::Leg(id)
             | Target::ReactionLabel(id)
             | Target::StemEnd(id, _)
-            | Target::AddLine(id) => {
+            | Target::AddLine(id)
+            | Target::ModifierLine(id, ..)
+            | Target::CornerPoint(id, ..) => {
                 let r = self.model.find_reaction(id)?;
                 Some(if r.kinetic_law.trim().is_empty() {
                     r.id.clone()

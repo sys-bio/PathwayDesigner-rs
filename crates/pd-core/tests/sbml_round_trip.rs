@@ -313,3 +313,66 @@ fn compartment_boxes_and_styles_come_back() {
     assert_eq!(b.frame, m.find_compartment(&id).unwrap().frame);
     assert_eq!(b.style.fill_color, Rgba::rgb(0xEE, 0xEE, 0xFF));
 }
+
+/// Modifier kinds (S §5.7.1): the glyph's role and the reference's SBO term
+/// carry them, and either alone brings them back.
+#[test]
+fn modifier_kinds_come_back_from_roles_and_sbo_terms() {
+    use pd_core::model::ModifierKind as K;
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ExampleModels/mapk_cascade.json");
+    let mut m = from_json(&fs::read_to_string(path).unwrap()).unwrap().model;
+    for (r, k) in [
+        ("J1", K::Inhibitor),
+        ("J3", K::Activator),
+        ("J4", K::Catalyst),
+    ] {
+        m.find_reaction_mut(r).unwrap().modifiers[0].kind = k;
+    }
+    let kinds = |m: &Model| -> Vec<(String, K)> {
+        ["J1", "J3", "J4", "J7"]
+            .iter()
+            .map(|r| (r.to_string(), m.find_reaction(r).unwrap().modifiers[0].kind))
+            .collect()
+    };
+    let want = |j1, j3, j4| {
+        vec![
+            ("J1".to_owned(), j1),
+            ("J3".to_owned(), j3),
+            ("J4".to_owned(), j4),
+            ("J7".to_owned(), K::Modifier),
+        ]
+    };
+    let exported = sbml::export(&m);
+    assert!(exported.problems.is_empty(), "{:?}", exported.problems);
+    let xml = exported.xml;
+    assert!(xml.contains("role=\"inhibitor\""));
+    assert!(xml.contains("role=\"activator\""));
+    for term in ["SBO:0000020", "SBO:0000459", "SBO:0000013"] {
+        assert_eq!(xml.matches(term).count(), 1, "{term}");
+    }
+    // A plain modifier gets no SBO term.
+    assert!(!xml.contains("SBO:0000019"));
+    let back = sbml::import(&xml, &OPTS).unwrap().model;
+    assert_eq!(kinds(&back), want(K::Inhibitor, K::Activator, K::Catalyst));
+    // Without the layout: the SBO terms alone.
+    let start = xml.find("<layout:listOfLayouts").expect("a layout");
+    let end = xml.find("</layout:listOfLayouts>").unwrap() + "</layout:listOfLayouts>".len();
+    let bare = format!("{}{}", &xml[..start], &xml[end..]);
+    let back = sbml::import(&bare, &OPTS).unwrap().model;
+    assert_eq!(kinds(&back), want(K::Inhibitor, K::Activator, K::Catalyst));
+    // Without the SBO terms: the roles alone (a catalyst has no role of its own).
+    let no_sbo: String = xml
+        .split(" sboTerm=\"")
+        .enumerate()
+        .map(|(i, part)| {
+            if i == 0 {
+                part
+            } else {
+                &part[part.find('"').unwrap() + 1..]
+            }
+        })
+        .collect();
+    assert!(!no_sbo.contains("sboTerm"));
+    let back = sbml::import(&no_sbo, &OPTS).unwrap().model;
+    assert_eq!(kinds(&back), want(K::Inhibitor, K::Activator, K::Modifier));
+}

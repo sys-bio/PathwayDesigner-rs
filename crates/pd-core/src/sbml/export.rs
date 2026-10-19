@@ -8,8 +8,8 @@ use super::math::to_math;
 use crate::bezier::leg_curve;
 use crate::expr;
 use crate::geometry::Pt;
-use crate::model::{DEFAULT_COMPARTMENT, Model, ReactionMode, Role, SpeciesNode};
-use crate::render::draw::{border, effective_junction, effective_mode};
+use crate::model::{DEFAULT_COMPARTMENT, Model, ModifierKind, ReactionMode, Role, SpeciesNode};
+use crate::render::draw::{border, effective_junction, effective_mode, modifier_route};
 use crate::textbox::lay_out;
 
 const LEVEL: u32 = 3;
@@ -240,6 +240,10 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
                             rx.modifiers.push(sb::ModifierSpeciesReference {
                                 id: Some(sr_id.clone()),
                                 species: s.id.clone(),
+                                meta: sb::Meta {
+                                    sbo_term: p.kind.sbo_term().map(str::to_owned),
+                                    ..Default::default()
+                                },
                                 ..Default::default()
                             });
                         } else {
@@ -268,6 +272,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
                     index,
                     tag,
                     reference,
+                    kind: p.kind,
                 });
             }
         }
@@ -374,6 +379,8 @@ struct Leg {
     index: usize,
     tag: &'static str,
     reference: Option<String>,
+    /// A modifier's kind, for its glyph's role (S §5.7.1).
+    kind: ModifierKind,
 }
 
 fn bbox(node: &SpeciesNode) -> sb::BoundingBox {
@@ -547,7 +554,11 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             let role = match leg.role {
                 Role::Reactant => sb::Role::Substrate,
                 Role::Product => sb::Role::Product,
-                Role::Modifier => sb::Role::Modifier,
+                Role::Modifier => match leg.kind {
+                    ModifierKind::Activator => sb::Role::Activator,
+                    ModifierKind::Inhibitor => sb::Role::Inhibitor,
+                    ModifierKind::Modifier | ModifierKind::Catalyst => sb::Role::Modifier,
+                },
             };
             g.species_reference_glyphs.push(sb::SpeciesReferenceGlyph {
                 id: ids.unique(format!("srg_{}_{}_{}", r.id, leg.tag, node.id)),
@@ -555,7 +566,17 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                 species_reference: leg.reference.clone(),
                 role: Some(role),
                 curve: Some(sb::Curve {
-                    segments: vec![segment],
+                    segments: match (leg.role, modifier_route(model, r, p)) {
+                        // A modifier's arc through its corner points (S §5.7.1).
+                        (Role::Modifier, Some(route)) => route
+                            .windows(2)
+                            .map(|w| sb::Segment::Line {
+                                start: point(w[0]),
+                                end: point(w[1]),
+                            })
+                            .collect(),
+                        _ => vec![segment],
+                    },
                 }),
                 ..Default::default()
             });

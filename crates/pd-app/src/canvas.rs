@@ -61,6 +61,13 @@ pub enum MenuAction {
     /// Modifier Kind ▸: the reaction, the modifier and its new kind
     /// (S §5.7.1).
     ModifierKind(String, String, pd_core::model::ModifierKind),
+    /// Add Corner Point: the reaction, the modifier's index, the piece of
+    /// its arc and where (S §5.7.1).
+    AddCornerPoint(String, usize, usize, pd_core::geometry::Pt),
+    /// Remove Corner Point: the reaction, the modifier's index, the point's.
+    RemoveCornerPoint(String, usize, usize),
+    /// Straighten Modifier Line: the reaction and the modifier's index.
+    StraightenModifierLine(String, usize),
     /// Add Stem, Straighten Stem and Remove Stem (S §5.13).
     AddStem(String),
     StraightenStem(String),
@@ -404,6 +411,60 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
             style_items(ui, view, &Target::Text(id.clone()), &mut item);
             alignment(ui, view, &mut item);
         }
+        // A modifier's arc (S §5.7.1): what the modifier does, and its
+        // corner points.
+        Target::ModifierLine(id, modifier, piece) => {
+            let Some(mo) = view
+                .model()
+                .find_reaction(id)
+                .and_then(|r| r.modifiers.get(*modifier))
+            else {
+                ui.close();
+                return None;
+            };
+            let name = view
+                .model()
+                .find_species(&mo.species)
+                .map_or(mo.species.clone(), |n| n.primary_id().to_owned());
+            ui.label(egui::RichText::new(format!("Modifier {name}")).weak());
+            let mut kind_chosen = None;
+            ui.menu_button("Modifier Kind", |ui| {
+                for kind in pd_core::model::ModifierKind::ALL {
+                    if ui.radio(mo.kind == kind, kind.label()).clicked() {
+                        kind_chosen = Some(MenuAction::ModifierKind(
+                            id.clone(),
+                            mo.species.clone(),
+                            kind,
+                        ));
+                        ui.close();
+                    }
+                }
+            });
+            if kind_chosen.is_some() {
+                item_chosen = kind_chosen;
+            }
+            let at = view.context_point().unwrap_or_default();
+            item(
+                ui,
+                "Add Corner Point",
+                MenuAction::AddCornerPoint(id.clone(), *modifier, *piece, at),
+            );
+            let bent = view.modifier_line_bent(id, *modifier);
+            let b = ui
+                .add_enabled(bent, egui::Button::new("Straighten Modifier Line"))
+                .on_disabled_hover_text("It has no corner points");
+            if b.clicked() {
+                item_chosen = Some(MenuAction::StraightenModifierLine(id.clone(), *modifier));
+                ui.close();
+            }
+        }
+        Target::CornerPoint(id, modifier, point) => {
+            item(
+                ui,
+                "Remove Corner Point",
+                MenuAction::RemoveCornerPoint(id.clone(), *modifier, *point),
+            );
+        }
         Target::Compartment(id) => {
             item(
                 ui,
@@ -491,7 +552,9 @@ fn style_kind(t: &Target) -> Option<pd_core::model::StyleKind> {
         | Target::Handle(_)
         | Target::ReactionLabel(_)
         | Target::StemEnd(..)
-        | Target::AddLine(_) => Some(StyleKind::Reaction),
+        | Target::AddLine(_)
+        | Target::ModifierLine(..)
+        | Target::CornerPoint(..) => Some(StyleKind::Reaction),
         Target::Compartment(_) | Target::CompartmentCorner(..) => Some(StyleKind::Compartment),
         Target::Text(_) | Target::TextWrap(_) => Some(StyleKind::Text),
         Target::Empty => None,
@@ -633,7 +696,9 @@ fn cursor(view: &DiagramView, hover: Option<egui::Pos2>, space: bool) -> CursorI
         return CursorIcon::Crosshair;
     }
     match hover.map(|p| view.target_at(to_pt(p.to_vec2()))) {
-        Some(Target::Handle(_) | Target::StemEnd(..) | Target::AddLine(_)) => CursorIcon::Crosshair,
+        Some(
+            Target::Handle(_) | Target::StemEnd(..) | Target::AddLine(_) | Target::CornerPoint(..),
+        ) => CursorIcon::Crosshair,
         Some(
             Target::Species(_)
             | Target::SpeciesLabel(_)

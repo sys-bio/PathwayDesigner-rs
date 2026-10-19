@@ -6,8 +6,8 @@
 use crate::bezier::{Ctrl, leg_curve};
 use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
-    BorderDash, Compartment, Frame, Model, ModifierKind, NodeShape, Reaction, ReactionMode, Rgba,
-    Role, SpeciesNode, TextFont, TextItem, VisualStyle,
+    BorderDash, Compartment, Frame, Model, ModifierKind, NodeShape, Participant, Reaction,
+    ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem, VisualStyle,
 };
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
@@ -152,6 +152,7 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
             d.reaction_name_outline(reaction, r);
             d.bezier_handles(reaction, r);
             d.stem_ends(reaction, r);
+            d.corner_points(reaction, r);
             d.add_line_handle(reaction, r);
         }
     }
@@ -577,6 +578,24 @@ pub fn effective_junction(model: &Model, r: &Reaction) -> Pt {
     }
 }
 
+/// The points a modifier's arc runs through (S §5.7.1): where it leaves the
+/// modifier node's border, its corner points, then the junction. `None` when
+/// its node is missing, or its first point (the junction, without corner
+/// points) is on the node's centre.
+pub fn modifier_route(model: &Model, r: &Reaction, m: &Participant) -> Option<Vec<Pt>> {
+    let node = model.find_species(&m.species)?;
+    let j = effective_junction(model, r);
+    let first = m.points.first().copied().unwrap_or(j);
+    if node.center.distance(first) < 1.0 {
+        return None;
+    }
+    let mut route = Vec::with_capacity(m.points.len() + 2);
+    route.push(border(node, first));
+    route.extend(&m.points);
+    route.push(j);
+    Some(route)
+}
+
 /// A reaction's stem as drawn (S §5.13): from the reactants' end through
 /// the junction to the products' end. `None` without one, and for a Linear
 /// reaction, which is drawn as one line.
@@ -870,18 +889,42 @@ impl Drawer<'_> {
             round_cap: false,
         };
         for m in &r.modifiers {
-            let Some(node) = self.visible(&m.species) else {
-                continue;
-            };
-            let c = node.center;
-            if c.distance(j) < 1.0 {
+            if self.visible(&m.species).is_none() {
                 continue;
             }
+            let Some(mut route) = modifier_route(self.model, r, m) else {
+                continue;
+            };
             // Starts inside the node, so the node hides the start.
-            let toward_j = normalize(j - c);
-            let start = border(node, j) - toward_j * MODIFIER_INSET;
-            let end = self.modifier_symbol(m.kind, j, toward_j, color, out);
-            out.polyline(&[self.to_screen(start), self.to_screen(end)], stroke);
+            route[0] = route[0] - normalize(route[1] - route[0]) * MODIFIER_INSET;
+            // The symbol follows the last piece.
+            let n = route.len();
+            let toward_j = normalize(j - route[n - 2]);
+            route[n - 1] = self.modifier_symbol(m.kind, j, toward_j, color, out);
+            let pts: Vec<SPt> = route.iter().map(|&p| self.to_screen(p)).collect();
+            out.polyline(&pts, stroke);
+        }
+    }
+
+    /// A selected reaction's modifiers' corner points, as small squares
+    /// (S §5.7.1), while modifier arcs are shown.
+    fn corner_points(&self, r: &Reaction, out: &mut dyn Renderer) {
+        if !self.opts.show_modifiers {
+            return;
+        }
+        for m in r
+            .modifiers
+            .iter()
+            .filter(|m| self.visible(&m.species).is_some())
+        {
+            for &p in &m.points {
+                out.round_rect(
+                    self.rect(p, HANDLE_RADIUS, HANDLE_RADIUS),
+                    0.0,
+                    Some(HANDLE_FILL),
+                    Some(Stroke::solid(self.len(1.0), HANDLE_BORDER)),
+                );
+            }
         }
     }
 
@@ -1895,6 +1938,57 @@ mod tests {
             Some(Rgba::rgb(0x10, 0x20, 0x30)),
             Some(solid)
         )));
+    }
+
+    #[test]
+    fn modifier_arcs_bend_at_their_corner_points() {
+        let mut m = uni_uni();
+        let e = m.add_species(pt(200.0, -200.0), 80.0, 36.0);
+        let mut p = Participant::new(e, 1.0);
+        p.points = vec![pt(360.0, -200.0), pt(360.0, -10.0)];
+        m.find_reaction_mut("R3").unwrap().modifiers.push(p);
+        let arc = |calls: &[Call]| {
+            calls
+                .iter()
+                .find_map(|c| match c {
+                    Call::Polyline(p, s) if s.dash.is_some() => Some(p.clone()),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let calls = draw(&m, &DrawOptions::default());
+        // From inside E's right edge, through both points, to the dot on the
+        // last piece: 10 from the junction (200, 0), coming from (360, -10).
+        let a = arc(&calls);
+        assert_eq!(a.len(), 4);
+        assert!(close(a[0], spt(234.0, -200.0)), "{a:?}");
+        assert!(close(a[1], spt(360.0, -200.0)));
+        assert!(close(a[2], spt(360.0, -10.0)));
+        let d = normalize(pt(200.0, 0.0) - pt(360.0, -10.0));
+        let dot = pt(200.0, 0.0) - d * 10.0;
+        assert!(close(a[3], spt(dot.x as f32, dot.y as f32)), "{a:?}");
+        // The squares show only on a selected reaction.
+        let square = |calls: &[Call]| {
+            calls
+                .iter()
+                .filter(|c| matches!(c, Call::RoundRect(_, Some(f), _) if *f == HANDLE_FILL))
+                .count()
+        };
+        assert_eq!(square(&calls), 0);
+        m.find_reaction_mut("R3").unwrap().selected = true;
+        let calls = draw(&m, &DrawOptions::default());
+        assert_eq!(square(&calls), 2);
+        // Hidden arcs hide their points too; output never shows them.
+        let hidden = DrawOptions::default().with(Shown {
+            modifiers: false,
+            ..Shown::ALL
+        });
+        assert_eq!(square(&draw(&m, &hidden)), 0);
+        let output = DrawOptions {
+            for_output: true,
+            ..DrawOptions::default()
+        };
+        assert_eq!(square(&draw(&m, &output)), 0);
     }
 
     #[test]

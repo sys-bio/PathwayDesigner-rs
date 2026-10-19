@@ -17,8 +17,8 @@ use crate::expr;
 use crate::geometry::{Pt, pt};
 use crate::layout::Rng;
 use crate::model::{
-    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, Parameter, Participant, ReactionMode,
-    SpeciesNode,
+    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, ModifierKind, Parameter, Participant,
+    ReactionMode, SpeciesNode,
 };
 use crate::passes;
 
@@ -112,8 +112,11 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
         src,
         module,
         errors: Vec::new(),
+        warnings: Vec::new(),
     };
     let model = b.build(opts);
+    warnings.append(&mut b.warnings);
+    warnings.sort_by_key(|d| (d.line, d.column));
     if b.errors.is_empty() {
         Ok(Imported { model, warnings })
     } else {
@@ -169,9 +172,6 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
     }
     for o in &module.objectives {
         skip(o.span, "Objectives");
-    }
-    for i in &module.interactions {
-        skip(i.span, "Interactions");
     }
     out.sort_by_key(|d| (d.line, d.column));
     out
@@ -247,6 +247,24 @@ pub fn export(model: &Model) -> String {
             )
         })
         .collect();
+    // Activators and inhibitors (S §5.7.1), through aliases to the species.
+    let mut interactions: Vec<String> = Vec::new();
+    for r in model.reactions() {
+        for m in &r.modifiers {
+            let arrow = match m.kind {
+                ModifierKind::Activator => "-o",
+                ModifierKind::Inhibitor => "-|",
+                ModifierKind::Modifier | ModifierKind::Catalyst => continue,
+            };
+            let Some(node) = model.find_species(&m.species) else {
+                continue;
+            };
+            let line = format!("{} {arrow} {};", node.primary_id(), r.id);
+            if !interactions.contains(&line) {
+                interactions.push(line);
+            }
+        }
+    }
     let parameters: Vec<String> = model
         .parameters
         .iter()
@@ -268,6 +286,7 @@ pub fn export(model: &Model) -> String {
         ("Compartments", compartments),
         ("Species", species),
         ("Reactions", reactions),
+        ("Interactions", interactions),
         ("Parameters", parameters),
         ("Initial values", initial),
         ("Assignment rules", rules),
@@ -315,9 +334,15 @@ struct Builder<'a> {
     src: &'a str,
     module: &'a Module,
     errors: Vec<Diagnostic>,
+    warnings: Vec<Diagnostic>,
 }
 
 impl Builder<'_> {
+    fn warning(&mut self, span: Span, message: impl Into<String>) {
+        self.warnings
+            .push(Diagnostic::at(Severity::Warning, span, message));
+    }
+
     fn error(&mut self, span: Span, message: impl Into<String>) {
         self.errors
             .push(Diagnostic::at(Severity::Error, span, message));
@@ -550,8 +575,68 @@ impl Builder<'_> {
             }
             self.add_reaction(&mut model, &id, reactants, products, law, opts);
         }
+        self.interactions(&mut model);
         model.recompute_id_counter();
         model
+    }
+
+    /// `X -| J1` makes `X` an inhibitor of `J1`, `X -o J1` an activator
+    /// (S §5.7.1): `X` becomes a modifier of `J1` if it isn't one. One that
+    /// names no reaction, or no species, is skipped with a warning.
+    fn interactions(&mut self, model: &mut Model) {
+        use antimony::model::InteractionKind;
+        for i in &self.module.interactions {
+            let kind = match i.kind {
+                InteractionKind::Inhibits => ModifierKind::Inhibitor,
+                InteractionKind::Activates => ModifierKind::Activator,
+                InteractionKind::Unknown => ModifierKind::Modifier,
+            };
+            let is_species = model
+                .find_species(&i.species)
+                .is_some_and(|s| !s.is_null_node);
+            let Some(r) = model.find_reaction_mut(&i.reaction) else {
+                self.warning(
+                    i.span,
+                    format!(
+                        "'{}' isn't a reaction; this interaction was skipped",
+                        i.reaction
+                    ),
+                );
+                continue;
+            };
+            if !is_species {
+                self.warning(
+                    i.span,
+                    format!(
+                        "'{}' isn't a species; this interaction was skipped",
+                        i.species
+                    ),
+                );
+                continue;
+            }
+            if r.reactants
+                .iter()
+                .chain(&r.products)
+                .any(|p| p.species == i.species)
+            {
+                self.warning(
+                    i.span,
+                    format!(
+                        "'{}' is already a reactant or product of '{}'; this interaction was skipped",
+                        i.species, i.reaction
+                    ),
+                );
+                continue;
+            }
+            match r.modifiers.iter_mut().find(|m| m.species == i.species) {
+                Some(m) => m.kind = kind,
+                None => {
+                    let mut p = Participant::new(i.species.as_str(), 1.0);
+                    p.kind = kind;
+                    r.modifiers.push(p);
+                }
+            }
+        }
     }
 
     fn add_reaction(
@@ -642,6 +727,68 @@ mod tests {
             f(&r.products),
             r.modifiers.iter().map(|p| p.species.clone()).collect(),
         )
+    }
+
+    #[test]
+    fn interactions_set_modifier_kinds() {
+        use crate::model::ModifierKind as K;
+        let src = "model m\n  J1: A -> B; k*A*X\n  J2: B -> C; k*B\n  X -| J1\n  Y -o J2\n  \
+                   species Y\n  Y = 1\n  Z -| J9\n  A -| J1\nend";
+        let imported = import(src, &OFF).unwrap();
+        let m = &imported.model;
+        let kind = |r: &str, s: &str| {
+            m.find_reaction(r)
+                .unwrap()
+                .modifiers
+                .iter()
+                .find(|p| p.species == s)
+                .map(|p| p.kind)
+        };
+        // X was a modifier already (from the law); Y is added as one.
+        assert_eq!(kind("J1", "X"), Some(K::Inhibitor));
+        assert_eq!(kind("J2", "Y"), Some(K::Activator));
+        // No reaction J9, and A is a reactant: each skipped. (Antimony
+        // itself rejects an interaction on anything but a species.)
+        let w: Vec<&str> = imported
+            .warnings
+            .iter()
+            .map(|d| d.message.as_str())
+            .collect();
+        assert!(
+            w.iter().any(|w| w.contains("'J9' isn't a reaction")),
+            "{w:?}"
+        );
+        assert!(
+            w.iter().any(|w| w.contains("'A' is already a reactant")),
+            "{w:?}"
+        );
+        assert_eq!(kind("J1", "A"), None);
+        assert!(
+            !w.iter()
+                .any(|w| w.contains("Interactions aren't supported"))
+        );
+        // Written back, and read back the same.
+        let text = export(m);
+        assert!(
+            text.contains("  // Interactions\n  X -| J1;\n  Y -o J2;\n"),
+            "{text}"
+        );
+        // A species and its alias inhibiting the same reaction: one line.
+        let mut m2 = m.clone();
+        let x2 = m2.add_alias("X", pt(0.0, 50.0)).unwrap();
+        let mut p = Participant::new(&x2, 1.0);
+        p.kind = K::Inhibitor;
+        m2.find_reaction_mut("J1").unwrap().modifiers.push(p);
+        assert_eq!(export(&m2).matches("X -| J1;").count(), 1);
+        let again = import(&text, &OFF).unwrap().model;
+        assert_eq!(
+            again.find_reaction("J1").unwrap().modifiers[0].kind,
+            K::Inhibitor
+        );
+        assert_eq!(
+            again.find_reaction("J2").unwrap().modifiers[0].kind,
+            K::Activator
+        );
     }
 
     #[test]

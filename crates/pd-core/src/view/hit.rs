@@ -26,6 +26,18 @@ use crate::view::input::{HandleId, Target};
 /// What is at world point `p`, at `zoom`. Hidden null nodes, and legs that
 /// touch them, can't be hit.
 pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Target {
+    hit_test_with(model, p, zoom, show_null_species, true)
+}
+
+/// [`hit_test`], with modifier arcs and their corner points hidden (and so
+/// not hit) unless `show_modifiers` (S §7.6).
+pub fn hit_test_with(
+    model: &Model,
+    p: Pt,
+    zoom: f64,
+    show_null_species: bool,
+    show_modifiers: bool,
+) -> Target {
     let visible = |s: &&SpeciesNode| show_null_species || !s.is_null_node;
 
     let handle_tol = HANDLE_HIT_TOLERANCE_PX / zoom;
@@ -62,6 +74,17 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
             .is_some_and(|at| at.distance(p) <= plus_tol)
         {
             return Target::AddLine(r.id.clone());
+        }
+    }
+
+    // The corner points of a selected reaction's modifier arcs (S §5.7.1).
+    if show_modifiers {
+        for r in model.selected_reactions() {
+            for (mi, m) in r.modifiers.iter().enumerate() {
+                if let Some(pi) = m.points.iter().position(|q| q.distance(p) <= handle_tol) {
+                    return Target::CornerPoint(r.id.clone(), mi, pi);
+                }
+            }
         }
     }
 
@@ -148,6 +171,22 @@ pub fn hit_test(model: &Model, p: Pt, zoom: f64, show_null_species: bool) -> Tar
             .any(|(a, b)| point_to_segment_dist(p, a, b) <= leg_tol);
         if near {
             return Target::Leg(r.id.clone());
+        }
+    }
+    // Modifier arcs, piece by piece (S §5.7.1).
+    if show_modifiers {
+        for r in model.reactions().iter().rev() {
+            for (mi, m) in r.modifiers.iter().enumerate() {
+                let Some(route) = crate::render::draw::modifier_route(model, r, m) else {
+                    continue;
+                };
+                if let Some(piece) = route
+                    .windows(2)
+                    .position(|w| point_to_segment_dist(p, w[0], w[1]) <= leg_tol)
+                {
+                    return Target::ModifierLine(r.id.clone(), mi, piece);
+                }
+            }
         }
     }
 
