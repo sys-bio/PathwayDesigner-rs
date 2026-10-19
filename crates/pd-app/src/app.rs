@@ -1867,7 +1867,7 @@ mod tests {
         h.run(vec![]);
         // The examples, under their groups.
         h.text("Large models");
-        h.text("Escher maps");
+        h.text("As in the README");
         h.text("E. coli central metabolism (Millard 2016)");
         let (open, _) = gallery_open(&h, "Upper glycolysis");
         h.click(open);

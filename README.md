@@ -120,6 +120,10 @@ Delphi version does, and some more (see [Status](#status)).
   metabolite as an alias, in the Escher theme.
 - **Graphics**: SVG, PNG at any resolution, and vector PDF (Letter, A4 or the
   drawing's own size), and printing.
+- **The Gallery**: *File ▸ Open from Gallery…* opens example models, from small
+  networks to *E. coli* central metabolism and Escher's *E. coli* core map. They
+  are fetched from this repository when wanted, so new ones appear without a new
+  release (see [The Gallery](#the-gallery)).
 
 **In the browser**
 - Works offline once it has been opened. Saves straight back to the file you
@@ -229,6 +233,54 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 so a model added there needs a stored image. File ▸ Open sample opens the JSON
 ones directly, even in the browser. `ExampleModels/` holds more example models;
 the tests don't use it. `Escher/` holds an Escher map of *E. coli* core metabolism.
+Both are in the Gallery.
+
+## The Gallery
+
+*File ▸ Open from Gallery…* lists the example models named in
+[`Gallery/index.json`](Gallery/index.json) and opens the one you pick. The app
+reads the list and the files from this repository's `main` branch on GitHub, in
+the browser and on the desktop, so a model added or changed here reaches every
+copy of the app once it is pushed: no new build or release. GitHub caches the
+files for a few minutes, so a change can take about five minutes to show. With
+no network the window says so; *File ▸ Open sample* still has a few models built
+into the app.
+
+To add a model:
+
+1. Put the file anywhere in the repository; `ExampleModels/` is the usual place.
+   It can be a PathwayDesigner `.json` file or an Escher map.
+2. Add an entry to `Gallery/index.json`:
+
+   ```json
+   {
+     "file": "ExampleModels/my_model.json",
+     "group": "Large models",
+     "title": "My model",
+     "description": "One line about it",
+     "version": 4
+   }
+   ```
+
+   - `file`: the path from the repository's root.
+   - `group`: the heading it is listed under. Groups appear in the order they
+     first appear in the file; a new name makes a new group.
+   - `title`, and an optional `description` shown under it.
+   - `version`: the `"version"` at the top of the model's file, or `0` for an
+     Escher map. An app too old for that version shows the entry greyed out
+     instead of failing to open it.
+3. Run `cargo test -p pd-app gallery`. It checks every entry: the file exists,
+   opens, and has the version the entry says, and no file is listed twice. CI
+   runs the same test, so a mistake fails the push that makes it.
+4. Commit and push to `main`.
+
+Changing a model is just steps 3 and 4, and step 2 if its version changed (saving
+it in a newer app can raise it). To remove one, delete its entry.
+
+To try a Gallery before pushing it, build the app with `PD_GALLERY_URL` set to
+another address that serves the same files, ending in `/`, for example
+`PD_GALLERY_URL=http://127.0.0.1:8080/ trunk serve` from `crates/pd-app` with the
+repository served on port 8080.
 
 ## Project layout
 

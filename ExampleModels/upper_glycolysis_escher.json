@@ -1,0 +1,763 @@
+{
+  "version": 7,
+  "modelName": "upper_glycolysis",
+  "compartments": [
+    {
+      "id": "cytosol",
+      "size": 1.0,
+      "dimensions": 3,
+      "style": {
+        "fillColor": "#FAFAFAFF",
+        "borderColor": "#C8CDD3FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "x": 320.0,
+      "y": 340.0,
+      "w": 520.0,
+      "h": 600.0,
+      "styleName": "Escher compartment"
+    }
+  ],
+  "parameters": [
+    {
+      "variable": "k1",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k2",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k3",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k4",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "Glc",
+      "x": 200.0,
+      "y": 120.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 31.398,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "G6P",
+      "x": 200.0,
+      "y": 240.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 32.715,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "F6P",
+      "x": 200.0,
+      "y": 360.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 32.088,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "FBP",
+      "x": 200.0,
+      "y": 480.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 32.322,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "DHAP",
+      "x": 120.0,
+      "y": 580.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": -43.144999999999996,
+      "labelDy": 25.086,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "GAP",
+      "x": 280.0,
+      "y": 580.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 1.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 36.916,
+      "labelDy": 25.086,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "ATP",
+      "x": 320.0,
+      "y": 160.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 14.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 25.729999999999997,
+      "labelDy": 0.0,
+      "styleName": "Escher cofactor"
+    },
+    {
+      "id": "ADP",
+      "x": 320.0,
+      "y": 200.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 14.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 25.974,
+      "labelDy": 0.0,
+      "styleName": "Escher cofactor"
+    },
+    {
+      "id": "ATP_2",
+      "x": 320.0,
+      "y": 400.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 14.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 25.729999999999997,
+      "labelDy": 0.0,
+      "styleName": "Escher cofactor"
+    },
+    {
+      "id": "ADP_2",
+      "x": 320.0,
+      "y": 440.0,
+      "w": 16.0,
+      "h": 16.0,
+      "initialValue": 1.0,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 14.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 25.974,
+      "labelDy": 0.0,
+      "styleName": "Escher cofactor"
+    },
+    {
+      "id": "HK",
+      "x": 480.0,
+      "y": 180.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 33.239999999999995,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "PGI",
+      "x": 480.0,
+      "y": 300.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 36.048,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "PFK",
+      "x": 480.0,
+      "y": 420.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 36.687,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    },
+    {
+      "id": "ALD",
+      "x": 480.0,
+      "y": 540.0,
+      "w": 26.0,
+      "h": 26.0,
+      "initialValue": 0.1,
+      "isBoundary": true,
+      "isConstant": false,
+      "compartment": "cytosol",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelDx": 38.037,
+      "labelDy": 0.0,
+      "styleName": "Escher metabolite"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "hexokinase",
+      "jx": 200.0,
+      "jy": 180.0,
+      "kineticLaw": "HK*k1*Glc*ATP",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "Glc",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 141.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 159.0,
+          "ctrlSet": true
+        },
+        {
+          "id": "ATP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 278.0,
+          "ctrl1y": 167.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 137.42066228791248,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 201.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 219.0,
+          "ctrlSet": true
+        },
+        {
+          "id": "ADP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 222.57933771208752,
+          "ctrl2x": 278.0,
+          "ctrl2y": 193.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "HK"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": -56.82,
+      "labelDy": 0.0
+    },
+    {
+      "id": "isomerase",
+      "jx": 200.0,
+      "jy": 300.0,
+      "kineticLaw": "PGI*k2*G6P",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "G6P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 261.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 279.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 321.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 339.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PGI"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": -53.204,
+      "labelDy": 0.0
+    },
+    {
+      "id": "phosphofructokinase",
+      "jx": 200.0,
+      "jy": 420.0,
+      "kineticLaw": "PFK*k3*F6P*ATP",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "F6P",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 381.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 399.0,
+          "ctrlSet": true
+        },
+        {
+          "id": "ATP_2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 278.0,
+          "ctrl1y": 407.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 377.4206622879125,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "FBP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 441.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 459.0,
+          "ctrlSet": true
+        },
+        {
+          "id": "ADP_2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 462.5793377120875,
+          "ctrl2x": 278.0,
+          "ctrl2y": 433.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "PFK"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": -94.42,
+      "labelDy": 0.0
+    },
+    {
+      "id": "aldolase",
+      "jx": 200.0,
+      "jy": 540.0,
+      "kineticLaw": "ALD*k4*FBP",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "FBP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 501.0,
+          "ctrl2x": 200.0,
+          "ctrl2y": 519.0,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "DHAP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 571.304951684997,
+          "ctrl2x": 148.0,
+          "ctrl2y": 566.0,
+          "ctrlSet": true
+        },
+        {
+          "id": "GAP",
+          "stoichiometry": 1.0,
+          "ctrl1x": 200.0,
+          "ctrl1y": 571.304951684997,
+          "ctrl2x": 252.0,
+          "ctrl2y": 566.0,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "ALD"
+        }
+      ],
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      },
+      "styleName": "Escher reaction",
+      "labelDx": -45.708,
+      "labelDy": 0.0
+    }
+  ],
+  "texts": [
+    {
+      "id": "T1",
+      "x": 80.0,
+      "y": 72.0,
+      "text": "Upper glycolysis",
+      "size": 22.0,
+      "bold": true,
+      "color": "#334E75FF"
+    }
+  ],
+  "styles": [
+    {
+      "name": "Escher metabolite",
+      "kind": "species",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 2.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 18.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 26.0,
+      "h": 26.0
+    },
+    {
+      "name": "Escher cofactor",
+      "kind": "species",
+      "style": {
+        "fillColor": "#E0865BFF",
+        "borderColor": "#A24510FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 14.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid",
+      "labelOutside": true,
+      "w": 16.0,
+      "h": 16.0
+    },
+    {
+      "name": "Escher reaction",
+      "kind": "reaction",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#334E75FF",
+        "borderWidth": 0.0,
+        "lineColor": "#334E75FF",
+        "lineWidth": 5.0,
+        "fontSize": 16.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": false
+      }
+    },
+    {
+      "name": "Escher compartment",
+      "kind": "compartment",
+      "style": {
+        "fillColor": "#FAFAFAFF",
+        "borderColor": "#C8CDD3FF",
+        "labelColor": "#00000000",
+        "borderWidth": 1.5,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      }
+    }
+  ],
+  "theme": "escher"
+}

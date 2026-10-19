@@ -2,10 +2,24 @@
   "examples": [
     {
       "file": "ExampleModels/upper_glycolysis.json",
-      "group": "Small examples",
+      "group": "As in the README",
       "title": "Upper glycolysis",
-      "description": "Glucose to the triose phosphates, in a cytosol compartment",
+      "description": "The first screenshot: glucose to the triose phosphates, with enzymes as modifiers",
       "version": 6
+    },
+    {
+      "file": "ExampleModels/upper_glycolysis_escher.json",
+      "group": "As in the README",
+      "title": "Upper glycolysis in the Escher theme",
+      "description": "The second screenshot: the same model after View > Theme > Escher",
+      "version": 7
+    },
+    {
+      "file": "Escher/e_coli_core.Core metabolism.json",
+      "group": "As in the README",
+      "title": "E. coli core metabolism (Escher map)",
+      "description": "The third screenshot: Escher's own map of e_coli_core, opened through the Escher import",
+      "version": 0
     },
     {
       "file": "ExampleModels/compartment_1.json",
@@ -69,13 +83,6 @@
       "title": "E. coli core (BiGG)",
       "description": "The BiGG e_coli_core model, 95 reactions",
       "version": 4
-    },
-    {
-      "file": "Escher/e_coli_core.Core metabolism.json",
-      "group": "Escher maps",
-      "title": "E. coli core metabolism",
-      "description": "Escher's own map of e_coli_core, opened through the Escher import",
-      "version": 0
     }
   ]
 }
