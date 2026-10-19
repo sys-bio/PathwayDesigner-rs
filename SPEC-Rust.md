@@ -346,6 +346,13 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 12: a modifier line's look (S §5.7.2).** A modifier object may have
+`"lineColor"` (`#RRGGBBAA`), `"lineWidth"`, `"pattern"` (`"dotted"` or
+`"solid"`), `"symbolSize"` and `"symbolGap"`, after `points`, each left out at its
+default; a colour that doesn't read, a width or size that isn't positive, a
+negative distance or another pattern read as the default. A document with any
+of them is version 12.
+
 **Version 11: modifier kinds and corner points (S §5.7.1).** A modifier object
 may have `"kind"`, after its id: `"activator"`, `"inhibitor"` or `"catalyst"`;
 left out for a plain modifier, and anything else reads as one. It may also have

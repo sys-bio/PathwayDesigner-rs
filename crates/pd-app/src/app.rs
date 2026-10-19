@@ -2275,7 +2275,17 @@ mod tests {
         h.run(vec![]);
         h.run(vec![]);
         h.text("Modifiers");
-        h.text("MKKK_P");
+        // One section, open: its name and kind, then its line's look.
+        h.widget("MKKK_P: Modifier");
+        for row in [
+            "Line",
+            "Line width",
+            "Pattern",
+            "Symbol size",
+            "Symbol distance",
+        ] {
+            h.text(row);
+        }
         h.click(h.text("Modifier"));
         h.run(vec![]);
         h.click(h.widget("Activator"));

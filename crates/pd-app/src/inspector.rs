@@ -9,8 +9,8 @@
 use eframe::egui::{self, Color32, RichText, Sense, Vec2, text::CCursor, text::CCursorRange};
 use pd_core::expr;
 use pd_core::json::colour::{from_hex, to_hex};
-use pd_core::model::{BorderDash, NodeShape, Rgba, StyleKind, TextAlign, Typeface};
-use pd_core::render::constants::PICKER_SWATCHES;
+use pd_core::model::{BorderDash, ModifierLook, NodeShape, Rgba, StyleKind, TextAlign, Typeface};
+use pd_core::render::constants::{DEFAULT_LINE_WIDTH, PICKER_SWATCHES};
 use pd_core::render::draw;
 use pd_core::view::{ColourField, DiagramView};
 
@@ -476,7 +476,7 @@ impl Inspector {
                 if !look_only {
                     ui.label("Rate law");
                     self.law_field(ui, view, one_reaction.is_some());
-                    modifier_kinds(ui, view, one_reaction.as_deref());
+                    self.modifiers(ui, view, one_reaction.as_deref());
                 }
             });
         }
@@ -1119,51 +1119,193 @@ fn parse_hex6(s: &str) -> Option<Rgba> {
     from_hex(digits)
 }
 
-/// The one selected reaction's modifiers, each with what it does
-/// (S §5.7.1). The modifiers come from the rate law (S §8.4).
-fn modifier_kinds(ui: &mut egui::Ui, view: &mut DiagramView, reaction: Option<&str>) {
-    let Some(id) = reaction else {
-        return;
-    };
-    let Some(r) = view.model().find_reaction(id) else {
-        return;
-    };
-    let modifiers: Vec<(String, String, pd_core::model::ModifierKind)> = r
-        .modifiers
-        .iter()
-        .map(|m| {
-            let name = view
-                .model()
-                .find_species(&m.species)
-                .map_or(m.species.clone(), |n| n.primary_id().to_owned());
-            (m.species.clone(), name, m.kind)
-        })
-        .collect();
-    if modifiers.is_empty() {
-        return;
+impl Inspector {
+    /// The one selected reaction's modifiers (S §5.7.1, §5.7.2): each a
+    /// section headed by its name and kind, with its kind and its line's
+    /// look. The modifiers come from the rate law (S §8.4).
+    fn modifiers(&mut self, ui: &mut egui::Ui, view: &mut DiagramView, reaction: Option<&str>) {
+        use pd_core::model::{LinePattern, ModifierKind};
+        let Some(id) = reaction else {
+            return;
+        };
+        let Some(r) = view.model().find_reaction(id) else {
+            return;
+        };
+        let modifiers: Vec<(String, String, ModifierKind, ModifierLook)> = r
+            .modifiers
+            .iter()
+            .map(|m| {
+                let name = view
+                    .model()
+                    .find_species(&m.species)
+                    .map_or(m.species.clone(), |n| n.primary_id().to_owned());
+                (m.species.clone(), name, m.kind, m.look)
+            })
+            .collect();
+        if modifiers.is_empty() {
+            return;
+        }
+        let count = modifiers.len();
+        ui.add_space(4.0);
+        ui.label("Modifiers");
+        for (index, (species, name, now, look)) in modifiers.into_iter().enumerate() {
+            let (size, gap) = now.symbol_defaults();
+            egui::CollapsingHeader::new(format!("{name}: {}", now.label()))
+                .id_salt(("modifier", id, index))
+                .default_open(count == 1)
+                .show(ui, |ui| {
+                    egui::Grid::new(("modifier-look", index))
+                        .num_columns(2)
+                        .spacing([8.0, 6.0])
+                        .show(ui, |ui| {
+                            ui.label("Kind");
+                            let mut kind = now;
+                            egui::ComboBox::from_id_salt(("modifier-kind", &species))
+                                .selected_text(kind.label())
+                                .show_ui(ui, |ui| {
+                                    for k in ModifierKind::ALL {
+                                        ui.selectable_value(&mut kind, k, k.label());
+                                    }
+                                });
+                            if kind != now {
+                                view.set_modifier_kind(id, &species, kind);
+                            }
+                            ui.end_row();
+
+                            ui.label("Line");
+                            ui.horizontal(|ui| {
+                                self.modifier_swatch(ui, view, id, index, look.colour);
+                                if look.colour.is_some()
+                                    && ui
+                                        .small_button("Default")
+                                        .on_hover_text("Back to the usual teal")
+                                        .clicked()
+                                {
+                                    view.set_modifier_colour(id, index, None);
+                                }
+                            });
+                            ui.end_row();
+
+                            ui.label("Line width");
+                            let key = ("modifier-width", id, index);
+                            if let Some(v) =
+                                optional_number(ui, key, look.width, DEFAULT_LINE_WIDTH)
+                            {
+                                view.set_modifier_width(id, index, v);
+                            }
+                            ui.end_row();
+
+                            ui.label("Pattern");
+                            let mut pattern = look.pattern;
+                            egui::ComboBox::from_id_salt(("modifier-pattern", id, index))
+                                .selected_text(pattern.label())
+                                .show_ui(ui, |ui| {
+                                    for p in LinePattern::ALL {
+                                        ui.selectable_value(&mut pattern, p, p.label());
+                                    }
+                                });
+                            if pattern != look.pattern {
+                                view.set_modifier_pattern(id, index, pattern);
+                            }
+                            ui.end_row();
+
+                            ui.label("Symbol size");
+                            let key = ("modifier-size", id, index);
+                            if let Some(v) = optional_number(ui, key, look.symbol_size, size) {
+                                view.set_modifier_symbol_size(id, index, v);
+                            }
+                            ui.end_row();
+
+                            ui.label("Symbol distance");
+                            let key = ("modifier-gap", id, index);
+                            if let Some(v) = optional_number(ui, key, look.symbol_gap, gap) {
+                                view.set_modifier_symbol_gap(id, index, v);
+                            }
+                            ui.end_row();
+                        });
+                    let apply = ui
+                        .add_enabled(count > 1, egui::Button::new("Apply to All"))
+                        .on_hover_text("Give the reaction's other modifier lines this look")
+                        .on_disabled_hover_text("The reaction has one modifier");
+                    if apply.clicked() {
+                        view.apply_modifier_look_to_all(id, index);
+                    }
+                });
+        }
     }
-    ui.add_space(4.0);
-    ui.label("Modifiers");
-    egui::Grid::new("modifier-kinds")
-        .num_columns(2)
-        .spacing([8.0, 6.0])
-        .show(ui, |ui| {
-            for (species, name, now) in modifiers {
-                ui.label(&name);
-                let mut kind = now;
-                egui::ComboBox::from_id_salt(("modifier-kind", &species))
-                    .selected_text(kind.label())
-                    .show_ui(ui, |ui| {
-                        for k in pd_core::model::ModifierKind::ALL {
-                            ui.selectable_value(&mut kind, k, k.label());
-                        }
-                    });
-                if kind != now {
-                    view.set_modifier_kind(id, &species, kind);
+
+    /// A modifier line's colour swatch (S §5.7.2): the teal it is drawn in
+    /// until a colour is chosen. A click opens the picker below it.
+    fn modifier_swatch(
+        &mut self,
+        ui: &mut egui::Ui,
+        view: &mut DiagramView,
+        id: &str,
+        index: usize,
+        colour: Option<Rgba>,
+    ) {
+        let shown = colour.unwrap_or(pd_core::render::constants::MODIFIER);
+        let (rect, resp) = ui.allocate_exact_size(SWATCH, Sense::click());
+        paint_colour(ui.painter(), rect, Some(shown));
+        ui.painter().rect_stroke(
+            rect,
+            3.0,
+            ui.visuals().widgets.inactive.fg_stroke,
+            egui::StrokeKind::Inside,
+        );
+        let resp = resp.on_hover_text("Choose a colour");
+        if resp.clicked() {
+            self.hex = to_hex(shown)[..7].to_owned();
+        }
+        egui::Popup::from_toggle_button_response(&resp)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| {
+                if let Some(c) = self.picker(ui, Some(shown), false) {
+                    view.set_modifier_colour(id, index, Some(c));
+                    ui.close();
                 }
-                ui.end_row();
-            }
-        });
+            });
+    }
+}
+
+/// A number field that may be left empty for a default (S §5.7.2): it shows
+/// the value set, or nothing with the default as a dimmed hint. What was
+/// typed is kept while the field has the keyboard. When it lets go, returns
+/// the new setting: `Some(None)` when emptied, `Some(Some(v))` for a number
+/// typed, `None` for no change (or something that isn't a number).
+fn optional_number(
+    ui: &mut egui::Ui,
+    key: impl std::hash::Hash + std::fmt::Debug,
+    value: Option<f64>,
+    default: f64,
+) -> Option<Option<f64>> {
+    let id = ui.make_persistent_id(key);
+    let shown = || value.map(|v| format!("{v}")).unwrap_or_default();
+    let mut text = ui
+        .data_mut(|d| d.get_temp::<String>(id))
+        .unwrap_or_else(shown);
+    let typed = text.trim().is_empty() || text.trim().parse::<f64>().is_ok_and(f64::is_finite);
+    let r = ui.add(
+        egui::TextEdit::singleline(&mut text)
+            .id(id)
+            .desired_width(90.0)
+            .hint_text(format!("{default}"))
+            .text_color_opt((!typed).then_some(ERROR)),
+    );
+    if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(id, text.clone()));
+    }
+    if !r.lost_focus() {
+        return None;
+    }
+    ui.data_mut(|d| d.remove::<String>(id));
+    let t = text.trim();
+    let new = if t.is_empty() {
+        Some(None)
+    } else {
+        t.parse::<f64>().ok().filter(|v| v.is_finite()).map(Some)
+    };
+    new.filter(|n| *n != value)
 }
 
 #[cfg(test)]

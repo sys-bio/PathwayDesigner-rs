@@ -552,6 +552,52 @@ menu, Reaction group). 2: kinds in SBML and Antimony. 3: corner points (drawing,
 hitting, adding, dragging, removing, Straighten Modifier Line, JSON and SBML).
 The right-click menu of an arc shows which modifier it is above its items.
 
+#### 5.7.2 A modifier line's look (Rust version)
+
+*Added in the Rust version; designed with the user. Step 1 (done): the model,
+drawing, JSON and the panel. Step 2: the SBML note.* Each modifier line has its
+own look, set by hand. Every setting starts as **default**, which draws the arc
+exactly as §5.7 and §5.7.1 say, so existing diagrams don't change.
+
+| Setting | Values | Default |
+|---|---|---|
+| Line colour | any colour | teal `#007777` |
+| Line width | 0.5 – 20 | 1.5 |
+| Pattern | Dashed, Dotted, Solid | Dashed (6 on, 4 off) |
+| Symbol size | 2 – 100 | the kind's: the dot's diameter 8, the circle's 10, the arrowhead's length 12, the bar's length 16 |
+| Symbol distance | 0 – 200 | the kind's: from the junction to the symbol's nearest point, 6 for the dot, 5 for the circle, 8 for the arrowhead's tip and for the bar |
+
+- **Drawing.** The line takes its colour, width and pattern: Dotted is round dots,
+  on 0.1 and off 2.5 × the width with round ends, so each dot is about as wide as
+  the line. The symbol is drawn in the line's colour. A dot or circle has the
+  size as its diameter; an arrowhead the size as its length, its base 10/12 of
+  it; a bar the size as its length. Open symbols are outlined at the line's
+  width; the bar's width is the line's width + 1. The symbol's nearest point is
+  the distance from the junction, along the last piece of the arc. While the
+  reaction is selected the whole arc and symbol take the selected reaction
+  colour, as now.
+- **Not part of a look.** Copy Style, Paste Style, saved styles and themes leave
+  a modifier line's look alone, as they do its kind and corner points.
+- **The panel.** In the Reaction group's Modifiers list (§5.7.1), each modifier
+  is a collapsible section headed by its name and kind. Inside: **Kind**,
+  **Line** (colour, with Default), **Line width**, **Pattern** (Dashed / Dotted
+  / Solid), **Symbol size** and **Symbol distance** (each empty, or the
+  default shown dimmed, until set; clearing a field puts the default back).
+  **Apply to All** copies this line's colour, width, pattern, symbol size and
+  distance (not its kind or corner points) to every other modifier line of the
+  reaction; it is disabled when the reaction has one. Each change is one undo
+  step: "Modifier Line Colour", "Modifier Line Width", "Modifier Line Pattern",
+  "Modifier Symbol Size", "Modifier Symbol Distance", "Apply to All Modifier
+  Lines".
+- **Files.** JSON version 12: a modifier object may have `"lineColor"`
+  (`#RRGGBBAA`), `"lineWidth"`, `"pattern"` (`"dotted"` or `"solid"`),
+  `"symbolSize"` and `"symbolGap"`, each left out at its default. SBML: the
+  modifier's species reference glyph gets PathwayDesigner's note
+  `<pd:modifier lineColor=… lineWidth=… pattern=… symbolSize=… symbolGap=…/>`
+  with the settings that aren't default, read back on import (other tools ignore
+  it). Antimony has no looks.
+- Graphics output (SVG, PNG, PDF) draws the line as on screen.
+
 ### 5.8 Junction handle
 
 - A circle of radius 4 at the effective junction. Fill `#FF8800`, or the custom

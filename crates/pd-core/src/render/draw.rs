@@ -6,8 +6,8 @@
 use crate::bezier::{Ctrl, leg_curve};
 use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
-    BorderDash, Compartment, Frame, Model, ModifierKind, NodeShape, Participant, Reaction,
-    ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem, VisualStyle,
+    BorderDash, Compartment, Frame, LinePattern, Model, ModifierKind, NodeShape, Participant,
+    Reaction, ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem, VisualStyle,
 };
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
@@ -881,17 +881,6 @@ impl Drawer<'_> {
             return;
         }
         let j = effective_junction(self.model, r);
-        let color = if self.selected(r.selected) {
-            self.opts.selected_reaction
-        } else {
-            MODIFIER
-        };
-        let stroke = Stroke {
-            width: self.len(DEFAULT_LINE_WIDTH),
-            color,
-            dash: self.dash(MODIFIER_DASH),
-            round_cap: false,
-        };
         for m in &r.modifiers {
             if self.visible(&m.species).is_none() {
                 continue;
@@ -899,12 +888,30 @@ impl Drawer<'_> {
             let Some(mut route) = modifier_route(self.model, r, m) else {
                 continue;
             };
+            // Its own look (S §5.7.2); the selected colour while selected.
+            let color = if self.selected(r.selected) {
+                self.opts.selected_reaction
+            } else {
+                m.look.colour.unwrap_or(MODIFIER)
+            };
+            let width = m.look.width.unwrap_or(DEFAULT_LINE_WIDTH);
+            let (dash, round_cap) = match m.look.pattern {
+                LinePattern::Dashed => (self.dash(MODIFIER_DASH), false),
+                LinePattern::Dotted => (self.dash((0.1 * width, 2.5 * width)), true),
+                LinePattern::Solid => (None, false),
+            };
+            let stroke = Stroke {
+                width: self.len(width),
+                color,
+                dash,
+                round_cap,
+            };
             // Starts inside the node, so the node hides the start.
             route[0] = route[0] - normalize(route[1] - route[0]) * MODIFIER_INSET;
             // The symbol follows the last piece.
             let n = route.len();
             let toward_j = normalize(j - route[n - 2]);
-            route[n - 1] = self.modifier_symbol(m.kind, j, toward_j, color, out);
+            route[n - 1] = self.modifier_symbol(m, j, toward_j, color, width, out);
             let pts: Vec<SPt> = route.iter().map(|&p| self.to_screen(p)).collect();
             out.polyline(&pts, stroke);
         }
@@ -938,63 +945,62 @@ impl Drawer<'_> {
     }
 
     /// The symbol at the junction end of a modifier's arc, for its kind
-    /// (S §5.7.1), its axis along `dir` (toward the junction `j`). Returns
-    /// where the arc's line stops. Open symbols are filled with the
-    /// background, so the line doesn't show through them.
+    /// (S §5.7.1) and look (S §5.7.2), its axis along `dir` (toward the
+    /// junction `j`). Returns where the arc's line stops. Open symbols are
+    /// filled with the background, so the line doesn't show through them.
     fn modifier_symbol(
         &self,
-        kind: ModifierKind,
+        m: &Participant,
         j: Pt,
         dir: Pt,
         color: Rgba,
+        width: f64,
         out: &mut dyn Renderer,
     ) -> Pt {
+        let (size, gap) = m.kind.symbol_defaults();
+        let size = m.look.symbol_size.unwrap_or(size);
+        let gap = m.look.symbol_gap.unwrap_or(gap);
         let solid = Stroke {
-            width: self.len(DEFAULT_LINE_WIDTH),
+            width: self.len(width),
             color,
             dash: None,
             round_cap: false,
         };
         let back = background_colour(self.model);
-        match kind {
+        match m.kind {
             ModifierKind::Modifier => {
-                let dot = j - dir * MODIFIER_DOT_OFFSET;
-                out.circle(
-                    self.to_screen(dot),
-                    self.len(MODIFIER_DOT_RADIUS),
-                    Some(color),
-                    None,
-                );
+                let dot = j - dir * (gap + size / 2.0);
+                out.circle(self.to_screen(dot), self.len(size / 2.0), Some(color), None);
                 dot
             }
             ModifierKind::Catalyst => {
-                let centre = j - dir * MODIFIER_DOT_OFFSET;
+                let centre = j - dir * (gap + size / 2.0);
                 out.circle(
                     self.to_screen(centre),
-                    self.len(MODIFIER_CIRCLE_RADIUS),
+                    self.len(size / 2.0),
                     Some(back),
                     Some(solid),
                 );
-                centre - dir * MODIFIER_CIRCLE_RADIUS
+                centre - dir * (size / 2.0)
             }
             ModifierKind::Activator => {
-                let tip = j - dir * MODIFIER_TIP_OFFSET;
-                let tri = filled_arrowhead(tip, dir, ARROW_LENGTH, ARROW_HALF_BASE);
+                let tip = j - dir * gap;
+                let tri = filled_arrowhead(tip, dir, size, size * ARROW_HALF_BASE / ARROW_LENGTH);
                 let screen = tri.map(|p| self.to_screen(p));
                 out.polygon(&screen, back);
                 out.polyline(&[screen[0], screen[1], screen[2], screen[0]], solid);
-                tip - dir * ARROW_LENGTH
+                tip - dir * size
             }
             ModifierKind::Inhibitor => {
-                let centre = j - dir * MODIFIER_TIP_OFFSET;
-                let across = pt(-dir.y, dir.x) * MODIFIER_BAR_HALF;
+                let centre = j - dir * gap;
+                let across = pt(-dir.y, dir.x) * (size / 2.0);
                 out.polyline(
                     &[
                         self.to_screen(centre - across),
                         self.to_screen(centre + across),
                     ],
                     Stroke {
-                        width: self.len(MODIFIER_BAR_WIDTH),
+                        width: self.len(width + 1.0),
                         ..solid
                     },
                 );
@@ -2010,6 +2016,98 @@ mod tests {
             ..DrawOptions::default()
         };
         assert_eq!(square(&draw(&m, &output)), 0);
+    }
+
+    #[test]
+    fn a_modifier_line_is_drawn_in_its_own_look() {
+        use crate::model::{LinePattern, ModifierKind, ModifierLook};
+        let mut m = uni_uni();
+        let e = m.add_species(pt(200.0, -200.0), 80.0, 36.0);
+        m.find_reaction_mut("R3")
+            .unwrap()
+            .modifiers
+            .push(Participant::new(e, 1.0));
+        let red = Rgba::rgb(200, 0, 0);
+        let set = |m: &mut Model, kind, look| {
+            let p = &mut m.find_reaction_mut("R3").unwrap().modifiers[0];
+            p.kind = kind;
+            p.look = look;
+            draw(m, &DrawOptions::default())
+        };
+        let line = |calls: &[Call]| {
+            calls
+                .iter()
+                .find_map(|c| match c {
+                    Call::Polyline(p, s) if p.len() == 2 && p[0].y < -100.0 => {
+                        Some((p.clone(), *s))
+                    }
+                    _ => None,
+                })
+                .unwrap()
+        };
+        // Colour, width and pattern; the junction is at (200, 0).
+        let base = ModifierLook {
+            colour: Some(red),
+            width: Some(3.0),
+            ..ModifierLook::default()
+        };
+        for (pattern, dash, round) in [
+            (LinePattern::Dashed, Some((6.0, 4.0)), false),
+            (LinePattern::Dotted, Some((0.3, 7.5)), true),
+            (LinePattern::Solid, None, false),
+        ] {
+            let calls = set(
+                &mut m,
+                ModifierKind::Modifier,
+                ModifierLook { pattern, ..base },
+            );
+            let (_, s) = line(&calls);
+            assert_eq!((s.color, s.width, s.round_cap), (red, 3.0, round));
+            match (s.dash, dash) {
+                (Some((a, b)), Some((x, y))) => {
+                    assert!((a - x as f32).abs() < 1e-4 && (b - y as f32).abs() < 1e-4)
+                }
+                (None, None) => {}
+                other => panic!("{pattern:?}: {other:?}"),
+            }
+            // The dot takes the line's colour.
+            assert!(calls.contains(&Call::Circle(spt(200.0, -10.0), 4.0, Some(red), None)));
+        }
+        // Symbol size and distance, kind by kind.
+        let look = ModifierLook {
+            symbol_size: Some(20.0),
+            symbol_gap: Some(15.0),
+            ..ModifierLook::default()
+        };
+        // Dot: diameter 20, nearest point 15 from the junction.
+        let calls = set(&mut m, ModifierKind::Modifier, look);
+        assert!(calls.contains(&Call::Circle(spt(200.0, -25.0), 10.0, Some(MODIFIER), None)));
+        // Bar: 20 long, 15 from the junction, 1 wider than the line.
+        let calls = set(&mut m, ModifierKind::Inhibitor, look);
+        let bar = calls
+            .iter()
+            .find_map(|c| match c {
+                Call::Polyline(p, s) if s.dash.is_none() && s.width == 2.5 => Some(p.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(close(bar[0], spt(190.0, -15.0)) || close(bar[0], spt(210.0, -15.0)));
+        assert!((bar[0].x - bar[1].x).abs() > 19.9);
+        assert!(close(line(&calls).0[1], spt(200.0, -15.0)));
+        // Arrowhead: 20 long, tip 15 from the junction; the line stops at its base.
+        let calls = set(&mut m, ModifierKind::Activator, look);
+        assert!(close(line(&calls).0[1], spt(200.0, -35.0)));
+        // Circle: diameter 20, nearest point 15 away.
+        let calls = set(&mut m, ModifierKind::Catalyst, look);
+        assert!(calls.iter().any(|c| matches!(c,
+            Call::Circle(p, r, _, Some(_)) if close(*p, spt(200.0, -25.0)) && *r == 10.0)));
+        // Selected: the selected reaction colour, whatever its own.
+        m.find_reaction_mut("R3").unwrap().selected = true;
+        let calls = set(&mut m, ModifierKind::Modifier, base);
+        assert_eq!(
+            line(&calls).1.color,
+            DrawOptions::default().selected_reaction
+        );
     }
 
     #[test]

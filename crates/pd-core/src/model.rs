@@ -412,6 +412,72 @@ pub struct Participant {
     /// through them, in order, to the junction. World coordinates. Only used
     /// in a modifier list.
     pub points: Vec<Pt>,
+    /// A modifier line's own look (S §5.7.2). Only used in a modifier list.
+    pub look: ModifierLook,
+}
+
+/// A modifier line's pattern (S §5.7.2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LinePattern {
+    /// The reference's dashes, and the default.
+    #[default]
+    Dashed,
+    /// Round dots.
+    Dotted,
+    Solid,
+}
+
+impl LinePattern {
+    pub const ALL: [LinePattern; 3] =
+        [LinePattern::Dashed, LinePattern::Dotted, LinePattern::Solid];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            LinePattern::Dashed => "Dashed",
+            LinePattern::Dotted => "Dotted",
+            LinePattern::Solid => "Solid",
+        }
+    }
+
+    /// Its name in a JSON file; none for dashed, which is left out.
+    pub fn key(self) -> Option<&'static str> {
+        match self {
+            LinePattern::Dashed => None,
+            LinePattern::Dotted => Some("dotted"),
+            LinePattern::Solid => Some("solid"),
+        }
+    }
+
+    /// The pattern a file names; anything else is dashed.
+    pub fn from_key(key: &str) -> LinePattern {
+        LinePattern::ALL
+            .into_iter()
+            .find(|p| p.key() == Some(key))
+            .unwrap_or_default()
+    }
+}
+
+/// A modifier line's own look (S §5.7.2): `None` is the default. Set by
+/// hand per line; styles and themes leave it alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ModifierLook {
+    pub colour: Option<Rgba>,
+    pub width: Option<f64>,
+    pub pattern: LinePattern,
+    /// The symbol's diameter or length.
+    pub symbol_size: Option<f64>,
+    /// From the junction to the symbol's nearest point.
+    pub symbol_gap: Option<f64>,
+}
+
+impl ModifierLook {
+    pub const WIDTH_RANGE: (f64, f64) = (0.5, 20.0);
+    pub const SIZE_RANGE: (f64, f64) = (2.0, 100.0);
+    pub const GAP_RANGE: (f64, f64) = (0.0, 200.0);
+
+    pub fn is_default(&self) -> bool {
+        *self == ModifierLook::default()
+    }
 }
 
 impl Participant {
@@ -424,6 +490,7 @@ impl Participant {
             ctrl_pts_set: false,
             kind: ModifierKind::Modifier,
             points: Vec::new(),
+            look: ModifierLook::default(),
         }
     }
 }
@@ -451,6 +518,18 @@ impl ModifierKind {
         ModifierKind::Inhibitor,
         ModifierKind::Catalyst,
     ];
+
+    /// Its symbol's size (a diameter, or a length) and distance from the
+    /// junction to its nearest point, when a line's look doesn't set them
+    /// (S §5.7.2).
+    pub fn symbol_defaults(self) -> (f64, f64) {
+        match self {
+            ModifierKind::Modifier => (8.0, 6.0),
+            ModifierKind::Catalyst => (10.0, 5.0),
+            ModifierKind::Activator => (12.0, 8.0),
+            ModifierKind::Inhibitor => (16.0, 8.0),
+        }
+    }
 
     /// Its name in menus and the Properties panel.
     pub fn label(self) -> &'static str {

@@ -468,3 +468,126 @@ fn the_screen_shows_the_current_corner_point_filled() {
     drag(&mut v, pt(360.0, -200.0), pt(360.0, -190.0));
     assert_eq!(filled(&v), 1);
 }
+
+#[test]
+fn a_modifier_line_has_its_own_look() {
+    use crate::model::{LinePattern, ModifierLook, Rgba};
+    let mut v = view();
+    let look = |v: &DiagramView| v.modifier_look("R1", 0).unwrap();
+    assert!(look(&v).is_default());
+    let red = Rgba::rgb(200, 0, 0);
+    v.set_modifier_colour("R1", 0, Some(red));
+    assert_eq!(v.undo_description(), Some("Modifier Line Colour"));
+    v.set_modifier_width("R1", 0, Some(3.0));
+    assert_eq!(v.undo_description(), Some("Modifier Line Width"));
+    v.set_modifier_pattern("R1", 0, LinePattern::Dotted);
+    assert_eq!(v.undo_description(), Some("Modifier Line Pattern"));
+    v.set_modifier_symbol_size("R1", 0, Some(20.0));
+    assert_eq!(v.undo_description(), Some("Modifier Symbol Size"));
+    v.set_modifier_symbol_gap("R1", 0, Some(12.0));
+    assert_eq!(v.undo_description(), Some("Modifier Symbol Distance"));
+    assert_eq!(
+        look(&v),
+        ModifierLook {
+            colour: Some(red),
+            width: Some(3.0),
+            pattern: LinePattern::Dotted,
+            symbol_size: Some(20.0),
+            symbol_gap: Some(12.0),
+        }
+    );
+    // Kept within their ranges; None puts the default back.
+    v.set_modifier_width("R1", 0, Some(500.0));
+    assert_eq!(look(&v).width, Some(20.0));
+    v.set_modifier_symbol_size("R1", 0, Some(0.1));
+    assert_eq!(look(&v).symbol_size, Some(2.0));
+    v.set_modifier_symbol_gap("R1", 0, Some(-5.0));
+    assert_eq!(look(&v).symbol_gap, Some(0.0));
+    v.set_modifier_colour("R1", 0, None);
+    assert_eq!(look(&v).colour, None);
+    // Undo, one setting at a time.
+    v.undo();
+    assert_eq!(look(&v).colour, Some(red));
+    // The same value again is no undo step.
+    let before = v.undo_description();
+    v.set_modifier_pattern("R1", 0, LinePattern::Dotted);
+    assert_eq!(v.undo_description(), before);
+}
+
+#[test]
+fn apply_to_all_copies_the_look_but_not_the_kind_or_points() {
+    use crate::model::{LinePattern, Rgba};
+    let mut v = view();
+    v.model
+        .push_species(SpeciesNode::new("F", pt(100.0, -200.0)))
+        .unwrap();
+    {
+        let r = v.model.find_reaction_mut("R1").unwrap();
+        let mut f = Participant::new("F", 1.0);
+        f.kind = ModifierKind::Activator;
+        f.points = vec![pt(100.0, -100.0)];
+        r.modifiers.push(f);
+    }
+    v.set_modifier_colour("R1", 0, Some(Rgba::rgb(1, 2, 3)));
+    v.set_modifier_pattern("R1", 0, LinePattern::Solid);
+    v.apply_modifier_look_to_all("R1", 0);
+    assert_eq!(v.undo_description(), Some("Apply to All Modifier Lines"));
+    let r = v.model().find_reaction("R1").unwrap();
+    assert_eq!(r.modifiers[1].look, r.modifiers[0].look);
+    assert_eq!(r.modifiers[1].kind, ModifierKind::Activator);
+    assert_eq!(r.modifiers[1].points, [pt(100.0, -100.0)]);
+    v.undo();
+    assert!(v.modifier_look("R1", 1).unwrap().is_default());
+}
+
+#[test]
+fn styles_leave_a_modifier_line_s_look_alone() {
+    use crate::model::Rgba;
+    let mut v = view();
+    v.set_modifier_colour("R1", 0, Some(Rgba::rgb(9, 9, 9)));
+    v.set_modifier_width("R1", 0, Some(4.0));
+    v.apply_theme(crate::themes::Theme::Escher);
+    v.apply_theme(crate::themes::Theme::Classic);
+    let look = v.modifier_look("R1", 0).unwrap();
+    assert_eq!(look.colour, Some(Rgba::rgb(9, 9, 9)));
+    assert_eq!(look.width, Some(4.0));
+}
+
+#[test]
+fn files_keep_a_modifier_line_s_look_in_version_12() {
+    use crate::json::{from_json, needed_version, to_json};
+    use crate::model::{LinePattern, Rgba};
+    let mut v = view();
+    assert!(needed_version(v.model()) < 11);
+    v.set_modifier_symbol_gap("R1", 0, Some(14.0));
+    assert_eq!(needed_version(v.model()), 12);
+    v.set_modifier_colour("R1", 0, Some(Rgba::rgb(0x12, 0x34, 0x56)));
+    v.set_modifier_width("R1", 0, Some(2.5));
+    v.set_modifier_pattern("R1", 0, LinePattern::Solid);
+    v.set_modifier_symbol_size("R1", 0, Some(9.0));
+    let text = to_json(v.model());
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let m = &json["reactions"][0]["modifiers"][0];
+    assert_eq!(json["version"], 12);
+    assert_eq!(m["lineColor"], "#123456FF");
+    assert_eq!(m["lineWidth"], 2.5);
+    assert_eq!(m["pattern"], "solid");
+    assert_eq!(m["symbolSize"], 9.0);
+    assert_eq!(m["symbolGap"], 14.0);
+    let back = from_json(&text).unwrap().model;
+    assert_eq!(
+        back.reactions()[0].modifiers[0].look,
+        v.modifier_look("R1", 0).unwrap()
+    );
+    // Defaults are left out; nonsense reads as the default.
+    let plain = to_json(view().model());
+    assert!(!plain.contains("lineColor") && !plain.contains("symbolGap"));
+    let odd = text
+        .replace("\"#123456FF\"", "\"glow\"")
+        .replace("\"solid\"", "\"wavy\"")
+        .replace("\"lineWidth\": 2.5", "\"lineWidth\": -1.0");
+    let look = from_json(&odd).unwrap().model.reactions()[0].modifiers[0].look;
+    assert_eq!(look.colour, None);
+    assert_eq!(look.pattern, LinePattern::Dashed);
+    assert_eq!(look.width, None);
+}

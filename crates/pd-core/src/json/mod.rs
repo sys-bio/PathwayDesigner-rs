@@ -15,14 +15,17 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::geometry::pt;
 use crate::model::{
     AssignmentRule, BorderDash, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH,
-    DEFAULT_TEXT_SIZE, Frame, Look, Model, ModifierKind, NodeShape, Parameter, Participant,
-    Reaction, ReactionMode, Rgba, SavedStyle, SpeciesNode, StyleKind, TextAlign, TextFont,
-    TextItem, Typeface, VisualStyle,
+    DEFAULT_TEXT_SIZE, Frame, LinePattern, Look, Model, ModifierKind, ModifierLook, NodeShape,
+    Parameter, Participant, Reaction, ReactionMode, Rgba, SavedStyle, SpeciesNode, StyleKind,
+    TextAlign, TextFont, TextItem, Typeface, VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought modifier kinds (S §5.7.1).
-pub const FORMAT_VERSION: u32 = 11;
+/// one that brought modifier lines' own looks (S §5.7.2).
+pub const FORMAT_VERSION: u32 = 12;
+
+/// The version that brought modifier kinds and corner points (S §5.7.1).
+pub const MODIFIER_VERSION: u32 = 11;
 
 /// The version that brought stems free to bend while straight (S §5.13).
 pub const STEM_STRAIGHT_VERSION: u32 = 10;
@@ -51,7 +54,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 11 if a modifier has a kind or corner points
+/// (SPEC-Rust §4.2): 12 if a modifier line has its own look (S §5.7.2),
+/// 11 if a modifier has a kind or corner points
 /// (S §5.7.1), 10 if a
 /// straight stem is free to bend (S §5.13), 9 if
 /// the diagram has its own background colour, 8 if a
@@ -68,8 +72,14 @@ pub fn needed_version(model: &Model) -> u32 {
             .iter()
             .any(|m| m.kind != ModifierKind::Modifier || !m.points.is_empty())
     });
-    if kinds {
+    let looks = model
+        .reactions()
+        .iter()
+        .any(|r| r.modifiers.iter().any(|m| !m.look.is_default()));
+    if looks {
         FORMAT_VERSION
+    } else if kinds {
+        MODIFIER_VERSION
     } else if model.reactions().iter().any(needs_stem_straight) {
         STEM_STRAIGHT_VERSION
     } else if !model.background.is_default() {
@@ -461,7 +471,7 @@ struct FileReaction {
 #[serde(untagged)]
 enum FileParticipant {
     Id(String),
-    Full(FileParticipantObject),
+    Full(Box<FileParticipantObject>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -490,6 +500,18 @@ struct FileParticipantObject {
     /// `[x1, y1, x2, y2, …]`. Left out when it has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     points: Option<Vec<f64>>,
+    /// Version 12: a modifier line's own look (S §5.7.2), each left out at
+    /// its default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    line_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    line_width: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pattern: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    symbol_size: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    symbol_gap: Option<f64>,
 }
 
 /// A style object. Missing keys mean 0 (use the default), or true for
@@ -997,6 +1019,7 @@ fn participant_from_file(p: FileParticipant) -> Participant {
     match p {
         FileParticipant::Id(id) => Participant::new(id, 1.0),
         FileParticipant::Full(o) => {
+            let o = *o;
             let ctrl_pts_set = o.ctrl_set.unwrap_or(false);
             Participant {
                 species: o.id,
@@ -1025,6 +1048,16 @@ fn participant_from_file(p: FileParticipant) -> Participant {
                     .iter()
                     .map(|&[x, y]| pt(x, y))
                     .collect(),
+                look: ModifierLook {
+                    colour: o.line_color.as_deref().and_then(colour::from_hex),
+                    width: o.line_width.filter(|w| w.is_finite() && *w > 0.0),
+                    pattern: o
+                        .pattern
+                        .as_deref()
+                        .map_or(LinePattern::Dashed, LinePattern::from_key),
+                    symbol_size: o.symbol_size.filter(|v| v.is_finite() && *v > 0.0),
+                    symbol_gap: o.symbol_gap.filter(|v| v.is_finite() && *v >= 0.0),
+                },
             }
         }
     }
@@ -1225,7 +1258,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
             .map(|p| {
                 let (c1, c2) = (p.ctrl1, p.ctrl2);
                 let set = p.ctrl_pts_set;
-                FileParticipant::Full(FileParticipantObject {
+                FileParticipant::Full(Box::new(FileParticipantObject {
                     id: p.species.clone(),
                     stoichiometry: Some(p.stoichiometry),
                     ctrl1x: set.then_some(c1.x),
@@ -1235,7 +1268,12 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     ctrl_set: set.then_some(true),
                     kind: None,
                     points: None,
-                })
+                    line_color: None,
+                    line_width: None,
+                    pattern: None,
+                    symbol_size: None,
+                    symbol_gap: None,
+                }))
             })
             .collect()
     };
@@ -1256,7 +1294,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
             .modifiers
             .iter()
             .map(|p| {
-                FileParticipant::Full(FileParticipantObject {
+                FileParticipant::Full(Box::new(FileParticipantObject {
                     id: p.species.clone(),
                     stoichiometry: None,
                     ctrl1x: None,
@@ -1267,7 +1305,12 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     kind: p.kind.key().map(str::to_owned),
                     points: (!p.points.is_empty())
                         .then(|| p.points.iter().flat_map(|q| [q.x, q.y]).collect()),
-                })
+                    line_color: p.look.colour.map(colour::to_hex),
+                    line_width: p.look.width,
+                    pattern: p.look.pattern.key().map(str::to_owned),
+                    symbol_size: p.look.symbol_size,
+                    symbol_gap: p.look.symbol_gap,
+                }))
             })
             .collect(),
         style,
@@ -1556,7 +1599,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 12, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 13, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);
