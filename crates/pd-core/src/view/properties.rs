@@ -6,8 +6,8 @@
 use super::DiagramView;
 use crate::expr;
 use crate::model::{
-    BorderDash, Compartment, Id, Model, NodeShape, RenameError, Rgba, StyleKind, TextAlign,
-    TextItem, Typeface, VisualStyle,
+    BorderDash, Compartment, Id, Model, ModifierKind, NodeShape, RenameError, Rgba, StyleKind,
+    TextAlign, TextItem, Typeface, VisualStyle,
 };
 use crate::render::constants::LABEL;
 use crate::render::draw::compartment_colours;
@@ -278,6 +278,23 @@ impl DiagramView {
             r.is_reversible = reversible;
         }
         self.record_if_changed("Reversible", before)
+    }
+
+    /// Sets what `species` does as a modifier of reaction `id` (S §5.7.1):
+    /// the symbol at the end of its arc. One undo step.
+    pub fn set_modifier_kind(
+        &mut self,
+        id: &str,
+        species: &str,
+        kind: ModifierKind,
+    ) -> ViewResponse {
+        let before = self.model.clone();
+        if let Some(r) = self.model.find_reaction_mut(id) {
+            for m in r.modifiers.iter_mut().filter(|m| m.species == species) {
+                m.kind = kind;
+            }
+        }
+        self.record_if_changed("Modifier Kind", before)
     }
 
     /// Whether the selected reactions are reversible, if they all agree.

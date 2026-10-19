@@ -476,6 +476,7 @@ impl Inspector {
                 if !look_only {
                     ui.label("Rate law");
                     self.law_field(ui, view, one_reaction.is_some());
+                    modifier_kinds(ui, view, one_reaction.as_deref());
                 }
             });
         }
@@ -1116,6 +1117,53 @@ fn parse_hex6(s: &str) -> Option<Rgba> {
         return None;
     }
     from_hex(digits)
+}
+
+/// The one selected reaction's modifiers, each with what it does
+/// (S §5.7.1). The modifiers come from the rate law (S §8.4).
+fn modifier_kinds(ui: &mut egui::Ui, view: &mut DiagramView, reaction: Option<&str>) {
+    let Some(id) = reaction else {
+        return;
+    };
+    let Some(r) = view.model().find_reaction(id) else {
+        return;
+    };
+    let modifiers: Vec<(String, String, pd_core::model::ModifierKind)> = r
+        .modifiers
+        .iter()
+        .map(|m| {
+            let name = view
+                .model()
+                .find_species(&m.species)
+                .map_or(m.species.clone(), |n| n.primary_id().to_owned());
+            (m.species.clone(), name, m.kind)
+        })
+        .collect();
+    if modifiers.is_empty() {
+        return;
+    }
+    ui.add_space(4.0);
+    ui.label("Modifiers");
+    egui::Grid::new("modifier-kinds")
+        .num_columns(2)
+        .spacing([8.0, 6.0])
+        .show(ui, |ui| {
+            for (species, name, now) in modifiers {
+                ui.label(&name);
+                let mut kind = now;
+                egui::ComboBox::from_id_salt(("modifier-kind", &species))
+                    .selected_text(kind.label())
+                    .show_ui(ui, |ui| {
+                        for k in pd_core::model::ModifierKind::ALL {
+                            ui.selectable_value(&mut kind, k, k.label());
+                        }
+                    });
+                if kind != now {
+                    view.set_modifier_kind(id, &species, kind);
+                }
+                ui.end_row();
+            }
+        });
 }
 
 #[cfg(test)]

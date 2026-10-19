@@ -346,6 +346,11 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 11: modifier kinds (S §5.7.1).** A modifier object may have `"kind"`,
+after its id: `"activator"`, `"inhibitor"` or `"catalyst"`; left out for a plain
+modifier, and anything else reads as one. A document with a modifier of another
+kind is version 11. (Corner points, `"points"`, are planned for the same version.)
+
 **Version 10: free straight stems (S §5.13).** A reaction may have
 `"stemStraight": false`, after `stem`: its stem is straight but its ends may move
 freely. Left out otherwise, since a stem without it is kept straight exactly when it

@@ -58,6 +58,9 @@ pub enum MenuAction {
     AddParticipant(String, pd_core::model::Role),
     /// Remove from Reaction: the reaction and the species.
     RemoveParticipant(String, String),
+    /// Modifier Kind ▸: the reaction, the modifier and its new kind
+    /// (S §5.7.1).
+    ModifierKind(String, String, pd_core::model::ModifierKind),
     /// Add Stem, Straighten Stem and Remove Stem (S §5.13).
     AddStem(String),
     StraightenStem(String),
@@ -326,6 +329,40 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 });
                 if removed.is_some() {
                     item_chosen = removed;
+                }
+                // What each modifier does (S §5.7.1): the kinds straight
+                // away for one modifier, a submenu each for several.
+                if !r.modifiers.is_empty() {
+                    let mut kind_chosen = None;
+                    let kinds = |ui: &mut egui::Ui, species: &str, now, chosen: &mut Option<_>| {
+                        for kind in pd_core::model::ModifierKind::ALL {
+                            if ui.radio(now == kind, kind.label()).clicked() {
+                                *chosen = Some(MenuAction::ModifierKind(
+                                    id.clone(),
+                                    species.to_owned(),
+                                    kind,
+                                ));
+                                ui.close();
+                            }
+                        }
+                    };
+                    ui.menu_button("Modifier Kind", |ui| {
+                        if let [only] = r.modifiers.as_slice() {
+                            kinds(ui, &only.species, only.kind, &mut kind_chosen);
+                        } else {
+                            for mo in &r.modifiers {
+                                let name = m
+                                    .find_species(&mo.species)
+                                    .map_or(mo.species.as_str(), |n| n.primary_id());
+                                ui.menu_button(name, |ui| {
+                                    kinds(ui, &mo.species, mo.kind, &mut kind_chosen);
+                                });
+                            }
+                        }
+                    });
+                    if kind_chosen.is_some() {
+                        item_chosen = kind_chosen;
+                    }
                 }
             }
             if view

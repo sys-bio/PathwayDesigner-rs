@@ -6,8 +6,8 @@
 use crate::bezier::{Ctrl, leg_curve};
 use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
-    BorderDash, Compartment, Frame, Model, NodeShape, Reaction, ReactionMode, Rgba, Role,
-    SpeciesNode, TextFont, TextItem, VisualStyle,
+    BorderDash, Compartment, Frame, Model, ModifierKind, NodeShape, Reaction, ReactionMode, Rgba,
+    Role, SpeciesNode, TextFont, TextItem, VisualStyle,
 };
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
@@ -880,14 +880,74 @@ impl Drawer<'_> {
             // Starts inside the node, so the node hides the start.
             let toward_j = normalize(j - c);
             let start = border(node, j) - toward_j * MODIFIER_INSET;
-            let dot = j - toward_j * MODIFIER_DOT_OFFSET;
-            out.polyline(&[self.to_screen(start), self.to_screen(dot)], stroke);
-            out.circle(
-                self.to_screen(dot),
-                self.len(MODIFIER_DOT_RADIUS),
-                Some(color),
-                None,
-            );
+            let end = self.modifier_symbol(m.kind, j, toward_j, color, out);
+            out.polyline(&[self.to_screen(start), self.to_screen(end)], stroke);
+        }
+    }
+
+    /// The symbol at the junction end of a modifier's arc, for its kind
+    /// (S §5.7.1), its axis along `dir` (toward the junction `j`). Returns
+    /// where the arc's line stops. Open symbols are filled with the
+    /// background, so the line doesn't show through them.
+    fn modifier_symbol(
+        &self,
+        kind: ModifierKind,
+        j: Pt,
+        dir: Pt,
+        color: Rgba,
+        out: &mut dyn Renderer,
+    ) -> Pt {
+        let solid = Stroke {
+            width: self.len(DEFAULT_LINE_WIDTH),
+            color,
+            dash: None,
+            round_cap: false,
+        };
+        let back = background_colour(self.model);
+        match kind {
+            ModifierKind::Modifier => {
+                let dot = j - dir * MODIFIER_DOT_OFFSET;
+                out.circle(
+                    self.to_screen(dot),
+                    self.len(MODIFIER_DOT_RADIUS),
+                    Some(color),
+                    None,
+                );
+                dot
+            }
+            ModifierKind::Catalyst => {
+                let centre = j - dir * MODIFIER_DOT_OFFSET;
+                out.circle(
+                    self.to_screen(centre),
+                    self.len(MODIFIER_CIRCLE_RADIUS),
+                    Some(back),
+                    Some(solid),
+                );
+                centre - dir * MODIFIER_CIRCLE_RADIUS
+            }
+            ModifierKind::Activator => {
+                let tip = j - dir * MODIFIER_TIP_OFFSET;
+                let tri = filled_arrowhead(tip, dir, ARROW_LENGTH, ARROW_HALF_BASE);
+                let screen = tri.map(|p| self.to_screen(p));
+                out.polygon(&screen, back);
+                out.polyline(&[screen[0], screen[1], screen[2], screen[0]], solid);
+                tip - dir * ARROW_LENGTH
+            }
+            ModifierKind::Inhibitor => {
+                let centre = j - dir * MODIFIER_TIP_OFFSET;
+                let across = pt(-dir.y, dir.x) * MODIFIER_BAR_HALF;
+                out.polyline(
+                    &[
+                        self.to_screen(centre - across),
+                        self.to_screen(centre + across),
+                    ],
+                    Stroke {
+                        width: self.len(MODIFIER_BAR_WIDTH),
+                        ..solid
+                    },
+                );
+                centre
+            }
         }
     }
 
@@ -1749,6 +1809,92 @@ mod tests {
         );
         assert!(!without.contains(&Call::Circle(spt(200.0, -10.0), 4.0, Some(MODIFIER), None)));
         assert_eq!(without.len(), calls.len() - 2);
+    }
+
+    #[test]
+    fn modifier_kinds_end_in_their_symbols() {
+        use crate::model::ModifierKind;
+        let mut m = uni_uni();
+        let e = m.add_species(pt(200.0, -200.0), 80.0, 36.0);
+        m.find_reaction_mut("R3")
+            .unwrap()
+            .modifiers
+            .push(Participant::new(e, 1.0));
+        let solid = Stroke {
+            width: 1.5,
+            color: MODIFIER,
+            dash: None,
+            round_cap: false,
+        };
+        let back = background_colour(&m);
+        // The junction is at (200, 0); the arc comes down from E.
+        let draw_kind = |m: &mut Model, k| {
+            m.find_reaction_mut("R3").unwrap().modifiers[0].kind = k;
+            let calls = draw(m, &DrawOptions::default());
+            let arc_end = calls
+                .iter()
+                .find_map(|c| match c {
+                    Call::Polyline(p, s) if s.dash.is_some() => Some(p[1]),
+                    _ => None,
+                })
+                .unwrap();
+            (calls, arc_end)
+        };
+        // Catalyst: an open circle where the dot was; the arc stops at it.
+        let (calls, end) = draw_kind(&mut m, ModifierKind::Catalyst);
+        assert!(calls.contains(&Call::Circle(
+            spt(200.0, -10.0),
+            5.0,
+            Some(back),
+            Some(solid)
+        )));
+        assert!(close(end, spt(200.0, -15.0)), "{end:?}");
+        assert!(!calls.contains(&Call::Circle(spt(200.0, -10.0), 4.0, Some(MODIFIER), None)));
+        // Activator: an open arrowhead, tip 8 above the junction, pointing at it.
+        let (calls, end) = draw_kind(&mut m, ModifierKind::Activator);
+        let tri = calls
+            .iter()
+            .find_map(|c| match c {
+                Call::Polygon(p, f) if *f == back => Some(p.clone()),
+                _ => None,
+            })
+            .expect("a triangle filled with the background");
+        assert!(tri.iter().any(|p| close(*p, spt(200.0, -8.0))), "{tri:?}");
+        // Its base is behind the tip, on the modifier's side: it points at the junction.
+        assert!(
+            tri.iter()
+                .filter(|p| !close(**p, spt(200.0, -8.0)))
+                .all(|p| close(spt(200.0, p.y), spt(200.0, -20.0))),
+            "{tri:?}"
+        );
+        assert!(calls.contains(&Call::Polyline(vec![tri[0], tri[1], tri[2], tri[0]], solid)));
+        assert!(close(end, spt(200.0, -20.0)), "{end:?}");
+        // Inhibitor: a bar across the arc, 8 above the junction.
+        let (calls, end) = draw_kind(&mut m, ModifierKind::Inhibitor);
+        let bar = calls
+            .iter()
+            .find_map(|c| match c {
+                Call::Polyline(p, s) if s.dash.is_none() && s.width == 2.5 => Some(p.clone()),
+                _ => None,
+            })
+            .expect("a bar");
+        assert!(close(bar[0], spt(192.0, -8.0)) || close(bar[0], spt(208.0, -8.0)));
+        assert!(close(bar[1], spt(192.0, -8.0)) || close(bar[1], spt(208.0, -8.0)));
+        assert_eq!(bar.len(), 2);
+        assert!(close(end, spt(200.0, -8.0)), "{end:?}");
+        // Plain modifier: the dot, as before.
+        let (calls, end) = draw_kind(&mut m, ModifierKind::Modifier);
+        assert!(calls.contains(&Call::Circle(spt(200.0, -10.0), 4.0, Some(MODIFIER), None)));
+        assert!(close(end, spt(200.0, -10.0)));
+        // Open symbols take the diagram's own background.
+        m.background = Rgba::rgb(0x10, 0x20, 0x30);
+        let (calls, _) = draw_kind(&mut m, ModifierKind::Catalyst);
+        assert!(calls.contains(&Call::Circle(
+            spt(200.0, -10.0),
+            5.0,
+            Some(Rgba::rgb(0x10, 0x20, 0x30)),
+            Some(solid)
+        )));
     }
 
     #[test]

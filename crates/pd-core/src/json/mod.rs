@@ -15,14 +15,17 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::geometry::pt;
 use crate::model::{
     AssignmentRule, BorderDash, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH,
-    DEFAULT_TEXT_SIZE, Frame, Look, Model, NodeShape, Parameter, Participant, Reaction,
-    ReactionMode, Rgba, SavedStyle, SpeciesNode, StyleKind, TextAlign, TextFont, TextItem,
-    Typeface, VisualStyle,
+    DEFAULT_TEXT_SIZE, Frame, Look, Model, ModifierKind, NodeShape, Parameter, Participant,
+    Reaction, ReactionMode, Rgba, SavedStyle, SpeciesNode, StyleKind, TextAlign, TextFont,
+    TextItem, Typeface, VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought stems free to bend while straight (S §5.13).
-pub const FORMAT_VERSION: u32 = 10;
+/// one that brought modifier kinds (S §5.7.1).
+pub const FORMAT_VERSION: u32 = 11;
+
+/// The version that brought stems free to bend while straight (S §5.13).
+pub const STEM_STRAIGHT_VERSION: u32 = 10;
 
 /// The version that brought the diagram's background colour (S §8.8).
 pub const BACKGROUND_VERSION: u32 = 9;
@@ -48,7 +51,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 10 if a straight stem is free to bend (S §5.13), 9 if
+/// (SPEC-Rust §4.2): 11 if a modifier has a kind (S §5.7.1), 10 if a
+/// straight stem is free to bend (S §5.13), 9 if
 /// the diagram has its own background colour, 8 if a
 /// reaction has a stem, 7 if a reaction shows its
 /// name, 6 if a species has its name outside, a species or
@@ -58,8 +62,14 @@ pub const DELPHI_VERSION: u32 = 3;
 pub fn needed_version(model: &Model) -> u32 {
     let no_border = model.species().iter().any(|s| s.style.no_border)
         || model.compartments.iter().any(|c| c.style.no_border);
-    if model.reactions().iter().any(needs_stem_straight) {
+    let kinds = model
+        .reactions()
+        .iter()
+        .any(|r| r.modifiers.iter().any(|m| m.kind != ModifierKind::Modifier));
+    if kinds {
         FORMAT_VERSION
+    } else if model.reactions().iter().any(needs_stem_straight) {
+        STEM_STRAIGHT_VERSION
     } else if !model.background.is_default() {
         BACKGROUND_VERSION
     } else if model.reactions().iter().any(|r| r.stem.is_some()) {
@@ -470,6 +480,10 @@ struct FileParticipantObject {
     ctrl2y: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ctrl_set: Option<bool>,
+    /// Version 11: a modifier's kind (S §5.7.1): `"activator"`,
+    /// `"inhibitor"` or `"catalyst"`. Left out for a plain modifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kind: Option<String>,
 }
 
 /// A style object. Missing keys mean 0 (use the default), or true for
@@ -992,6 +1006,10 @@ fn participant_from_file(p: FileParticipant) -> Participant {
                     pt(0.0, 0.0)
                 },
                 ctrl_pts_set,
+                kind: o
+                    .kind
+                    .as_deref()
+                    .map_or(ModifierKind::Modifier, ModifierKind::from_key),
             }
         }
     }
@@ -1200,6 +1218,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     ctrl2x: set.then_some(c2.x),
                     ctrl2y: set.then_some(c2.y),
                     ctrl_set: set.then_some(true),
+                    kind: None,
                 })
             })
             .collect()
@@ -1216,7 +1235,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         is_junction_smooth: r.junction_smooth,
         reactants: participants(&r.reactants),
         products: participants(&r.products),
-        // Modifiers are written with their id only.
+        // Modifiers are written with their id, and their kind (S §5.7.1).
         modifiers: r
             .modifiers
             .iter()
@@ -1229,6 +1248,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     ctrl2x: None,
                     ctrl2y: None,
                     ctrl_set: None,
+                    kind: p.kind.key().map(str::to_owned),
                 })
             })
             .collect(),
@@ -1518,11 +1538,62 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 11, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 12, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);
         assert_eq!(loaded.warnings.len(), 1);
+    }
+
+    #[test]
+    fn modifier_kinds_are_version_11_and_round_trip() {
+        use crate::model::ModifierKind;
+        let mut m = Model::new();
+        let a = m.add_species(Pt::ZERO, 80.0, 36.0);
+        let e = m.add_species(pt(0.0, -100.0), 80.0, 36.0);
+        let i = m.add_species(pt(100.0, -100.0), 80.0, 36.0);
+        let r = m.add_reaction(pt(100.0, 0.0));
+        {
+            let r = m.find_reaction_mut(&r).unwrap();
+            r.reactants.push(Participant::new(&a, 1.0));
+            r.modifiers.push(Participant::new(&e, 1.0));
+            r.modifiers.push(Participant::new(&i, 1.0));
+        }
+        // Plain modifiers: no kind written, and no newer version.
+        let text = to_json(&m);
+        assert!(!text.contains("\"kind\""));
+        assert_eq!(needed_version(&m), DELPHI_VERSION);
+        for (k, key) in [
+            (ModifierKind::Activator, "activator"),
+            (ModifierKind::Inhibitor, "inhibitor"),
+            (ModifierKind::Catalyst, "catalyst"),
+        ] {
+            m.find_reaction_mut(&r).unwrap().modifiers[1].kind = k;
+            assert_eq!(needed_version(&m), 11);
+            let text = to_json(&m);
+            let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(v["version"], 11);
+            let mods = &v["reactions"][0]["modifiers"];
+            assert!(mods[0].get("kind").is_none(), "a plain modifier has none");
+            assert_eq!(mods[1]["kind"], key);
+            // Reactants and products never have one.
+            assert!(v["reactions"][0]["reactants"][0].get("kind").is_none());
+            let back = from_json(&text).unwrap().model;
+            let kinds: Vec<_> = back.reactions()[0]
+                .modifiers
+                .iter()
+                .map(|m| m.kind)
+                .collect();
+            assert_eq!(kinds, [ModifierKind::Modifier, k]);
+        }
+        // An unknown kind reads as a plain modifier.
+        let text = r#"{ "version": 11, "species": [ { "id": "E" } ], "reactions": [
+            { "id": "R1", "modifiers": [ { "id": "E", "kind": "glow" } ] } ] }"#;
+        let back = from_json(text).unwrap().model;
+        assert_eq!(
+            back.reactions()[0].modifiers[0].kind,
+            ModifierKind::Modifier
+        );
     }
 
     #[test]

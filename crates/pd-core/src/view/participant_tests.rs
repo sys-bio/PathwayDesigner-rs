@@ -337,3 +337,44 @@ fn the_plus_handle_stays_the_same_size_on_screen() {
     let at = crate::render::draw::add_line_handle(v.model(), &r1(&v), 2.0).unwrap();
     assert_eq!(at, pt(158.0, -8.0));
 }
+
+#[test]
+fn modifier_kinds_are_set_undone_and_kept_by_the_rate_law() {
+    use crate::model::ModifierKind;
+    let mut v = DiagramView::new(Model::new());
+    let a = v.model.add_species(pt(0.0, 0.0), 80.0, 36.0);
+    let b = v.model.add_species(pt(200.0, 0.0), 80.0, 36.0);
+    let e = v.model.add_species(pt(100.0, -100.0), 80.0, 36.0);
+    let f = v.model.add_species(pt(160.0, -100.0), 80.0, 36.0);
+    let r = v.model.add_reaction(pt(100.0, 0.0));
+    {
+        let rx = v.model.find_reaction_mut(&r).unwrap();
+        rx.reactants.push(Participant::new(&a, 1.0));
+        rx.products.push(Participant::new(&b, 1.0));
+    }
+    v.set_kinetic_law(&r, &format!("k*{a}*{e}"));
+    let kind = |v: &DiagramView, s: &str| {
+        v.model()
+            .find_reaction(&r)
+            .unwrap()
+            .modifiers
+            .iter()
+            .find(|m| m.species == s)
+            .map(|m| m.kind)
+    };
+    assert_eq!(kind(&v, &e), Some(ModifierKind::Modifier));
+    v.set_modifier_kind(&r, &e, ModifierKind::Inhibitor);
+    assert_eq!(kind(&v, &e), Some(ModifierKind::Inhibitor));
+    assert_eq!(v.undo_description(), Some("Modifier Kind"));
+    // Editing the law keeps it while E stays, and a new modifier is plain.
+    v.set_kinetic_law(&r, &format!("k*{a}*{e}*{f}"));
+    assert_eq!(kind(&v, &e), Some(ModifierKind::Inhibitor));
+    assert_eq!(kind(&v, &f), Some(ModifierKind::Modifier));
+    v.undo();
+    v.undo();
+    assert_eq!(kind(&v, &e), Some(ModifierKind::Modifier));
+    // Setting the kind it has already is no undo step.
+    let before = v.undo_description();
+    v.set_modifier_kind(&r, &e, ModifierKind::Modifier);
+    assert_eq!(v.undo_description(), before);
+}

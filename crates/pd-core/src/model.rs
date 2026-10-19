@@ -406,6 +406,8 @@ pub struct Participant {
     pub ctrl2: Pt,
     /// `false`: handles are computed when drawing and never saved.
     pub ctrl_pts_set: bool,
+    /// What a modifier does (S §5.7.1). Only used in a modifier list.
+    pub kind: ModifierKind,
 }
 
 impl Participant {
@@ -416,7 +418,61 @@ impl Participant {
             ctrl1: Pt::ZERO,
             ctrl2: Pt::ZERO,
             ctrl_pts_set: false,
+            kind: ModifierKind::Modifier,
         }
+    }
+}
+
+/// What a modifier does to its reaction, after SBGN (S §5.7.1). It decides
+/// the symbol at the end of the modifier's arc. Part of the biology, not the
+/// look: styles and themes leave it alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ModifierKind {
+    /// A filled dot: the reference's arc, and the default.
+    #[default]
+    Modifier,
+    /// An open arrowhead.
+    Activator,
+    /// A blunt bar.
+    Inhibitor,
+    /// An open circle.
+    Catalyst,
+}
+
+impl ModifierKind {
+    pub const ALL: [ModifierKind; 4] = [
+        ModifierKind::Modifier,
+        ModifierKind::Activator,
+        ModifierKind::Inhibitor,
+        ModifierKind::Catalyst,
+    ];
+
+    /// Its name in menus and the Properties panel.
+    pub fn label(self) -> &'static str {
+        match self {
+            ModifierKind::Modifier => "Modifier",
+            ModifierKind::Activator => "Activator",
+            ModifierKind::Inhibitor => "Inhibitor",
+            ModifierKind::Catalyst => "Catalyst",
+        }
+    }
+
+    /// Its name in a JSON file; none for a plain modifier, which is left out.
+    pub fn key(self) -> Option<&'static str> {
+        match self {
+            ModifierKind::Modifier => None,
+            ModifierKind::Activator => Some("activator"),
+            ModifierKind::Inhibitor => Some("inhibitor"),
+            ModifierKind::Catalyst => Some("catalyst"),
+        }
+    }
+
+    /// The kind a JSON file names; anything else is a plain modifier.
+    pub fn from_key(key: &str) -> ModifierKind {
+        ModifierKind::ALL
+            .into_iter()
+            .find(|k| k.key() == Some(key))
+            .unwrap_or_default()
     }
 }
 

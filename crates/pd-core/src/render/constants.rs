@@ -39,6 +39,14 @@ pub const JUNCTION_BORDER_WIDTH: f64 = 1.0;
 pub const MODIFIER_DOT_RADIUS: f64 = 4.0;
 /// Distance of the modifier dot's centre from the junction.
 pub const MODIFIER_DOT_OFFSET: f64 = 10.0;
+/// A catalyst's open circle (S §5.7.1), centred where the dot would be.
+pub const MODIFIER_CIRCLE_RADIUS: f64 = 5.0;
+/// An activator's arrow tip and an inhibitor's bar are this far from the
+/// junction (S §5.7.1).
+pub const MODIFIER_TIP_OFFSET: f64 = 8.0;
+/// Half the length of an inhibitor's bar, and its width.
+pub const MODIFIER_BAR_HALF: f64 = 8.0;
+pub const MODIFIER_BAR_WIDTH: f64 = 2.5;
 /// A modifier arc starts this far inside the modifier node's border.
 pub const MODIFIER_INSET: f64 = 6.0;
 pub const REACTANT_GAP: f64 = 6.0;

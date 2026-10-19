@@ -496,6 +496,9 @@ impl PathwayApp {
             MenuAction::AddStem(id) => {
                 self.view.add_stem(&id);
             }
+            MenuAction::ModifierKind(id, species, kind) => {
+                self.view.set_modifier_kind(&id, &species, kind);
+            }
             MenuAction::StraightenStem(id) => {
                 self.view.straighten_stem(&id);
             }
@@ -2242,6 +2245,40 @@ mod tests {
         assert!((a2.x * b2.y - a2.y * b2.x).abs() < 1e-6, "in line again");
         h.app.act(MenuAction::RemoveStem(r), pt(0.0, 0.0));
         assert!(stem(&h).is_none());
+    }
+
+    #[test]
+    fn modifier_kinds_from_the_panel_and_the_menu() {
+        use pd_core::model::ModifierKind;
+        use pd_core::view::Target;
+        let mut h = Harness::new();
+        let text = include_str!("../../../ExampleModels/mapk_cascade.json");
+        h.app.perform(Action::OpenText {
+            name: "mapk.json".into(),
+            text: text.into(),
+            target: None,
+        });
+        h.run(vec![]);
+        let kind =
+            |h: &Harness, r: &str| h.app.view.model().find_reaction(r).unwrap().modifiers[0].kind;
+        // J3 has one modifier, MKKK_P: the Properties panel lists it.
+        h.app.view.select_item(&Target::Leg("J3".into()), false);
+        h.run(vec![]);
+        h.run(vec![]);
+        h.text("Modifiers");
+        h.text("MKKK_P");
+        h.click(h.text("Modifier"));
+        h.run(vec![]);
+        h.click(h.widget("Activator"));
+        h.run(vec![]);
+        assert_eq!(kind(&h, "J3"), ModifierKind::Activator);
+        assert_eq!(h.app.view.undo_description(), Some("Modifier Kind"));
+        // The right-click menu's choice.
+        h.app.act(
+            MenuAction::ModifierKind("J1".into(), "MAPK_PP_2".into(), ModifierKind::Inhibitor),
+            pt(0.0, 0.0),
+        );
+        assert_eq!(kind(&h, "J1"), ModifierKind::Inhibitor);
     }
 
     #[test]

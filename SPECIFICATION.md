@@ -458,6 +458,90 @@ For each modifier of a reaction:
   under the modifier node.
 - If the modifier's centre is less than 1 unit from the junction, skip it.
 
+#### 5.7.1 Modifier kinds and routed arcs (Rust version, planned)
+
+*Added in the Rust version; the design agreed with the user, to be built in
+three steps.* The reference's arc above stays the default: a modifier the user
+hasn't touched is drawn exactly as described.
+
+**Kinds.** Each modifier of a reaction has a kind, after SBGN, which decides the
+symbol at the junction end:
+
+| Kind | Symbol at the end | SBML layout role | SBO term | Antimony |
+|---|---|---|---|---|
+| Modifier (default) | filled dot, radius 4 (as above) | `modifier` | none written; SBO:0000019 read | (none) |
+| Activator | open arrowhead (12 long, 10 wide), tip 8 from the junction | `activator` | SBO:0000459 (stimulator) | `X -o J` |
+| Inhibitor | blunt bar across the line, 16 long, width 2.5, 8 from the junction | `inhibitor` | SBO:0000020 (inhibitor) | `X -| J` |
+| Catalyst | open circle, radius 5, centred 10 from the junction | `modifier` | SBO:0000013 (catalyst) | (none) |
+
+Each symbol lies on the arc's last piece and is turned to its direction; the
+dashed line stops at the symbol (the dot's or circle's centre side, the arrow's
+base, the bar). Open symbols are filled with the background colour (§8.8) and
+outlined with a solid line of the arc's colour and width, so the line doesn't
+show through. The arc's colour and dash are as above for every kind.
+
+**Corner points.** A modifier's arc runs from the modifier node through zero or
+more **corner points** to the junction, as straight pieces, so it can turn sharp
+corners and be routed round other items. With no corner points it is the
+straight arc above. The first piece starts `MODIFIER_INSET` inside the node's
+border where it leaves the node (toward the first corner point, or the
+junction); the last piece ends at the symbol. Corner points are stored in world
+coordinates on the modifier's participant, in order from the modifier.
+- They stay where they are when the modifier or the reaction moves on its own.
+  When the modifier node and the reaction's junction move together (a drag or
+  nudge of a selection holding both, §6.4), its corner points move with them.
+- Commands that reshape a reaction from scratch (Set Straight, Toggle Linear,
+  Make Nice, auto-layout, Arrange) leave corner points alone; a point can always
+  be removed by hand.
+- Corner points are only ever removed by the user, even one that no longer
+  makes a turn.
+
+**Editing.**
+- A modifier's arc can be hit, piece by piece (it is a line of the reaction, so
+  clicking it selects the reaction). While the reaction is selected its corner
+  points are drawn as small squares (like stem ends, §5.13) and can be dragged
+  ("Move Corner Point"; snapping, Alt, Esc and undo as for other drags).
+- **Double-click** an arc of a selected reaction to add a corner point there
+  ("Add Corner Point"), between the two points of the piece clicked; it can be
+  dragged at once.
+- Right-click a reaction: **Modifier Kind ▸** Modifier / Activator / Inhibitor /
+  Catalyst, with a submenu per modifier when it has several (one undo step,
+  "Modifier Kind"). Right-click an arc: the same, for that modifier, plus **Add
+  Corner Point** (where it was clicked) and **Straighten Modifier Line**
+  (removes all its corner points; disabled when it has none). Right-click a
+  corner point: **Remove Corner Point**.
+- The Reaction group (§8.1), for one selected reaction, lists its modifiers
+  under the rate law ("Modifiers"), each by its primary's name with a kind
+  drop-down.
+- Modifier sync (§8.4) keeps a modifier's kind and corner points while the
+  modifier stays; one it adds is a Modifier with no corner points.
+- Copy Style, themes and saved styles don't change kinds or corner points: a kind
+  is part of the biology, and a route belongs to one diagram.
+- Later, optionally: a piece may be bent into a Bézier curve with two handles
+  (handles on the piece = straight), as SBML's curves allow. Not part of the
+  three steps.
+
+**Files.**
+- JSON version 11: a modifier object may have `"kind"`: `"activator"`,
+  `"inhibitor"` or `"catalyst"` (left out for Modifier), and `"points"`:
+  `[x1, y1, x2, y2, …]`, its corner points in order (left out when it has none).
+  A file without them reads as today. Written as version 11 only when some
+  modifier has a kind or a corner point.
+- SBML: the modifier's species reference glyph takes the role in the table, and
+  its curve is the arc's pieces as `LineSegment`s, from the node through each
+  corner point to the junction. The `modifierSpeciesReference` gets the SBO term
+  (none for a plain Modifier). Reading: the role decides the kind, else the SBO
+  term, else Modifier; the curve's inner segment ends become the corner points
+  (a curve of one segment has none; `CubicBezier` segments are read as straight
+  pieces between their ends).
+- Antimony: `X -| J1` makes `X` an inhibitor of `J1`, `X -o J1` an activator
+  (adding `X` as a modifier if it isn't one). Export writes those lines for
+  inhibitors and activators.
+
+**Steps.** 1 (done): kinds (model, drawing, JSON, the reaction's right-click menu, Reaction group).
+2: kinds in SBML and Antimony. 3: corner points (drawing, hitting, adding,
+dragging, removing, Straighten Modifier Line, JSON and SBML).
+
 ### 5.8 Junction handle
 
 - A circle of radius 4 at the effective junction. Fill `#FF8800`, or the custom
