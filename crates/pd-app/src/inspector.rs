@@ -469,7 +469,7 @@ impl Inspector {
                         ui.label("Font size");
                         self.number(ui, view, Field::ReactionFontSize, true, "");
                         ui.end_row();
-                        ui.label("Name colour");
+                        ui.label("Id colour");
                         self.swatch(ui, view, ColourField::ReactionLabel);
                         ui.end_row();
                     });
