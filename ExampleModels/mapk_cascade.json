@@ -320,8 +320,8 @@
             650.0,
             1160.0,
             112.0,
-            420.0,
-            112.0
+            360.0884582897505,
+            115.65307497385034
           ]
         }
       ],
@@ -337,8 +337,8 @@
         "junctionVisible": true
       },
       "styleName": "Phosphorylation",
-      "labelDx": 0.0,
-      "labelDy": -30.0
+      "labelDx": -20.0,
+      "labelDy": -29.0
     },
     {
       "id": "J2",
