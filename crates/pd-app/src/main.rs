@@ -10,6 +10,7 @@ mod export;
 mod files;
 mod fonts;
 mod inspector;
+mod keys_help;
 #[cfg(target_os = "macos")]
 mod macos_menu;
 mod my_styles;
