@@ -1607,7 +1607,10 @@ When a reaction's kinetic law is edited:
 3. Otherwise, collect the set of identifiers in the law, then:
    - remove every modifier whose species id is no longer in the set;
    - for every identifier that matches a species id and is not one of the reaction's
-     reactants or products, add that species as a modifier (no duplicates).
+     reactants or products, add that species as a modifier (no duplicates). A
+     reactant, product or modifier drawn as an alias counts as its species. *(Rust
+     version: import from SBML and Antimony follows the same rule; it once added a
+     modifier line from a species whose reactant was drawn as an alias.)*
 
 This keeps the diagram matching the rate law: typing `Vm*S/(Km+S)*E` adds a
 modifier arc from `E`.

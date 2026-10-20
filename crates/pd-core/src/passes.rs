@@ -38,8 +38,14 @@ pub fn catalytic_rewrite(r: &mut Reaction) {
 }
 
 /// Every species the rate law names that isn't a reactant, product or
-/// modifier already becomes a modifier (S §8.4).
+/// modifier already becomes a modifier (S §8.4). A participant drawn as an
+/// alias is its species.
 pub fn modifiers_from_law(model: &Model, r: &mut Reaction, law: &expr::Ast) {
+    let primary = |id: &str| {
+        model
+            .find_species(id)
+            .map_or(id.to_owned(), |s| s.primary_id().to_owned())
+    };
     for name in expr::identifiers(law) {
         let is_species = model.find_species(name).is_some();
         let listed = r
@@ -47,7 +53,7 @@ pub fn modifiers_from_law(model: &Model, r: &mut Reaction, law: &expr::Ast) {
             .iter()
             .chain(&r.products)
             .chain(&r.modifiers)
-            .any(|p| p.species == name);
+            .any(|p| p.species == name || primary(&p.species) == name);
         if is_species && !listed {
             r.modifiers.push(Participant::new(name, 1.0));
         }
@@ -142,6 +148,22 @@ mod tests {
         modifiers_from_law(&m, &mut r, &law);
         modifiers_from_law(&m, &mut r, &law);
         assert_eq!(ids(&r.modifiers), ["E"]);
+    }
+
+    #[test]
+    fn a_participant_drawn_as_an_alias_is_not_a_modifier() {
+        let mut m = Model::new();
+        for id in ["S", "P", "E"] {
+            m.push_species(SpeciesNode::new(id, Pt::ZERO)).unwrap();
+        }
+        let s2 = m.add_alias("S", Pt::ZERO).unwrap();
+        let e2 = m.add_alias("E", Pt::ZERO).unwrap();
+        // S is drawn by its alias, and E already has a line from its alias.
+        let mut r = reaction(&[(s2.as_str(), 1.0)], &[("P", 1.0)]);
+        r.modifiers.push(Participant::new(&e2, 1.0));
+        let law = expr::parse("k*E*S").unwrap();
+        modifiers_from_law(&m, &mut r, &law);
+        assert_eq!(ids(&r.modifiers), [e2.as_str()]);
     }
 
     #[test]

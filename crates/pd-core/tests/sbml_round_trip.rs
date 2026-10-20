@@ -376,3 +376,25 @@ fn modifier_kinds_come_back_from_roles_and_sbo_terms() {
     let back = sbml::import(&no_sbo, &OPTS).unwrap().model;
     assert_eq!(kinds(&back), want(K::Inhibitor, K::Activator, K::Modifier));
 }
+
+/// A reactant drawn as an alias comes back as that alias, and its species is
+/// not made a modifier because the rate law names it (E4 F1).
+#[test]
+fn a_reactant_drawn_as_an_alias_gets_no_modifier_line() {
+    let mut m = Model::new();
+    let s = m.add_species(Pt { x: 0.0, y: 0.0 }, 80.0, 36.0);
+    let p = m.add_species(Pt { x: 300.0, y: 0.0 }, 80.0, 36.0);
+    let s2 = m.add_alias(&s, Pt { x: 0.0, y: 200.0 }).unwrap();
+    let r = m.add_reaction(Pt { x: 150.0, y: 100.0 });
+    let rx = m.find_reaction_mut(&r).unwrap();
+    rx.reactants
+        .push(pd_core::model::Participant::new(&s2, 1.0));
+    rx.products.push(pd_core::model::Participant::new(&p, 1.0));
+    rx.kinetic_law = format!("k*{s}");
+    let back = sbml::import(&sbml::export(&m).xml, &OPTS).unwrap().model;
+    let q = back.find_reaction(&r).unwrap();
+    assert!(q.modifiers.is_empty(), "{:?}", q.modifiers);
+    let drawn = back.find_species(&q.reactants[0].species).unwrap();
+    assert_eq!(drawn.primary_id(), s);
+    assert!(close(drawn.center, Pt { x: 0.0, y: 200.0 }));
+}
