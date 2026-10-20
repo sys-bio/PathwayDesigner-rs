@@ -308,6 +308,24 @@ impl DiagramView {
 
     /// Sets the diagram's background colour (S §8.8); [`Rgba::DEFAULT`] puts
     /// the usual one back. One undo step.
+    /// Whether the diagram's modifier lines are drawn (View ▸ Modifier lines,
+    /// S §7.6). A setting of the diagram, saved in its file.
+    pub fn show_modifiers(&self) -> bool {
+        !self.model.hide_modifier_lines
+    }
+
+    /// Shows or hides the diagram's modifier lines. One undo step.
+    pub fn set_show_modifiers(&mut self, show: bool) -> ViewResponse {
+        let before = self.model.clone();
+        self.model.hide_modifier_lines = !show;
+        let desc = if show {
+            "Show Modifier Lines"
+        } else {
+            "Hide Modifier Lines"
+        };
+        self.record_if_changed(desc, before)
+    }
+
     pub fn set_background(&mut self, colour: Rgba) -> ViewResponse {
         let before = self.model.clone();
         self.model.background = colour;

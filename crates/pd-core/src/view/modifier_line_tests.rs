@@ -97,7 +97,7 @@ fn arcs_and_their_corner_points_are_hit() {
         Target::CornerPoint("R1".into(), 0, 0)
     );
     // With modifier arcs hidden, neither is there.
-    v.show_modifiers = false;
+    v.set_show_modifiers(false);
     assert_eq!(v.target_at(pt(300.0, -200.0)), Target::Empty);
     assert_eq!(v.target_at(pt(361.0, -199.0)), Target::Empty);
 }
@@ -376,7 +376,7 @@ fn the_current_corner_point_is_let_go() {
     assert_eq!(v.current_corner_point(), None);
     // Arcs hidden.
     let mut v = make();
-    v.show_modifiers = false;
+    v.set_show_modifiers(false);
     assert_eq!(v.current_corner_point(), None);
     // Points added, removed or straightened away.
     let mut v = make();
@@ -615,4 +615,34 @@ fn sbml_keeps_a_modifier_line_s_look() {
         back.find_reaction("R1").unwrap().modifiers[0].look,
         v.modifier_look("R1", 0).unwrap()
     );
+}
+
+#[test]
+fn hidden_modifier_lines_are_saved_with_the_diagram() {
+    use crate::json::{from_json, needed_version, to_json};
+    let mut v = view();
+    assert!(v.show_modifiers());
+    assert!(!to_json(v.model()).contains("modifierLines"));
+    // Hiding them is an edit of the diagram: one undo step.
+    v.set_show_modifiers(false);
+    assert!(!v.show_modifiers());
+    assert_eq!(v.undo_description(), Some("Hide Modifier Lines"));
+    assert_eq!(needed_version(v.model()), 13);
+    let text = to_json(v.model());
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(json["modifierLines"], false);
+    assert_eq!(json["version"], 13);
+    // Opening the file keeps them hidden.
+    let back = DiagramView::new(from_json(&text).unwrap().model);
+    assert!(!back.show_modifiers());
+    // Hidden lines can't be clicked.
+    assert_eq!(v.target_at(pt(200.0, -100.0)), Target::Empty);
+    v.undo();
+    assert!(v.show_modifiers());
+    assert_eq!(
+        v.target_at(pt(200.0, -100.0)),
+        Target::ModifierLine("R1".into(), 0, 0)
+    );
+    v.set_show_modifiers(true);
+    assert_eq!(v.undo_description(), None, "already shown: no step");
 }

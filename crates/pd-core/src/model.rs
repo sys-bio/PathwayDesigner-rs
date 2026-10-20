@@ -940,6 +940,9 @@ pub struct Model {
     /// The diagram's background colour (S §8.8), on screen and in output;
     /// [`Rgba::DEFAULT`] for the usual one.
     pub background: Rgba,
+    /// View ▸ Modifier lines turned off for this diagram (S §7.6): its
+    /// modifier arcs aren't drawn, on screen or in output. Saved with it.
+    pub hide_modifier_lines: bool,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -960,6 +963,7 @@ impl Default for Model {
             styles: Vec::new(),
             theme: None,
             background: Rgba::DEFAULT,
+            hide_modifier_lines: false,
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),

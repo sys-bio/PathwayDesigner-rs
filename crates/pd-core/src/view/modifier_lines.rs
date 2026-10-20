@@ -14,7 +14,7 @@ impl DiagramView {
     /// clicked or dragged, while its reaction is selected and its arc shown.
     pub fn current_corner_point(&self) -> Option<Pt> {
         let (id, modifier, point) = self.current_corner.as_ref()?;
-        if !self.show_modifiers {
+        if !self.show_modifiers() {
             return None;
         }
         let r = self.model.find_reaction(id).filter(|r| r.selected)?;

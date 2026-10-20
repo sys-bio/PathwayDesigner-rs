@@ -346,6 +346,10 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 13: hidden modifier lines (S §7.6).** A top-level
+`"modifierLines": false`, after `background`, when the diagram's modifier lines
+are hidden; left out when they are shown. A document with it is version 13.
+
 **Version 12: a modifier line's look (S §5.7.2).** A modifier object may have
 `"lineColor"` (`#RRGGBBAA`), `"lineWidth"`, `"pattern"` (`"dotted"` or
 `"solid"`), `"symbolSize"` and `"symbolGap"`, after `points`, each left out at its
@@ -1106,8 +1110,10 @@ file in the app's data folder. On the web it is `localStorage`.
 
 - Store the S §12 preferences under the same names
   (`convertCatalyticReactions`, `showNullSpecies`), with `selectedReactionColour`
-  and View ▸ Modifier lines (`showModifiers`), View ▸ Grid (`showGrid`) and View ▸
-  Snap to grid (`snapToGrid`), S §7.6, which are kept the same way.
+  and View ▸ Reversible arrowheads (`showReversible`), View ▸ Grid (`showGrid`)
+  and View ▸ Snap to grid (`snapToGrid`), S §7.6, which are kept the same way.
+  (View ▸ Modifier lines is saved with each diagram instead; an old
+  `showModifiers` key is ignored.)
 - My Styles (S §8.6) are kept under `styles`, as a style list (§4.2). They live in
   the view beside the model (`DiagramView::my_styles`), so opening a file keeps
   them, and are saved whenever eframe saves (every few seconds and on exit).

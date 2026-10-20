@@ -12,7 +12,6 @@ use pd_core::render::constants::SELECTED_REACTION;
 const KEY_CATALYTIC: &str = "pathwayDesigner.convertCatalyticReactions";
 const KEY_NULL_SPECIES: &str = "pathwayDesigner.showNullSpecies";
 const KEY_SELECTED_REACTION: &str = "pathwayDesigner.selectedReactionColour";
-const KEY_MODIFIERS: &str = "pathwayDesigner.showModifiers";
 const KEY_REVERSIBLE: &str = "pathwayDesigner.showReversible";
 const KEY_GRID: &str = "pathwayDesigner.showGrid";
 const KEY_SNAP: &str = "pathwayDesigner.snapToGrid";
@@ -25,10 +24,9 @@ pub struct Preferences {
     pub show_null_species: bool,
     /// The colour a selected reaction is drawn in, to make it easy to see.
     pub selected_reaction: Rgba,
-    /// View ▸ Modifier lines: draw modifier arcs. Set from the View menu,
-    /// not the Preferences dialog, and remembered here.
-    pub show_modifiers: bool,
-    /// View ▸ Reversible arrowheads, remembered the same way.
+    /// View ▸ Reversible arrowheads: set from the View menu, not the
+    /// Preferences dialog, and remembered here. (View ▸ Modifier lines is saved
+    /// with each diagram instead, S §7.6.)
     pub show_reversible: bool,
     /// View ▸ Grid, remembered the same way.
     pub show_grid: bool,
@@ -42,7 +40,6 @@ impl Default for Preferences {
             convert_catalytic: true,
             show_null_species: true,
             selected_reaction: SELECTED_REACTION,
-            show_modifiers: true,
             show_reversible: true,
             show_grid: false,
             snap_to_grid: false,
@@ -62,7 +59,6 @@ impl Preferences {
             };
             p.convert_catalytic = flag(KEY_CATALYTIC, p.convert_catalytic);
             p.show_null_species = flag(KEY_NULL_SPECIES, p.show_null_species);
-            p.show_modifiers = flag(KEY_MODIFIERS, p.show_modifiers);
             p.show_reversible = flag(KEY_REVERSIBLE, p.show_reversible);
             p.show_grid = flag(KEY_GRID, p.show_grid);
             p.snap_to_grid = flag(KEY_SNAP, p.snap_to_grid);
@@ -80,7 +76,6 @@ impl Preferences {
         storage.set_string(KEY_CATALYTIC, self.convert_catalytic.to_string());
         storage.set_string(KEY_NULL_SPECIES, self.show_null_species.to_string());
         storage.set_string(KEY_SELECTED_REACTION, to_hex(self.selected_reaction));
-        storage.set_string(KEY_MODIFIERS, self.show_modifiers.to_string());
         storage.set_string(KEY_REVERSIBLE, self.show_reversible.to_string());
         storage.set_string(KEY_GRID, self.show_grid.to_string());
         storage.set_string(KEY_SNAP, self.snap_to_grid.to_string());
@@ -124,14 +119,12 @@ mod tests {
             convert_catalytic: false,
             show_null_species: false,
             selected_reaction: Rgba([0xE0, 0x10, 0x80, 0xFF]),
-            show_modifiers: false,
             show_reversible: false,
             show_grid: true,
             snap_to_grid: true,
         };
         p.save(&mut m);
         assert_eq!(m.0["pathwayDesigner.convertCatalyticReactions"], "false");
-        assert_eq!(m.0["pathwayDesigner.showModifiers"], "false");
         assert_eq!(m.0["pathwayDesigner.showReversible"], "false");
         assert_eq!(m.0["pathwayDesigner.showGrid"], "true");
         assert_eq!(m.0["pathwayDesigner.snapToGrid"], "true");

@@ -88,7 +88,6 @@ pub struct DiagramView {
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
     /// Modifier arcs drawn (S §7.6).
-    pub show_modifiers: bool,
     /// Where the last context menu was asked for, in world coordinates:
     /// Add Corner Point puts its point there (S §5.7.1).
     context_point: Option<Pt>,
@@ -394,7 +393,6 @@ impl DiagramView {
             zoom: 1.0,
             scroll: Pt::ZERO,
             show_alias_indicator: true,
-            show_modifiers: true,
             context_point: None,
             show_reversible: true,
             show_grid: false,
@@ -440,7 +438,7 @@ impl DiagramView {
         Shown {
             alias_indicator: self.show_alias_indicator,
             null_species: self.show_null_species,
-            modifiers: self.show_modifiers,
+            modifiers: self.show_modifiers(),
             reversible: self.show_reversible,
         }
     }
@@ -516,7 +514,7 @@ impl DiagramView {
             for_output: false,
             show_alias_indicator: self.show_alias_indicator,
             show_null_species: self.show_null_species,
-            show_modifiers: self.show_modifiers,
+            show_modifiers: self.show_modifiers(),
             show_reversible: self.show_reversible,
             selected_reaction: self.selected_reaction_colour,
             grid: self.show_grid,
@@ -566,7 +564,7 @@ impl DiagramView {
             self.screen_to_world(screen),
             self.zoom,
             self.show_null_species,
-            self.show_modifiers,
+            self.show_modifiers(),
         )
     }
 

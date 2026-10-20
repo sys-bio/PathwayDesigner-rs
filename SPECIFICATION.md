@@ -713,6 +713,33 @@ own setting.
   the species glyph's box, as other tools write it; it is then drawn at that
   centre. Antimony has no layout.
 
+#### 5.11.1 Bold and italic names (Rust version, planned)
+
+*Added in the Rust version; designed with the user.* A species' name and a
+reaction's name (§5.12) may each be **bold**, **italic** or both, in the bundled
+sans-serif face (the same Noto faces free text uses, §7.8). Default: neither,
+which draws names as now.
+
+- **Measured in their face.** Everything that measures a name uses the face it is
+  drawn in: the name's box (hit-testing, the selection outline, placing a name
+  clear of lines), Fit to Name (§7.10), a node widened on rename (§7.1), and a
+  name outside its node keeping its gap when its face changes (as when its size
+  does, §5.11).
+- **Part of the look.** Bold and italic belong to an item's look like its font
+  size and label colour: saved styles (§8.6), Copy Style and Paste Style (§8.5)
+  and themes (§8.7) carry them, and an item follows a style only while its bold
+  and italic match it.
+- **The panel.** The Species group and the Reaction group each get **Bold** and
+  **Italic** tick boxes beside Font size; for several selected items a box is
+  ticked when all of them are (as Reversible is), and ticking sets all of them.
+  One undo step each: "Bold Name", "Italic Name".
+- **Files.** JSON version 14: an item's or a saved style's style object may have
+  `"bold": true` and `"italic": true`, left out when false. SBML: the species
+  glyph's note (§11.5) and the reaction glyph's note get `nameBold="true"` and
+  `nameItalic="true"`. Antimony has no looks.
+- **Steps.** 1: the model, measuring, drawing, panel, styles and JSON. 2: the
+  Escher theme (§8.7). 3: SBML.
+
 ### 5.12 Reaction names
 
 *Added in the Rust version.* A reaction can show its **id** as text beside its
@@ -1173,15 +1200,20 @@ the circle. Both handles are 0.35 of the leg's length.
 junction at the centre of its species and automatic handles (smooth handles
 recomputed). Without this, the mean movement could put the junction anywhere.
 
-### 7.6 View toggles (not undoable; Modifier lines, Reversible arrowheads, Grid and Snap to grid are remembered)
+### 7.6 View toggles (not undoable, except Modifier lines; Reversible arrowheads, Grid and Snap to grid are remembered)
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border
   of aliases on or off.
 - **Modifier lines** on/off (View menu). Default **on**. Hides or shows the dashed
-  arcs from modifiers to their reactions, and the dots at their ends, for every
-  reaction at once. The modifiers stay in the model. It is remembered between
-  sessions, like a preference. *Not in the reference; added at the user's
-  request.*
+  arcs from modifiers to their reactions, and the symbols at their ends, for every
+  reaction at once, on screen and in output; hidden arcs and their corner points
+  can't be clicked. The modifiers stay in the model. *Not in the reference; added
+  at the user's request.* It is a setting of the **diagram**, saved in its file
+  (JSON version 13, `"modifierLines": false`), so a diagram opens as it was
+  saved: turning it on or off is an edit (one undo step, "Show Modifier Lines" /
+  "Hide Modifier Lines"), and a new diagram shows them. (It was first remembered
+  as a preference, which a file then couldn't override.) SBML and Antimony don't
+  carry it.
 - **Reversible arrowheads** on/off (View menu). Default **on**. Draws reversible
   reactions with an arrowhead at both ends (§5.5), on screen and in output.
   Remembered between sessions. *Added in the Rust version.*
@@ -1720,9 +1752,14 @@ once. **View ▸ Theme** offers:
 
   | Style | Look |
   |---|---|
-  | *Escher metabolite* | orange circle (#E0865B, border #A24510, width 2), 26 across, name outside in 18 pt |
-  | *Escher cofactor* | the same, 16 across, border width 1.5, name in 14 pt |
-  | *Escher reaction* | slate-blue line (#334E75), width 5, no junction dot, name in 16 pt slate blue |
+  | *Escher metabolite* | orange circle (#E0865B, border #A24510, width 2), 26 across, name outside in 18 pt bold italic |
+  | *Escher cofactor* | the same, 16 across, border width 1.5, name in 14 pt bold italic |
+  | *Escher reaction* | slate-blue line (#334E75), width 5, no junction dot, name in 16 pt bold italic navy (#202078) |
+
+  *(Planned, §5.11.1 step 2: the bold italic names and the navy reaction names,
+  as Escher 1.7.3 draws all its labels; until then names are upright and
+  reaction names slate blue. Sizes stay 18, 14 and 16, the user's choice, rather
+  than Escher's 20 and 30.)*
   | *Escher compartment* | light grey box (#FAFAFA, border #C8CDD3, width 1.5) |
 
   **Every** item takes the theme, those styled by hand too (a user recolours

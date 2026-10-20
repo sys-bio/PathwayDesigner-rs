@@ -280,7 +280,6 @@ impl PathwayApp {
         // Saved preferences apply from the start (fixes D-2).
         app.view.show_null_species = app.prefs.show_null_species;
         app.view.selected_reaction_colour = app.prefs.selected_reaction;
-        app.view.show_modifiers = app.prefs.show_modifiers;
         app.view.show_reversible = app.prefs.show_reversible;
         app.view.show_grid = app.prefs.show_grid;
         app.view.snap_to_grid = app.prefs.snap_to_grid;
@@ -871,8 +870,17 @@ impl PathwayApp {
                 }
                 ui.separator();
                 ui.checkbox(&mut self.view.show_alias_indicator, "Alias indicator");
-                ui.checkbox(&mut self.view.show_modifiers, "Modifier lines")
-                    .on_hover_text("Show the dashed lines from modifiers to their reactions");
+                // A setting of the diagram, saved in its file (S §7.6).
+                let mut modifiers = self.view.show_modifiers();
+                if ui
+                    .checkbox(&mut modifiers, "Modifier lines")
+                    .on_hover_text(
+                        "Show the dashed lines from modifiers to their reactions; saved with the diagram",
+                    )
+                    .changed()
+                {
+                    self.view.set_show_modifiers(modifiers);
+                }
                 ui.checkbox(&mut self.view.show_reversible, "Reversible arrowheads")
                     .on_hover_text("Draw reversible reactions with an arrowhead at both ends");
                 ui.checkbox(&mut self.view.show_grid, "Grid").on_hover_text(
@@ -1535,8 +1543,7 @@ impl PathwayApp {
 
 impl eframe::App for PathwayApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        // View ▸ Modifier lines changes the view directly.
-        self.prefs.show_modifiers = self.view.show_modifiers;
+        // These View toggles change the view directly.
         self.prefs.show_reversible = self.view.show_reversible;
         self.prefs.show_grid = self.view.show_grid;
         self.prefs.snap_to_grid = self.view.snap_to_grid;

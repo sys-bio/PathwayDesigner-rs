@@ -21,8 +21,11 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought modifier lines' own looks (S §5.7.2).
-pub const FORMAT_VERSION: u32 = 12;
+/// one that saved a diagram's modifier lines being hidden (S §7.6).
+pub const FORMAT_VERSION: u32 = 13;
+
+/// The version that brought modifier lines' own looks (S §5.7.2).
+pub const MODIFIER_LOOK_VERSION: u32 = 12;
 
 /// The version that brought modifier kinds and corner points (S §5.7.1).
 pub const MODIFIER_VERSION: u32 = 11;
@@ -54,7 +57,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 12 if a modifier line has its own look (S §5.7.2),
+/// (SPEC-Rust §4.2): 13 if its modifier lines are hidden (S §7.6), 12 if a
+/// modifier line has its own look (S §5.7.2),
 /// 11 if a modifier has a kind or corner points
 /// (S §5.7.1), 10 if a
 /// straight stem is free to bend (S §5.13), 9 if
@@ -76,8 +80,10 @@ pub fn needed_version(model: &Model) -> u32 {
         .reactions()
         .iter()
         .any(|r| r.modifiers.iter().any(|m| !m.look.is_default()));
-    if looks {
+    if model.hide_modifier_lines {
         FORMAT_VERSION
+    } else if looks {
+        MODIFIER_LOOK_VERSION
     } else if kinds {
         MODIFIER_VERSION
     } else if model.reactions().iter().any(needs_stem_straight) {
@@ -244,6 +250,10 @@ struct FileModel {
     /// default.
     #[serde(default, with = "colour", skip_serializing_if = "is_default_colour")]
     background: Rgba,
+    /// Version 13: `false` when the diagram's modifier lines are hidden
+    /// (S §7.6). Left out when they are shown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    modifier_lines: Option<bool>,
 }
 
 /// A list of saved styles on its own.
@@ -828,6 +838,7 @@ impl FileModel {
         };
         link_styles(&mut model, &mut warnings);
         model.background = self.background;
+        model.hide_modifier_lines = self.modifier_lines == Some(false);
 
         model.recompute_id_counter();
         Loaded {
@@ -1186,6 +1197,7 @@ impl FileModel {
                 .collect(),
             theme: m.theme.map(|t| t.key().to_owned()),
             background: m.background,
+            modifier_lines: m.hide_modifier_lines.then_some(false),
         }
     }
 }
@@ -1599,7 +1611,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 13, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 14, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);
