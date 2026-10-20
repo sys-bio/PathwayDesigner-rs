@@ -10,12 +10,18 @@
 //! (null nodes' and aliases' copies of biochemistry) are left out, and made-up
 //! ids (null nodes, free text) are matched by what they belong to.
 //!
+//! With `--antimony` (evaluation E5), the model alone is compared instead,
+//! after a trip through Antimony, and, for comparison, through SBML without its
+//! layout: species (by their primary ids), compartments, reactions with their
+//! species, modifiers and kinds, rate laws and reversibility, parameters and
+//! rules. Neither carries a drawing.
+//!
 //! Prints a Markdown report: per model, then per field over all models. With
 //! `DETAIL=<part of a model's title>`, also lists that model's every change on
 //! stderr.
 //!
 //! ```text
-//! cargo run -p pd-core --release --example layout_report > report.md
+//! cargo run -p pd-core --release --example layout_report [-- --antimony] > report.md
 //! ```
 
 use std::collections::BTreeMap;
@@ -53,10 +59,14 @@ fn main() {
     let index: Value =
         serde_json::from_str(&std::fs::read_to_string(root.join("Gallery/index.json")).unwrap())
             .unwrap();
+    let antimony = std::env::args().any(|a| a == "--antimony");
+    let (first, second) = if antimony {
+        ("Antimony", "SBML without layout")
+    } else {
+        ("full", "standard Layout only")
+    };
     let mut by_field: BTreeMap<String, Tally> = BTreeMap::new();
-    println!(
-        "| Model | Fields | Changed (full) | Changed (standard Layout only) | Import warnings |"
-    );
+    println!("| Model | Fields | Changed ({first}) | Changed ({second}) | Import warnings |");
     println!("|---|---|---|---|---|");
     for e in index["examples"].as_array().unwrap() {
         let file = e["file"].as_str().unwrap();
@@ -73,22 +83,39 @@ fn main() {
             std::env::var("DETAIL").is_ok_and(|d| title.contains(&d)),
             std::sync::atomic::Ordering::Relaxed,
         );
-        let original = as_value(&model);
-        let xml = pd_core::sbml::export(&model).xml;
-        let full = pd_core::sbml::import(&xml, &OPTS).unwrap();
-        let standard = pd_core::sbml::import(&without_notes(&xml), &OPTS).unwrap();
         let mut fields: BTreeMap<String, Tally> = BTreeMap::new();
-        compare(&original, &as_value(&full.model), "", &mut fields, false);
-        compare(&original, &as_value(&standard.model), "", &mut fields, true);
+        let xml = pd_core::sbml::export(&model).xml;
+        let warnings: Vec<String> = if antimony {
+            let original = biochemistry(&model);
+            let text = pd_core::antimony::export(&model);
+            let back = pd_core::antimony::import(&text, &OPTS).unwrap();
+            let core = pd_core::sbml::import(&without_layout(&xml), &OPTS).unwrap();
+            compare(
+                &original,
+                &biochemistry(&back.model),
+                "",
+                &mut fields,
+                false,
+            );
+            compare(&original, &biochemistry(&core.model), "", &mut fields, true);
+            back.warnings.iter().map(|d| d.to_string()).collect()
+        } else {
+            let original = as_value(&model);
+            let full = pd_core::sbml::import(&xml, &OPTS).unwrap();
+            let standard = pd_core::sbml::import(&without_notes(&xml), &OPTS).unwrap();
+            compare(&original, &as_value(&full.model), "", &mut fields, false);
+            compare(&original, &as_value(&standard.model), "", &mut fields, true);
+            full.warnings
+        };
         let sum = fields.values().fold(Tally::default(), |a, t| Tally {
             total: a.total + t.total,
             lost: a.lost + t.lost,
             lost_standard: a.lost_standard + t.lost_standard,
         });
-        let warnings = if full.warnings.is_empty() {
+        let warnings = if warnings.is_empty() {
             "none".to_owned()
         } else {
-            full.warnings.join("; ")
+            warnings.join("; ")
         };
         println!(
             "| {} | {} | {} | {} | {warnings} |",
@@ -105,7 +132,7 @@ fn main() {
         }
     }
     println!();
-    println!("| Field | Occurrences | Changed (full) | Changed (standard Layout only) |");
+    println!("| Field | Occurrences | Changed ({first}) | Changed ({second}) |");
     println!("|---|---|---|---|");
     for (k, t) in &by_field {
         if t.lost > 0 || t.lost_standard > 0 {
@@ -218,6 +245,83 @@ fn name_null_nodes(v: &mut Value) {
         if let Some(new) = names.get(s["id"].as_str().unwrap()) {
             s["id"] = Value::String(new.clone());
         }
+    }
+}
+
+/// The model alone, without its drawing: what Antimony, or SBML without a
+/// layout, can carry. Aliases are their species, and null nodes are left out.
+fn biochemistry(model: &pd_core::model::Model) -> Value {
+    use serde_json::json;
+    let primary = |id: &str| {
+        model
+            .find_species(id)
+            .map_or(id.to_owned(), |s| s.primary_id().to_owned())
+    };
+    let is_null = |id: &str| model.find_species(id).is_some_and(|s| s.is_null_node);
+    let side = |list: &[pd_core::model::Participant]| -> Vec<Value> {
+        list.iter()
+            .filter(|p| !is_null(&p.species))
+            .map(|p| json!({"id": primary(&p.species), "stoichiometry": p.stoichiometry}))
+            .collect()
+    };
+    let species: Vec<Value> = model
+        .species()
+        .iter()
+        .filter(|s| !s.is_alias() && !s.is_null_node)
+        .map(|s| {
+            json!({"id": s.id, "initialValue": s.initial_value, "isBoundary": s.is_boundary,
+                   "isConstant": s.is_constant, "compartment": s.compartment})
+        })
+        .collect();
+    let reactions: Vec<Value> = model
+        .reactions()
+        .iter()
+        .map(|r| {
+            let mut seen = std::collections::HashSet::new();
+            let modifiers: Vec<Value> = r
+                .modifiers
+                .iter()
+                .filter(|m| seen.insert(primary(&m.species)))
+                .map(|m| json!({"id": primary(&m.species), "kind": format!("{:?}", m.kind)}))
+                .collect();
+            json!({"id": r.id, "isReversible": r.is_reversible, "kineticLaw": r.kinetic_law,
+                   "reactants": side(&r.reactants), "products": side(&r.products),
+                   "modifiers": modifiers})
+        })
+        .collect();
+    let compartments: Vec<Value> = model
+        .compartments
+        .iter()
+        .map(|c| json!({"id": c.id, "size": c.size, "dimensions": c.dimensions}))
+        .collect();
+    let parameters: Vec<Value> = model
+        .parameters
+        .iter()
+        .map(|p| json!({"variable": p.variable, "expression": p.expression}))
+        .collect();
+    let rules: Vec<Value> = model
+        .assignment_rules
+        .iter()
+        .map(|r| json!({"variable": r.variable, "expression": r.expression}))
+        .collect();
+    json!({"modelName": model.model_name, "compartments": compartments, "species": species,
+           "reactions": reactions, "parameters": parameters, "assignmentRules": rules})
+}
+
+/// The SBML with its layout taken out: the model alone.
+fn without_layout(xml: &str) -> String {
+    match (
+        xml.find("<layout:listOfLayouts"),
+        xml.find("</layout:listOfLayouts>"),
+    ) {
+        (Some(start), Some(end)) => {
+            format!(
+                "{}{}",
+                &xml[..start],
+                &xml[end + "</layout:listOfLayouts>".len()..]
+            )
+        }
+        _ => xml.to_owned(),
     }
 }
 
