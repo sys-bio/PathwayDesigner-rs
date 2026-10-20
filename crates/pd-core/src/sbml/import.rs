@@ -278,6 +278,15 @@ impl Builder {
                 }
             }
         }
+        // A layout that draws no box for a compartment doesn't show it: it is
+        // hidden, so the box the app fits round it stays out of sight (S §7.9).
+        if layout.is_some() {
+            for c in self.model.compartments.iter_mut() {
+                if c.frame.is_none() && !c.is_default() {
+                    c.hidden = true;
+                }
+            }
+        }
         // Free text: a text glyph with words of its own and nothing it labels
         // (S §7.8). Its look comes from PathwayDesigner's note, if it has one.
         if let Some(l) = m.layouts.first() {

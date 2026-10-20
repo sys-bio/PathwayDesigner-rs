@@ -31,6 +31,21 @@ pub struct Exported {
 
 /// Writes the model as SBML (S §11.5).
 pub fn export(model: &Model) -> Exported {
+    // A compartment without a box yet is written with the box the app gives
+    // it when the model is opened (S §7.9), so the file shows what is seen.
+    let fitted;
+    let model = if model
+        .compartments
+        .iter()
+        .any(|c| c.frame.is_none() && !c.is_default())
+    {
+        let mut m = model.clone();
+        crate::compartments::place_unplaced(&mut m);
+        fitted = m;
+        &fitted
+    } else {
+        model
+    };
     let mut problems = Vec::new();
     let mut notes = Vec::new();
     let doc = document(model, &mut problems, &mut notes);

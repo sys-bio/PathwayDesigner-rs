@@ -873,6 +873,8 @@ replace `sbml-io` behind the same bridge.
   parameters as `initialAssignment`, reactions with `modifierSpeciesReference` (D-10),
   assignment rules, and rate laws as MathML.
 - **Layout:**
+  - a box for every compartment but the default one: a compartment without one
+    is given the box the app fits when the model is opened (S §7.9);
   - one glyph for every node, aliases included, each species' own glyph
     (`sg_<id>`) before its aliases';
   - curves that start and end on node borders;
@@ -893,7 +895,8 @@ replace `sbml-io` behind the same bridge.
   - a species has one glyph that draws it, the one named `sg_<id>` if there is
     one, or else the first; each other glyph of it becomes an **alias**, named
     after its glyph (`sg_<alias>`) when that name is free;
-  - only things with no glyph are placed by auto-layout.
+  - only things with no glyph are placed by auto-layout;
+  - a compartment the layout draws no box for is **hidden** (S §7.9).
 
   This means files written by the Rust app or the Delphi app load back with their
   layout.

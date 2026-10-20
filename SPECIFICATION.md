@@ -1385,7 +1385,10 @@ own. Two rules keep the drawing and the model in step:
   all round, at every step. A compartment that has no box (an older file, an
   Antimony or SBML import without one) gets one fitted around its species when the
   model is opened or imported, or a 300 × 200 box to the right of the drawing if it
-  has no species.
+  has no species. *(Rust version:)* SBML export writes such a compartment with the box it
+  would be given, so the file shows what is seen, hidden or not; and an SBML file
+  whose layout draws no box for a compartment (as another tool may write it) comes
+  in with that compartment hidden, so its fitted box isn't shown.
 
 A model with no drawn compartments never has its species' compartments changed.
 

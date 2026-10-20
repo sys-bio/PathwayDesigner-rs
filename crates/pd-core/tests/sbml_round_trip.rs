@@ -453,3 +453,52 @@ fn an_alias_listed_first_keeps_its_role() {
     assert!(moved.find("\"sg_CI_2\"").unwrap() < moved.find("\"sg_CI\"").unwrap());
     check(&moved);
 }
+
+/// Compartments with no box yet (E4 F3). Export writes the box the app fits
+/// round one on opening, so a shown compartment comes back shown and a hidden
+/// one hidden, as an Escher map's are. A file from another tool whose layout
+/// draws no box for a compartment brings it in hidden. Without a layout
+/// nothing is hidden.
+#[test]
+fn compartments_without_a_box_come_back_as_they_were_seen() {
+    let mut m = Model::new();
+    let a = m.add_species(Pt { x: 0.0, y: 0.0 }, 80.0, 36.0);
+    let b = m.add_species(Pt { x: 400.0, y: 0.0 }, 80.0, 36.0);
+    for (id, hidden, s) in [("cytosol", true, &a), ("nucleus", false, &b)] {
+        let mut c = pd_core::model::Compartment::new(id.to_owned());
+        c.hidden = hidden;
+        m.compartments.push(c);
+        m.find_species_mut(s).unwrap().compartment = id.into();
+    }
+    let mut seen = m.clone();
+    pd_core::compartments::place_unplaced(&mut seen);
+    let xml = sbml::export(&m).xml;
+    let back = sbml::import(&xml, &OPTS).unwrap().model;
+    for id in ["cytosol", "nucleus"] {
+        let (c, d) = (
+            back.find_compartment(id).unwrap(),
+            seen.find_compartment(id).unwrap(),
+        );
+        assert_eq!((c.hidden, c.frame), (d.hidden, d.frame), "{id}");
+    }
+
+    // The same file with no glyph for the nucleus, as another tool might
+    // write it: the nucleus comes in hidden.
+    let start = xml
+        .find("<layout:compartmentGlyph layout:id=\"cg_nucleus\"")
+        .unwrap();
+    let end = start
+        + xml[start..].find("</layout:compartmentGlyph>").unwrap()
+        + "</layout:compartmentGlyph>".len();
+    let other = format!("{}{}", &xml[..start], &xml[end..]);
+    let c = sbml::import(&other, &OPTS).unwrap().model;
+    let c = c.find_compartment("nucleus").unwrap();
+    assert!(c.hidden && c.frame.is_none());
+
+    // Without the layout, every compartment is shown, in a box fitted later.
+    let start = xml.find("<layout:listOfLayouts").unwrap();
+    let end = xml.find("</layout:listOfLayouts>").unwrap() + "</layout:listOfLayouts>".len();
+    let bare = format!("{}{}", &xml[..start], &xml[end..]);
+    let back = sbml::import(&bare, &OPTS).unwrap().model;
+    assert!(back.compartments.iter().all(|c| !c.hidden));
+}
