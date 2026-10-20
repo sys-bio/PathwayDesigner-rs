@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 13,
   "modelName": "Millard2016 - E. coli central carbon and energy metabolism",
   "compartments": [
     {
@@ -7725,7 +7725,7 @@
       "modifiers": []
     },
     {
-      "id": "R128",
+      "id": "GROWTH",
       "jx": 527.5547982645769,
       "jy": 1580.3503512473824,
       "kineticLaw": "k128*G6P*F6P*GAP*PGA3*PYR*R5P*E4P*MAL*OAA*AKG*ACCOA",
@@ -7911,5 +7911,6 @@
       "modifiers": []
     }
   ],
-  "background": "#FFFFFFFF"
+  "background": "#FFFFFFFF",
+  "modifierLines": false
 }

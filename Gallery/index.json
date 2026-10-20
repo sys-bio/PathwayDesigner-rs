@@ -103,7 +103,7 @@
       "group": "Large models",
       "title": "E. coli central metabolism (Millard 2016)",
       "description": "Central carbon and energy metabolism, 68 reactions; shared metabolites drawn as aliases",
-      "version": 9
+      "version": 13
     },
     {
       "file": "ExampleModels/e_coli_core.json",
