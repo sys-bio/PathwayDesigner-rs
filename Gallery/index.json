@@ -92,6 +92,13 @@
       "version": 7
     },
     {
+      "file": "ExampleModels/NegativeFeedback_1.json",
+      "group": "Small examples",
+      "title": "Negative feedback",
+      "description": "A four-step pathway, S1 to S5, whose S4 inhibits the first step",
+      "version": 12
+    },
+    {
       "file": "ExampleModels/GepasiYeastGlycolysis.json",
       "group": "Large models",
       "title": "Yeast glycolysis",
@@ -102,8 +109,8 @@
       "file": "ExampleModels/E_coli_Millard2016.json",
       "group": "Large models",
       "title": "E. coli central metabolism (Millard 2016)",
-      "description": "Central carbon and energy metabolism, 68 reactions",
-      "version": 4
+      "description": "Central carbon and energy metabolism, 68 reactions; shared metabolites drawn as aliases",
+      "version": 9
     },
     {
       "file": "ExampleModels/e_coli_core.json",
