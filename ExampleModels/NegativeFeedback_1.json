@@ -18,6 +18,10 @@
     {
       "variable": "k9",
       "expression": "0.1"
+    },
+    {
+      "variable": "Ki",
+      "expression": "1"
     }
   ],
   "assignmentRules": [],
@@ -28,7 +32,7 @@
       "y": 116.0,
       "w": 80.0,
       "h": 36.0,
-      "initialValue": 0.0,
+      "initialValue": 10.0,
       "isBoundary": true,
       "isConstant": false
     },
@@ -78,7 +82,7 @@
       "id": "R6",
       "jx": -54.17038005715489,
       "jy": 116.56981573885801,
-      "kineticLaw": "k6*S1*S4",
+      "kineticLaw": "k6*S1/(1 + S4/Ki)",
       "isReversible": false,
       "isLinear": true,
       "isBezier": false,
