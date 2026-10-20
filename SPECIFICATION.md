@@ -2021,8 +2021,10 @@ accept at least the following, and SHOULD use a complete Antimony parser
 | `x = expr` | If `x` is a species, set its initial value (must be a number). If `x` is a compartment, set its size. Otherwise `x` is a parameter. |
 | `x := expr` | Assignment rule |
 
-**Arrow.** `->` is the reaction arrow. `=>` MUST also be accepted, as a plain
-synonym for `->`.
+**Arrow.** `->` is the reaction arrow. `=>` MUST also be accepted. *(Rust version:)*
+as in Antimony, the arrow says whether the reaction is reversible: `->` (and
+`<->`) makes it reversible, `=>` irreversible. The reference treated `=>` as a
+plain synonym and made every reaction irreversible.
 
 **Implicit declarations.**
 
@@ -2082,7 +2084,8 @@ Sections are separated by blank lines and introduced by `// Section` comments.
    - A stoichiometry other than 1 is written in front of the species name.
    - Boundary species get a `$` prefix.
    - An empty rate law is written as `v`.
-   - The arrow is always `->`.
+   - The arrow is `->` for a reversible reaction and `=>` for an irreversible one
+     *(Rust version; the reference always wrote `->`)*.
 3a. *(Rust version.)* `X -| <rid>;` for each inhibitor and `X -o <rid>;` for each
    activator (§5.7.1), `X` the modifier's primary, in an `// Interactions`
    section; one line for a species that modifies a reaction through several

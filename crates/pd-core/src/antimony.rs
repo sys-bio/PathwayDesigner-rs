@@ -181,8 +181,8 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
 /// numbers with a `.` whatever the locale. One statement per line, indented
 /// by two spaces, in sections introduced by `// …` comments: compartments,
 /// species, reactions, parameters, initial values, then assignment rules.
-/// A reaction without a rate law is written with the rate `v`, and the arrow
-/// is always `->`.
+/// A reaction without a rate law is written with the rate `v`. A reversible
+/// reaction is written with `->`, an irreversible one with `=>` (S §11.3).
 pub fn export(model: &Model) -> String {
     let name = Some(model.model_name.as_str())
         .filter(|n| is_identifier(n))
@@ -239,8 +239,9 @@ pub fn export(model: &Model) -> String {
         .map(|r| {
             let law = r.kinetic_law.trim();
             let rate = if law.is_empty() { "v" } else { law };
+            let arrow = if r.is_reversible { "->" } else { "=>" };
             format!(
-                "{}: {} -> {}; {rate};",
+                "{}: {} {arrow} {}; {rate};",
                 r.id,
                 side(&r.reactants),
                 side(&r.products)
@@ -573,7 +574,16 @@ impl Builder<'_> {
                 self.error(line, format!("a second reaction is called '{id}'"));
                 continue;
             }
-            self.add_reaction(&mut model, &id, reactants, products, law, opts);
+            // `=>` is irreversible; `->` and `<->` are reversible (S §11.2).
+            let reversible = r.kind != antimony::model::ReactionKind::Irreversible;
+            self.add_reaction(
+                &mut model,
+                &id,
+                (reactants, products),
+                reversible,
+                law,
+                opts,
+            );
         }
         self.interactions(&mut model);
         model.recompute_id_counter();
@@ -643,8 +653,8 @@ impl Builder<'_> {
         &mut self,
         model: &mut Model,
         id: &str,
-        reactants: Side,
-        products: Side,
+        (reactants, products): (Side, Side),
+        reversible: bool,
         law: Option<expr::Ast>,
         opts: &ImportOptions,
     ) {
@@ -664,6 +674,7 @@ impl Builder<'_> {
 
         let mut r = crate::model::Reaction::new(id, junction);
         r.mode = ReactionMode::Straight;
+        r.is_reversible = reversible;
         r.reactants = reactants
             .iter()
             .map(|(s, n)| Participant::new(s.as_str(), *n))
@@ -727,6 +738,25 @@ mod tests {
             f(&r.products),
             r.modifiers.iter().map(|p| p.species.clone()).collect(),
         )
+    }
+
+    #[test]
+    fn the_arrow_says_whether_a_reaction_is_reversible() {
+        let src = "model m\n  J1: A -> B; k*A\n  J2: B => C; k*B\n  J3: C <-> D; k*C\nend";
+        let m = ok(src, &OFF);
+        let rev = |id: &str| reaction(&m, id).is_reversible;
+        assert!(rev("J1"), "-> is reversible");
+        assert!(!rev("J2"), "=> is irreversible");
+        assert!(rev("J3"), "<-> is reversible");
+        // Written back with the same arrows, and read back the same.
+        let text = export(&m);
+        assert!(text.contains("J1: A -> B; k*A;"), "{text}");
+        assert!(text.contains("J2: B => C; k*B;"), "{text}");
+        assert!(text.contains("J3: C -> D; k*C;"), "{text}");
+        let again = ok(&text, &OFF);
+        for id in ["J1", "J2", "J3"] {
+            assert_eq!(reaction(&again, id).is_reversible, rev(id), "{id}");
+        }
     }
 
     #[test]
