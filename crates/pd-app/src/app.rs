@@ -2526,18 +2526,25 @@ k = 0.1",
             "the keyboard is still in the text box"
         );
         h.key(Key::S, Modifiers::COMMAND);
-        for _ in 0..3 {
-            h.run(vec![]);
-        }
-        let saved = std::fs::read_to_string(&path).expect("Save wrote the file");
-        assert!(saved.contains("\"texts\""), "{saved}");
-        assert!(saved.contains("Typed, not yet clicked away"));
-        assert!(
+        // Saving writes the file on another thread (files.rs), so wait for the
+        // notice that it has finished before reading it.
+        let saved_notice = |h: &Harness| {
             h.app
                 .notice
                 .as_deref()
                 .is_some_and(|n| n.starts_with("Saved"))
-        );
+        };
+        for _ in 0..500 {
+            h.run(vec![]);
+            if saved_notice(&h) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(saved_notice(&h), "Save finished");
+        let saved = std::fs::read_to_string(&path).expect("Save wrote the file");
+        assert!(saved.contains("\"texts\""), "{saved}");
+        assert!(saved.contains("Typed, not yet clicked away"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
