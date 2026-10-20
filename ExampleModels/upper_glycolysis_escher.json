@@ -17,10 +17,10 @@
         "junctionColor": "#00000000",
         "junctionVisible": true
       },
-      "x": 320.0,
-      "y": 340.0,
-      "w": 520.0,
-      "h": 600.0,
+      "x": 286.0,
+      "y": 331.5,
+      "w": 586.0,
+      "h": 617.0,
       "styleName": "Escher compartment"
     }
   ],
@@ -46,7 +46,7 @@
   "species": [
     {
       "id": "Glc",
-      "x": 200.0,
+      "x": 199.0,
       "y": 120.0,
       "w": 26.0,
       "h": 26.0,
@@ -73,7 +73,7 @@
     },
     {
       "id": "G6P",
-      "x": 200.0,
+      "x": 199.0,
       "y": 240.0,
       "w": 26.0,
       "h": 26.0,
@@ -100,7 +100,7 @@
     },
     {
       "id": "F6P",
-      "x": 200.0,
+      "x": 199.0,
       "y": 360.0,
       "w": 26.0,
       "h": 26.0,
@@ -127,7 +127,7 @@
     },
     {
       "id": "FBP",
-      "x": 200.0,
+      "x": 199.0,
       "y": 480.0,
       "w": 26.0,
       "h": 26.0,
@@ -154,7 +154,7 @@
     },
     {
       "id": "DHAP",
-      "x": 120.0,
+      "x": 119.0,
       "y": 580.0,
       "w": 26.0,
       "h": 26.0,
@@ -181,7 +181,7 @@
     },
     {
       "id": "GAP",
-      "x": 280.0,
+      "x": 279.0,
       "y": 580.0,
       "w": 26.0,
       "h": 26.0,
@@ -208,7 +208,7 @@
     },
     {
       "id": "ATP",
-      "x": 320.0,
+      "x": 319.0,
       "y": 160.0,
       "w": 16.0,
       "h": 16.0,
@@ -235,7 +235,7 @@
     },
     {
       "id": "ADP",
-      "x": 320.0,
+      "x": 319.0,
       "y": 200.0,
       "w": 16.0,
       "h": 16.0,
@@ -262,7 +262,7 @@
     },
     {
       "id": "ATP_2",
-      "x": 320.0,
+      "x": 319.0,
       "y": 400.0,
       "w": 16.0,
       "h": 16.0,
@@ -290,7 +290,7 @@
     },
     {
       "id": "ADP_2",
-      "x": 320.0,
+      "x": 319.0,
       "y": 440.0,
       "w": 16.0,
       "h": 16.0,
@@ -318,7 +318,7 @@
     },
     {
       "id": "HK",
-      "x": 480.0,
+      "x": 479.0,
       "y": 180.0,
       "w": 26.0,
       "h": 26.0,
@@ -345,7 +345,7 @@
     },
     {
       "id": "PGI",
-      "x": 480.0,
+      "x": 479.0,
       "y": 300.0,
       "w": 26.0,
       "h": 26.0,
@@ -372,7 +372,7 @@
     },
     {
       "id": "PFK",
-      "x": 480.0,
+      "x": 479.0,
       "y": 420.0,
       "w": 26.0,
       "h": 26.0,
@@ -399,7 +399,7 @@
     },
     {
       "id": "ALD",
-      "x": 480.0,
+      "x": 479.0,
       "y": 540.0,
       "w": 26.0,
       "h": 26.0,
@@ -428,7 +428,7 @@
   "reactions": [
     {
       "id": "hexokinase",
-      "jx": 200.0,
+      "jx": 199.0,
       "jy": 180.0,
       "kineticLaw": "HK*k1*Glc*ATP",
       "isReversible": false,
@@ -439,18 +439,18 @@
         {
           "id": "Glc",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 141.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 159.0,
           "ctrlSet": true
         },
         {
           "id": "ATP",
           "stoichiometry": 1.0,
-          "ctrl1x": 278.0,
+          "ctrl1x": 277.0,
           "ctrl1y": 167.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 137.42066228791248,
           "ctrlSet": true
         }
@@ -459,18 +459,18 @@
         {
           "id": "G6P",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 201.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 219.0,
           "ctrlSet": true
         },
         {
           "id": "ADP",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 222.57933771208752,
-          "ctrl2x": 278.0,
+          "ctrl2x": 277.0,
           "ctrl2y": 193.0,
           "ctrlSet": true
         }
@@ -497,7 +497,7 @@
     },
     {
       "id": "isomerase",
-      "jx": 200.0,
+      "jx": 199.0,
       "jy": 300.0,
       "kineticLaw": "PGI*k2*G6P",
       "isReversible": false,
@@ -508,9 +508,9 @@
         {
           "id": "G6P",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 261.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 279.0,
           "ctrlSet": true
         }
@@ -519,9 +519,9 @@
         {
           "id": "F6P",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 321.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 339.0,
           "ctrlSet": true
         }
@@ -548,7 +548,7 @@
     },
     {
       "id": "phosphofructokinase",
-      "jx": 200.0,
+      "jx": 199.0,
       "jy": 420.0,
       "kineticLaw": "PFK*k3*F6P*ATP",
       "isReversible": false,
@@ -559,18 +559,18 @@
         {
           "id": "F6P",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 381.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 399.0,
           "ctrlSet": true
         },
         {
           "id": "ATP_2",
           "stoichiometry": 1.0,
-          "ctrl1x": 278.0,
+          "ctrl1x": 277.0,
           "ctrl1y": 407.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 377.4206622879125,
           "ctrlSet": true
         }
@@ -579,18 +579,18 @@
         {
           "id": "FBP",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 441.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 459.0,
           "ctrlSet": true
         },
         {
           "id": "ADP_2",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 462.5793377120875,
-          "ctrl2x": 278.0,
+          "ctrl2x": 277.0,
           "ctrl2y": 433.0,
           "ctrlSet": true
         }
@@ -617,7 +617,7 @@
     },
     {
       "id": "aldolase",
-      "jx": 200.0,
+      "jx": 199.0,
       "jy": 540.0,
       "kineticLaw": "ALD*k4*FBP",
       "isReversible": false,
@@ -628,9 +628,9 @@
         {
           "id": "FBP",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 501.0,
-          "ctrl2x": 200.0,
+          "ctrl2x": 199.0,
           "ctrl2y": 519.0,
           "ctrlSet": true
         }
@@ -639,18 +639,18 @@
         {
           "id": "DHAP",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 571.304951684997,
-          "ctrl2x": 148.0,
+          "ctrl2x": 147.0,
           "ctrl2y": 566.0,
           "ctrlSet": true
         },
         {
           "id": "GAP",
           "stoichiometry": 1.0,
-          "ctrl1x": 200.0,
+          "ctrl1x": 199.0,
           "ctrl1y": 571.304951684997,
-          "ctrl2x": 252.0,
+          "ctrl2x": 251.0,
           "ctrl2y": 566.0,
           "ctrlSet": true
         }
@@ -679,7 +679,7 @@
   "texts": [
     {
       "id": "T1",
-      "x": 80.0,
+      "x": 79.0,
       "y": 72.0,
       "text": "Upper glycolysis",
       "size": 22.0,
