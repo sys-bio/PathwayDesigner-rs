@@ -232,15 +232,18 @@ fn a_junction_inside_a_dragged_compartment_moves_with_it() {
     v.set_bezier();
     v.toggle_smooth();
     v.handle(&ViewEvent::Cancel);
+    let s2_outer = v.model().find_reaction("R3").unwrap().products[0].ctrl2;
     drag(&mut v, pt(-100.0, 0.0), pt(-100.0, 50.0));
     assert_eq!(frame(&v, &c).center, pt(50.0, 50.0));
     let r = v.model().find_reaction("R3").unwrap();
     assert_eq!(r.junction, pt(150.0, 50.0));
     assert_eq!(v.model().find_species("S2").unwrap().center, pt(300.0, 0.0));
-    // The smooth handles were recomputed around the new junction.
+    // The inner handles were lined up round the new junction; B didn't move,
+    // so its outer handle stays where it was.
     let mut again = v.model().clone();
-    crate::bezier::apply_smooth_handles(&mut again, "R3");
+    crate::bezier::apply_smooth_inner_handles(&mut again, "R3");
     assert_eq!(again.find_reaction("R3"), v.model().find_reaction("R3"));
+    assert_eq!(r.products[0].ctrl2, s2_outer);
 }
 
 #[test]

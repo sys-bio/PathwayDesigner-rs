@@ -52,7 +52,7 @@ mod text_tests;
 mod theme_tests;
 mod tooltip;
 
-use crate::bezier::{Ctrl as HandleCtrl, apply_smooth_handles, store_auto_handles};
+use crate::bezier::{Ctrl as HandleCtrl, apply_smooth_inner_handles, store_auto_handles};
 use crate::geometry::{Pt, normalize, pt, screen_to_world, world_to_screen};
 use crate::model::{Id, Model, ReactionMode, Role};
 use crate::render::constants::{RUBBER_BAND, ZOOM_MAX, ZOOM_MIN};
@@ -1511,9 +1511,10 @@ impl DiagramView {
                 };
             }
         }
-        // A smooth junction that moved gets its handles recomputed (S §6.4).
+        // A smooth junction that moved gets its inner handles lined up again,
+        // its outer ones kept (S §6.4).
         for id in &drag.smooth {
-            apply_smooth_handles(&mut self.model, id);
+            apply_smooth_inner_handles(&mut self.model, id);
         }
     }
 

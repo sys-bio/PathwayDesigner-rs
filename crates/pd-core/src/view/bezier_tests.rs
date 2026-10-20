@@ -315,3 +315,91 @@ fn new_smooth_reactions_get_their_handles_at_once() {
     let c = leg_curve(v.model(), r, Role::Reactant, 0).unwrap();
     assert_eq!(c.p2, Ctrl::inner(Role::Reactant).get(&r.reactants[0]));
 }
+
+// ----- A smooth junction keeps hand-shaped outer handles (S §6.4, §7.5) -----
+
+/// The test view with a smooth junction, and A's outer handle pulled 60 up
+/// by hand. Returns the view and where that handle is.
+fn smooth_with_a_shaped_outer_handle() -> (DiagramView, Pt) {
+    let v = view();
+    let mut m = v.model().clone();
+    let id = m.reactions()[0].id.clone();
+    m.find_reaction_mut(&id).unwrap().junction_smooth = true;
+    crate::bezier::apply_smooth_handles(&mut m, &id);
+    let r = m.find_reaction_mut(&id).unwrap();
+    r.reactants[0].ctrl1 += pt(0.0, -60.0);
+    let shaped = r.reactants[0].ctrl1;
+    let mut v = DiagramView::new(m);
+    v.handle(&ViewEvent::Cancel);
+    (v, shaped)
+}
+
+fn select(v: &mut DiagramView, ids: &[&str]) {
+    v.handle(&ViewEvent::Cancel);
+    for id in ids {
+        v.select_item(&Target::Species((*id).into()), true);
+    }
+}
+
+/// Every inner handle is where a smooth junction puts it for the species'
+/// and junction's places now (S §7.4.4).
+fn inner_handles_are_smooth(v: &DiagramView) -> bool {
+    let r = reaction(v);
+    crate::bezier::smooth_handles(v.model(), r)
+        .into_iter()
+        .all(|(role, index, h)| {
+            let (c1, c2) = h.expect("long legs");
+            let p = &r.participants(role)[index];
+            match role {
+                crate::model::Role::Reactant => p.ctrl2.distance(c2) < 1e-9,
+                _ => p.ctrl1.distance(c1) < 1e-9,
+            }
+        })
+}
+
+#[test]
+fn dragging_a_whole_smooth_reaction_keeps_a_shaped_handle() {
+    let (mut v, shaped) = smooth_with_a_shaped_outer_handle();
+    let b_outer = reaction(&v).products[0].ctrl2;
+    let (a, b) = (
+        reaction(&v).reactants[0].species.clone(),
+        reaction(&v).products[0].species.clone(),
+    );
+    select(&mut v, &[&a, &b]);
+    drag(&mut v, pt(0.0, 0.0), pt(30.0, 20.0));
+    let d = pt(30.0, 20.0);
+    assert_eq!(reaction(&v).junction, pt(230.0, 20.0));
+    assert_eq!(
+        reaction(&v).reactants[0].ctrl1,
+        shaped + d,
+        "kept, moved with A"
+    );
+    assert_eq!(reaction(&v).products[0].ctrl2, b_outer + d);
+    assert!(inner_handles_are_smooth(&v));
+}
+
+#[test]
+fn nudging_species_of_a_smooth_reaction_keeps_a_shaped_handle() {
+    // One species: its outer handle goes with it, nothing else changes.
+    let (mut v, shaped) = smooth_with_a_shaped_outer_handle();
+    let before = reaction(&v).clone();
+    let a = before.reactants[0].species.clone();
+    select(&mut v, &[&a]);
+    v.nudge(pt(10.0, 0.0));
+    let r = reaction(&v);
+    assert_eq!(r.junction, before.junction);
+    assert_eq!(r.reactants[0].ctrl1, shaped + pt(10.0, 0.0));
+    assert_eq!(r.reactants[0].ctrl2, before.reactants[0].ctrl2);
+    assert_eq!(r.products[0], before.products[0]);
+
+    // Every species: the junction follows, the shaped handle is kept, and
+    // the inner handles are lined up again.
+    let (mut v, shaped) = smooth_with_a_shaped_outer_handle();
+    let b = reaction(&v).products[0].species.clone();
+    let a = reaction(&v).reactants[0].species.clone();
+    select(&mut v, &[&a, &b]);
+    v.nudge(pt(10.0, 5.0));
+    assert_eq!(reaction(&v).junction, pt(210.0, 5.0));
+    assert_eq!(reaction(&v).reactants[0].ctrl1, shaped + pt(10.0, 5.0));
+    assert!(inner_handles_are_smooth(&v));
+}

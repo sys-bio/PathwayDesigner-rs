@@ -555,12 +555,11 @@ impl DiagramView {
         response
     }
 
-    /// Passes species movements on to the reactions (S §7.5):
-    /// - if every reactant and product moved, the junction moves by the mean
-    ///   of their movements, stored handles move with the end they belong to,
-    ///   and a smooth junction gets its handles recomputed;
-    /// - if only some moved, the junction stays, and the moved participants of
-    ///   a Bézier reaction go back to automatic handles.
+    /// Passes species movements on to the reactions (S §7.5), as a drag does
+    /// (S §6.4): stored handles move with the end they belong to; if every
+    /// reactant and product moved, the junction moves by the mean of their
+    /// movements, and a smooth junction gets its inner handles lined up again
+    /// (its outer ones kept); if only some moved, the junction stays.
     pub(super) fn moved_species(&mut self, moved: &[(Id, Pt)]) {
         let delta_of = |id: &str| moved.iter().find(|(m, _)| m == id).map(|(_, d)| *d);
         let mut smooth = Vec::new();
@@ -592,16 +591,22 @@ impl DiagramView {
                 if r.mode == ReactionMode::Bezier && r.junction_smooth {
                     smooth.push(r.id.clone());
                 }
-            } else if r.mode == ReactionMode::Bezier {
-                for p in r.reactants.iter_mut().chain(&mut r.products) {
-                    if delta_of(&p.species).is_some() {
-                        p.ctrl_pts_set = false;
+            } else {
+                for (role, list) in [
+                    (Role::Reactant, &mut r.reactants),
+                    (Role::Product, &mut r.products),
+                ] {
+                    for p in list.iter_mut().filter(|p| p.ctrl_pts_set) {
+                        if let Some(own) = delta_of(&p.species) {
+                            let outer = Ctrl::outer(role);
+                            outer.set(p, outer.get(p) + own);
+                        }
                     }
                 }
             }
         }
         for id in smooth {
-            apply_smooth_handles(&mut self.model, &id);
+            crate::bezier::apply_smooth_inner_handles(&mut self.model, &id);
         }
     }
 }
@@ -751,7 +756,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_moves_reset_bezier_handles() {
+    fn partial_moves_carry_stored_handles() {
         let mut v = view();
         let mut m = v.model().clone();
         let r = m.find_reaction_mut("R4").unwrap();
@@ -760,13 +765,55 @@ mod tests {
             p.ctrl_pts_set = true;
         }
         v.set_model(m);
+        let before = v.model().find_reaction("R4").unwrap().clone();
+        let s2 = v.model().find_species("S2").unwrap().center;
         select_species(&mut v);
-        // Align Left moves S2 only (S1 is already at the left edge).
+        // Align Left moves S2 only (S1 is already at the left edge). As in a
+        // drag (S §6.4), S2's own (outer) handle moves with it and nothing
+        // else changes, so a curve shaped by hand keeps its shape.
         v.arrange(Arrange::Left);
+        let d = v.model().find_species("S2").unwrap().center - s2;
+        assert_ne!(d, Pt::ZERO);
         let r = v.model().find_reaction("R4").unwrap();
         assert_eq!(r.junction, pt(150.0, 20.0), "junction stays");
-        assert!(r.reactants[0].ctrl_pts_set, "S1 didn't move");
-        assert!(!r.products[0].ctrl_pts_set, "S2 moved: automatic again");
+        assert_eq!(r.reactants[0], before.reactants[0], "S1 didn't move");
+        let (p, q) = (&r.products[0], &before.products[0]);
+        assert!(p.ctrl_pts_set);
+        assert_eq!((p.ctrl1, p.ctrl2), (q.ctrl1, q.ctrl2 + d));
+    }
+
+    #[test]
+    fn aligning_a_whole_smooth_reaction_keeps_a_shaped_handle() {
+        let mut v = view();
+        let mut m = v.model().clone();
+        let r = m.find_reaction_mut("R4").unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.junction_smooth = true;
+        crate::bezier::apply_smooth_handles(&mut m, "R4");
+        let r = m.find_reaction_mut("R4").unwrap();
+        r.reactants[0].ctrl1 += pt(0.0, -60.0);
+        let shaped = r.reactants[0].ctrl1;
+        v.set_model(m);
+        let s1 = at(&v, "S1");
+        select_species(&mut v);
+        // Align Top moves S1 and S2 both (S3 is highest): the whole reaction.
+        v.arrange(Arrange::Top);
+        let d = at(&v, "S1") - s1;
+        assert_ne!(d, Pt::ZERO);
+        assert_ne!(at(&v, "S2").y, 40.0);
+        let r = v.model().find_reaction("R4").unwrap();
+        assert_eq!(r.reactants[0].ctrl1, shaped + d, "kept, moved with S1");
+        // The inner handles are where a smooth junction puts them now.
+        for (role, index, h) in crate::bezier::smooth_handles(v.model(), r) {
+            let (c1, c2) = h.unwrap();
+            let p = &r.participants(role)[index];
+            let inner = if role == Role::Reactant {
+                (p.ctrl2, c2)
+            } else {
+                (p.ctrl1, c1)
+            };
+            assert!(inner.0.distance(inner.1) < 1e-9, "{role:?}");
+        }
     }
 
     /// The test view plus R5: S1 → S3 with its junction at (50,-80).

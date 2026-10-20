@@ -898,7 +898,10 @@ the mouse-down point. In addition:
 - Stored Bézier handles move with the end they belong to. A species-side handle
   moves if its species moved. A junction-side handle moves if its junction moved.
 - A smooth-junction reaction whose junction moved has its handles recomputed
-  (§7.4.4).
+  (§7.4.4). *(Rust version:)* only its inner (junction-side) handles; stored outer
+  handles, the user's shaping, keep the place they moved to. The reference
+  recomputed every handle, so a curve shaped by hand sprang back whenever a whole
+  reaction was moved.
 - Positions MUST be computed as *original position + current delta*, never by adding
   small increments, so rounding errors don't build up.
 - **Locked nodes MUST NOT move.** A locked species stays where it is even when it is
@@ -1156,9 +1159,12 @@ The changes are then passed on to the reactions:
   - The junction moves by the mean of the participants' movements.
   - Stored handles move: species-side handles by their own species' movement,
     junction-side handles by the junction's movement.
-  - Smooth reactions have their handles recomputed.
-- **If only some participants moved:** the junction stays where it is, and the moved
-  participants of a Bézier reaction are reset to automatic handles.
+  - Smooth reactions have their inner handles lined up again; stored outer handles
+    are kept *(Rust version, as §6.4)*.
+- **If only some participants moved:** the junction stays where it is. *(Rust
+  version:)* stored handles move with the species they belong to, as in a drag
+  (§6.4); the reference reset the moved participants of a Bézier reaction to
+  automatic handles, losing their shape.
 - **A selected junction** then goes to its own new position, moving as a junction
   drag does (a smooth junction's inner handles go with it).
 

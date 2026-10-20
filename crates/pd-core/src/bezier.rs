@@ -250,6 +250,33 @@ pub fn apply_smooth_handles(model: &mut Model, id: &str) {
     }
 }
 
+/// Lines up the inner (junction-side) handles of smooth reaction `id` again
+/// after something moved (S §6.4, §7.5), keeping each stored outer handle:
+/// the outer handles are the user's shaping, and only the inner ones make
+/// the junction smooth. A leg with automatic handles is given both.
+pub fn apply_smooth_inner_handles(model: &mut Model, id: &str) {
+    let Some(r) = model.find_reaction(id) else {
+        return;
+    };
+    let handles = smooth_handles(model, r);
+    let r = model.find_reaction_mut(id).expect("found above");
+    for (role, index, h) in handles {
+        let p = &mut r.participants_mut(role)[index];
+        match h {
+            Some((c1, c2)) if p.ctrl_pts_set => match role {
+                Role::Reactant => p.ctrl2 = c2,
+                _ => p.ctrl1 = c1,
+            },
+            Some((c1, c2)) => {
+                p.ctrl1 = c1;
+                p.ctrl2 = c2;
+                p.ctrl_pts_set = true;
+            }
+            None => p.ctrl_pts_set = false,
+        }
+    }
+}
+
 /// Gives participant `index` of `role` stored handles at its automatic
 /// positions, if it doesn't have stored ones yet (S §6.4: handles are saved
 /// on the first grab, so the other one never jumps).
