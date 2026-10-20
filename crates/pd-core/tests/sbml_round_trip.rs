@@ -398,3 +398,58 @@ fn a_reactant_drawn_as_an_alias_gets_no_modifier_line() {
     assert_eq!(drawn.primary_id(), s);
     assert!(close(drawn.center, Pt { x: 0.0, y: 200.0 }));
 }
+
+/// An alias listed before its species (E4 F2): export writes the species'
+/// glyph first, and import takes the glyph named after the species as the
+/// species whatever the order, so both keep their ids and places.
+#[test]
+fn an_alias_listed_first_keeps_its_role() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ExampleModels/repressilator.json");
+    let m = from_json(&fs::read_to_string(path).unwrap()).unwrap().model;
+    let order: Vec<&str> = m.species().iter().map(|s| s.id.as_str()).collect();
+    let (alias, main) = (
+        order.iter().position(|&s| s == "CI_2").unwrap(),
+        order.iter().position(|&s| s == "CI").unwrap(),
+    );
+    assert!(alias < main, "the file lists the alias first");
+    let xml = sbml::export(&m).xml;
+    let at = |id: &str| xml.find(&format!("layout:id=\"{id}\"")).unwrap();
+    assert!(at("sg_CI") < at("sg_CI_2"));
+
+    let check = |xml: &str| {
+        let back = sbml::import(xml, &OPTS).unwrap().model;
+        let (ci, ci2) = (
+            back.find_species("CI").unwrap(),
+            back.find_species("CI_2").unwrap(),
+        );
+        assert!(!ci.is_alias() && ci2.alias_of.as_deref() == Some("CI"));
+        assert!(close(ci.center, m.find_species("CI").unwrap().center));
+        assert!(close(ci2.center, m.find_species("CI_2").unwrap().center));
+        let decay = back.find_reaction("decay_CI").unwrap();
+        assert_eq!(decay.reactants[0].species, "CI");
+        assert!(decay.modifiers.is_empty());
+        let lac = back.find_reaction("transcribe_lacI").unwrap();
+        assert_eq!(lac.modifiers[0].species, "CI_2");
+    };
+    check(&xml);
+    // The same file with the alias's glyph moved first, as another tool might
+    // write it.
+    let glyph = |id: &str| {
+        let start = xml[..at(id)].rfind('<').unwrap();
+        let end = start
+            + xml[start..].find("</layout:speciesGlyph>").unwrap()
+            + "</layout:speciesGlyph>".len();
+        (start, end)
+    };
+    let (a0, a1) = glyph("sg_CI_2");
+    let (m0, _) = glyph("sg_CI");
+    let moved = format!(
+        "{}{}{}{}",
+        &xml[..m0],
+        &xml[a0..a1],
+        &xml[m0..a0],
+        &xml[a1..]
+    );
+    assert!(moved.find("\"sg_CI_2\"").unwrap() < moved.find("\"sg_CI\"").unwrap());
+    check(&moved);
+}

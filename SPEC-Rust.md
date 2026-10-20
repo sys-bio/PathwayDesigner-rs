@@ -873,7 +873,8 @@ replace `sbml-io` behind the same bridge.
   parameters as `initialAssignment`, reactions with `modifierSpeciesReference` (D-10),
   assignment rules, and rate laws as MathML.
 - **Layout:**
-  - one glyph for every node, aliases included;
+  - one glyph for every node, aliases included, each species' own glyph
+    (`sg_<id>`) before its aliases';
   - curves that start and end on node borders;
   - `basePoint1 = ctrl1` and `basePoint2 = ctrl2` on both reactant and product legs,
     with no swapping (S §11.5);
@@ -889,7 +890,9 @@ replace `sbml-io` behind the same bridge.
   - the reaction glyph gives the junction;
   - each species-reference curve's base points become `ctrl1` and `ctrl2` (as stored,
     no swapping), `ctrlPtsSet = true` and mode `Bezier`;
-  - a second species glyph for a species that already has one becomes an **alias**;
+  - a species has one glyph that draws it, the one named `sg_<id>` if there is
+    one, or else the first; each other glyph of it becomes an **alias**, named
+    after its glyph (`sg_<alias>`) when that name is free;
   - only things with no glyph are placed by auto-layout.
 
   This means files written by the Rust app or the Delphi app load back with their

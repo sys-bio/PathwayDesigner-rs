@@ -351,6 +351,21 @@ impl Builder {
     ) -> (HashMap<String, String>, HashMap<String, NullPlace>) {
         let mut glyph_node = HashMap::new();
         let mut nulls = HashMap::new();
+        // Which of a species' glyphs draws the species itself, the others
+        // being aliases: the one this app names `sg_<id>` if there is one,
+        // or else the first.
+        let mut main_glyph: HashMap<&str, &str> = HashMap::new();
+        for g in &l.species_glyphs {
+            if positioned(g.bounding_box.as_ref()).is_none() {
+                continue;
+            }
+            if let Some(species) = g.species.as_deref() {
+                let named = g.id.strip_prefix("sg_") == Some(species);
+                if named || !main_glyph.contains_key(species) {
+                    main_glyph.insert(species, g.id.as_str());
+                }
+            }
+        }
         let mut placed: HashSet<String> = HashSet::new();
         // Glyphs whose note says the name is outside.
         let mut outside: HashSet<String> = HashSet::new();
@@ -385,7 +400,8 @@ impl Builder {
                 );
                 continue;
             };
-            if placed.insert(species.to_owned()) {
+            if main_glyph.get(species) == Some(&g.id.as_str()) && placed.insert(species.to_owned())
+            {
                 let node = self.model.find_species_mut(species).expect("checked above");
                 (node.center, node.width, node.height) = (center, w, h);
                 (node.shape, node.border_dash) = (look.shape, look.border_dash);

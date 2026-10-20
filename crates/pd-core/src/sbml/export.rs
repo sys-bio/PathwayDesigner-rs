@@ -417,10 +417,17 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         ..Default::default()
     };
 
-    // One glyph per node, aliases included. A null node's glyph names no
-    // species, so its place survives a round trip.
+    // One glyph per node, aliases included, each species' own glyph before its
+    // aliases' (a reader taking the first glyph of a species as the species
+    // gets it right). A null node's glyph names no species, so its place
+    // survives a round trip.
     let mut glyph_of: HashMap<&str, String> = HashMap::new();
-    for s in model.species() {
+    let nodes = model.species();
+    let in_order = nodes
+        .iter()
+        .filter(|s| !s.is_alias())
+        .chain(nodes.iter().filter(|s| s.is_alias()));
+    for s in in_order {
         let id = ids.unique(format!("sg_{}", s.id));
         glyph_of.insert(&s.id, id.clone());
         let mut glyph = sb::SpeciesGlyph {
