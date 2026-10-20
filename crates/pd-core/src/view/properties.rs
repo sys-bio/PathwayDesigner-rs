@@ -349,6 +349,45 @@ impl DiagramView {
         )
     }
 
+    /// Makes the names of the selected species (`species`), or of the
+    /// selected reactions, bold or not (S §5.11.1). One undo step.
+    pub fn set_name_bold(&mut self, species: bool, bold: bool) -> ViewResponse {
+        self.name_face_edit(species, move |s| s.label_bold = bold)
+    }
+
+    /// Makes the names of the selected species (`species`), or of the
+    /// selected reactions, italic or not (S §5.11.1). One undo step.
+    pub fn set_name_italic(&mut self, species: bool, italic: bool) -> ViewResponse {
+        self.name_face_edit(species, move |s| s.label_italic = italic)
+    }
+
+    fn name_face_edit(&mut self, species: bool, change: impl Fn(&mut VisualStyle)) -> ViewResponse {
+        let change = |s: &mut VisualStyle| {
+            change(s);
+            s.has_custom_style = true;
+        };
+        if species {
+            self.style_edit(change, |_| {}, true, false)
+        } else {
+            self.style_edit(|_| {}, change, false, true)
+        }
+    }
+
+    /// Whether every selected species' (`species`) or reaction's name is
+    /// bold, and whether every one is italic; `(false, false)` with none
+    /// selected.
+    pub fn selected_names_bold_italic(&self, species: bool) -> (bool, bool) {
+        let styles: Vec<VisualStyle> = if species {
+            self.model.selected_species().map(|s| s.style).collect()
+        } else {
+            self.model.selected_reactions().map(|r| r.style).collect()
+        };
+        let all = |f: fn(&VisualStyle) -> bool| {
+            !styles.is_empty() && styles.iter().all(|s| s.has_custom_style && f(s))
+        };
+        (all(|s| s.label_bold), all(|s| s.label_italic))
+    }
+
     /// Sets the name size of every selected reaction (0 means the default,
     /// 12). One undo step (S §5.12).
     pub fn set_reaction_font_size(&mut self, size: f64) -> ViewResponse {

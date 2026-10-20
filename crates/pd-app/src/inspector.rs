@@ -273,6 +273,9 @@ impl Inspector {
                         ui.label("Font size");
                         self.number(ui, view, Field::FontSize, true, "");
                         ui.end_row();
+                        ui.label("Font");
+                        name_face(ui, view, true);
+                        ui.end_row();
 
                         // Inside the node or beside it, for every selected
                         // species (S §5.11).
@@ -468,6 +471,9 @@ impl Inspector {
                         }
                         ui.label("Font size");
                         self.number(ui, view, Field::ReactionFontSize, true, "");
+                        ui.end_row();
+                        ui.label("Font");
+                        name_face(ui, view, false);
                         ui.end_row();
                         ui.label("Id colour");
                         self.swatch(ui, view, ColourField::ReactionLabel);
@@ -1306,6 +1312,22 @@ fn optional_number(
         t.parse::<f64>().ok().filter(|v| v.is_finite()).map(Some)
     };
     new.filter(|n| *n != value)
+}
+
+/// Bold and Italic for the names of the selected species (`species`) or
+/// reactions (S §5.11.1): ticked when every one is.
+fn name_face(ui: &mut egui::Ui, view: &mut DiagramView, species: bool) {
+    let (bold, italic) = view.selected_names_bold_italic(species);
+    ui.horizontal(|ui| {
+        let mut b = bold;
+        if ui.checkbox(&mut b, "Bold").changed() {
+            view.set_name_bold(species, b);
+        }
+        let mut i = italic;
+        if ui.checkbox(&mut i, "Italic").changed() {
+            view.set_name_italic(species, i);
+        }
+    });
 }
 
 #[cfg(test)]

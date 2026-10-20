@@ -346,6 +346,11 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 14: bold and italic names (S §5.11.1).** A species' or reaction's
+style object, and a saved style's, may have `"bold": true` and `"italic": true`,
+after `junctionVisible`; left out when false. A document with a
+bold or italic name, in an item or in a saved style, is version 14.
+
 **Version 13: hidden modifier lines (S §7.6).** A top-level
 `"modifierLines": false`, after `background`, when the diagram's modifier lines
 are hidden; left out when they are shown. A document with it is version 13.

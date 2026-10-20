@@ -21,8 +21,11 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that saved a diagram's modifier lines being hidden (S §7.6).
-pub const FORMAT_VERSION: u32 = 13;
+/// one that brought bold and italic names (S §5.11.1).
+pub const FORMAT_VERSION: u32 = 14;
+
+/// The version that saved a diagram's modifier lines being hidden (S §7.6).
+pub const HIDDEN_MODIFIERS_VERSION: u32 = 13;
 
 /// The version that brought modifier lines' own looks (S §5.7.2).
 pub const MODIFIER_LOOK_VERSION: u32 = 12;
@@ -57,7 +60,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 13 if its modifier lines are hidden (S §7.6), 12 if a
+/// (SPEC-Rust §4.2): 14 if a name is bold or italic (S §5.11.1), 13 if its
+/// modifier lines are hidden (S §7.6), 12 if a
 /// modifier line has its own look (S §5.7.2),
 /// 11 if a modifier has a kind or corner points
 /// (S §5.7.1), 10 if a
@@ -80,8 +84,17 @@ pub fn needed_version(model: &Model) -> u32 {
         .reactions()
         .iter()
         .any(|r| r.modifiers.iter().any(|m| !m.look.is_default()));
-    if model.hide_modifier_lines {
+    let styled_name = |s: &VisualStyle| s.has_custom_style && (s.label_bold || s.label_italic);
+    let name_fonts = model.species().iter().any(|s| styled_name(&s.style))
+        || model.reactions().iter().any(|r| styled_name(&r.style))
+        || model.styles.iter().any(|st| match &st.look {
+            Look::Species { style, .. } | Look::Reaction { style } => styled_name(style),
+            _ => false,
+        });
+    if name_fonts {
         FORMAT_VERSION
+    } else if model.hide_modifier_lines {
+        HIDDEN_MODIFIERS_VERSION
     } else if looks {
         MODIFIER_LOOK_VERSION
     } else if kinds {
@@ -548,6 +561,12 @@ struct FileStyle {
     junction_color: Rgba,
     #[serde(default = "yes")]
     junction_visible: bool,
+    /// Version 14: a species' or reaction's name in bold, in italic
+    /// (S §5.11.1). Left out when not.
+    #[serde(default, skip_serializing_if = "is_false")]
+    bold: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    italic: bool,
 }
 
 fn one() -> f64 {
@@ -1091,6 +1110,8 @@ fn style_from_file(s: Option<FileStyle>) -> VisualStyle {
             junction_color: s.junction_color,
             junction_visible: s.junction_visible,
             no_border: false,
+            label_bold: s.bold,
+            label_italic: s.italic,
         },
     }
 }
@@ -1365,6 +1386,8 @@ fn style_to_file(s: &VisualStyle) -> FileStyle {
         font_size: s.font_size,
         junction_color: s.junction_color,
         junction_visible: s.junction_visible,
+        bold: s.has_custom_style && s.label_bold,
+        italic: s.has_custom_style && s.label_italic,
     }
 }
 
@@ -1611,7 +1634,7 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 14, "species": [ { "id": "A", "glow": true } ] }"#;
+        let text = r#"{ "version": 15, "species": [ { "id": "A", "glow": true } ] }"#;
         let loaded = from_json(text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);

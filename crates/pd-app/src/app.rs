@@ -2264,6 +2264,28 @@ mod tests {
     }
 
     #[test]
+    fn bold_and_italic_names_from_the_panel() {
+        use pd_core::view::Target;
+        let mut h = Harness::new();
+        let id = h.app.view.model().species()[0].id.clone();
+        h.app.view.select_item(&Target::Species(id.clone()), false);
+        h.run(vec![]);
+        h.run(vec![]);
+        h.click(h.widget("Bold"));
+        h.run(vec![]);
+        let style = |h: &Harness| h.app.view.model().find_species(&id).unwrap().style;
+        assert!(style(&h).label_bold);
+        assert!(!style(&h).label_italic);
+        h.click(h.widget("Italic"));
+        h.run(vec![]);
+        assert!(style(&h).label_italic);
+        // Ticked now, so a click unticks it.
+        h.click(h.widget("Bold"));
+        h.run(vec![]);
+        assert!(!style(&h).label_bold);
+    }
+
+    #[test]
     fn modifier_kinds_from_the_panel_and_the_menu() {
         use pd_core::model::ModifierKind;
         use pd_core::view::Target;

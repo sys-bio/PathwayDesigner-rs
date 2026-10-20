@@ -569,8 +569,8 @@ impl DiagramView {
     /// label. A name drawn outside its node instead keeps its edge nearer the
     /// node where it was (S §5.11). One undo step.
     pub fn rename(&mut self, id: &str, new: &str) -> Result<ViewResponse, RenameError> {
-        use crate::render::draw::{label_size, width_for_name};
-        use crate::text::text_width;
+        use crate::render::draw::{label_size, name_font, width_for_name};
+        use crate::text::text_width_in;
         let before = self.model.clone();
         let old = self
             .model
@@ -586,8 +586,8 @@ impl DiagramView {
                 continue;
             }
             if let (Some(o), Some(old)) = (s.label_offset, &old) {
-                let size = label_size(s);
-                let grow = text_width(new, size) - text_width(old, size);
+                let (size, font) = (label_size(s), name_font(&s.style));
+                let grow = text_width_in(font, new, size) - text_width_in(font, old, size);
                 // Right of the node it grows right, left of it left;
                 // straight above or below, both ways.
                 let side = if o.x == 0.0 { 0.0 } else { o.x.signum() };

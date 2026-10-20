@@ -69,6 +69,10 @@ pub struct VisualStyle {
     /// `border_width` says. Added in the Rust version; applies even without
     /// `has_custom_style`, and is saved outside the style object.
     pub no_border: bool,
+    /// A species' or reaction's name in bold, and in italic (S §5.11.1).
+    /// Added in the Rust version; used with `has_custom_style`.
+    pub label_bold: bool,
+    pub label_italic: bool,
 }
 
 impl VisualStyle {
@@ -108,6 +112,8 @@ impl Default for VisualStyle {
             junction_color: Rgba::DEFAULT,
             junction_visible: true,
             no_border: false,
+            label_bold: false,
+            label_italic: false,
         }
     }
 }

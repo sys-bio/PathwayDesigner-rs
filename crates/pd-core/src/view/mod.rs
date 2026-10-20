@@ -28,6 +28,8 @@ mod label_tests;
 mod modifier_line_tests;
 mod modifier_lines;
 #[cfg(test)]
+mod name_face_tests;
+#[cfg(test)]
 mod participant_tests;
 mod participants;
 mod properties;

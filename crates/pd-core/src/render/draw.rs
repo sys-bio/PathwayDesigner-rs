@@ -11,7 +11,7 @@ use crate::model::{
 };
 use crate::render::constants::*;
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
-use crate::text::{font_metrics, font_metrics_in, text_width};
+use crate::text::{font_metrics, font_metrics_in, text_width, text_width_in};
 use crate::textbox::{lay_out, text_box};
 
 /// What to draw and where.
@@ -183,7 +183,17 @@ pub fn species_corners(s: &SpeciesNode) -> [Pt; 4] {
 /// The width that fits a species' name: the label, as drawn, and
 /// [`FIT_MARGIN`] each side (S §7.10).
 pub fn width_for_name(s: &SpeciesNode) -> f64 {
-    text_width(s.primary_id(), label_size(s)) + 2.0 * FIT_MARGIN
+    text_width_in(name_font(&s.style), s.primary_id(), label_size(s)) + 2.0 * FIT_MARGIN
+}
+
+/// The face a species' or reaction's name is drawn in (S §5.11.1): the
+/// bundled sans-serif, bold and italic as its style says.
+pub fn name_font(style: &VisualStyle) -> TextFont {
+    custom(style).map_or_else(TextFont::default, |s| TextFont {
+        bold: s.label_bold,
+        italic: s.label_italic,
+        ..TextFont::default()
+    })
 }
 
 /// The size a species' name is drawn at.
@@ -197,12 +207,8 @@ pub fn label_size(s: &SpeciesNode) -> f64 {
 /// and for a null node. Returns (min, max).
 pub fn outside_label_box(s: &SpeciesNode) -> Option<(Pt, Pt)> {
     let offset = s.label_offset.filter(|_| !s.is_null_node)?;
-    let size = label_size(s);
-    let m = font_metrics(size);
-    let half = pt(
-        text_width(s.primary_id(), size) / 2.0 + LABEL_BOX_PAD,
-        (m.ascent - m.descent) / 2.0 + LABEL_BOX_PAD,
-    );
+    let half = name_half(s.primary_id(), label_size(s), name_font(&s.style))
+        + pt(LABEL_BOX_PAD, LABEL_BOX_PAD);
     let c = s.center + offset;
     Some((c - half, c + half))
 }
@@ -278,20 +284,31 @@ fn clearest_direction(lines: &[Pt]) -> Pt {
 /// the change in the name's width and height, along the axes of the side
 /// it is on (to the nearest eighth of a turn), so the gap between the name
 /// and the node stays the same.
-pub fn label_offset_resized(s: &SpeciesNode, offset: Pt, old_size: f64) -> Pt {
-    name_offset_resized(s.primary_id(), offset, old_size, label_size(s))
+pub fn label_offset_resized(s: &SpeciesNode, offset: Pt, old: (f64, TextFont)) -> Pt {
+    name_offset_resized(
+        s.primary_id(),
+        offset,
+        old,
+        (label_size(s), name_font(&s.style)),
+    )
 }
 
 /// [`label_offset_resized`] for a reaction's name (S §5.12), from its
 /// junction.
-pub fn reaction_label_offset_resized(r: &Reaction, offset: Pt, old_size: f64) -> Pt {
-    name_offset_resized(&r.id, offset, old_size, reaction_label_size(r))
+pub fn reaction_label_offset_resized(r: &Reaction, offset: Pt, old: (f64, TextFont)) -> Pt {
+    name_offset_resized(
+        &r.id,
+        offset,
+        old,
+        (reaction_label_size(r), name_font(&r.style)),
+    )
 }
 
-/// A name `text` at `offset`, `old_size` high and now `new_size`, moved by
-/// half the change in its width and height along the axes of its side.
-fn name_offset_resized(text: &str, offset: Pt, old_size: f64, new_size: f64) -> Pt {
-    let grow = name_half(text, new_size) - name_half(text, old_size);
+/// A name `text` at `offset`, drawn at size and in face `old` and now `new`,
+/// moved by half the change in its width and height along the axes of its
+/// side.
+fn name_offset_resized(text: &str, offset: Pt, old: (f64, TextFont), new: (f64, TextFont)) -> Pt {
+    let grow = name_half(text, new.0, new.1) - name_half(text, old.0, old.1);
     let eighth = std::f64::consts::FRAC_PI_4;
     let a = (offset.y.atan2(offset.x) / eighth).round() * eighth;
     // A cosine of 6e-17 is zero: the name is centred along that axis.
@@ -305,15 +322,18 @@ fn name_offset_resized(text: &str, offset: Pt, old_size: f64, new_size: f64) -> 
 fn label_offset_towards(s: &SpeciesNode, d: Pt) -> Pt {
     beside(
         pt(s.width / 2.0, s.height / 2.0),
-        name_half(s.primary_id(), label_size(s)),
+        name_half(s.primary_id(), label_size(s), name_font(&s.style)),
         d,
     )
 }
 
-/// Half the width and height of `text` drawn at `size`.
-fn name_half(text: &str, size: f64) -> Pt {
-    let m = font_metrics(size);
-    pt(text_width(text, size) / 2.0, (m.ascent - m.descent) / 2.0)
+/// Half the width and height of `text` drawn at `size` in `font`.
+fn name_half(text: &str, size: f64, font: TextFont) -> Pt {
+    let m = font_metrics_in(font, size);
+    pt(
+        text_width_in(font, text, size) / 2.0,
+        (m.ascent - m.descent) / 2.0,
+    )
 }
 
 /// The offset of a name `label_half` in half-size from the centre of a box
@@ -349,7 +369,8 @@ pub fn reaction_label_colour(r: &Reaction) -> Rgba {
 /// (S §5.12). `None` when the name isn't shown. Returns (min, max).
 pub fn reaction_label_box(model: &Model, r: &Reaction) -> Option<(Pt, Pt)> {
     let offset = r.label_offset?;
-    let half = name_half(&r.id, reaction_label_size(r)) + pt(LABEL_BOX_PAD, LABEL_BOX_PAD);
+    let half = name_half(&r.id, reaction_label_size(r), name_font(&r.style))
+        + pt(LABEL_BOX_PAD, LABEL_BOX_PAD);
     let c = effective_junction(model, r) + offset;
     Some((c - half, c + half))
 }
@@ -397,7 +418,7 @@ pub fn clear_reaction_label_offset(model: &Model, r: &Reaction) -> Pt {
     let clear = JUNCTION_RADIUS + reaction_line_width(r) / 2.0;
     beside(
         pt(clear, clear),
-        name_half(&r.id, reaction_label_size(r)),
+        name_half(&r.id, reaction_label_size(r), name_font(&r.style)),
         clearest_direction(&lines),
     )
 }
@@ -1070,7 +1091,7 @@ impl Drawer<'_> {
                 self.to_screen(node.center + node.label_offset.unwrap_or(Pt::ZERO)),
                 node.primary_id(),
                 size as f32,
-                TextFont::default(),
+                name_font(&node.style),
                 color,
             );
         }
@@ -1390,7 +1411,7 @@ impl Drawer<'_> {
                 self.to_screen(effective_junction(self.model, r) + offset),
                 &r.id,
                 size as f32,
-                TextFont::default(),
+                name_font(&r.style),
                 reaction_label_colour(r),
             );
         }

@@ -713,7 +713,7 @@ own setting.
   the species glyph's box, as other tools write it; it is then drawn at that
   centre. Antimony has no layout.
 
-#### 5.11.1 Bold and italic names (Rust version, planned)
+#### 5.11.1 Bold and italic names (Rust version)
 
 *Added in the Rust version; designed with the user.* A species' name and a
 reaction's name (§5.12) may each be **bold**, **italic** or both, in the bundled
@@ -722,23 +722,26 @@ which draws names as now.
 
 - **Measured in their face.** Everything that measures a name uses the face it is
   drawn in: the name's box (hit-testing, the selection outline, placing a name
-  clear of lines), Fit to Name (§7.10), a node widened on rename (§7.1), and a
-  name outside its node keeping its gap when its face changes (as when its size
-  does, §5.11).
+  clear of lines), Fit to Name (§7.10), a node widened or a name outside moved on
+  rename (§7.1), and a theme keeping a name outside at its gap when the theme
+  changes its size or face (§8.7). Bold Noto is a little wider than regular and
+  italic a little narrower. Bold and italic only count with a custom style, like
+  every other style field (§3.6).
 - **Part of the look.** Bold and italic belong to an item's look like its font
   size and label colour: saved styles (§8.6), Copy Style and Paste Style (§8.5)
   and themes (§8.7) carry them, and an item follows a style only while its bold
   and italic match it.
-- **The panel.** The Species group and the Reaction group each get **Bold** and
-  **Italic** tick boxes beside Font size; for several selected items a box is
+- **The panel.** The Species group and the Reaction group each get a **Font** row,
+  under Font size, with **Bold** and **Italic** tick boxes; for several selected items a box is
   ticked when all of them are (as Reversible is), and ticking sets all of them.
-  One undo step each: "Bold Name", "Italic Name".
+  Each is one undo step, "Style", as Font size is; an item following a saved
+  style stops following it when its face no longer matches.
 - **Files.** JSON version 14: an item's or a saved style's style object may have
   `"bold": true` and `"italic": true`, left out when false. SBML: the species
   glyph's note (§11.5) and the reaction glyph's note get `nameBold="true"` and
   `nameItalic="true"`. Antimony has no looks.
-- **Steps.** 1: the model, measuring, drawing, panel, styles and JSON. 2: the
-  Escher theme (§8.7). 3: SBML.
+- **Steps.** 1 (done): the model, measuring, drawing, panel, styles and JSON.
+  2: the Escher theme (§8.7). 3: SBML.
 
 ### 5.12 Reaction names
 

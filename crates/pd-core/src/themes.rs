@@ -233,17 +233,17 @@ fn theme_item(model: &mut Model, theme: Theme, kind: StyleKind, id: &str) {
         return;
     };
     // A name already outside (one taken outside now is placed at its new
-    // size) and now a different size keeps its gap from the node, so a
-    // bigger one doesn't overlap it. The same for a reaction's name.
+    // size) and now a different size or face keeps its gap from the node, so
+    // a bigger one doesn't overlap it. The same for a reaction's name.
     let was_outside = match kind {
         StyleKind::Species => model
             .find_species(id)
             .filter(|s| s.label_offset.is_some())
-            .map(draw::label_size),
+            .map(|s| (draw::label_size(s), draw::name_font(&s.style))),
         StyleKind::Reaction => model
             .find_reaction(id)
             .filter(|r| r.label_offset.is_some())
-            .map(draw::reaction_label_size),
+            .map(|r| (draw::reaction_label_size(r), draw::name_font(&r.style))),
         _ => None,
     };
     styles::give_look(model, id, &look);
