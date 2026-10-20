@@ -873,8 +873,9 @@ replace `sbml-io` behind the same bridge.
   parameters as `initialAssignment`, reactions with `modifierSpeciesReference` (D-10),
   assignment rules, and rate laws as MathML.
 - **Layout:**
-  - a box for every compartment but the default one: a compartment without one
-    is given the box the app fits when the model is opened (S §7.9);
+  - a box for every shown compartment but the default one: a compartment
+    without one is given the box the app fits when the model is opened; a hidden
+    compartment gets no box, so no other tool draws it (S §7.9);
   - one glyph for every node, aliases included, each species' own glyph
     (`sg_<id>`) before its aliases';
   - curves that start and end on node borders;

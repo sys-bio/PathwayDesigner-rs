@@ -31,13 +31,14 @@ pub struct Exported {
 
 /// Writes the model as SBML (S §11.5).
 pub fn export(model: &Model) -> Exported {
-    // A compartment without a box yet is written with the box the app gives
-    // it when the model is opened (S §7.9), so the file shows what is seen.
+    // A shown compartment without a box yet is written with the box the app
+    // gives it when the model is opened (S §7.9), so the file shows what is
+    // seen.
     let fitted;
     let model = if model
         .compartments
         .iter()
-        .any(|c| c.frame.is_none() && !c.is_default())
+        .any(|c| c.frame.is_none() && !c.hidden && !c.is_default())
     {
         let mut m = model.clone();
         crate::compartments::place_unplaced(&mut m);
@@ -470,8 +471,10 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         }
     }
 
-    // Drawn compartments (S §7.9), with a note for a custom style.
-    for c in &model.compartments {
+    // Drawn compartments (S §7.9), with a note for a custom style. A hidden
+    // one gets no box, so no reader draws it; import reads a compartment the
+    // layout doesn't draw as hidden.
+    for c in model.compartments.iter().filter(|c| !c.hidden) {
         let Some(f) = c.frame else { continue };
         let mut g = sb::CompartmentGlyph {
             id: ids.unique(format!("cg_{}", c.id)),

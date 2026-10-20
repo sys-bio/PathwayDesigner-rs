@@ -305,13 +305,16 @@ fn compartment_boxes_and_styles_come_back() {
     assert_eq!(back.find_species(&s).unwrap().compartment, id);
     assert!(!b.hidden);
 
-    // A hidden box comes back hidden, in its place.
+    // A hidden box is not written, so no other reader draws it; it comes
+    // back hidden, its box to be fitted again if it is shown.
     m.find_compartment_mut(&id).unwrap().hidden = true;
-    let back = sbml::import(&sbml::export(&m).xml, &OPTS).unwrap().model;
+    let xml = sbml::export(&m).xml;
+    assert!(!xml.contains("compartmentGlyph"), "{xml}");
+    let back = sbml::import(&xml, &OPTS).unwrap().model;
     let b = back.find_compartment(&id).unwrap();
-    assert!(b.hidden);
-    assert_eq!(b.frame, m.find_compartment(&id).unwrap().frame);
-    assert_eq!(b.style.fill_color, Rgba::rgb(0xEE, 0xEE, 0xFF));
+    assert!(b.hidden && b.frame.is_none());
+    assert_eq!(b.size, 2.5);
+    assert_eq!(back.find_species(&s).unwrap().compartment, id);
 }
 
 /// Modifier kinds (S §5.7.1): the glyph's role and the reference's SBO term
@@ -455,10 +458,10 @@ fn an_alias_listed_first_keeps_its_role() {
 }
 
 /// Compartments with no box yet (E4 F3). Export writes the box the app fits
-/// round one on opening, so a shown compartment comes back shown and a hidden
-/// one hidden, as an Escher map's are. A file from another tool whose layout
-/// draws no box for a compartment brings it in hidden. Without a layout
-/// nothing is hidden.
+/// round a shown one on opening, so it comes back shown in that box; a hidden
+/// one, as an Escher map's are, gets no box and comes back hidden. A file from
+/// another tool whose layout draws no box for a compartment brings it in
+/// hidden. Without a layout nothing is hidden.
 #[test]
 fn compartments_without_a_box_come_back_as_they_were_seen() {
     let mut m = Model::new();
@@ -474,13 +477,14 @@ fn compartments_without_a_box_come_back_as_they_were_seen() {
     pd_core::compartments::place_unplaced(&mut seen);
     let xml = sbml::export(&m).xml;
     let back = sbml::import(&xml, &OPTS).unwrap().model;
-    for id in ["cytosol", "nucleus"] {
-        let (c, d) = (
-            back.find_compartment(id).unwrap(),
-            seen.find_compartment(id).unwrap(),
-        );
-        assert_eq!((c.hidden, c.frame), (d.hidden, d.frame), "{id}");
-    }
+    let (c, d) = (
+        back.find_compartment("nucleus").unwrap(),
+        seen.find_compartment("nucleus").unwrap(),
+    );
+    assert_eq!((c.hidden, c.frame), (false, d.frame));
+    let c = back.find_compartment("cytosol").unwrap();
+    assert!(c.hidden && c.frame.is_none());
+    assert!(!xml.contains("cg_cytosol"));
 
     // The same file with no glyph for the nucleus, as another tool might
     // write it: the nucleus comes in hidden.
