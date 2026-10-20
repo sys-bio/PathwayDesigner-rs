@@ -2026,6 +2026,17 @@ as in Antimony, the arrow says whether the reaction is reversible: `->` (and
 `<->`) makes it reversible, `=>` irreversible. The reference treated `=>` as a
 plain synonym and made every reaction irreversible.
 
+**Functions.** *(Rust version.)* A diagram keeps each rate law in its reaction, so
+a function the model defines (Antimony's `function … end`, SBML's function
+definitions) is not kept as a function. Each call is replaced by the function's
+body, with the call's arguments in place of its parameters, in rate laws,
+assignment rules and parameter values alike; a function that calls another is
+expanded all the way down. `function mm(s, v, k) v*s/(k + s) end` and
+`J1: S -> P; E*mm(S, Vm, Km)` give the rate law `E*(Vm*S/(Km + S))`. One
+warning says how many functions were written in. A call with the wrong number of
+arguments is an error. Export therefore writes no functions, and an exported
+model calls none.
+
 **Implicit declarations.**
 
 - A species used in a reaction but never declared is created with initial value 0.
@@ -2192,7 +2203,9 @@ libSBML. The reference writes the XML itself.
 All numbers MUST be written with a `.` decimal separator whatever the locale.
 
 **SBML import** is not part of the reference release (the code for it is disabled).
-See milestone F-1.
+See milestone F-1. *(Rust version:)* function definitions are expanded into the
+expressions that call them, as in Antimony import (§11.2); a function whose body
+can't be read leaves out each expression that calls it, with a warning.
 
 ### 11.6 Graphics output
 

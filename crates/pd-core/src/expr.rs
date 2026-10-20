@@ -477,6 +477,85 @@ pub fn identifiers(ast: &Ast) -> Vec<&str> {
     out
 }
 
+/// A function the model defines (SBML's function definitions, Antimony's
+/// `function` statements): its parameters and its body.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FunctionDef {
+    pub params: Vec<String>,
+    pub body: Ast,
+}
+
+/// `ast` with every call to a function in `defs` replaced by that function's
+/// body, each parameter replaced by the call's argument (S §11.2). Calls in a
+/// body are expanded too. Fails on a call with the wrong number of arguments,
+/// and on functions that call each other without end.
+pub fn expand_functions(
+    ast: &Ast,
+    defs: &std::collections::HashMap<String, FunctionDef>,
+) -> Result<Ast, String> {
+    const MAX_DEPTH: usize = 64;
+    fn subst(body: &Ast, args: &std::collections::HashMap<&str, &Ast>) -> Ast {
+        match body {
+            Ast::Ident(name, _) => args
+                .get(name.as_str())
+                .map_or_else(|| body.clone(), |a| (*a).clone()),
+            Ast::Number(..) => body.clone(),
+            Ast::Unary(op, e, s) => Ast::Unary(*op, Box::new(subst(e, args)), *s),
+            Ast::Binary(op, l, r, s) => {
+                Ast::Binary(*op, Box::new(subst(l, args)), Box::new(subst(r, args)), *s)
+            }
+            Ast::Call(f, a, s) => {
+                Ast::Call(f.clone(), a.iter().map(|e| subst(e, args)).collect(), *s)
+            }
+        }
+    }
+    fn walk(
+        a: &Ast,
+        defs: &std::collections::HashMap<String, FunctionDef>,
+        depth: usize,
+    ) -> Result<Ast, String> {
+        if depth > MAX_DEPTH {
+            return Err("functions that call each other without end".into());
+        }
+        Ok(match a {
+            Ast::Number(..) | Ast::Ident(..) => a.clone(),
+            Ast::Unary(op, e, s) => Ast::Unary(*op, Box::new(walk(e, defs, depth)?), *s),
+            Ast::Binary(op, l, r, s) => Ast::Binary(
+                *op,
+                Box::new(walk(l, defs, depth)?),
+                Box::new(walk(r, defs, depth)?),
+                *s,
+            ),
+            Ast::Call(f, args, s) => {
+                let args = args
+                    .iter()
+                    .map(|e| walk(e, defs, depth))
+                    .collect::<Result<Vec<_>, _>>()?;
+                match defs.get(f) {
+                    None => Ast::Call(f.clone(), args, *s),
+                    Some(def) if def.params.len() != args.len() => {
+                        return Err(format!(
+                            "the function {f}, called with {} arguments instead of {}",
+                            args.len(),
+                            def.params.len()
+                        ));
+                    }
+                    Some(def) => {
+                        let by_name = def
+                            .params
+                            .iter()
+                            .map(String::as_str)
+                            .zip(args.iter())
+                            .collect();
+                        walk(&subst(&def.body, &by_name), defs, depth + 1)?
+                    }
+                }
+            }
+        })
+    }
+    walk(ast, defs, 0)
+}
+
 /// Prints an expression with as few brackets as its structure needs.
 /// `*`, `/` and `^` are written without spaces, other operators with them.
 pub fn to_infix(ast: &Ast) -> String {
@@ -669,5 +748,64 @@ mod tests {
     fn known_functions_list() {
         assert!(KNOWN_FUNCTIONS.contains(&"ceiling"));
         assert!(KNOWN_FUNCTIONS.contains(&"log10"));
+    }
+
+    fn defs(list: &[(&str, &[&str], &str)]) -> std::collections::HashMap<String, FunctionDef> {
+        list.iter()
+            .map(|(name, params, body)| {
+                let def = FunctionDef {
+                    params: params.iter().map(|p| p.to_string()).collect(),
+                    body: parse(body).unwrap(),
+                };
+                (name.to_string(), def)
+            })
+            .collect()
+    }
+
+    fn expanded(src: &str, d: &std::collections::HashMap<String, FunctionDef>) -> String {
+        to_infix(&expand_functions(&parse(src).unwrap(), d).unwrap())
+    }
+
+    #[test]
+    fn calls_become_the_functions_body() {
+        let d = defs(&[("mm", &["s", "v", "k"], "v*s/(k + s)")]);
+        assert_eq!(expanded("mm(S1, Vm, Km)", &d), "Vm*S1/(Km + S1)");
+        // Arguments that are expressions keep their meaning.
+        assert_eq!(
+            expanded("mm(A + B, V1*E, 2)", &d),
+            "V1*E*(A + B)/(2 + (A + B))"
+        );
+        assert_eq!(
+            expanded("2*mm(S, V, K) - k3*P", &d),
+            "2*(V*S/(K + S)) - k3*P"
+        );
+        // Other calls, and names that aren't parameters, are left alone.
+        let d = defs(&[("f", &["x"], "x^n")]);
+        assert_eq!(expanded("sin(f(a - b))", &d), "sin((a - b)^n)");
+        assert_eq!(expanded("g(x)", &d), "g(x)");
+    }
+
+    #[test]
+    fn calls_in_bodies_and_in_arguments_are_expanded() {
+        let d = defs(&[
+            ("sq", &["x"], "x*x"),
+            ("hill", &["s", "k"], "sq(s)/(sq(k) + sq(s))"),
+        ]);
+        assert_eq!(expanded("hill(S, K)", &d), "S*S/(K*K + S*S)");
+        assert_eq!(expanded("sq(sq(a))", &d), "a*a*(a*a)");
+        // A parameter named like another function's parameter is still the
+        // right one.
+        let d = defs(&[("f", &["x", "y"], "x - y")]);
+        assert_eq!(expanded("f(y, x)", &d), "y - x");
+    }
+
+    #[test]
+    fn bad_calls_fail() {
+        let d = defs(&[("mm", &["s", "v", "k"], "v*s/(k + s)")]);
+        let e = expand_functions(&parse("mm(S, V)").unwrap(), &d).unwrap_err();
+        assert!(e.contains("2 arguments instead of 3"), "{e}");
+        let d = defs(&[("f", &["x"], "g(x)"), ("g", &["x"], "f(x)")]);
+        let e = expand_functions(&parse("f(1)").unwrap(), &d).unwrap_err();
+        assert!(e.contains("without end"), "{e}");
     }
 }

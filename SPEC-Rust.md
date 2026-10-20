@@ -831,7 +831,9 @@ which that reader accepted and Antimony does not.
 - **Errors** come back as a list of `{line, column, message}`. None of them stop the
   app. Show them next to the text in the Antimony panel (§11.1). On any error the
   current model MUST stay unchanged.
-- **What a diagram cannot hold** (functions, units, events, rate rules, algebraic
+- **Functions** are expanded: each call is replaced by the function's body
+  (S §11.2), with one warning saying how many were written in.
+- **What a diagram cannot hold** (units, events, rate rules, algebraic
   rules, constraints, objectives, other models in the file, names,
   notes and annotations, units on symbols) gives a **warning** saying it was skipped,
   not a failure (S §16.2 F-10). The crate's own warnings are passed on too, except
@@ -931,7 +933,10 @@ replace `sbml-io` behind the same bridge.
   automatically.
 - **Local parameters** become model parameters. A name already taken becomes
   `<reaction>_<name>`, and the rate law is rewritten to match.
-- **What a diagram can't hold** gives a warning: function definitions, events,
+- **Function definitions** are expanded into the expressions that call them
+  (S §11.2), with one warning saying how many. A function whose body can't be
+  read leaves out each expression calling it, with a warning saying why.
+- **What a diagram can't hold** gives a warning: events,
   rate and algebraic rules, constraints, and initial assignments to anything but
   parameters. MathML the expression language can't say (`infinity`, `notanumber`,
   MathML outside SBML's subset) leaves that expression out, with a warning. `pi`,

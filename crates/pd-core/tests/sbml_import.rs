@@ -249,3 +249,113 @@ fn all_zero_boxes_are_no_positions() {
     assert!(close(j2.junction, between("B", "C")));
     assert!(m.find_species("A").unwrap().width > 0.0);
 }
+
+/// Function definitions, as COPASI writes them: each rate law calls one.
+const FUNCTIONS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level2/version4" level="2" version="4">
+  <model id="functions">
+    <listOfFunctionDefinitions>
+      <functionDefinition id="mm">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <lambda><bvar><ci>s</ci></bvar><bvar><ci>v</ci></bvar><bvar><ci>k</ci></bvar>
+            <apply><divide/><apply><times/><ci>v</ci><ci>s</ci></apply>
+              <apply><plus/><ci>k</ci><ci>s</ci></apply></apply>
+          </lambda>
+        </math>
+      </functionDefinition>
+      <functionDefinition id="sq">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <lambda><bvar><ci>x</ci></bvar><apply><times/><ci>x</ci><ci>x</ci></apply></lambda>
+        </math>
+      </functionDefinition>
+      <functionDefinition id="hill">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <lambda><bvar><ci>s</ci></bvar><bvar><ci>k</ci></bvar>
+            <apply><divide/><apply><ci>sq</ci><ci>s</ci></apply>
+              <apply><plus/><apply><ci>sq</ci><ci>k</ci></apply><apply><ci>sq</ci><ci>s</ci></apply></apply></apply>
+          </lambda>
+        </math>
+      </functionDefinition>
+      <functionDefinition id="bad">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <lambda><bvar><ci>x</ci></bvar><apply><times/><ci>x</ci><notanumber/></apply></lambda>
+        </math>
+      </functionDefinition>
+    </listOfFunctionDefinitions>
+    <listOfCompartments><compartment id="cell" size="1"/></listOfCompartments>
+    <listOfSpecies>
+      <species id="A" compartment="cell" initialConcentration="1"/>
+      <species id="B" compartment="cell" initialConcentration="0"/>
+      <species id="E" compartment="cell" initialConcentration="1"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="k" value="0.5"/>
+      <parameter id="K" value="2"/>
+      <parameter id="y"/>
+    </listOfParameters>
+    <listOfRules>
+      <assignmentRule variable="y">
+        <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><ci>sq</ci><ci>A</ci></apply></math>
+      </assignmentRule>
+    </listOfRules>
+    <listOfReactions>
+      <reaction id="J1">
+        <listOfReactants><speciesReference species="A"/></listOfReactants>
+        <listOfProducts><speciesReference species="B"/></listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply><times/><ci>E</ci><apply><ci>mm</ci><ci>A</ci><ci>Vm</ci><ci>k</ci></apply></apply>
+          </math>
+          <listOfParameters><parameter id="k" value="3"/><parameter id="Vm" value="10"/></listOfParameters>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J2">
+        <listOfReactants><speciesReference species="B"/></listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><ci>hill</ci><ci>B</ci><ci>K</ci></apply></math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="J3">
+        <listOfReactants><speciesReference species="A"/></listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><ci>bad</ci><ci>A</ci></apply></math>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>"#;
+
+#[test]
+fn function_definitions_are_written_into_the_rate_laws() {
+    let i = sbml::import(FUNCTIONS, &OPTS).unwrap();
+    let m = &i.model;
+    // The call becomes the body, with the arguments in place of the
+    // parameters, and a local parameter renamed as it is everywhere else.
+    let j1 = m.find_reaction("J1").unwrap();
+    assert_eq!(j1.kinetic_law, "E*(Vm*A/(J1_k + A))");
+    assert_eq!(m.find_parameter("J1_k").unwrap().expression, "3");
+    // E is named only in the call's surroundings; A only inside the call.
+    assert_eq!(j1.modifiers.len(), 1);
+    assert_eq!(j1.modifiers[0].species, "E");
+    // A function calling another is expanded all the way down.
+    assert_eq!(
+        m.find_reaction("J2").unwrap().kinetic_law,
+        "B*B/(K*K + B*B)"
+    );
+    // Rules too.
+    assert_eq!(m.assignment_rules[0].expression, "A*A");
+    // A function that can't be read leaves out the law that calls it, and
+    // says why; nothing calls an undefined function.
+    assert_eq!(m.find_reaction("J3").unwrap().kinetic_law, "");
+    assert_eq!(
+        i.warnings,
+        [
+            "4 function definitions were written into the rate laws that use them",
+            "The rate law of J3 was left out: it uses the function bad, which uses <notanumber/>",
+        ]
+    );
+    // What is exported is valid: no calls left.
+    let exported = sbml::export(m);
+    assert!(exported.problems.is_empty(), "{:?}", exported.problems);
+    assert!(!exported.xml.contains("<ci> mm </ci>") && !exported.xml.contains(">mm<"));
+}

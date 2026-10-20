@@ -113,6 +113,7 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
         module,
         errors: Vec::new(),
         warnings: Vec::new(),
+        functions: HashMap::new(),
     };
     let model = b.build(opts);
     warnings.append(&mut b.warnings);
@@ -128,6 +129,20 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
 /// import goes ahead without it (SPEC-Rust §8.2).
 fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnostic> {
     let mut out = Vec::new();
+    // Functions are not skipped: calls to them are expanded (S §11.2).
+    if let Some(first) = module.functions.first() {
+        let n = module.functions.len();
+        let what = if n == 1 {
+            "function was"
+        } else {
+            "functions were"
+        };
+        out.push(Diagnostic::at(
+            Severity::Warning,
+            first.span,
+            format!("{n} {what} written into the rate laws that use them"),
+        ));
+    }
     let mut skip = |span: Span, what: &str| {
         out.push(Diagnostic::at(
             Severity::Warning,
@@ -139,9 +154,6 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
         if !std::ptr::eq(m, module) {
             skip(m.span, "Other models in the file");
         }
-    }
-    for f in &module.functions {
-        skip(f.span, "'function' statements");
     }
     for u in &module.units {
         skip(u.span, "'unit' statements");
@@ -336,6 +348,9 @@ struct Builder<'a> {
     module: &'a Module,
     errors: Vec<Diagnostic>,
     warnings: Vec<Diagnostic>,
+    /// The `function` statements, written into the expressions that call
+    /// them (S §11.2).
+    functions: HashMap<String, expr::FunctionDef>,
 }
 
 impl Builder<'_> {
@@ -383,8 +398,38 @@ impl Builder<'_> {
         }
     }
 
+    /// An expression with the functions it calls written into it.
+    fn expanded(&mut self, e: &antimony::expr::Expr) -> Option<expr::Ast> {
+        let ast = self.expression(e)?;
+        match expr::expand_functions(&ast, &self.functions) {
+            Ok(ast) => Some(ast),
+            Err(why) => {
+                self.error(e.span, format!("This uses {why}"));
+                None
+            }
+        }
+    }
+
+    /// The text of an expression, as written unless it calls a function,
+    /// which is written into it.
+    fn expanded_text(&mut self, e: &antimony::expr::Expr) -> String {
+        match (self.expression(e), self.expanded(e)) {
+            (Some(written), Some(expanded)) if written != expanded => expr::to_infix(&expanded),
+            _ => self.text(e),
+        }
+    }
+
     fn build(&mut self, opts: &ImportOptions) -> Model {
         let module = self.module;
+        for f in &module.functions {
+            if let Some(body) = f.body.as_ref().and_then(|b| self.expression(b)) {
+                let def = expr::FunctionDef {
+                    params: f.args.clone(),
+                    body,
+                };
+                self.functions.insert(f.name.clone(), def);
+            }
+        }
         let mut model = Model::new();
         model.model_name = module
             .name
@@ -473,8 +518,7 @@ impl Builder<'_> {
                     compartments[c].size = v;
                 }
             } else {
-                self.expression(value);
-                let text = self.text(value);
+                let text = self.expanded_text(value);
                 match parameters.iter_mut().find(|p| p.variable == s.name) {
                     Some(p) => p.expression = text,
                     None => parameters.push(Parameter {
@@ -493,12 +537,9 @@ impl Builder<'_> {
         rule_exprs.sort_by_key(|(_, e)| e.span.start.offset);
         let rules: Vec<AssignmentRule> = rule_exprs
             .into_iter()
-            .map(|(s, e)| {
-                self.expression(e);
-                AssignmentRule {
-                    variable: s.name.clone(),
-                    expression: self.text(e),
-                }
+            .map(|(s, e)| AssignmentRule {
+                variable: s.name.clone(),
+                expression: self.expanded_text(e),
             })
             .collect();
 
@@ -506,7 +547,7 @@ impl Builder<'_> {
         let laws: Vec<Option<expr::Ast>> = module
             .reactions
             .iter()
-            .map(|r| r.kinetic_law.as_ref().and_then(|e| self.expression(e)))
+            .map(|r| r.kinetic_law.as_ref().and_then(|e| self.expanded(e)))
             .collect();
 
         // A name in a rate law that is nothing else is a parameter, 0.
@@ -1020,14 +1061,68 @@ mod tests {
 
     #[test]
     fn any_antimony_file_imports() {
-        // Functions, events and annotations are skipped; the rest is drawn.
+        // Events and annotations are skipped, functions expanded; the rest
+        // is drawn.
         let m = ok(
             "model *m()\n  function mm(s, v, k)\n    v*s/(k + s)\n  end\n  compartment c = 1;\n  species S in c, P in c;\n  J1: S => P; mm(S, Vm, Km);\n  S = 10; P = 0; Vm = 1; Km = 0.5;\n  E1: at time > 5: S = 10;\n  S is \"substrate\";\nend",
             &ON,
         );
         assert_eq!(ids(&m), ["S", "P"]);
         assert_eq!(m.find_species("S").unwrap().initial_value, 10.0);
-        assert_eq!(reaction(&m, "J1").kinetic_law, "mm(S, Vm, Km)");
+        assert_eq!(reaction(&m, "J1").kinetic_law, "Vm*S/(Km + S)");
+    }
+
+    #[test]
+    fn functions_are_written_into_what_calls_them() {
+        let src = "function sq(x)
+  x*x
+end
+function hill(s, k)
+  sq(s)/(sq(k) + sq(s))
+end
+J1: S -> P; E*hill(S, K);
+J2: P -> ; k2*P;
+T := sq(S) + P;
+U := k2 * P;
+V = sq(2);
+K = 1; k2 = 0.1; E = 1";
+        let i = import(src, &ON).unwrap();
+        let m = &i.model;
+        assert_eq!(reaction(m, "J1").kinetic_law, "E*(S*S/(K*K + S*S))");
+        // A law, rule or value that calls nothing is kept as written.
+        assert_eq!(reaction(m, "J2").kinetic_law, "k2*P");
+        assert_eq!(m.assignment_rules[0].expression, "S*S + P");
+        assert_eq!(m.assignment_rules[1].expression, "k2 * P");
+        assert_eq!(m.find_parameter("V").unwrap().expression, "2*2");
+        assert_eq!(m.find_parameter("K").unwrap().expression, "1");
+        let notes: Vec<_> = i
+            .warnings
+            .iter()
+            .map(|d| (d.line, d.message.as_str()))
+            .collect();
+        assert_eq!(
+            notes,
+            [(
+                1,
+                "2 functions were written into the rate laws that use them"
+            )]
+        );
+        // Exported, the model calls no function.
+        assert!(!export(m).contains("hill") && !export(m).contains("sq("));
+
+        // The wrong number of arguments is an error where the call is (the
+        // antimony crate finds it before the bridge would).
+        let e = import(
+            "function sq(x)
+  x*x
+end
+J1: S -> P; sq(S, P)",
+            &ON,
+        )
+        .unwrap_err();
+        assert_eq!(e.len(), 1);
+        assert_eq!(e[0].line, 4);
+        assert!(e[0].message.contains("\"sq\" takes 1"), "{}", e[0].message);
     }
 
     #[test]

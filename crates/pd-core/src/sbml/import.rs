@@ -48,6 +48,8 @@ pub fn import(xml: &str, opts: &ImportOptions) -> Result<Imported, Vec<sb::Diagn
         warnings: read.warnings.iter().map(|d| d.to_string()).collect(),
         model: Model::new(),
         rng: Rng::new(opts.seed),
+        functions: HashMap::new(),
+        broken_functions: HashMap::new(),
     };
     let (had_layout, unplaced) = b.build(m, opts);
     Ok(Imported {
@@ -63,6 +65,11 @@ struct Builder {
     warnings: Vec<String>,
     model: Model,
     rng: Rng,
+    /// The model's function definitions, written into the expressions that
+    /// call them (S §11.2, §11.5).
+    functions: HashMap<String, expr::FunctionDef>,
+    /// Function definitions that couldn't be read, and why.
+    broken_functions: HashMap<String, String>,
 }
 
 /// What the layout says about a reaction's empty side: where its null node
@@ -85,7 +92,13 @@ impl Builder {
         rename: &HashMap<String, String>,
         what: &str,
     ) -> Option<Ast> {
-        match from_math(math?, rename) {
+        let expanded = from_math(math?, rename).and_then(|ast| {
+            if let Some((f, why)) = first_call(&ast, &self.broken_functions) {
+                return Err(format!("the function {f}, which {why}"));
+            }
+            expr::expand_functions(&ast, &self.functions)
+        });
+        match expanded {
             Ok(ast) => Some(ast),
             Err(why) => {
                 self.warn(format!("{what} was left out: it uses {why}"));
@@ -94,8 +107,32 @@ impl Builder {
         }
     }
 
+    /// Reads the function definitions, so that expressions can use them.
+    fn read_functions(&mut self, m: &sb::Model) {
+        for f in &m.function_definitions {
+            let def = match &f.math {
+                Some(sb::Math::Lambda { args, body }) => from_math(body, &HashMap::new())
+                    .map(|body| expr::FunctionDef {
+                        params: args.clone(),
+                        body,
+                    })
+                    .map_err(|why| format!("uses {why}")),
+                _ => Err("has no lambda".to_owned()),
+            };
+            match def {
+                Ok(def) => {
+                    self.functions.insert(f.id.clone(), def);
+                }
+                Err(why) => {
+                    self.broken_functions.insert(f.id.clone(), why);
+                }
+            }
+        }
+    }
+
     fn build(&mut self, m: &sb::Model, opts: &ImportOptions) -> (bool, usize) {
         self.report_unsupported(m);
+        self.read_functions(m);
         self.model.model_name = m.name.clone().or_else(|| m.id.clone()).unwrap_or_default();
         let none = HashMap::new();
 
@@ -277,12 +314,16 @@ impl Builder {
             .iter()
             .filter(|r| !matches!(r, sb::Rule::Assignment { .. }))
             .count();
+        match m.function_definitions.len() {
+            0 => {}
+            1 => {
+                self.warn("1 function definition was written into the rate laws that use it".into())
+            }
+            n => self.warn(format!(
+                "{n} function definitions were written into the rate laws that use them"
+            )),
+        }
         for (n, one, many) in [
-            (
-                m.function_definitions.len(),
-                "function definition",
-                "function definitions",
-            ),
             (m.events.len(), "event", "events"),
             (rules, "rate or algebraic rule", "rate and algebraic rules"),
             (m.constraints.len(), "constraint", "constraints"),
@@ -743,6 +784,19 @@ impl Builder {
 
 /// A bounding box that gives a position. libSBML writes an all-zero box
 /// for a glyph that was never given one, so that counts as no box.
+/// The first function in `names` that `ast` calls, with its entry.
+fn first_call<'a>(ast: &Ast, names: &'a HashMap<String, String>) -> Option<(&'a str, &'a str)> {
+    match ast {
+        Ast::Number(..) | Ast::Ident(..) => None,
+        Ast::Unary(_, e, _) => first_call(e, names),
+        Ast::Binary(_, l, r, _) => first_call(l, names).or_else(|| first_call(r, names)),
+        Ast::Call(f, args, _) => names
+            .get_key_value(f)
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .or_else(|| args.iter().find_map(|a| first_call(a, names))),
+    }
+}
+
 fn positioned(bb: Option<&sb::BoundingBox>) -> Option<&sb::BoundingBox> {
     bb.filter(|b| {
         let (p, d) = (&b.position, &b.dimensions);
