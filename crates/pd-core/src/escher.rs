@@ -23,7 +23,7 @@ use crate::model::{Compartment, Id, Model, Participant, Reaction, ReactionMode, 
 use crate::passes::{NULL_OFFSET, NullPlace, add_null_nodes};
 use crate::render::draw::{label_size, name_font, reaction_label_size};
 use crate::text::{font_metrics_in, text_width_in};
-use crate::themes::{self, Theme};
+use crate::themes;
 
 /// A map read into a model, and what couldn't be carried over.
 #[derive(Clone, Debug)]
@@ -279,7 +279,8 @@ pub fn import(text: &str) -> Result<Imported, String> {
         .iter()
         .map(|r| (r.id.clone(), r.clone()))
         .collect();
-    themes::apply(&mut model, Theme::Escher);
+    // At Escher's own sizes, so the map looks as it does in Escher (S §11.7).
+    themes::apply_escher(&mut model, themes::EscherSizes::MAP);
     for (id, old) in shapes {
         if let Some(r) = model.find_reaction_mut(&id) {
             (
@@ -381,6 +382,7 @@ fn compartment_of(bigg: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::model::Role;
+    use crate::themes::{EscherSizes, Theme};
 
     /// PGK-like: 3pg_c + atp_c → 13dpg_c + adp_c down a vertical spine
     /// (midmarker at (100,200), multimarkers at (100,170) and (100,230)),
@@ -506,6 +508,44 @@ mod tests {
         assert!(sink.center.distance(pt(400.0, 160.0 + NULL_OFFSET)) < 1e-9);
         assert_eq!(imported.warnings.len(), 1, "{:?}", imported.warnings);
         assert!(imported.warnings[0].contains("glc_c"));
+    }
+
+    #[test]
+    fn a_map_is_drawn_at_escher_s_own_sizes() {
+        use crate::render::draw::reaction_label_size;
+        let m = map().model;
+        let big = EscherSizes::MAP;
+        let pg = m.find_species("M_3pg_c").unwrap();
+        assert_eq!(
+            (pg.width, label_size(pg)),
+            (big.metabolite, big.metabolite_font)
+        );
+        let atp = m.find_species("atp_c").unwrap();
+        assert_eq!(
+            (atp.width, label_size(atp)),
+            (big.cofactor, big.cofactor_font)
+        );
+        let r = &m.reactions()[0];
+        assert_eq!(
+            (r.style.line_width, reaction_label_size(r)),
+            (big.line_width, big.reaction_font)
+        );
+        // The menu's Escher theme stays lighter.
+        let mut light = m.clone();
+        themes::apply(&mut light, Theme::Escher);
+        let small = EscherSizes::DIAGRAM;
+        assert_eq!(
+            light.find_species("M_3pg_c").unwrap().width,
+            small.metabolite
+        );
+        assert_eq!(light.reactions()[0].style.line_width, small.line_width);
+        // Something added to the map takes the map's sizes.
+        let before = m.clone();
+        let mut more = m.clone();
+        more.push_species(crate::model::SpeciesNode::new("glx_c", pt(0.0, 0.0)))
+            .unwrap();
+        themes::style_new_items(&before, &mut more);
+        assert_eq!(more.find_species("glx_c").unwrap().width, big.metabolite);
     }
 
     #[test]

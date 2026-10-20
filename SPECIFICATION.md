@@ -1772,8 +1772,13 @@ once. **View ▸ Theme** offers:
 
   Escher 1.7.3 draws every label bold italic and its reaction labels navy;
   the theme does too (§5.11.1). Its sizes stay 18, 14 and 16, the user's choice,
-  rather than Escher's 20 and 30. An Escher map opened through the import places
-  each name from the map's label point measured in that face (§11.7).
+  rather than Escher's 20 and 30, as they suit diagrams drawn closer together than
+  Escher's maps. *(Rust version:)* an Escher map opened through the import is drawn
+  at Escher's own sizes instead, so it looks as it does in Escher: metabolites 40
+  across, cofactors 20, names 20, reaction names 30, lines 10. Items added to it
+  later take the same sizes (they follow the model's styles); choosing View ▸ Theme
+  ▸ Escher again gives the lighter sizes. The import places each name from the
+  map's label point measured in that face (§11.7).
   | *Escher compartment* | light grey box (#FAFAFA, border #C8CDD3, width 1.5) |
 
   **Every** item takes the theme, those styled by hand too (a user recolours

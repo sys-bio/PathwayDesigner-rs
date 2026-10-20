@@ -57,17 +57,50 @@ const ESCHER_LINE: Rgba = Rgba([0x33, 0x4E, 0x75, 0xFF]);
 const ESCHER_REACTION_NAME: Rgba = Rgba([0x20, 0x20, 0x78, 0xFF]);
 const ESCHER_COMPARTMENT_FILL: Rgba = Rgba([0xFA, 0xFA, 0xFA, 0xFF]);
 const ESCHER_COMPARTMENT_BORDER: Rgba = Rgba([0xC8, 0xCD, 0xD3, 0xFF]);
-/// The diameter of a metabolite's circle, and of a cofactor's.
-const ESCHER_METABOLITE_SIZE: f64 = 26.0;
-const ESCHER_COFACTOR_SIZE: f64 = 16.0;
-/// The size of a metabolite's name, and of a cofactor's.
-const ESCHER_METABOLITE_FONT: f64 = 18.0;
-const ESCHER_COFACTOR_FONT: f64 = 14.0;
-/// The size of a reaction's name (S §5.12).
-const ESCHER_REACTION_FONT: f64 = 16.0;
+/// The sizes of the Escher look (S §8.7).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EscherSizes {
+    /// The diameter of a metabolite's circle, and of a cofactor's.
+    pub metabolite: f64,
+    pub cofactor: f64,
+    /// The size of a metabolite's name, and of a cofactor's.
+    pub metabolite_font: f64,
+    pub cofactor_font: f64,
+    /// The size of a reaction's name (S §5.12), and its line's width.
+    pub reaction_font: f64,
+    pub line_width: f64,
+}
+
+impl EscherSizes {
+    /// The Escher theme (View ▸ Theme): lighter than Escher, for diagrams
+    /// drawn closer together than Escher's maps.
+    pub const DIAGRAM: EscherSizes = EscherSizes {
+        metabolite: 26.0,
+        cofactor: 16.0,
+        metabolite_font: 18.0,
+        cofactor_font: 14.0,
+        reaction_font: 16.0,
+        line_width: 5.0,
+    };
+    /// An Escher map opened from its file (S §11.7): Escher's own sizes, so
+    /// the map looks as it does in Escher.
+    pub const MAP: EscherSizes = EscherSizes {
+        metabolite: 40.0,
+        cofactor: 20.0,
+        metabolite_font: 20.0,
+        cofactor_font: 20.0,
+        reaction_font: 30.0,
+        line_width: 10.0,
+    };
+}
 
 /// The Escher theme's saved styles, kept as drawn.
 pub fn escher_styles() -> Vec<SavedStyle> {
+    escher_styles_at(EscherSizes::DIAGRAM)
+}
+
+/// The Escher styles at these sizes.
+fn escher_styles_at(sizes: EscherSizes) -> Vec<SavedStyle> {
     let circle = |size: f64, border_width: f64, font_size: f64| Look::Species {
         style: VisualStyle {
             has_custom_style: true,
@@ -89,11 +122,11 @@ pub fn escher_styles() -> Vec<SavedStyle> {
     [
         (
             ESCHER_METABOLITE,
-            circle(ESCHER_METABOLITE_SIZE, 2.0, ESCHER_METABOLITE_FONT),
+            circle(sizes.metabolite, 2.0, sizes.metabolite_font),
         ),
         (
             ESCHER_COFACTOR,
-            circle(ESCHER_COFACTOR_SIZE, 1.5, ESCHER_COFACTOR_FONT),
+            circle(sizes.cofactor, 1.5, sizes.cofactor_font),
         ),
         (
             ESCHER_REACTION,
@@ -101,9 +134,9 @@ pub fn escher_styles() -> Vec<SavedStyle> {
                 style: VisualStyle {
                     has_custom_style: true,
                     line_color: ESCHER_LINE,
-                    line_width: 5.0,
+                    line_width: sizes.line_width,
                     label_color: ESCHER_REACTION_NAME,
-                    font_size: ESCHER_REACTION_FONT,
+                    font_size: sizes.reaction_font,
                     label_bold: true,
                     label_italic: true,
                     junction_visible: false,
@@ -331,17 +364,7 @@ fn curve(model: &mut Model, id: &str) {
 /// species 80 × 36, or wide enough for its name.
 pub fn apply(model: &mut Model, theme: Theme) {
     match theme {
-        Theme::Escher => {
-            for st in escher_styles() {
-                styles::put(&mut model.styles, st);
-            }
-            for kind in StyleKind::ALL {
-                for id in styles::item_ids(model, kind) {
-                    theme_item(model, theme, kind, &id);
-                }
-            }
-            model.theme = Some(Theme::Escher);
-        }
+        Theme::Escher => apply_escher(model, EscherSizes::DIAGRAM),
         Theme::Classic => {
             use crate::model::{DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH};
             for s in model.species_mut().filter(|s| !s.is_null_node) {
@@ -374,6 +397,21 @@ pub fn apply(model: &mut Model, theme: Theme) {
             model.theme = None;
         }
     }
+}
+
+/// The Escher theme at these sizes: [`EscherSizes::DIAGRAM`] from the menu,
+/// [`EscherSizes::MAP`] for an Escher map opened from its file. Items added
+/// later take the same look, as they follow the model's styles.
+pub fn apply_escher(model: &mut Model, sizes: EscherSizes) {
+    for st in escher_styles_at(sizes) {
+        styles::put(&mut model.styles, st);
+    }
+    for kind in StyleKind::ALL {
+        for id in styles::item_ids(model, kind) {
+            theme_item(model, Theme::Escher, kind, &id);
+        }
+    }
+    model.theme = Some(Theme::Escher);
 }
 
 /// While the diagram has a theme, items an edit added (in `model`, not in
