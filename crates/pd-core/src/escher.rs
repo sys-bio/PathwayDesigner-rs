@@ -21,8 +21,8 @@ use serde_json::Value;
 use crate::geometry::{Pt, pt};
 use crate::model::{Compartment, Id, Model, Participant, Reaction, ReactionMode, SpeciesNode};
 use crate::passes::{NULL_OFFSET, NullPlace, add_null_nodes};
-use crate::render::draw::{label_size, reaction_label_size};
-use crate::text::{font_metrics, text_width};
+use crate::render::draw::{label_size, name_font, reaction_label_size};
+use crate::text::{font_metrics_in, text_width_in};
 use crate::themes::{self, Theme};
 
 /// A map read into a model, and what couldn't be carried over.
@@ -300,23 +300,24 @@ pub fn import(text: &str) -> Result<Imported, String> {
         }
     }
     // Labels where Escher draws them: its point is the start of the text, on
-    // its baseline; ours is the text's centre.
-    let centre = |text: &str, size: f64, at: Pt| {
-        let m = font_metrics(size);
+    // its baseline; ours is the text's centre, measured in the face the
+    // theme draws it in (bold italic, S §5.11.1).
+    let centre = |text: &str, size: f64, font, at: Pt| {
+        let m = font_metrics_in(font, size);
         pt(
-            at.x + text_width(text, size) / 2.0,
+            at.x + text_width_in(font, text, size) / 2.0,
             at.y - (m.ascent + m.descent) / 2.0,
         )
     };
     for (id, at) in labels {
         if let Some(s) = model.find_species_mut(&id) {
-            let c = centre(s.primary_id(), label_size(s), at);
+            let c = centre(s.primary_id(), label_size(s), name_font(&s.style), at);
             s.label_offset = Some(c - s.center);
         }
     }
     for (id, at) in reaction_labels {
         if let Some(r) = model.find_reaction_mut(&id) {
-            let c = centre(&r.id, reaction_label_size(r), at);
+            let c = centre(&r.id, reaction_label_size(r), name_font(&r.style), at);
             r.label_offset = Some(c - r.junction);
         }
     }
@@ -518,16 +519,17 @@ mod tests {
             Some(themes::ESCHER_COFACTOR)
         );
         // Its name starts at the map's label point: the name's left edge at
-        // x 115, its baseline at y 105.
-        let size = label_size(pg);
+        // x 115, its baseline at y 105, measured in its bold italic face.
+        let (size, font) = (label_size(pg), name_font(&pg.style));
+        assert!(font.bold && font.italic);
         let c = pg.center + pg.label_offset.unwrap();
-        assert!((c.x - text_width("M_3pg_c", size) / 2.0 - 115.0).abs() < 1e-9);
-        let fm = font_metrics(size);
+        assert!((c.x - text_width_in(font, "M_3pg_c", size) / 2.0 - 115.0).abs() < 1e-9);
+        let fm = font_metrics_in(font, size);
         assert!((c.y + (fm.ascent + fm.descent) / 2.0 - 105.0).abs() < 1e-9);
         // The reaction's name too.
         let r = m.find_reaction("PGK").unwrap();
         let rc = r.junction + r.label_offset.unwrap();
-        let rw = text_width("PGK", reaction_label_size(r));
+        let rw = text_width_in(name_font(&r.style), "PGK", reaction_label_size(r));
         assert!((rc.x - rw / 2.0 - 120.0).abs() < 1e-9);
         // Without a label point, the theme placed it.
         assert!(m.find_species("atp_c").unwrap().label_offset.is_some());

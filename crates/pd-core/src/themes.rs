@@ -53,6 +53,8 @@ pub const ESCHER_COMPARTMENT: &str = "Escher compartment";
 const ESCHER_FILL: Rgba = Rgba([0xE0, 0x86, 0x5B, 0xFF]);
 const ESCHER_BORDER: Rgba = Rgba([0xA2, 0x45, 0x10, 0xFF]);
 const ESCHER_LINE: Rgba = Rgba([0x33, 0x4E, 0x75, 0xFF]);
+/// A reaction's name, the navy Escher 1.7.3 draws reaction labels in.
+const ESCHER_REACTION_NAME: Rgba = Rgba([0x20, 0x20, 0x78, 0xFF]);
 const ESCHER_COMPARTMENT_FILL: Rgba = Rgba([0xFA, 0xFA, 0xFA, 0xFF]);
 const ESCHER_COMPARTMENT_BORDER: Rgba = Rgba([0xC8, 0xCD, 0xD3, 0xFF]);
 /// The diameter of a metabolite's circle, and of a cofactor's.
@@ -73,6 +75,9 @@ pub fn escher_styles() -> Vec<SavedStyle> {
             border_color: ESCHER_BORDER,
             border_width,
             font_size,
+            // Escher draws every label bold italic (S §5.11.1).
+            label_bold: true,
+            label_italic: true,
             ..VisualStyle::default()
         },
         shape: NodeShape::Circle,
@@ -97,8 +102,10 @@ pub fn escher_styles() -> Vec<SavedStyle> {
                     has_custom_style: true,
                     line_color: ESCHER_LINE,
                     line_width: 5.0,
-                    label_color: ESCHER_LINE,
+                    label_color: ESCHER_REACTION_NAME,
                     font_size: ESCHER_REACTION_FONT,
+                    label_bold: true,
+                    label_italic: true,
                     junction_visible: false,
                     ..VisualStyle::default()
                 },

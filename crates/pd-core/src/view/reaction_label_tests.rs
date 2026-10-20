@@ -331,7 +331,10 @@ fn escher_shows_every_name_and_classic_hides_them() {
     let r = v.model().find_reaction("R1").unwrap();
     assert!(r.label_offset.is_some());
     assert_eq!(reaction_label_size(r), 16.0);
-    assert_eq!(reaction_label_colour(r), Rgba::rgb(0x33, 0x4E, 0x75));
+    // Escher's navy, bold italic (S §5.11.1).
+    assert_eq!(reaction_label_colour(r), Rgba::rgb(0x20, 0x20, 0x78));
+    let font = crate::render::draw::name_font(&r.style);
+    assert!(font.bold && font.italic);
     // It starts clear of the curve's lines, for its size.
     assert_eq!(
         r.label_offset,

@@ -357,8 +357,8 @@ fn the_file_keeps_the_theme() {
     assert!(!text.contains("\"theme\""));
     v.apply_theme(Theme::Escher);
     let text = crate::json::to_json(v.model());
-    // Escher shows reaction names, which version 7 brought.
-    assert!(text.contains("\"version\": 7"));
+    // Escher's names are bold italic, which version 14 brought.
+    assert!(text.contains("\"version\": 14"));
     assert!(text.contains("\"theme\": \"escher\""));
     let back = crate::json::from_json(&text).unwrap();
     assert!(back.warnings.is_empty(), "{:?}", back.warnings);

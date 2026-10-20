@@ -741,7 +741,8 @@ which draws names as now.
   glyph's note (§11.5) and the reaction glyph's note get `nameBold="true"` and
   `nameItalic="true"`. Antimony has no looks.
 - **Steps.** 1 (done): the model, measuring, drawing, panel, styles and JSON.
-  2: the Escher theme (§8.7). 3: SBML.
+  2 (done): the Escher theme (§8.7); a diagram in it is now saved as version 14.
+  3: SBML.
 
 ### 5.12 Reaction names
 
@@ -1759,10 +1760,10 @@ once. **View ▸ Theme** offers:
   | *Escher cofactor* | the same, 16 across, border width 1.5, name in 14 pt bold italic |
   | *Escher reaction* | slate-blue line (#334E75), width 5, no junction dot, name in 16 pt bold italic navy (#202078) |
 
-  *(Planned, §5.11.1 step 2: the bold italic names and the navy reaction names,
-  as Escher 1.7.3 draws all its labels; until then names are upright and
-  reaction names slate blue. Sizes stay 18, 14 and 16, the user's choice, rather
-  than Escher's 20 and 30.)*
+  Escher 1.7.3 draws every label bold italic and its reaction labels navy;
+  the theme does too (§5.11.1). Its sizes stay 18, 14 and 16, the user's choice,
+  rather than Escher's 20 and 30. An Escher map opened through the import places
+  each name from the map's label point measured in that face (§11.7).
   | *Escher compartment* | light grey box (#FAFAFA, border #C8CDD3, width 1.5) |
 
   **Every** item takes the theme, those styled by hand too (a user recolours
