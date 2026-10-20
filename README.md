@@ -343,6 +343,51 @@ tests; then
 Pushes to `main` that pass are published to GitHub Pages, and the built website
 is written to the `gh-pages` branch.
 
+### Tools for checking the core
+
+Three example programs in `pd-core` check things the tests don't, over every
+model in the Gallery. They are run by hand, when a change might affect them.
+
+**`export_sbml`**: exports models as SBML for checking with python-libsbml. CI
+runs it on `Models/` and, with `--gallery`, on the Gallery:
+
+```
+cargo run -p pd-core --release --example export_sbml -- out --gallery
+python crates/pd-core/tests/scripts/check_sbml.py out
+```
+
+**`layout_report`**: what survives a round trip. Each model is exported as SBML
+with Layout and read back, as written and with PathwayDesigner's own notes
+removed (what a program that reads only standard SBML Layout sees), and compared
+with the original field by field. With `--antimony`, the model alone is compared
+after a trip through Antimony. Use it after changing an importer or exporter, to
+see at once what a change keeps and loses. It prints a Markdown report; with
+`DETAIL=<part of a model's title>` it also lists that model's every change.
+
+```
+cargo run -p pd-core --release --example layout_report > sbml.md
+cargo run -p pd-core --release --example layout_report -- --antimony > antimony.md
+```
+
+**`consistency_dump`**: everything the shared core makes from each model (the
+saved file, the Antimony and SBML exports and what they read back as, SVG and PDF
+drawings, and an automatic layout from a fixed seed), written to a folder. Build
+it natively and for WebAssembly, run both, and compare the two folders: this
+checks that the browser version computes what the desktop version does. Use it
+after changing geometry, layout, drawing or the exporters, or after a new Rust or
+dependency version. Expect the layouts and a few SBML coordinates to differ in
+their last digits, because the platforms' maths libraries round `hypot` (used for
+every length) differently; everything else should be identical. It needs the
+`wasm32-wasip1` target and Node (tried with Node 24).
+
+```
+cargo run -p pd-core --release --example consistency_dump -- . native
+rustup target add wasm32-wasip1
+cargo build -p pd-core --release --example consistency_dump --target wasm32-wasip1
+node scripts/run_wasi.mjs target/wasm32-wasip1/release/examples/consistency_dump.wasm . wasm
+diff -r native wasm
+```
+
 ## Status
 
 Version 0.1.20. All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
