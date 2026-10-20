@@ -2094,7 +2094,11 @@ Output is plain text, one statement per line, indented by two spaces, in this or
 Sections are separated by blank lines and introduced by `// Section` comments.
 
 1. `compartment C = <size>;` for each compartment other than `defaultCompartment`.
-2. `species [$]S [in C];` for each **primary, non-null** species.
+2. `species [$]S [in C];` for each **primary, non-null** species. *(Rust version:)*
+   a species that is constant and a boundary species is written
+   `const species $S [in C];`, and `const` on a species is read as constant (and,
+   as in libantimony, boundary). A constant species that isn't a boundary species
+   is written without `const`, which would make it one.
 3. `<rid>: [n ]A + [n ]B -> [n ]C; <law>;` for each reaction:
    - Null-node participants are left out, so a reaction with a null source is
      written `R1:  -> B; k*A;`.
@@ -2117,7 +2121,10 @@ whatever the system locale is. A re-implementation SHOULD wrap the output in
 
 **Round-trip.** Importing an exported file MUST give back the same biochemistry
 (species, reactions, stoichiometry, rate laws, parameters, initial values). Layout
-is not preserved.
+is not preserved. *(Rust version:)* nor are a modifier that its rate law doesn't
+name and isn't an activator or inhibitor (Antimony's `-(` is not used), the
+catalyst kind, an empty rate law (it comes back as `v`), or a model name that
+isn't an Antimony identifier.
 
 ### 11.4 Live Antimony panel
 

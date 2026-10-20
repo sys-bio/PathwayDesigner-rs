@@ -213,7 +213,15 @@ pub fn export(model: &Model) -> String {
     let species: Vec<String> = primaries
         .iter()
         .map(|s| {
-            let mut line = format!("species {}{}", if s.is_boundary { "$" } else { "" }, s.id);
+            // `const` makes a species constant, and a boundary species with it,
+            // so only a constant boundary species is written so (S §11.3).
+            let constant = if s.is_constant && s.is_boundary {
+                "const "
+            } else {
+                ""
+            };
+            let boundary = if s.is_boundary { "$" } else { "" };
+            let mut line = format!("{constant}species {boundary}{}", s.id);
             if !s.compartment.is_empty() && !s.compartment.eq_ignore_ascii_case(DEFAULT_COMPARTMENT)
             {
                 let _ = write!(line, " in {}", s.compartment);
@@ -339,6 +347,8 @@ type Side = Vec<(String, f64)>;
 struct SpeciesInfo {
     id: String,
     boundary: bool,
+    /// Declared `const` (S §11.2).
+    constant: bool,
     compartment: String,
     initial: f64,
 }
@@ -445,6 +455,7 @@ impl Builder<'_> {
                 species.push(SpeciesInfo {
                     id: id.to_owned(),
                     boundary: false,
+                    constant: false,
                     compartment: String::new(),
                     initial: 0.0,
                 });
@@ -460,11 +471,12 @@ impl Builder<'_> {
         });
         for s in species_like {
             let id = resolve(&s.name, s.is_boundary, &mut species);
+            let info = species
+                .iter_mut()
+                .find(|x| x.id == id)
+                .expect("just resolved");
+            info.constant |= s.constness == antimony::model::Constness::Const;
             if let Some(c) = &s.compartment {
-                let info = species
-                    .iter_mut()
-                    .find(|x| x.id == id)
-                    .expect("just resolved");
                 info.compartment = c.clone();
             }
         }
@@ -580,6 +592,7 @@ impl Builder<'_> {
                 pt(rng.range(0.0, PLACEMENT), rng.range(0.0, PLACEMENT)),
             );
             node.is_boundary = s.boundary;
+            node.is_constant = s.constant;
             node.compartment = s.compartment.clone();
             node.initial_value = s.initial;
             if model.push_species(node).is_err() {
@@ -1024,6 +1037,56 @@ mod tests {
         let m = ok("const k1 = 0.5\nconst species S = 2", &ON);
         assert_eq!(m.find_parameter("k1").unwrap().expression, "0.5");
         assert_eq!(m.find_species("S").unwrap().initial_value, 2.0);
+    }
+
+    #[test]
+    fn constant_species_go_through_const() {
+        // `const` makes a species constant and boundary, as in libantimony; a
+        // plain `$` only boundary.
+        let m = ok(
+            "const species S = 2
+species $A, B
+R1: S -> B; k*S
+A = 1",
+            &ON,
+        );
+        let s = m.find_species("S").unwrap();
+        assert!(s.is_constant && s.is_boundary);
+        let a = m.find_species("A").unwrap();
+        assert!(a.is_boundary && !a.is_constant);
+        assert!(!m.find_species("B").unwrap().is_constant);
+        let text = export(&m);
+        assert!(
+            text.contains(
+                "  const species $S;
+"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "  species $A;
+"
+            ),
+            "{text}"
+        );
+        let back = ok(&text, &ON);
+        for id in ["S", "A", "B"] {
+            let (x, y) = (m.find_species(id).unwrap(), back.find_species(id).unwrap());
+            assert_eq!(
+                (x.is_constant, x.is_boundary),
+                (y.is_constant, y.is_boundary),
+                "{id}"
+            );
+        }
+        // A constant species that isn't a boundary one can't be written:
+        // `const` would make it one.
+        let mut m = back;
+        m.find_species_mut("B").unwrap().is_constant = true;
+        assert!(export(&m).contains(
+            "  species B;
+"
+        ));
     }
 
     #[test]
