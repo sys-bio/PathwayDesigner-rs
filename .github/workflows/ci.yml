@@ -140,6 +140,12 @@ jobs:
           cargo run -q -p pd-core --release --example export_sbml -- exported
           python crates/pd-core/tests/scripts/check_sbml.py exported
 
+      # The same for every model in the Gallery, Escher maps included.
+      - name: Export the Gallery as SBML and check it
+        run: |
+          cargo run -q -p pd-core --release --example export_sbml -- exported-gallery --gallery
+          python crates/pd-core/tests/scripts/check_sbml.py exported-gallery
+
   # SPEC-Rust §9: every Models/*.json as PDF opens in pypdf with the right
   # page, and pypdfium2 (Chrome's PDF engine) draws it the same as resvg
   # draws the PNG.
