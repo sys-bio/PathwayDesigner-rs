@@ -737,12 +737,15 @@ which draws names as now.
   Each is one undo step, "Style", as Font size is; an item following a saved
   style stops following it when its face no longer matches.
 - **Files.** JSON version 14: an item's or a saved style's style object may have
-  `"bold": true` and `"italic": true`, left out when false. SBML: the species
-  glyph's note (§11.5) and the reaction glyph's note get `nameBold="true"` and
-  `nameItalic="true"`. Antimony has no looks.
+  `"bold": true` and `"italic": true`, left out when false. **SBML doesn't carry
+  them**: the user decided (2026-10-19) that no new PathwayDesigner-only
+  annotations are added to SBML, since no other tool can read them; a look goes
+  to SBML through the standard Render package (which has font-weight and
+  font-style) or not at all. The existing `pd:` notes stay as they are. Antimony
+  has no looks.
 - **Steps.** 1 (done): the model, measuring, drawing, panel, styles and JSON.
   2 (done): the Escher theme (§8.7); a diagram in it is now saved as version 14.
-  3: SBML.
+  (A third step, SBML notes, was dropped: see Files.)
 
 ### 5.12 Reaction names
 
