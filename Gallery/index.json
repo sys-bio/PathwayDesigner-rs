@@ -78,13 +78,6 @@
       "version": 4
     },
     {
-      "file": "ExampleModels/circle_4.json",
-      "group": "Small examples",
-      "title": "Circle 4",
-      "description": "10 species and 12 reactions laid out in a circle",
-      "version": 3
-    },
-    {
       "file": "ExampleModels/ExampleEscher_Small.json",
       "group": "Small examples",
       "title": "A small network in the Escher theme",
