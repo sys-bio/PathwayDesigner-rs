@@ -139,23 +139,8 @@ impl StructurePanel {
     pub fn highlight(&self) -> Option<Highlight> {
         let (s, bases) = (self.structure()?, self.bases()?);
         Some(match self.picked? {
-            Picked::Flux(i) => {
-                let v = bases.fluxes.get(i)?;
-                Highlight {
-                    reactions: structure::shown_coefficients(&v.terms, Some(v.independent))
-                        .into_iter()
-                        .map(|(c, k)| (s.reactions[c].clone(), k))
-                        .collect(),
-                    species: Vec::new(),
-                }
-            }
-            Picked::Law(i) => Highlight {
-                reactions: Vec::new(),
-                species: structure::shown_coefficients(&bases.laws.get(i)?.terms, None)
-                    .into_iter()
-                    .map(|(j, k)| (s.species[j].clone(), k))
-                    .collect(),
-            },
+            Picked::Flux(i) => s.flux_highlight(bases.fluxes.get(i)?),
+            Picked::Law(i) => s.law_highlight(bases.laws.get(i)?),
         })
     }
 

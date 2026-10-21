@@ -68,6 +68,8 @@ PathwayDesigner/                (the repository root is the Cargo workspace, §1
                                 onto the diagram (import), and writes the diagram as Antimony
                                 (export)
       sbml/                     S §11.5 — L3V1 core + Layout writer, MathML; reader (F-1)
+      structure                 S §8.9 — stoichiometry matrix, QR with column pivoting,
+                                conservation laws, flux null space, sparse bases
       text/                     text width from the bundled font (§5.4)
       view/                     view state, hit testing, the interaction state machine,
                                 editing commands (S §5–§7)
@@ -1424,24 +1426,10 @@ into a `C:/Program Files/Git/…` path, and the page stays on "Loading".
 
 ### 14.6 Visitor counter
 
-The published web app shows a counter from freevisitorcounters.com at the bottom
-of the left panel. index.html holds the counter's code. It runs only when the page
-is served from `sys-bio.github.io`, so copies hosted elsewhere don't show it or
-count their visits. Adding `?counter` to the address shows it anywhere, for
-testing. The desktop app has no counter and never contacts the service.
-
-- The counter's scripts must run while the page loads, because one of them uses
-  `document.write`. So index.html writes them in with `document.write` too, and
-  only on the published site.
-- The service's other script checks that its sponsor link is on the page and
-  visible when the page finishes loading, then empties the link. If the link is
-  missing or hidden, the counter shows an error instead. Don't remove or hide it.
-- When the counter is shown, index.html marks the page with `data-counter`. The
-  app then stops the model tree 72 points short of the panel's bottom. Each frame
-  it puts the counter's box over that gap (`web::place_counter`, changing the
-  page only when the gap moves).
-- sw.js caches only the app's own files, so the counter is never cached and is
-  simply missing when offline.
+None at present. The counter from freevisitorcounters.com, shown at the bottom of
+the left panel on the published site, was removed on 2026-10-21: its scripts and
+required sponsor link put advertisements on the page. A replacement must not run
+third-party scripts in the page or show advertisements.
 
 ## 15. Milestones
 

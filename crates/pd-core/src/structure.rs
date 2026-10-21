@@ -359,6 +359,30 @@ impl Structure {
         })
     }
 
+    /// What to draw over the network for vector `v`: its reactions with
+    /// their coefficients as [`Structure::flux_text`] shows them (S §8.9).
+    pub fn flux_highlight(&self, v: &FluxVector) -> crate::render::draw::Highlight {
+        crate::render::draw::Highlight {
+            reactions: shown_coefficients(&v.terms, Some(v.independent))
+                .into_iter()
+                .map(|(c, k)| (self.reactions[c].clone(), k))
+                .collect(),
+            species: Vec::new(),
+        }
+    }
+
+    /// What to draw over the network for conservation law `law`: its species
+    /// with their coefficients as [`Structure::law_text`] shows them.
+    pub fn law_highlight(&self, law: &ConservationLaw) -> crate::render::draw::Highlight {
+        crate::render::draw::Highlight {
+            reactions: Vec::new(),
+            species: shown_coefficients(&law.terms, None)
+                .into_iter()
+                .map(|(j, k)| (self.species[j].clone(), k))
+                .collect(),
+        }
+    }
+
     /// A conservation law as text, its species in the model's order:
     /// `ATP + ADP = constant`, `A + 2 B = constant`.
     pub fn law_text(&self, law: &ConservationLaw) -> String {

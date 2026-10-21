@@ -1893,6 +1893,59 @@ puts the usual one back. It is one undo step (*Background Colour*), saved in the
 diagram (JSON version 9, SPEC-Rust §4.2) and used on screen and in every output
 (SVG, PNG, PDF). SBML and Antimony don't carry it.
 
+### 8.9 Network structure (Rust version)
+
+*Added in the Rust version* (design: docs/structural-analysis-design.md). The
+**Structure** tab of the right panel (§13.3) shows what the network's stoichiometry
+says before any rate law is known, and draws it on the network.
+
+- **The stoichiometry matrix N.** Rows: the floating species, primaries only, in the
+  model's order (not boundary, not constant, not set by an assignment rule, not null
+  nodes). Columns: every reaction, in the model's order. Entries: products minus
+  reactants, an alias counted as its primary, modifiers not at all.
+- **The method** is COPASI's and libStructural's: a QR factorization with column
+  pivoting on the largest remaining column norm (as LAPACK's `DGEQP3`), the rank
+  where the diagonal of R falls below max(rows, columns) × |R₁₁| × machine epsilon,
+  and ties among columns of equal norm to the one first in the model. Of Nᵀ: the
+  independent and dependent species, the link matrix's L₀ and the **conservation
+  laws** (one per dependent species: it minus L₀ times the independent ones is
+  constant). Of N: the dependent and independent reactions and K₀ = −R₁₁⁻¹R₁₂, the
+  **flux null space** basis K = [K₀; I] (one vector per independent reaction: it at
+  1, the dependent fluxes that must follow). Each vector is a set of reactions
+  whose rates can change together, in its proportions, with every species staying
+  balanced (N v = 0).
+- **A sparse basis**, chosen with *Basis: K matrix | Sparse* (K matrix by
+  default): the same space and the same laws, each vector made greedily to touch
+  as few reactions (or species) as it can, by subtracting from it the multiple of
+  another vector that cancels the most entries, until nothing helps. It tends to
+  give short routes and separate moieties.
+- **The tab** shows the numbers of floating species, reactions, the rank,
+  independent fluxes and conservation laws, and the time taken; then the vectors and
+  the laws as equations (`J9 + J8`, `MAPK + MAPK_P + MAPK_PP = constant`), each led
+  by its independent reaction (K matrix) or its first item (sparse), in whole
+  numbers where the proportions allow, else with the lead at 1 and four
+  significant figures. Values within 10⁻⁹ of a simple fraction (denominator up to
+  12) are taken as it. *Copy* puts the matrix (tab-separated) or a list (one per
+  line) on the clipboard; *Export…* saves the matrix, the basis or the laws as CSV.
+- **The matrix panel** (*Stoichiometry matrix*, a toggle in the tab) opens under
+  the canvas, resizable: the matrix with species and reaction names pinned as it
+  scrolls, zeros blank, fractions as fractions; ✕ closes it.
+- **Highlighting.** Clicking a vector or a law picks it (clicking again lets it go),
+  and while the tab or the matrix panel is open it is drawn over the network: the
+  rest faded under a veil of the background; a vector's reactions redrawn thicker
+  in blue (`#1F6FD1`) for a positive coefficient and orange (`#E07B00`) for a
+  negative one, with their species and names; a law's species outlined in every
+  drawing, aliases included; a coefficient other than 1 labelled (`×2`). The matrix
+  panel shades the picked vector's columns or law's rows. A view only: not saved,
+  no undo step. Graphics output draws it as shown (§11.6).
+- **Recomputed** when the matrix changes (it is rebuilt every frame while the tab or
+  panel is open, which is cheap; the factorization only when it differs). A network
+  whose factorization would take more than about 4.5 × 10⁸ operations (about
+  600 × 600; some 1.5 s in the browser) is declined with a message.
+- Checked against libRoadRunner (scripts/structure_check.py): the matrix, rank,
+  both null spaces and the sparse bases agree in every Gallery model and 43 of 45
+  curated BioModels (the other two have delays libRoadRunner cannot load).
+
 ## 9. Undo / redo
 
 ### 9.1 Behaviour
@@ -2320,7 +2373,9 @@ The drawing used for output MUST be identical to the screen drawing, minus
 everything that depends on what the user is doing at the moment: selection halos,
 the larger size and line width of selected items, Bézier handles, the tooltip, the
 rubber band and the pending-reaction feedback. The background is the canvas colour
-(`#F8F9FA`). (The reference draws all of these, §15, D-21.)
+(`#F8F9FA`). (The reference draws all of these, §15, D-21.) A structure highlight
+(§8.9), which is a view of the network rather than of what the user is doing, is
+drawn in output as on screen.
 
 ---
 
@@ -2493,7 +2548,8 @@ changes on New, Open and Quit. The reference has none of these.
 
 ### 13.3 Right panel
 
-Three tabs at the top: **Properties**, **Antimony** and **Styles** (§8.6). *(Before 0.1.7 the panel
+Four tabs at the top: **Properties**, **Antimony**, **Styles** (§8.6) and
+**Structure** (§8.9). *(Before 0.1.7 the panel
 showed every group at once, most of them disabled, with the Antimony text between
 the Species and Reaction groups; there was no room left for more.)*
 
@@ -2509,6 +2565,8 @@ the Species and Reaction groups; there was no room left for more.)*
 - **Styles** has *Export My Styles…* and *Import Styles…* at the top, then the
   saved styles of the model and of My Styles, by kind, each with a picture of its
   look (§8.6). With none, it says how to save one.
+- **Structure** has the network's stoichiometry matrix, flux null space and
+  conservation laws (§8.9); its matrix opens in a panel under the canvas.
 
 The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,

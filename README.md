@@ -128,6 +128,11 @@ Delphi version does, and some more (see [Status](#status)).
   metabolite as an alias, in the Escher theme, each at the size the map gives it.
   Maps whose lines are routed through chains of markers (such as the BiGG maps
   drawn by MetaCarto) keep their routes as corner points.
+- **Network structure** (the *Structure* tab): the stoichiometry matrix (in a
+  panel under the diagram), the flux null space and the conservation laws, computed
+  as COPASI does (QR with column pivoting) and checked against libRoadRunner, with
+  an optional sparse basis whose vectors are short routes. Clicking a vector or a law
+  highlights it on the network; Copy and CSV export for each.
 - **Graphics**: SVG, PNG at any resolution, and vector PDF (Letter, A4 or the
   drawing's own size), and printing.
 - **The Gallery**: *File ▸ Open from Gallery…* opens example models, from small
