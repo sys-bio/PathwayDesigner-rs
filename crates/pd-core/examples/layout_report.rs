@@ -18,7 +18,8 @@
 //!
 //! Prints a Markdown report: per model, then per field over all models. With
 //! `DETAIL=<part of a model's title>`, also lists that model's every change on
-//! stderr.
+//! stderr: in the full round trip, or with `DETAIL_STANDARD=1` in the one
+//! through standard Layout and Render only.
 //!
 //! ```text
 //! cargo run -p pd-core --release --example layout_report [-- --antimony] > report.md
@@ -37,6 +38,11 @@ const OPTS: ImportOptions = ImportOptions {
 
 /// Numbers closer than this are the same (positions come back through text).
 const TOLERANCE: f64 = 1e-6;
+
+/// Whether DETAIL lists the round trip without PathwayDesigner's notes.
+fn detail_standard() -> bool {
+    std::env::var("DETAIL_STANDARD").is_ok()
+}
 
 static DETAIL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -355,7 +361,7 @@ fn key_of(item: &Value, i: usize) -> String {
 /// Counts every field of `a` and `b` under its path, with list positions left
 /// out (`species[].style.fillColor`), and whether it differs.
 fn compare(a: &Value, b: &Value, path: &str, out: &mut BTreeMap<String, Tally>, standard: bool) {
-    if !standard && DETAIL.load(std::sync::atomic::Ordering::Relaxed) {
+    if standard == detail_standard() && DETAIL.load(std::sync::atomic::Ordering::Relaxed) {
         match (a, b) {
             (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {}
             _ if !same_leaf(a, b, path) => eprintln!(
@@ -392,7 +398,9 @@ fn compare(a: &Value, b: &Value, path: &str, out: &mut BTreeMap<String, Tally>, 
                 match (x.get(k), y.get(k)) {
                     (Some(u), Some(v)) => compare(u, v, &p, out, standard),
                     (Some(u), None) | (None, Some(u)) => {
-                        if !standard && DETAIL.load(std::sync::atomic::Ordering::Relaxed) {
+                        if standard == detail_standard()
+                            && DETAIL.load(std::sync::atomic::Ordering::Relaxed)
+                        {
                             eprintln!(
                                 "{p}: only on one side: {u}   @{}",
                                 AT.with(|t| t.borrow().join("/"))
@@ -432,7 +440,9 @@ fn compare(a: &Value, b: &Value, path: &str, out: &mut BTreeMap<String, Tally>, 
                         AT.with(|t| t.borrow_mut().pop());
                     }
                     None => {
-                        if !standard && DETAIL.load(std::sync::atomic::Ordering::Relaxed) {
+                        if standard == detail_standard()
+                            && DETAIL.load(std::sync::atomic::Ordering::Relaxed)
+                        {
                             eprintln!("{p}: {k} missing after");
                         }
                         let mut leaves = Vec::new();
@@ -445,7 +455,9 @@ fn compare(a: &Value, b: &Value, path: &str, out: &mut BTreeMap<String, Tally>, 
             }
             for (k, v) in &ys {
                 if !seen.contains(k) {
-                    if !standard && DETAIL.load(std::sync::atomic::Ordering::Relaxed) {
+                    if standard == detail_standard()
+                        && DETAIL.load(std::sync::atomic::Ordering::Relaxed)
+                    {
                         eprintln!("{p}: {k} new after");
                     }
                     let mut leaves = Vec::new();

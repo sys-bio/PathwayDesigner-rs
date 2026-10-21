@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use sbml_io as sb;
 
 use super::math::from_math;
+use super::render_in::Target;
 use crate::antimony::ImportOptions;
 use crate::expr::{self, Ast};
 use crate::geometry::{Pt, pt};
@@ -50,6 +51,7 @@ pub fn import(xml: &str, opts: &ImportOptions) -> Result<Imported, Vec<sb::Diagn
         rng: Rng::new(opts.seed),
         functions: HashMap::new(),
         broken_functions: HashMap::new(),
+        targets: Vec::new(),
     };
     let (had_layout, unplaced) = b.build(m, opts);
     Ok(Imported {
@@ -70,6 +72,8 @@ struct Builder {
     functions: HashMap<String, expr::FunctionDef>,
     /// Function definitions that couldn't be read, and why.
     broken_functions: HashMap<String, String>,
+    /// Each glyph and what it draws, for its look from Render.
+    targets: Vec<(String, Target)>,
 }
 
 /// What the layout says about a reaction's empty side: where its null node
@@ -263,6 +267,16 @@ impl Builder {
                     && w >= 1.0
                     && h >= 1.0
                 {
+                    self.targets
+                        .push((g.id.clone(), Target::Compartment(id.clone())));
+                    for t in l
+                        .text_glyphs
+                        .iter()
+                        .filter(|t| t.graphical_object.as_deref() == Some(g.id.as_str()))
+                    {
+                        self.targets
+                            .push((t.id.clone(), Target::CompartmentName(id.clone())));
+                    }
                     c.frame = Some(crate::model::Frame {
                         center: pt(b.position.x + w / 2.0, b.position.y + h / 2.0),
                         width: w,
@@ -298,6 +312,7 @@ impl Builder {
                 let at = positioned(g.bounding_box.as_ref())
                     .map_or(Pt::ZERO, |b| pt(b.position.x, b.position.y));
                 let id = self.model.add_text(at, words);
+                self.targets.push((g.id.clone(), Target::Text(id.clone())));
                 let look = g
                     .meta
                     .annotation
@@ -311,6 +326,11 @@ impl Builder {
                     t.wrap_width = look.wrap_width;
                 }
             }
+        }
+        // How it all looks, from Render: after the notes, which give what
+        // Render can't say (docs/render-design.md §6).
+        if let Some(l) = layout {
+            super::render_in::apply(&mut self.model, l, m.global_render.as_ref(), &self.targets);
         }
         self.model.recompute_id_counter();
         (layout.is_some(), unplaced)
@@ -416,6 +436,8 @@ impl Builder {
                 (node.shape, node.border_dash) = (look.shape, look.border_dash);
                 node.style.no_border = look.no_border;
                 glyph_node.insert(g.id.clone(), species.to_owned());
+                self.targets
+                    .push((g.id.clone(), Target::Species(species.to_owned())));
                 continue;
             }
             // An alias keeps the id it was exported with (`sg_<id>`) if it can.
@@ -438,6 +460,8 @@ impl Builder {
             (node.width, node.height) = (w, h);
             (node.shape, node.border_dash) = (look.shape, look.border_dash);
             node.style.no_border = look.no_border;
+            self.targets
+                .push((g.id.clone(), Target::Species(id.clone())));
             glyph_node.insert(g.id.clone(), id);
         }
         // A species' name is outside its node when the note says so, or when
@@ -454,6 +478,8 @@ impl Builder {
             else {
                 continue;
             };
+            self.targets
+                .push((t.id.clone(), Target::SpeciesName(node.id.clone())));
             let c = pt(
                 bb.position.x + bb.dimensions.width / 2.0,
                 bb.position.y + bb.dimensions.height / 2.0,
@@ -487,6 +513,8 @@ impl Builder {
             let Some(r) = self.model.find_reaction(&id) else {
                 continue;
             };
+            self.targets
+                .push((t.id.clone(), Target::ReactionName(id.clone())));
             let c = pt(
                 bb.position.x + bb.dimensions.width / 2.0,
                 bb.position.y + bb.dimensions.height / 2.0,
@@ -693,6 +721,8 @@ impl Builder {
                 let p = &mut rx.participants_mut(prole)[index];
                 p.species = node.clone();
                 if prole == crate::model::Role::Modifier {
+                    self.targets
+                        .push((srg.id.clone(), Target::Modifier(r.id.clone(), node.clone())));
                     match srg.role {
                         Some(sb::Role::Activator) => p.kind = ModifierKind::Activator,
                         Some(sb::Role::Inhibitor) => p.kind = ModifierKind::Inhibitor,
@@ -785,6 +815,10 @@ impl Builder {
                 (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (c1, c2, true);
                 rx.mode = ReactionMode::Bezier;
             }
+        }
+        if let Some(g) = glyph {
+            self.targets
+                .push((g.id.clone(), Target::Reaction(r.id.clone())));
         }
         self.model.push_reaction(rx).expect("checked unused above");
     }

@@ -11,6 +11,7 @@ mod appearance;
 mod export;
 mod import;
 pub mod math;
+mod render_in;
 mod shape;
 
 pub use export::{Exported, export};

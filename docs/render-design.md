@@ -285,6 +285,45 @@ this, a diagram's saved styles survive JSON but not SBML.
 One line after import, for example: *"Render: 3 gradients shown as one colour, 12
 shapes approximated, 2 images skipped."* Nothing when everything was exact.
 
+### 5.7 Built (R4, 2026-10-20)
+
+`pd-core/src/sbml/render_in.rs`, run at the end of SBML import. The import
+records each glyph with the item it draws; the resolver follows 5.1 (id, role,
+type; local, referenced global, first global), and colours read as values,
+ids, or a gradient's stop nearest the middle. Decided while building:
+
+- **The junction dot** is shown if the reaction glyph's style draws a shape,
+  hidden if it draws none (a Linear reaction is left alone). Our files say it
+  both ways; another tool's file without a dot is drawn without one, as there.
+- **Hidden modifier lines:** if every modifier line's style has no stroke, the
+  diagram's lines are turned off; those lines' own looks then come only from
+  the notes.
+- **Shapes and dashes** keep the note's value when it draws the same (a circle
+  is an ellipse to Render; "automatic" and "solid" dashes look the same on a
+  primary); otherwise Render's.
+- **The background** is the first found along the chain (SBMLNetwork gives it
+  on the global render information only).
+
+Results:
+- the E4 report, standard Layout and Render only (notes removed): changes per
+  model fall from 262 to 34 (Upper glycolysis), 4,653 to 301 (the Escher map),
+  720 to 181 (Millard). What remains is what only the notes say (Linear
+  reactions, which then lose their junction dot too; smooth junctions; solid
+  against automatic dashes), the theme (§3.5), and two representation
+  differences that draw the same: a width set by hand to its default value
+  comes back as the default, and an alias's boundary border (the app draws an
+  alias's border from the alias's own, stale, copy of the boundary flag; noted
+  for the author);
+- with the notes kept, the full round trip loses only the theme and those two
+  representation differences;
+- the survey's 45 files all import; COPASI's global role and type styles (in
+  Level 2) and SBMLNetwork's styles come through;
+- shown in the web build: our upper glycolysis (Escher theme) export with every
+  note removed opens in its Escher look; SBMLNetwork's MAPK "sunset" opens in
+  its colours (its names and junctions are R5's to improve);
+- 4 integration tests (`tests/render_import.rs`) and 3 unit tests; 23
+  deliberate breakages, all caught; 1110 workspace tests pass.
+
 ## 6. Render and PathwayDesigner's notes
 
 Several looks are now in both: shapes, border dashes, compartment fill and border,
