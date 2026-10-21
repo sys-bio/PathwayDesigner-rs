@@ -48,7 +48,7 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
             ("Double-click a species", "Rename it"),
             ("Double-click a text", "Edit its words"),
             (
-                "Double-click a modifier line",
+                "Double-click a modifier line, or a reactant's or product's line",
                 "Add a corner point there, so the line can turn a corner; drag the small square to move it, right-click it to remove it",
             ),
             (
