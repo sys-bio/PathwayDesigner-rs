@@ -19,6 +19,7 @@ pub mod node_shape;
 pub mod passes;
 pub mod render;
 pub mod sbml;
+pub mod structure;
 pub mod styles;
 pub mod text;
 pub mod textbox;
