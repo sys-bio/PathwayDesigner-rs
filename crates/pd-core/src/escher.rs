@@ -111,6 +111,9 @@ pub fn import(text: &str) -> Result<Imported, String> {
 
     // Reactions.
     let mut reaction_labels: Vec<(Id, Pt)> = Vec::new();
+    // Metabolites a reaction lists but the map doesn't draw in it, and the
+    // reaction: one warning for them all.
+    let mut undrawn: Vec<(String, String)> = Vec::new();
     for (key, r) in ordered(reactions) {
         let bigg = r.get("bigg_id").and_then(Value::as_str).unwrap_or(key);
         let mut id = sid(bigg, 'R');
@@ -253,9 +256,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
                         == Some(met)
             });
             let Some(i) = found else {
-                warnings.push(format!(
-                    "{met} in {bigg} isn't drawn; it was left out of it."
-                ));
+                undrawn.push((met.to_owned(), bigg.to_owned()));
                 continue;
             };
             used[i] = true;
@@ -324,6 +325,8 @@ pub fn import(text: &str) -> Result<Imported, String> {
         }
         model.push_reaction(rx).expect("checked unused");
     }
+
+    warnings.extend(undrawn_warning(&undrawn));
 
     for t in map
         .get("text_labels")
@@ -394,6 +397,54 @@ pub fn import(text: &str) -> Result<Imported, String> {
     }
     model.recompute_id_counter();
     Ok(Imported { model, warnings })
+}
+
+/// One warning for the metabolites reactions list but the map doesn't draw
+/// in them (as maps that leave out water and protons do): the metabolite and
+/// reaction when there is one, else how many of each, most often missing
+/// first.
+fn undrawn_warning(undrawn: &[(String, String)]) -> Option<String> {
+    let reactions = undrawn
+        .iter()
+        .map(|(_, r)| r.as_str())
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    let mut counts: Vec<(&str, usize)> = Vec::new();
+    for (m, _) in undrawn {
+        match counts.iter_mut().find(|(n, _)| n == m) {
+            Some((_, c)) => *c += 1,
+            None => counts.push((m, 1)),
+        }
+    }
+    counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    match (counts.as_slice(), undrawn) {
+        ([], _) => None,
+        ([_], [(m, r)]) => Some(format!("{m} in {r} isn't drawn; it was left out of it.")),
+        ([(m, n)], _) => Some(format!(
+            "{m} is listed in {n} reactions but isn't drawn; it was left out of them."
+        )),
+        _ => {
+            let shown: Vec<String> = counts
+                .iter()
+                .take(3)
+                .map(|(m, n)| format!("{m} ({n})"))
+                .collect();
+            let rest = counts.len().saturating_sub(3);
+            let names = match rest {
+                0 => {
+                    let (last, first) = shown.split_last().expect("two or more");
+                    format!("{} and {last}", first.join(", "))
+                }
+                1 => format!("{} and 1 other", shown.join(", ")),
+                _ => format!("{} and {rest} others", shown.join(", ")),
+            };
+            let s = if reactions == 1 { "" } else { "s" };
+            Some(format!(
+                "{} metabolites listed in {reactions} reaction{s} aren't drawn and were left out of them: {names}.",
+                counts.len()
+            ))
+        }
+    }
 }
 
 /// The members of a JSON object in the order of their keys as numbers
@@ -647,6 +698,69 @@ mod tests {
                 .iter()
                 .flat_map(|r| r.reactants.iter().chain(&r.products))
                 .all(|p| p.points.is_empty())
+        );
+    }
+
+    #[test]
+    fn metabolites_not_drawn_get_one_warning() {
+        let w = |list: &[(&str, &str)]| {
+            let list: Vec<(String, String)> = list
+                .iter()
+                .map(|(m, r)| (m.to_string(), r.to_string()))
+                .collect();
+            undrawn_warning(&list)
+        };
+        assert_eq!(w(&[]), None);
+        assert_eq!(
+            w(&[("h_c", "PGK")]).unwrap(),
+            "h_c in PGK isn't drawn; it was left out of it."
+        );
+        assert_eq!(
+            w(&[("h_c", "PGK"), ("h_c", "GAPD")]).unwrap(),
+            "h_c is listed in 2 reactions but isn't drawn; it was left out of them."
+        );
+        assert_eq!(
+            w(&[("h_c", "PGK"), ("h2o_c", "PGK")]).unwrap(),
+            "2 metabolites listed in 1 reaction aren't drawn and were left out of them: \
+             h2o_c (1) and h_c (1)."
+        );
+        // The most often missing first; three named, then how many more.
+        let many = [
+            ("pi_c", "A"),
+            ("h_c", "A"),
+            ("h_c", "B"),
+            ("h_c", "C"),
+            ("h2o_c", "B"),
+            ("h2o_c", "C"),
+            ("nad_c", "D"),
+            ("co2_c", "D"),
+        ];
+        assert_eq!(
+            w(&many).unwrap(),
+            "5 metabolites listed in 4 reactions aren't drawn and were left out of them: \
+             h_c (3), h2o_c (2), co2_c (1) and 2 others."
+        );
+        assert!(
+            w(&many[..6])
+                .unwrap()
+                .ends_with("h_c (3), h2o_c (2) and pi_c (1).")
+        );
+        assert!(w(&many[..7]).unwrap().ends_with("and 1 other."));
+        // Through the import: a map leaving water out of every reaction.
+        let two = MAP.replace(
+            r#"{"bigg_id": "adp_c", "coefficient": 2}"#,
+            r#"{"bigg_id": "adp_c", "coefficient": 2}, {"bigg_id": "h2o_c", "coefficient": -1}"#,
+        );
+        let two = two.replace(
+            r#"{"bigg_id": "glc_c", "coefficient": -1}"#,
+            r#"{"bigg_id": "glc_c", "coefficient": -1}, {"bigg_id": "h2o_c", "coefficient": 1}"#,
+        );
+        let imported = import(&two).unwrap();
+        assert_eq!(imported.warnings.len(), 1, "{:?}", imported.warnings);
+        assert_eq!(
+            imported.warnings[0],
+            "2 metabolites listed in 2 reactions aren't drawn and were left out of them: \
+             h2o_c (2) and glc_c (1)."
         );
     }
 

@@ -2344,9 +2344,12 @@ Save never writes over the map. Opening it is not an edit, so the status bar say
 - **Reactions.** Each reaction's `midmarker` node is its junction; its listed
   metabolites, by the sign of their coefficient, its reactants and products, with
   the coefficient's size as stoichiometry; `reversibility` is kept. Escher has no
-  rate laws, so the law is empty. A metabolite listed but not drawn is left out,
-  with a warning; a reaction with no `midmarker` or nothing drawn is left out,
-  with a warning.
+  rate laws, so the law is empty. A metabolite listed but not drawn is left out
+  of that reaction (maps from other programs leave out water and protons this
+  way); one warning covers them all: the metabolite and reaction when there is
+  one, else how many metabolites and reactions, naming the three most often
+  missing with their counts. A reaction with no `midmarker` or nothing drawn is
+  left out, with a warning.
 - **Legs and spine.** Escher draws each side of a reaction as curves from its
   metabolites to one node on the reaction's spine (a `multimarker`, or the
   `midmarker` itself), with handles `b1` by the segment's `from` node and `b2` by
