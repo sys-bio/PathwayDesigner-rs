@@ -127,5 +127,19 @@
         <span>A new version of PathwayDesigner is available.</span>
         <button type="button" onclick="location.reload()">Reload</button>
     </div>
+    <!-- Visit statistics from Umami Cloud (SPEC-Rust §14.6): cookie-free, no
+         advertising, nothing shown on the page. Loaded on the published app
+         only (sys-bio.github.io/PathwayDesigner-rs/), so local builds, copies
+         hosted elsewhere and other sys-bio pages aren't counted. -->
+    <script>
+        if (location.hostname === "sys-bio.github.io"
+            && location.pathname.startsWith("/PathwayDesigner-rs/")) {
+            const umami = document.createElement("script");
+            umami.defer = true;
+            umami.src = "https://cloud.umami.is/script.js";
+            umami.setAttribute("data-website-id", "67555b5f-1696-49ee-99fd-5a6ab3efb555");
+            document.body.appendChild(umami);
+        }
+    </script>
 </body>
 </html>

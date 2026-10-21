@@ -1426,10 +1426,20 @@ into a `C:/Program Files/Git/…` path, and the page stays on "Loading".
 
 ### 14.6 Visitor counter
 
-None at present. The counter from freevisitorcounters.com, shown at the bottom of
-the left panel on the published site, was removed on 2026-10-21: its scripts and
-required sponsor link put advertisements on the page. A replacement must not run
-third-party scripts in the page or show advertisements.
+No visible counter. Visits to the published web app are counted by **Umami
+Cloud** (umami.is; the author's account, website id in index.html): cookie-free,
+no advertising, nothing shown on the page. index.html adds Umami's script only when
+the page is served from `sys-bio.github.io/PathwayDesigner-rs/`, so local builds
+and copies hosted elsewhere neither load it nor count. Umami counts only pages that
+load its script with this website id, so other pages on `sys-bio.github.io` are
+never counted. sw.js handles only the app's own files, so
+Umami's requests go straight to the network (and simply fail offline). The desktop
+app never contacts it.
+
+The earlier counter, from freevisitorcounters.com at the bottom of the left panel,
+was removed on 2026-10-21: its scripts and required sponsor link put advertisements
+on the page. Whatever is used must show no advertising and no third-party content
+in the page.
 
 ## 15. Milestones
 
