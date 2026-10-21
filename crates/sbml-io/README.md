@@ -27,9 +27,16 @@ also works in WebAssembly.
 - **The Layout package** (Level 3 Layout Version 1), read and written in full.
   In Level 2 files, layout lives in an annotation. `sbml-io` reads it from there
   too, into the same `Layout` data.
+- **The Render package** (Level 3 Render Version 1), read and written in full:
+  render information (global and per layout), colours, gradients, line
+  endings, styles, and every drawing primitive. In Level 2 files Render lives in
+  annotations, and is read from there and written back there, into the same
+  `render` data. Polygons written by older tools as `listOfCurveSegments` are
+  read as points. Values that may be relative (`50%`, `5 + 50%`) are kept as
+  written, with `RelAbs::parse` and `RelAbs::resolve` to read them.
 - **MathML**, the subset SBML allows, as a tree.
 - **Everything else is kept.** Notes and annotations, other packages (fbc,
-  render, comp, …), and any attribute or element `sbml-io` doesn't understand all
+  comp, …), and any attribute or element `sbml-io` doesn't understand all
   survive a read and a write unchanged.
 
 Not in scope, at least at first:
@@ -85,6 +92,8 @@ pub struct Model {
     pub reactions: Vec<Reaction>,
     pub events: Vec<Event>,
     pub layouts: Vec<Layout>,                      // the Layout package
+    pub layouts_meta: Meta,                        // listOfLayouts itself
+    pub global_render: Option<render::RenderList>, // the Render package
     pub meta: Meta,
 }
 
@@ -156,15 +165,17 @@ pub enum Segment {
 
 ## Testing
 
-- Unit tests: `cargo test -p sbml-io`. The Layout files in `tests/data` are
-  written by python-libsbml (`tests/scripts/make_layout_fixtures.py`).
+- Unit tests: `cargo test -p sbml-io`. The Layout and Render files in
+  `tests/data` are written by python-libsbml
+  (`tests/scripts/make_layout_fixtures.py`, `make_render_fixtures.py`); the
+  Render ones use every part of the package, in Level 3 and in Level 2.
 - Against libSBML: `examples/roundtrip.rs` reads and writes back every file in
   a folder, and `tests/scripts/libsbml_compare.py` has python-libsbml compare
   each rewrite with its original. CI runs this on every Level 2 and Level 3
   model of the [SBML Test Suite](https://github.com/sbmlteam/sbml-test-suite)
   (9,350 files in release 3.5.0): libSBML finds every rewrite identical to its
   original, including the parts from other packages that `sbml-io` keeps as
-  raw XML.
+  raw XML. CI also runs it on the Layout and Render files in `tests/data`.
 
 ## Licence
 

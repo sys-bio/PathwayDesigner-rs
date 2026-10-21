@@ -5,13 +5,94 @@ use roxmltree::Node;
 
 use super::{E, Reader};
 use crate::layout::*;
+use crate::model::Meta;
 use crate::ns;
+use crate::render::RenderList;
 
 type P<'p> = Option<&'p str>;
 
 impl<'a, 'i: 'a> Reader<'a, 'i> {
+    /// `listOfLayouts`: its layouts, its own content, and the global render
+    /// information (in Level 2, out of its annotation).
+    pub(super) fn layout_list(
+        &mut self,
+        n: Node<'a, 'i>,
+        lns: &str,
+    ) -> (Vec<Layout>, Meta, Option<RenderList>) {
+        let l2 = lns == ns::LAYOUT_L2;
+        let mut layouts = Vec::new();
+        let mut global = None;
+        let mut rest = None;
+        let mut meta = self.meta(E::new(n), Some(lns), |r, c| {
+            if r.name_in(c, lns) == Some("layout") {
+                layouts.push(r.layout(c, Some(lns)));
+                return true;
+            }
+            if !l2 && r.name_in(c, ns::RENDER) == Some("listOfGlobalRenderInformation") {
+                global = Some(r.render_list(c, ns::RENDER));
+                return true;
+            }
+            if l2 && rest.is_none() && r.is_annotation(c, lns) {
+                rest = Some(r.annotation_without(c, "listOfGlobalRenderInformation", &mut global));
+                return true;
+            }
+            false
+        });
+        if let Some(rest) = rest {
+            meta.annotation = rest;
+        }
+        (layouts, meta, global)
+    }
+
+    /// An `<annotation>`: SBML's, or written in the layout namespace.
+    fn is_annotation(&self, c: Node<'a, 'i>, lns: &str) -> bool {
+        (self.core_name(c) == Some("annotation")) || self.name_in(c, lns) == Some("annotation")
+    }
+
+    /// A Level 2 annotation with a render list taken out of it into `slot`;
+    /// the rest is kept. `None` if nothing is left.
+    fn annotation_without(
+        &mut self,
+        n: Node<'a, 'i>,
+        list: &str,
+        slot: &mut Option<RenderList>,
+    ) -> Option<String> {
+        let is_list = |c: Option<Node>| {
+            c.is_some_and(|c| {
+                c.is_element()
+                    && c.tag_name().namespace() == Some(ns::RENDER_L2)
+                    && c.tag_name().name() == list
+            })
+        };
+        let mut rest = String::new();
+        let mut took = false;
+        for c in n.children() {
+            // The whitespace before the list goes with it.
+            if c.is_text()
+                && c.text().is_some_and(|t| t.trim().is_empty())
+                && is_list(c.next_sibling())
+            {
+                continue;
+            }
+            if is_list(Some(c)) && slot.is_none() {
+                *slot = Some(self.render_list(c, ns::RENDER_L2));
+                took = true;
+            } else {
+                rest.push_str(&self.raw(c));
+            }
+        }
+        if took && rest.trim().is_empty() {
+            None
+        } else {
+            Some(rest)
+        }
+    }
+
     pub(super) fn layout(&mut self, n: Node<'a, 'i>, pkg: P) -> Layout {
         let lns = pkg.unwrap_or(ns::LAYOUT);
+        let l2 = lns == ns::LAYOUT_L2;
+        let mut rest = None;
+        let mut render = None;
         let mut e = E::new(n);
         let mut l = Layout {
             id: self.req_pkg(&mut e, pkg, "id"),
@@ -41,10 +122,20 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
                 Some("listOfAdditionalGraphicalObjects") => {
                     l.additional = r.list(c, lns, ADDITIONAL, |r, c| r.additional(c, pkg))
                 }
+                _ if !l2 && r.name_in(c, ns::RENDER) == Some("listOfRenderInformation") => {
+                    render = Some(r.render_list(c, ns::RENDER))
+                }
+                _ if l2 && rest.is_none() && r.is_annotation(c, lns) => {
+                    rest = Some(r.annotation_without(c, "listOfRenderInformation", &mut render))
+                }
                 _ => return false,
             }
             true
         });
+        if let Some(rest) = rest {
+            l.meta.annotation = rest;
+        }
+        l.render = render;
         match dims {
             Some(d) => l.dimensions = d,
             None => self.error(n, "<layout> needs <dimensions>"),
@@ -195,7 +286,7 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         g
     }
 
-    fn bounding_box_child(
+    pub(super) fn bounding_box_child(
         &mut self,
         c: Node<'a, 'i>,
         pkg: P,

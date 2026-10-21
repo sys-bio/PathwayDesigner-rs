@@ -14,6 +14,9 @@ pub struct Layout {
     pub text_glyphs: Vec<TextGlyph>,
     /// `listOfAdditionalGraphicalObjects`.
     pub additional: Vec<AdditionalGlyph>,
+    /// The layout's own render information (the Render package): in Level 3
+    /// `listOfRenderInformation`, in Level 2 in the layout's annotation.
+    pub render: Option<crate::render::RenderList>,
     pub meta: Meta,
 }
 

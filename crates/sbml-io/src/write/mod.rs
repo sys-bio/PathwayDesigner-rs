@@ -4,6 +4,7 @@
 
 mod layout;
 mod math;
+mod render;
 
 use crate::math::Math;
 use crate::model::*;
@@ -13,7 +14,11 @@ use crate::ns;
 /// accepts; others are written with the Level 3 Version 2 namespace.
 pub fn write(doc: &Document) -> String {
     let core = ns::core(doc.level, doc.version).unwrap_or(ns::core(3, 2).unwrap());
-    let has_layouts = doc.model.as_ref().is_some_and(|m| !m.layouts.is_empty());
+    let has_layouts = doc.model.as_ref().is_some_and(has_layout_list);
+    let has_render = doc
+        .model
+        .as_ref()
+        .is_some_and(|m| m.global_render.is_some() || m.layouts.iter().any(|l| l.render.is_some()));
 
     // The root's namespaces: as read, with the core namespace for this level
     // and version, and the Layout namespace if it's needed.
@@ -49,6 +54,34 @@ pub fn write(doc: &Document) -> String {
         }
     }
 
+    // The same for Render, in Level 3. In Level 2 its namespace is declared
+    // on each list, in the annotation.
+    let mut render_prefix = String::from("render");
+    if doc.level == 3 && has_layouts && has_render {
+        match namespaces.iter().find(|(_, u)| u == ns::RENDER) {
+            Some((Some(p), _)) => render_prefix = p.clone(),
+            _ => {
+                while namespaces
+                    .iter()
+                    .any(|(p, _)| p.as_deref() == Some(&render_prefix))
+                {
+                    render_prefix.push('_');
+                }
+                namespaces.push((Some(render_prefix.clone()), ns::RENDER.to_string()));
+            }
+        }
+        if !root_attrs
+            .iter()
+            .any(|a| a.namespace.as_deref() == Some(ns::RENDER) && a.name.ends_with(":required"))
+        {
+            root_attrs.push(Attribute {
+                name: format!("{render_prefix}:required"),
+                namespace: Some(ns::RENDER.to_string()),
+                value: "false".to_string(),
+            });
+        }
+    }
+
     let mut w = W {
         out: String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"),
         depth: 0,
@@ -56,6 +89,7 @@ pub fn write(doc: &Document) -> String {
         core,
         namespaces,
         layout_prefix,
+        render_prefix,
     };
     let mut attrs: Vec<(String, String)> = w
         .namespaces
@@ -82,6 +116,12 @@ pub fn write(doc: &Document) -> String {
     w.out
 }
 
+/// Whether a model has a `listOfLayouts` to write: layouts, or the list's
+/// own content.
+pub(crate) fn has_layout_list(m: &Model) -> bool {
+    !m.layouts.is_empty() || m.global_render.is_some() || m.layouts_meta != Meta::default()
+}
+
 /// Attributes being gathered for an element: (qualified name, value).
 pub(crate) type Attrs = Vec<(String, String)>;
 
@@ -92,6 +132,7 @@ pub(crate) struct W {
     pub(crate) core: &'static str,
     namespaces: Vec<(Option<String>, String)>,
     pub(crate) layout_prefix: String,
+    pub(crate) render_prefix: String,
 }
 
 /// Adds an attribute if it has a value.
@@ -290,8 +331,8 @@ impl W {
         attr(&mut a, "lengthUnits", &m.length_units);
         attr(&mut a, "extentUnits", &m.extent_units);
         attr(&mut a, "conversionFactor", &m.conversion_factor);
-        let l2_layouts = (self.level == 2 && !m.layouts.is_empty()).then(|| {
-            let mut xml = self.l2_layouts(&m.layouts);
+        let l2_layouts = (self.level == 2 && has_layout_list(m)).then(|| {
+            let mut xml = self.l2_layouts(m);
             if m.meta.annotation.is_none() {
                 xml.push('\n');
                 xml.push_str(&"  ".repeat(self.depth + 1));
@@ -413,7 +454,7 @@ impl W {
             w.list("listOfReactions", &m.reactions, |w, r| w.reaction(r));
             w.list("listOfEvents", &m.events, |w, e| w.event(e));
             if w.level == 3 {
-                w.l3_layouts(&m.layouts);
+                w.l3_layouts(m);
             }
         });
     }

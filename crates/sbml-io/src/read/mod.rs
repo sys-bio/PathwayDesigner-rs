@@ -3,6 +3,7 @@
 
 mod layout;
 mod math;
+mod render;
 
 use roxmltree::{Node, ParsingOptions};
 
@@ -221,7 +222,8 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
             if prefix == Some("xml") {
                 continue;
             }
-            let inherited = parent_ns.contains(&(prefix, uri)) && !declares(text, prefix);
+            let inherited =
+                parent_ns.contains(&(prefix, uri)) && !declares(text, prefix) && uses(text, prefix);
             let on_root = self
                 .root_ns
                 .iter()
@@ -404,15 +406,22 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         let core = self.core;
         let mut l2_annotation = None;
         let mut layouts = Vec::new();
+        let mut layouts_meta = Meta::default();
+        let mut global_render = None;
         let meta = self.meta(e, None, |r, c| {
             if level == 2 && r.core_name(c) == Some("annotation") {
-                l2_annotation = Some(r.l2_model_annotation(c, &mut layouts));
+                l2_annotation = Some(r.l2_model_annotation(
+                    c,
+                    &mut layouts,
+                    &mut layouts_meta,
+                    &mut global_render,
+                ));
                 return true;
             }
             if level == 3 && r.name_in(c, ns::LAYOUT) == Some("listOfLayouts") {
-                layouts.extend(r.list(c, ns::LAYOUT, &["layout"], |r, c| {
-                    r.layout(c, Some(ns::LAYOUT))
-                }));
+                let (ls, meta, global) = r.layout_list(c, ns::LAYOUT);
+                layouts.extend(ls);
+                (layouts_meta, global_render) = (meta, global);
                 return true;
             }
             let Some(name) = r.core_name(c) else {
@@ -484,6 +493,8 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
             m.meta.annotation = l2_annotation.flatten();
         }
         m.layouts = layouts;
+        m.layouts_meta = layouts_meta;
+        m.global_render = global_render;
         m
     }
 
@@ -493,6 +504,8 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         &mut self,
         n: Node<'a, 'i>,
         layouts: &mut Vec<crate::Layout>,
+        layouts_meta: &mut Meta,
+        global_render: &mut Option<crate::render::RenderList>,
     ) -> Option<String> {
         let mut rest = String::new();
         let mut took = false;
@@ -512,9 +525,9 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
                 continue;
             }
             if is_layouts(Some(c)) {
-                layouts.extend(self.list(c, ns::LAYOUT_L2, &["layout"], |r, c| {
-                    r.layout(c, Some(ns::LAYOUT_L2))
-                }));
+                let (ls, meta, global) = self.layout_list(c, ns::LAYOUT_L2);
+                layouts.extend(ls);
+                (*layouts_meta, *global_render) = (meta, global);
                 took = true;
             } else {
                 rest.push_str(&self.raw(c));
@@ -821,6 +834,15 @@ pub(crate) fn escape_attr(s: &str) -> String {
 
 /// Whether an element's start tag declares a namespace prefix (`None`: the
 /// default namespace).
+/// True if raw XML may use a namespace prefix: the default namespace always,
+/// a named one if `prefix:` occurs in it.
+fn uses(xml: &str, prefix: Option<&str>) -> bool {
+    match prefix {
+        None => true,
+        Some(p) => xml.contains(&format!("{p}:")),
+    }
+}
+
 fn declares(element: &str, prefix: Option<&str>) -> bool {
     let start_tag = element.split('>').next().unwrap_or("");
     let decl = match prefix {

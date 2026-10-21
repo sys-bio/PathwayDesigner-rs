@@ -3,7 +3,7 @@
 
 use super::{Attrs, W, attr, fmt_f64};
 use crate::layout::*;
-use crate::model::Meta;
+use crate::model::{Meta, Model};
 use crate::ns;
 
 impl W {
@@ -16,43 +16,54 @@ impl W {
         }
     }
 
-    pub(crate) fn l3_layouts(&mut self, layouts: &[Layout]) {
-        if layouts.is_empty() {
+    pub(crate) fn l3_layouts(&mut self, m: &Model) {
+        if !super::has_layout_list(m) {
             return;
         }
         let p = self.lp();
-        let xsi = if self.root_declares(ns::XSI) {
-            String::new()
-        } else {
-            format!(" xmlns:xsi=\"{}\"", ns::XSI)
-        };
-        self.line(&format!("<{p}listOfLayouts{xsi}>"));
-        self.push_depth();
-        for l in layouts {
-            self.layout(l);
+        let mut a = Vec::new();
+        if !self.root_declares(ns::XSI) {
+            a.push(("xmlns:xsi".to_string(), ns::XSI.to_string()));
         }
-        self.pop_depth();
-        self.line(&format!("</{p}listOfLayouts>"));
+        self.annotated(
+            &format!("{p}listOfLayouts"),
+            &mut a,
+            &m.layouts_meta,
+            None,
+            |w| {
+                for l in &m.layouts {
+                    w.layout(l);
+                }
+                if let Some(g) = &m.global_render {
+                    w.render_list("listOfGlobalRenderInformation", g);
+                }
+            },
+        );
     }
 
     /// Level 2 layouts, as raw XML for the model's annotation.
-    pub(crate) fn l2_layouts(&mut self, layouts: &[Layout]) -> String {
+    pub(crate) fn l2_layouts(&mut self, m: &Model) -> String {
         let saved = std::mem::take(&mut self.out);
         // `annotated` writes the annotation one level in from the model.
         self.out.push('\n');
         self.push_depth();
         self.push_depth();
-        self.line(&format!(
-            "<listOfLayouts xmlns=\"{}\" xmlns:xsi=\"{}\">",
-            ns::LAYOUT_L2,
-            ns::XSI
-        ));
-        self.push_depth();
-        for l in layouts {
-            self.layout(l);
-        }
-        self.pop_depth();
-        self.line("</listOfLayouts>");
+        let mut a = vec![
+            ("xmlns".to_string(), ns::LAYOUT_L2.to_string()),
+            ("xmlns:xsi".to_string(), ns::XSI.to_string()),
+        ];
+        let head = m.global_render.as_ref().map(|g| {
+            self.l2_render_head(
+                "listOfGlobalRenderInformation",
+                g,
+                m.layouts_meta.annotation.is_some(),
+            )
+        });
+        self.annotated("listOfLayouts", &mut a, &m.layouts_meta, head, |w| {
+            for l in &m.layouts {
+                w.layout(l);
+            }
+        });
         self.pop_depth();
         self.pop_depth();
         // No newline after it: what follows in the annotation keeps its own
@@ -76,7 +87,14 @@ impl W {
         let mut a = Vec::new();
         self.la(&mut a, "id", &l.id);
         self.la(&mut a, "name", &l.name);
-        self.glyph("layout", a, &l.meta, |w| {
+        let head = match &l.render {
+            Some(r) if self.level < 3 => {
+                Some(self.l2_render_head("listOfRenderInformation", r, l.meta.annotation.is_some()))
+            }
+            _ => None,
+        };
+        let tag = format!("{}layout", self.lp());
+        self.annotated(&tag, &mut a, &l.meta, head, |w| {
             w.dimensions("dimensions", &l.dimensions);
             let p = w.lp();
             w.list(
@@ -102,6 +120,9 @@ impl W {
                 &l.additional,
                 |w, g| w.additional(g),
             );
+            if let (Some(r), true) = (&l.render, w.level >= 3) {
+                w.render_list("listOfRenderInformation", r);
+            }
         });
     }
 
@@ -209,7 +230,7 @@ impl W {
         });
     }
 
-    fn bounding_box(&mut self, bb: &Option<BoundingBox>) {
+    pub(super) fn bounding_box(&mut self, bb: &Option<BoundingBox>) {
         let Some(bb) = bb else { return };
         let p = self.lp();
         let id = match &bb.id {

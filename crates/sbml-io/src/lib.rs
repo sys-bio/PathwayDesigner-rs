@@ -1,6 +1,6 @@
 //! Read and write [SBML](https://sbml.org) as plain Rust data: Level 3
 //! (Versions 1 and 2) and Level 2 (Versions 1 to 5), all of core, and the
-//! Layout package. Pure Rust, so it also works in WebAssembly.
+//! Layout and Render packages. Pure Rust, so it also works in WebAssembly.
 //!
 //! A document is a tree of ordinary structs with public fields: `Vec` for
 //! lists, `Option` for attributes that may be absent, enums where SBML has
@@ -42,6 +42,7 @@ pub mod math;
 pub mod model;
 pub mod ns;
 mod read;
+pub mod render;
 mod validate;
 mod write;
 

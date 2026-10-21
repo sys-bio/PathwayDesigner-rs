@@ -105,6 +105,12 @@ pub struct Model {
     pub events: Vec<Event>,
     /// The Layout package. In Level 2 these live in the model's annotation.
     pub layouts: Vec<Layout>,
+    /// `listOfLayouts` itself: its attributes, notes, annotation and other
+    /// children, as written.
+    pub layouts_meta: Meta,
+    /// The Render package's global render information, which belongs to
+    /// `listOfLayouts` (in Level 2, to its annotation).
+    pub global_render: Option<crate::render::RenderList>,
     pub meta: Meta,
 }
 
