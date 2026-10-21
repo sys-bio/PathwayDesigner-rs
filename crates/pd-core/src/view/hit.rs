@@ -77,12 +77,28 @@ pub fn hit_test_with(
         }
     }
 
-    // The corner points of a selected reaction's modifier arcs (S §5.7.1).
-    if show_modifiers {
-        for r in model.selected_reactions() {
-            for (mi, m) in r.modifiers.iter().enumerate() {
-                if let Some(pi) = m.points.iter().position(|q| q.distance(p) <= handle_tol) {
-                    return Target::CornerPoint(r.id.clone(), mi, pi);
+    // The corner points of a selected reaction's lines (S §5.6.5) and
+    // modifier arcs (S §5.7.1). A Linear reaction draws its lines without
+    // theirs.
+    for r in model.selected_reactions() {
+        let mut roles = vec![];
+        if effective_mode(r) != ReactionMode::Linear {
+            roles.extend([Role::Reactant, Role::Product]);
+        }
+        if show_modifiers {
+            roles.push(Role::Modifier);
+        }
+        for role in roles {
+            for (index, part) in r.participants(role).iter().enumerate() {
+                let shown = model
+                    .find_species(&part.species)
+                    .is_some_and(|s| show_null_species || !s.is_null_node);
+                if let Some(pi) = part
+                    .points
+                    .iter()
+                    .position(|q| shown && q.distance(p) <= handle_tol)
+                {
+                    return Target::CornerPoint(r.id.clone(), role, index, pi);
                 }
             }
         }
@@ -215,12 +231,29 @@ pub fn hit_test_with(
     Target::Empty
 }
 
+/// The piece of a reactant's or product's line a segment belongs to: its
+/// role, its index, and the piece's (0 the end piece at the species, then
+/// one per straight piece of its run, S §5.6.5). `None` for the stem and a
+/// Linear reaction's line.
+pub type LinePiece = Option<(Role, usize, usize)>;
+
 /// The straight segments a reaction is drawn with, as in the drawing pass.
 fn leg_segments<'a>(
     model: &'a Model,
     r: &'a Reaction,
     show_null_species: bool,
 ) -> impl Iterator<Item = (Pt, Pt)> + 'a {
+    tagged_segments(model, r, show_null_species)
+        .into_iter()
+        .map(|(_, a, b)| (a, b))
+}
+
+/// [`leg_segments`], each with the piece of a line it belongs to.
+fn tagged_segments(
+    model: &Model,
+    r: &Reaction,
+    show_null_species: bool,
+) -> Vec<(LinePiece, Pt, Pt)> {
     let node = move |id: &str| {
         model
             .find_species(id)
@@ -228,12 +261,18 @@ fn leg_segments<'a>(
     };
     let mut segments = Vec::new();
     // A leg's straight run through its corner points (S §5.6.5).
-    let run = |segments: &mut Vec<(Pt, Pt)>, role: Role, p: &Participant| {
-        segments.extend(leg_run(r, role, p).windows(2).map(|w| (w[0], w[1])));
-    };
+    let run =
+        |segments: &mut Vec<(LinePiece, Pt, Pt)>, role: Role, index: usize, p: &Participant| {
+            segments.extend(
+                leg_run(r, role, p)
+                    .windows(2)
+                    .enumerate()
+                    .map(|(k, w)| (Some((role, index, k + 1)), w[0], w[1])),
+            );
+        };
     if let Some([a, j, b]) = crate::render::draw::stem_line(r) {
-        segments.push((a, j));
-        segments.push((j, b));
+        segments.push((None, a, j));
+        segments.push((None, j, b));
     }
     if effective_mode(r) == ReactionMode::Bezier {
         // The curve sampled at 20 points; samples inside the node are ignored.
@@ -249,33 +288,54 @@ fn leg_segments<'a>(
                     .collect();
                 for w in samples.windows(2) {
                     if outside(&w[0]) && outside(&w[1]) {
-                        segments.push((w[0], w[1]));
+                        segments.push((Some((role, index, 0)), w[0], w[1]));
                     }
                 }
-                run(&mut segments, role, part);
+                run(&mut segments, role, index, part);
             }
         }
     } else if effective_mode(r) == ReactionMode::Linear {
         if let (Some(a), Some(b)) = (node(&r.reactants[0].species), node(&r.products[0].species)) {
-            segments.push((leg_start(a, b.center), leg_end(b, a.center).0));
+            segments.push((None, leg_start(a, b.center), leg_end(b, a.center).0));
         }
     } else {
-        for p in &r.reactants {
+        for (index, p) in r.reactants.iter().enumerate() {
             if let Some(n) = node(&p.species) {
                 let j = leg_inner_end(r, Role::Reactant, p);
-                segments.push((leg_start(n, j), j));
-                run(&mut segments, Role::Reactant, p);
+                segments.push((Some((Role::Reactant, index, 0)), leg_start(n, j), j));
+                run(&mut segments, Role::Reactant, index, p);
             }
         }
-        for p in &r.products {
+        for (index, p) in r.products.iter().enumerate() {
             if let Some(n) = node(&p.species) {
                 let j = leg_inner_end(r, Role::Product, p);
-                segments.push((j, leg_end(n, j).0));
-                run(&mut segments, Role::Product, p);
+                segments.push((Some((Role::Product, index, 0)), j, leg_end(n, j).0));
+                run(&mut segments, Role::Product, index, p);
             }
         }
     }
-    segments.into_iter()
+    segments
+}
+
+/// The piece of reaction `id`'s reactant or product line at world point `p`,
+/// at `zoom` (S §5.6.5): where a corner point would go if one were added
+/// there. `None` if no such line is there (or only its stem is).
+pub fn line_piece_at(
+    model: &Model,
+    id: &str,
+    p: Pt,
+    zoom: f64,
+    show_null_species: bool,
+) -> Option<(Role, usize, usize)> {
+    let r = model.find_reaction(id)?;
+    let tol = LEG_HIT_TOLERANCE_PX / zoom;
+    tagged_segments(model, r, show_null_species)
+        .into_iter()
+        .filter(|(_, a, b)| point_to_segment_dist(p, *a, *b) <= tol)
+        .min_by(|x, y| {
+            point_to_segment_dist(p, x.1, x.2).total_cmp(&point_to_segment_dist(p, y.1, y.2))
+        })
+        .and_then(|(piece, ..)| piece)
 }
 
 #[cfg(test)]

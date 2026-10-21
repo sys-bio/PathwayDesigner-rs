@@ -1,24 +1,60 @@
-//! Corner points on modifier arcs (S §5.7.1): adding, removing and
-//! straightening. Dragging one is a gesture (`mod.rs`).
+//! Corner points on modifier arcs (S §5.7.1) and on reactant and product
+//! lines (S §5.6.5): adding, removing and straightening. Dragging one is a
+//! gesture (`mod.rs`).
 
 use super::DiagramView;
-use crate::model::{LinePattern, ModifierLook, Rgba};
+use crate::bezier::{Ctrl, leg_inner_end};
+use crate::model::{LinePattern, ModifierLook, Reaction, Rgba, Role};
 
 /// The undo step of moving a corner point, by dragging or with the keys.
 const CORNER_NUDGE: &str = "Move Corner Point";
 use crate::geometry::Pt;
 use crate::view::ViewResponse;
 
+/// A line of a reaction that may have corner points: its role and its index
+/// in that list.
+pub type LineRef = (Role, usize);
+
+/// Changes the corner points of line `line` of `r`. On a reactant's or
+/// product's line with stored handles, the handle by the end piece's far end
+/// moves as much as that end does, so the end piece keeps its shape
+/// (S §5.6.5).
+pub(super) fn edit_points(
+    r: &mut Reaction,
+    (role, index): LineRef,
+    change: impl FnOnce(&mut Vec<Pt>),
+) {
+    let Some(p) = r.participants(role).get(index) else {
+        return;
+    };
+    let before = leg_inner_end(r, role, p);
+    let p = &mut r.participants_mut(role)[index];
+    change(&mut p.points);
+    if role == Role::Modifier || !p.ctrl_pts_set {
+        return;
+    }
+    let p = r.participants(role)[index].clone();
+    let shift = leg_inner_end(r, role, &p) - before;
+    let p = &mut r.participants_mut(role)[index];
+    let inner = Ctrl::inner(role);
+    inner.set(p, inner.get(p) + shift);
+}
+
 impl DiagramView {
-    /// The current corner point, where it is (S §5.7.1): the one last
-    /// clicked or dragged, while its reaction is selected and its arc shown.
+    /// The current corner point, where it is (S §5.7.1, §5.6.5): the one
+    /// last clicked or dragged, while its reaction is selected and its line
+    /// shown.
     pub fn current_corner_point(&self) -> Option<Pt> {
-        let (id, modifier, point) = self.current_corner.as_ref()?;
-        if !self.show_modifiers() {
+        let (id, (role, index), point) = self.current_corner.as_ref()?;
+        if *role == Role::Modifier && !self.show_modifiers() {
             return None;
         }
         let r = self.model.find_reaction(id).filter(|r| r.selected)?;
-        r.modifiers.get(*modifier)?.points.get(*point).copied()
+        r.participants(*role)
+            .get(*index)?
+            .points
+            .get(*point)
+            .copied()
     }
 
     /// Moves the current corner point by `delta` (S §5.7.1), as an arrow key
@@ -26,18 +62,17 @@ impl DiagramView {
     /// Returns `None` when there is no current point.
     pub(super) fn nudge_corner(&mut self, delta: Pt) -> Option<ViewResponse> {
         self.current_corner_point()?;
-        let (id, modifier, point) = self.current_corner.clone()?;
+        let (id, line, point) = self.current_corner.clone()?;
         if delta == Pt::ZERO || self.is_busy() {
             return Some(ViewResponse::default());
         }
         let before = self.model.clone();
-        if let Some(p) = self
-            .model
-            .find_reaction_mut(&id)
-            .and_then(|r| r.modifiers.get_mut(modifier))
-            .and_then(|m| m.points.get_mut(point))
-        {
-            *p += delta;
+        if let Some(r) = self.model.find_reaction_mut(&id) {
+            edit_points(r, line, |pts| {
+                if let Some(p) = pts.get_mut(point) {
+                    *p += delta;
+                }
+            });
         }
         let selection = self.selection_state();
         let same_run = self.nudged.as_ref() == Some(&(self.undo.version(), selection.clone()))
@@ -60,67 +95,66 @@ impl DiagramView {
         self.context_point
     }
 
-    /// Puts a corner point at `at` on piece `piece` of the arc of reaction
-    /// `id`'s modifier `modifier` (pieces counted from the node), between the
-    /// piece's two ends. One undo step.
+    /// Puts a corner point at `at` on piece `piece` of line `line` of
+    /// reaction `id` (pieces counted from the node), between the piece's two
+    /// ends. One undo step.
     pub fn add_corner_point(
         &mut self,
         id: &str,
-        modifier: usize,
+        line: LineRef,
         piece: usize,
         at: Pt,
     ) -> ViewResponse {
         self.current_corner = None;
         let before = self.model.clone();
-        if let Some(m) = self
-            .model
-            .find_reaction_mut(id)
-            .and_then(|r| r.modifiers.get_mut(modifier))
-        {
-            let index = piece.min(m.points.len());
-            m.points.insert(index, at);
+        if let Some(r) = self.model.find_reaction_mut(id) {
+            edit_points(r, line, |pts| {
+                let index = piece.min(pts.len());
+                pts.insert(index, at);
+            });
         }
         self.record_if_changed("Add Corner Point", before)
     }
 
-    /// Takes corner point `point` off the arc of reaction `id`'s modifier
-    /// `modifier`. One undo step.
-    pub fn remove_corner_point(&mut self, id: &str, modifier: usize, point: usize) -> ViewResponse {
+    /// Takes corner point `point` off line `line` of reaction `id`. One undo
+    /// step.
+    pub fn remove_corner_point(&mut self, id: &str, line: LineRef, point: usize) -> ViewResponse {
         self.current_corner = None;
         let before = self.model.clone();
-        if let Some(m) = self
-            .model
-            .find_reaction_mut(id)
-            .and_then(|r| r.modifiers.get_mut(modifier))
-            && point < m.points.len()
-        {
-            m.points.remove(point);
+        if let Some(r) = self.model.find_reaction_mut(id) {
+            edit_points(r, line, |pts| {
+                if point < pts.len() {
+                    pts.remove(point);
+                }
+            });
         }
         self.record_if_changed("Remove Corner Point", before)
     }
 
-    /// Takes every corner point off the arc of reaction `id`'s modifier
-    /// `modifier`, so it is straight again. One undo step.
-    pub fn straighten_modifier_line(&mut self, id: &str, modifier: usize) -> ViewResponse {
+    /// Takes every corner point off line `line` of reaction `id`, so it is
+    /// straight again: Straighten Modifier Line (S §5.7.1), or Straighten
+    /// Line for a reactant's or product's (S §5.6.5). One undo step.
+    pub fn straighten_line(&mut self, id: &str, line: LineRef) -> ViewResponse {
         self.current_corner = None;
         let before = self.model.clone();
-        if let Some(m) = self
-            .model
-            .find_reaction_mut(id)
-            .and_then(|r| r.modifiers.get_mut(modifier))
-        {
-            m.points.clear();
+        if let Some(r) = self.model.find_reaction_mut(id) {
+            edit_points(r, line, Vec::clear);
         }
-        self.record_if_changed("Straighten Modifier Line", before)
+        let desc = if line.0 == Role::Modifier {
+            "Straighten Modifier Line"
+        } else {
+            "Straighten Line"
+        };
+        self.record_if_changed(desc, before)
     }
 
-    /// True if the arc of reaction `id`'s modifier `modifier` has corner
-    /// points (Straighten Modifier Line has something to do).
-    pub fn modifier_line_bent(&self, id: &str, modifier: usize) -> bool {
+    /// True if line `line` of reaction `id` has corner points (Straighten
+    /// has something to do).
+    pub fn line_bent(&self, id: &str, (role, index): LineRef) -> bool {
         self.model
             .find_reaction(id)
-            .and_then(|r| r.modifiers.get(modifier))
-            .is_some_and(|m| !m.points.is_empty())
+            .and_then(|r| r.participants(role).get(index))
+            .is_some_and(|p| !p.points.is_empty())
     }
 
     // ----- A modifier line's own look (S §5.7.2) ----------------------------

@@ -984,12 +984,17 @@ impl Drawer<'_> {
     /// A selected reaction's modifiers' corner points, as small squares
     /// (S §5.7.1), while modifier arcs are shown.
     fn corner_points(&self, r: &Reaction, out: &mut dyn Renderer) {
-        if !self.opts.show_modifiers {
-            return;
+        // Its lines' (S §5.6.5), unless it is drawn Linear, and its modifier
+        // arcs' while they are shown (S §5.7.1).
+        let mut lines: Vec<&Participant> = Vec::new();
+        if effective_mode(r) != ReactionMode::Linear {
+            lines.extend(r.reactants.iter().chain(&r.products));
         }
-        for m in r
-            .modifiers
-            .iter()
+        if self.opts.show_modifiers {
+            lines.extend(&r.modifiers);
+        }
+        for m in lines
+            .into_iter()
             .filter(|m| self.visible(&m.species).is_some())
         {
             for &p in &m.points {
@@ -1757,6 +1762,41 @@ mod tests {
         let lines = polylines(&calls);
         assert_eq!(lines.len(), 1, "one line from A to B: {lines:?}");
         assert!(lines[0].iter().all(|p| p.y.abs() < 1e-3));
+    }
+
+    #[test]
+    fn a_selected_reaction_shows_its_lines_corner_points() {
+        let squares = |m: &Model| -> Vec<SPt> {
+            draw(m, &DrawOptions::default())
+                .iter()
+                .filter_map(|c| match c {
+                    Call::RoundRect(r, _, _) => {
+                        Some(spt((r.min.x + r.max.x) / 2.0, (r.min.y + r.max.y) / 2.0))
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+        let corners = [
+            (0.0, 100.0),
+            (200.0, 100.0),
+            (400.0, -100.0),
+            (200.0, -100.0),
+        ];
+        let shown = |m: &Model| {
+            let s = squares(m);
+            corners
+                .iter()
+                .filter(|&&(x, y)| s.iter().any(|q| close(*q, spt(x, y))))
+                .count()
+        };
+        let mut m = routed(ReactionMode::Straight);
+        assert_eq!(shown(&m), 0, "not while it isn't selected");
+        m.reactions_mut().next().unwrap().selected = true;
+        assert_eq!(shown(&m), 4);
+        // A Linear reaction draws its line without them.
+        m.reactions_mut().next().unwrap().mode = ReactionMode::Linear;
+        assert_eq!(shown(&m), 0);
     }
 
     #[test]

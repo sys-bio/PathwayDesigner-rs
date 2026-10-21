@@ -94,7 +94,7 @@ fn arcs_and_their_corner_points_are_hit() {
     // Now its corner point can be grabbed.
     assert_eq!(
         v.target_at(pt(361.0, -199.0)),
-        Target::CornerPoint("R1".into(), 0, 0)
+        Target::CornerPoint("R1".into(), Role::Modifier, 0, 0)
     );
     // With modifier arcs hidden, neither is there.
     v.set_show_modifiers(false);
@@ -134,27 +134,27 @@ fn corner_points_are_dragged_snapped_and_cancelled() {
 fn corner_points_are_added_removed_and_straightened() {
     let mut v = view();
     // Added on the piece clicked: the first piece, the last, then between.
-    v.add_corner_point("R1", 0, 0, pt(360.0, -200.0));
+    v.add_corner_point("R1", (Role::Modifier, 0), 0, pt(360.0, -200.0));
     assert_eq!(v.undo_description(), Some("Add Corner Point"));
-    v.add_corner_point("R1", 0, 1, pt(360.0, 0.0));
-    v.add_corner_point("R1", 0, 1, pt(380.0, -100.0));
+    v.add_corner_point("R1", (Role::Modifier, 0), 1, pt(360.0, 0.0));
+    v.add_corner_point("R1", (Role::Modifier, 0), 1, pt(380.0, -100.0));
     assert_eq!(
         points(&v),
         [pt(360.0, -200.0), pt(380.0, -100.0), pt(360.0, 0.0)]
     );
-    assert!(v.modifier_line_bent("R1", 0));
-    v.remove_corner_point("R1", 0, 1);
+    assert!(v.line_bent("R1", (Role::Modifier, 0)));
+    v.remove_corner_point("R1", (Role::Modifier, 0), 1);
     assert_eq!(v.undo_description(), Some("Remove Corner Point"));
     assert_eq!(points(&v), [pt(360.0, -200.0), pt(360.0, 0.0)]);
-    v.straighten_modifier_line("R1", 0);
+    v.straighten_line("R1", (Role::Modifier, 0));
     assert_eq!(v.undo_description(), Some("Straighten Modifier Line"));
     assert!(points(&v).is_empty());
-    assert!(!v.modifier_line_bent("R1", 0));
+    assert!(!v.line_bent("R1", (Role::Modifier, 0)));
     v.undo();
     assert_eq!(points(&v), [pt(360.0, -200.0), pt(360.0, 0.0)]);
     // Nothing to straighten: no undo step.
     let mut w = view();
-    w.straighten_modifier_line("R1", 0);
+    w.straighten_line("R1", (Role::Modifier, 0));
     assert_eq!(w.undo_description(), None);
     // A double-click on the arc adds one where it was clicked.
     w.handle(&ViewEvent::DoubleClick {
@@ -209,7 +209,12 @@ fn a_right_click_on_an_arc_asks_for_its_menu() {
     let r = press(&mut v, pt(360.0, -200.0), Button::Secondary);
     assert_eq!(
         r.request,
-        Some(Request::ContextMenu(Target::CornerPoint("R1".into(), 0, 0)))
+        Some(Request::ContextMenu(Target::CornerPoint(
+            "R1".into(),
+            Role::Modifier,
+            0,
+            0
+        )))
     );
 }
 
@@ -380,13 +385,13 @@ fn the_current_corner_point_is_let_go() {
     assert_eq!(v.current_corner_point(), None);
     // Points added, removed or straightened away.
     let mut v = make();
-    v.add_corner_point("R1", 0, 0, pt(300.0, -200.0));
+    v.add_corner_point("R1", (Role::Modifier, 0), 0, pt(300.0, -200.0));
     assert_eq!(v.current_corner_point(), None);
     let mut v = make();
-    v.remove_corner_point("R1", 0, 0);
+    v.remove_corner_point("R1", (Role::Modifier, 0), 0);
     assert_eq!(v.current_corner_point(), None);
     let mut v = make();
-    v.straighten_modifier_line("R1", 0);
+    v.straighten_line("R1", (Role::Modifier, 0));
     assert_eq!(v.current_corner_point(), None);
 }
 
@@ -397,7 +402,7 @@ fn removing_another_point_lets_the_current_one_go_too() {
     v.select_item(&Target::Leg("R1".into()), false);
     drag(&mut v, pt(360.0, -200.0), pt(360.0, -190.0));
     assert_eq!(v.current_corner_point(), Some(pt(360.0, -190.0)));
-    v.remove_corner_point("R1", 0, 1);
+    v.remove_corner_point("R1", (Role::Modifier, 0), 1);
     assert_eq!(v.current_corner_point(), None);
 }
 

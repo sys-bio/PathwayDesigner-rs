@@ -468,9 +468,28 @@ junction). With none, the line is as above.
 - A reaction's name (§5.12) keeps clear of a line with corner points as one that
   leaves the junction towards the last corner point.
 - Corner points count in the drawing's extent (Fit, export).
-- **Files:** JSON version 15 (SPEC-Rust §4.2): a reactant or product object may
-  have `"points"`, as a modifier's (§5.7.1).
-- Editing, SBML and the Escher import are later steps of the design.
+- **Editing** is as for a modifier's corner points (§5.7.1), with the same
+  commands and undo steps: while the reaction is selected its lines' corner points
+  are small squares that can be dragged (*Move Corner Point*), and the current one
+  moves with the arrow keys; **double-click** a line (not of a Linear reaction) to
+  add one where it was clicked, on the piece clicked (*Add Corner Point*);
+  right-click a line: **Add Corner Point** and **Straighten Line** (all its corner
+  points off; disabled when it has none); right-click a corner point: **Remove
+  Corner Point**.
+- **The inner handle follows the first corner point.** On a line with stored
+  handles, whatever moves its first corner point (dragging it, the arrow keys,
+  adding, removing, Straighten Line) moves the end piece's inner handle as much,
+  so the end piece keeps its shape. Moving the junction or a stem end alone
+  (dragging, Add/Remove Stem, Straighten Stem, Arrange, a smooth junction's handle
+  drag) leaves it, as it leaves the corner points.
+- **Moving.** Corner points stay where they are when the species or the reaction
+  moves on its own (Arrange included); when both move together (a drag or nudge of
+  a selection holding both), they move with them.
+- **Commands that reshape a reaction from scratch take them off:** Set Straight,
+  Toggle Linear, Make Nice and auto-layout. A line that had some goes back to
+  automatic handles. Undo puts them back. Set Bézier, themes and saved styles
+  keep them. (Modifier arcs keep theirs, §5.7.1.)
+- SBML and the Escher import are later steps of the design.
 
 ### 5.7 Modifier arcs
 
@@ -829,7 +848,9 @@ junction (dragging it, moving the reaction, alignment, layout) carries the stem.
 - **Dragging an end:** a selected reaction's stem shows a small square handle at
   each end. Dragging one moves that end only (*Move Stem End*), snapping to the
   grid while Snap to grid is on (§7.6); the lines on that side follow, and each one
-  with stored handles has its handle by the stem moved as much. Esc puts it back.
+  with stored handles has its handle by the stem moved as much (not a line with
+  corner points, whose inner handle is by its first corner point, §5.6.5). Esc puts
+  it back.
 - **Add Stem** and **Remove Stem** (the reaction's context menu, §13.4; one
   shown, as the reaction has a stem or not). Add Stem gives a reaction a straight
   stem through its junction along the way from its reactants' centre to its

@@ -1,7 +1,7 @@
 # Design: corner points on reaction legs
 
 Status: **decisions recorded** (2026-10-20): D1 (a), D2 (a), D3 as recommended.
-Step 1 in progress.
+Steps 1 (41aaac0) and 2 done.
 
 ## 1. Why
 
@@ -147,7 +147,8 @@ step.
   corners. It could come later on top of (a).
 
 **D2. Commands that reshape a reaction** (Set Straight, Toggle Linear, Make Nice,
-auto-layout, Arrange).
+auto-layout). (Arrange, listed here at first, moves items rather than reshaping a
+reaction, so it was built to behave as a drag: corner points stay. Step 2.)
 - **(a) They remove a leg's corner points** *(recommended)*. These commands state a
   new shape, and auto-layout moves every node, which would leave the old corners
   stranded across the map. Undo puts them back.

@@ -6,7 +6,8 @@ use pd_core::geometry::{Pt, pt};
 use pd_core::render::constants::{TOOLTIP_DELAY_MS, ZOOM_STEP};
 use pd_core::render::{SRect, spt};
 use pd_core::view::{
-    Arrange, Button, DiagramView, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse,
+    Arrange, Button, DiagramView, LineRef, Modifiers, Request, Target, Tool, ViewEvent,
+    ViewResponse,
 };
 
 use crate::renderer::EguiRenderer;
@@ -61,13 +62,14 @@ pub enum MenuAction {
     /// Modifier Kind ▸: the reaction, the modifier and its new kind
     /// (S §5.7.1).
     ModifierKind(String, String, pd_core::model::ModifierKind),
-    /// Add Corner Point: the reaction, the modifier's index, the piece of
-    /// its arc and where (S §5.7.1).
-    AddCornerPoint(String, usize, usize, pd_core::geometry::Pt),
-    /// Remove Corner Point: the reaction, the modifier's index, the point's.
-    RemoveCornerPoint(String, usize, usize),
-    /// Straighten Modifier Line: the reaction and the modifier's index.
-    StraightenModifierLine(String, usize),
+    /// Add Corner Point: the reaction, the line (its role and index), the
+    /// piece of it and where (S §5.7.1, §5.6.5).
+    AddCornerPoint(String, LineRef, usize, pd_core::geometry::Pt),
+    /// Remove Corner Point: the reaction, the line, the point's index.
+    RemoveCornerPoint(String, LineRef, usize),
+    /// Straighten Modifier Line or Straighten Line: the reaction and the
+    /// line.
+    StraightenLine(String, LineRef),
     /// Add Stem, Straighten Stem and Remove Stem (S §5.13).
     AddStem(String),
     StraightenStem(String),
@@ -372,6 +374,39 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                     }
                 }
             }
+            // The reactant's or product's line clicked (S §5.6.5): a corner
+            // point there, or its corner points taken off.
+            let on_line = match (target, view.context_point()) {
+                (Target::Leg(_), Some(at)) => view
+                    .line_piece_at(id, at)
+                    .filter(|_| {
+                        view.model().find_reaction(id).is_some_and(|r| {
+                            pd_core::render::draw::effective_mode(r)
+                                != pd_core::model::ReactionMode::Linear
+                        })
+                    })
+                    .map(|(role, index, piece)| ((role, index), piece, at)),
+                _ => None,
+            };
+            if let Some((line, piece, at)) = on_line {
+                ui.separator();
+                item(
+                    ui,
+                    "Add Corner Point",
+                    MenuAction::AddCornerPoint(id.clone(), line, piece, at),
+                );
+                let b = ui
+                    .add_enabled(
+                        view.line_bent(id, line),
+                        egui::Button::new("Straighten Line"),
+                    )
+                    .on_disabled_hover_text("It has no corner points");
+                if b.clicked() {
+                    item_chosen = Some(MenuAction::StraightenLine(id.clone(), line));
+                    ui.close();
+                }
+                ui.separator();
+            }
             if view
                 .model()
                 .find_reaction(id)
@@ -444,25 +479,26 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 item_chosen = kind_chosen;
             }
             let at = view.context_point().unwrap_or_default();
+            let line = (pd_core::model::Role::Modifier, *modifier);
             item(
                 ui,
                 "Add Corner Point",
-                MenuAction::AddCornerPoint(id.clone(), *modifier, *piece, at),
+                MenuAction::AddCornerPoint(id.clone(), line, *piece, at),
             );
-            let bent = view.modifier_line_bent(id, *modifier);
+            let bent = view.line_bent(id, line);
             let b = ui
                 .add_enabled(bent, egui::Button::new("Straighten Modifier Line"))
                 .on_disabled_hover_text("It has no corner points");
             if b.clicked() {
-                item_chosen = Some(MenuAction::StraightenModifierLine(id.clone(), *modifier));
+                item_chosen = Some(MenuAction::StraightenLine(id.clone(), line));
                 ui.close();
             }
         }
-        Target::CornerPoint(id, modifier, point) => {
+        Target::CornerPoint(id, role, index, point) => {
             item(
                 ui,
                 "Remove Corner Point",
-                MenuAction::RemoveCornerPoint(id.clone(), *modifier, *point),
+                MenuAction::RemoveCornerPoint(id.clone(), (*role, *index), *point),
             );
         }
         Target::Compartment(id) => {

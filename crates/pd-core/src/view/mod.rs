@@ -68,6 +68,7 @@ use crate::undo::{Command, CtrlState, UndoHistory};
 pub use arrange::Arrange;
 pub use hit::hit_test;
 pub use input::{Button, HandleId, Modifiers, Request, Target, Tool, ViewEvent, ViewResponse};
+pub use modifier_lines::LineRef;
 pub use properties::{ColourField, sync_modifiers};
 pub use saved_styles::{ImportReport, StyleError};
 
@@ -133,7 +134,7 @@ pub struct DiagramView {
     nudged: Option<(u64, SelectionState)>,
     /// The corner point last clicked or dragged, which the arrow keys move
     /// (S §5.7.1): the reaction, the modifier's index and the point's.
-    current_corner: Option<(Id, usize, usize)>,
+    current_corner: Option<(Id, modifier_lines::LineRef, usize)>,
     /// The undo history's version after the last change to a text's words,
     /// and which text: typing more joins that undo step (S §7.8).
     text_edited: Option<(u64, Id)>,
@@ -215,10 +216,10 @@ struct NodeDrag {
     /// the compartment they end up in (S §7.9).
     reassign: Vec<Id>,
     handles: Vec<HandleRef>,
-    /// Modifiers whose node and reaction's junction both move: their corner
-    /// points move too (S §5.7.1). The reaction, the modifier's index and
-    /// the points where they were.
-    corners: Vec<(Id, usize, Vec<Pt>)>,
+    /// Lines whose node and reaction's junction both move: their corner
+    /// points move too (S §5.7.1, §5.6.5). The reaction, the line and the
+    /// points where they were.
+    corners: Vec<(Id, modifier_lines::LineRef, Vec<Pt>)>,
     /// Smooth reactions whose junction moves: their handles are recomputed
     /// as it goes (S §6.4).
     smooth: Vec<Id>,
@@ -321,13 +322,14 @@ struct StemDrag {
     delta: Pt,
 }
 
-/// Dragging a corner point of a modifier's arc (S §5.7.1).
+/// Dragging a corner point of a modifier's arc (S §5.7.1) or of a
+/// reactant's or product's line (S §5.6.5).
 #[derive(Clone, Debug)]
 struct CornerDrag {
     start: Pt,
     id: Id,
-    /// The modifier's index, and the point's.
-    modifier: usize,
+    /// The line, and the point's index on it.
+    line: modifier_lines::LineRef,
     point: usize,
     /// Where the point was: it snaps to the grid (S §7.6).
     orig: Pt,
@@ -572,6 +574,12 @@ impl DiagramView {
         )
     }
 
+    /// The piece of reaction `id`'s reactant or product line at world point
+    /// `world` (S §5.6.5): its role, index and piece.
+    pub fn line_piece_at(&self, id: &str, world: Pt) -> Option<(Role, usize, usize)> {
+        hit::line_piece_at(&self.model, id, world, self.zoom, self.show_null_species)
+    }
+
     /// True while a drag or rubber band is in progress.
     pub fn is_busy(&self) -> bool {
         !matches!(self.gesture, Gesture::Idle)
@@ -772,22 +780,24 @@ impl DiagramView {
         // A corner point clicked becomes the one the arrow keys move; a
         // click on anything else lets it go.
         self.current_corner = match &target {
-            Target::CornerPoint(id, modifier, point) => Some((id.clone(), *modifier, *point)),
+            Target::CornerPoint(id, role, index, point) => {
+                Some((id.clone(), (*role, *index), *point))
+            }
             _ => None,
         };
         let anchor = self.snap_anchor(&target);
         match target {
             Target::ModifierLine(..) => {}
-            Target::CornerPoint(id, modifier, point) => {
+            Target::CornerPoint(id, role, index, point) => {
                 let orig = self
                     .model
                     .find_reaction(&id)
-                    .and_then(|r| r.modifiers.get(modifier)?.points.get(point).copied());
+                    .and_then(|r| r.participants(role).get(index)?.points.get(point).copied());
                 if let Some(orig) = orig {
                     self.gesture = Gesture::Corner(CornerDrag {
                         start: world,
                         id,
-                        modifier,
+                        line: (role, index),
                         point,
                         orig,
                         before: Box::new(self.model.clone()),
@@ -1359,10 +1369,14 @@ impl DiagramView {
             {
                 linear.push((r.id.clone(), r.junction, t));
             }
+            // A line's corner points move when its node and the junction
+            // both do (S §5.7.1, §5.6.5).
             if junction_moves {
-                for (mi, mo) in r.modifiers.iter().enumerate() {
-                    if !mo.points.is_empty() && is_moved(&mo.species) {
-                        corners.push((r.id.clone(), mi, mo.points.clone()));
+                for role in [Role::Reactant, Role::Product, Role::Modifier] {
+                    for (index, p) in r.participants(role).iter().enumerate() {
+                        if !p.points.is_empty() && is_moved(&p.species) {
+                            corners.push((r.id.clone(), (role, index), p.points.clone()));
+                        }
                     }
                 }
             }
@@ -1386,7 +1400,14 @@ impl DiagramView {
                     if is_moved(&p.species) {
                         follow(species_side);
                     }
-                    if junction_moves {
+                    // A routed line's inner handle is by its first corner
+                    // point, which moves only with both ends (S §5.6.5).
+                    let inner_end_moves = if p.points.is_empty() {
+                        junction_moves
+                    } else {
+                        junction_moves && is_moved(&p.species)
+                    };
+                    if inner_end_moves {
                         follow(junction_side);
                     }
                 }
@@ -1489,11 +1510,11 @@ impl DiagramView {
             }
         }
         self.move_handles(&drag.handles, drag.delta);
-        for (id, mi, orig) in &drag.corners {
+        for (id, (role, index), orig) in &drag.corners {
             if let Some(m) = self
                 .model
                 .find_reaction_mut(id)
-                .and_then(|r| r.modifiers.get_mut(*mi))
+                .and_then(|r| r.participants_mut(*role).get_mut(*index))
             {
                 m.points = orig.iter().map(|&p| p + drag.delta).collect();
             }
@@ -1718,14 +1739,22 @@ impl DiagramView {
 
     /// The stem's end at its first place plus the drag, and each line on
     /// that side with stored handles: its handle by the stem moved as much.
+    /// The point goes where it is dragged, from the model as it was before
+    /// the drag, so a stored handle that follows it (S §5.6.5) moves as far.
     fn apply_corner_drag(&mut self, drag: &CornerDrag) {
-        if let Some(p) = self
-            .model
-            .find_reaction_mut(&drag.id)
-            .and_then(|r| r.modifiers.get_mut(drag.modifier))
-            .and_then(|m| m.points.get_mut(drag.point))
-        {
-            *p = drag.orig + drag.delta;
+        let Some(old) = drag.before.find_reaction(&drag.id).cloned() else {
+            return;
+        };
+        let at = drag.orig + drag.delta;
+        let point = drag.point;
+        let mut r = old;
+        modifier_lines::edit_points(&mut r, drag.line, |pts| {
+            if let Some(p) = pts.get_mut(point) {
+                *p = at;
+            }
+        });
+        if let Some(target) = self.model.find_reaction_mut(&drag.id) {
+            *target = r;
         }
     }
 
@@ -1767,7 +1796,9 @@ impl DiagramView {
                 .iter_mut()
                 .zip(old.participants(role))
             {
-                if o.ctrl_pts_set {
+                // A routed line's inner handle is by its first corner point,
+                // not the stem (S §5.6.5).
+                if o.ctrl_pts_set && o.points.is_empty() {
                     inner.set(p, inner.get(o) + shift);
                 }
             }
@@ -1898,8 +1929,9 @@ impl DiagramView {
         let dragged_distance = at.distance(j);
         let mut others = Vec::new();
         for role in [Role::Reactant, Role::Product] {
-            for index in 0..r.participants(role).len() {
-                if !(role == h.role && index == h.index) {
+            for (index, p) in r.participants(role).iter().enumerate() {
+                // A smooth junction leaves routed lines alone (S §5.6.5).
+                if !(role == h.role && index == h.index) && p.points.is_empty() {
                     others.push((role, index));
                 }
             }

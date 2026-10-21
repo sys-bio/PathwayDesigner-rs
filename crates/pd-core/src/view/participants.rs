@@ -301,7 +301,8 @@ fn shift_inner_handles(
         for p in r
             .participants_mut(role)
             .iter_mut()
-            .filter(|p| p.ctrl_pts_set)
+            // A routed line's is by its first corner point (S §5.6.5).
+            .filter(|p| p.ctrl_pts_set && p.points.is_empty())
         {
             let at = inner.get(p);
             inner.set(p, at + d);

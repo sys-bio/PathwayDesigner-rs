@@ -188,8 +188,9 @@ pub enum Target {
     /// A piece of a modifier's arc (S §5.7.1): the reaction, the modifier's
     /// index in its list, and the piece's (0 from the node).
     ModifierLine(Id, usize, usize),
-    /// A corner point of a selected reaction's modifier arc: the reaction,
-    /// the modifier's index and the point's.
-    CornerPoint(Id, usize, usize),
+    /// A corner point of a selected reaction's line: the reaction, the
+    /// line's role and index in that list (a modifier's arc, S §5.7.1, or a
+    /// reactant's or product's line, S §5.6.5), and the point's index.
+    CornerPoint(Id, crate::model::Role, usize, usize),
     Empty,
 }

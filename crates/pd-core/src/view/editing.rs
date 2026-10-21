@@ -3,11 +3,11 @@
 //! Each command changes the model and records one undo step.
 
 use super::{DiagramView, Gesture, Pending};
-use crate::bezier::apply_smooth_handles;
+use crate::bezier::{apply_smooth_handles, drop_leg_corners};
 use crate::geometry::{Pt, pt};
 use crate::model::{
     ALIAS_OFFSET, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, Id, Model, Parameter, Participant,
-    ReactionMode, RenameError,
+    ReactionMode, RenameError, Role,
 };
 use crate::render::constants::{
     GUIDE_LINE, NODE_CORNER_RADIUS, PENDING_PRODUCT, PENDING_REACTANT, PENDING_RING_OUTSET,
@@ -348,6 +348,7 @@ impl DiagramView {
             let mid = midpoint(m, id);
             let r = m.find_reaction_mut(id).expect("found above");
             r.stem = None;
+            drop_leg_corners(r);
             if linear {
                 r.mode = ReactionMode::Straight;
                 if let Some(mid) = mid {
@@ -376,6 +377,7 @@ impl DiagramView {
             if let Some(r) = m.find_reaction_mut(id) {
                 r.mode = ReactionMode::Straight;
                 r.stem = None;
+                drop_leg_corners(r);
                 if let Some(mid) = mid {
                     r.junction = mid;
                 }
@@ -450,6 +452,7 @@ impl DiagramView {
             r.mode = ReactionMode::Bezier;
             r.junction = (cent_r + cent_p) / 2.0;
             r.stem = None;
+            drop_leg_corners(r);
             if smooth {
                 apply_smooth_handles(m, id);
             } else {
@@ -485,7 +488,22 @@ impl DiagramView {
             // (S §5.7.1).
             Target::ModifierLine(id, modifier, piece) => {
                 let at = self.screen_to_world(pos);
-                self.add_corner_point(&id, modifier, piece, at)
+                self.add_corner_point(&id, (Role::Modifier, modifier), piece, at)
+            }
+            // And where a reactant's or product's line was (S §5.6.5); a
+            // Linear reaction draws its lines without them.
+            Target::Leg(id)
+                if self.model.find_reaction(&id).is_some_and(|r| {
+                    crate::render::draw::effective_mode(r) != ReactionMode::Linear
+                }) =>
+            {
+                let at = self.screen_to_world(pos);
+                match self.line_piece_at(&id, at) {
+                    Some((role, index, piece)) => {
+                        self.add_corner_point(&id, (role, index), piece, at)
+                    }
+                    None => ViewResponse::default(),
+                }
             }
             _ => ViewResponse::default(),
         }

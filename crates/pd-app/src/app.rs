@@ -498,14 +498,14 @@ impl PathwayApp {
             MenuAction::ModifierKind(id, species, kind) => {
                 self.view.set_modifier_kind(&id, &species, kind);
             }
-            MenuAction::AddCornerPoint(id, modifier, piece, at) => {
-                self.view.add_corner_point(&id, modifier, piece, at);
+            MenuAction::AddCornerPoint(id, line, piece, at) => {
+                self.view.add_corner_point(&id, line, piece, at);
             }
-            MenuAction::RemoveCornerPoint(id, modifier, point) => {
-                self.view.remove_corner_point(&id, modifier, point);
+            MenuAction::RemoveCornerPoint(id, line, point) => {
+                self.view.remove_corner_point(&id, line, point);
             }
-            MenuAction::StraightenModifierLine(id, modifier) => {
-                self.view.straighten_modifier_line(&id, modifier);
+            MenuAction::StraightenLine(id, line) => {
+                self.view.straighten_line(&id, line);
             }
             MenuAction::StraightenStem(id) => {
                 self.view.straighten_stem(&id);
@@ -2335,22 +2335,27 @@ mod tests {
         };
         let at = pt(800.0, 100.0);
         h.app.act(
-            MenuAction::AddCornerPoint("J3".into(), 0, 0, at),
+            MenuAction::AddCornerPoint("J3".into(), (pd_core::model::Role::Modifier, 0), 0, at),
             pt(0.0, 0.0),
         );
         assert_eq!(points(&h), [at]);
         h.app.act(
-            MenuAction::AddCornerPoint("J3".into(), 0, 1, pt(500.0, 100.0)),
+            MenuAction::AddCornerPoint(
+                "J3".into(),
+                (pd_core::model::Role::Modifier, 0),
+                1,
+                pt(500.0, 100.0),
+            ),
             pt(0.0, 0.0),
         );
         assert_eq!(points(&h).len(), 2);
         h.app.act(
-            MenuAction::RemoveCornerPoint("J3".into(), 0, 0),
+            MenuAction::RemoveCornerPoint("J3".into(), (pd_core::model::Role::Modifier, 0), 0),
             pt(0.0, 0.0),
         );
         assert_eq!(points(&h), [pt(500.0, 100.0)]);
         h.app.act(
-            MenuAction::StraightenModifierLine("J3".into(), 0),
+            MenuAction::StraightenLine("J3".into(), (pd_core::model::Role::Modifier, 0)),
             pt(0.0, 0.0),
         );
         assert!(points(&h).is_empty());

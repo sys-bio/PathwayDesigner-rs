@@ -120,6 +120,11 @@ impl DiagramView {
         }
         self.cancel_gesture();
         let before = Box::new(self.model.clone());
+        // A layout places everything anew: routed lines are drawn straight
+        // again (S §5.6.5).
+        for r in self.model.reactions_mut() {
+            crate::bezier::drop_leg_corners(r);
+        }
         if params.randomize {
             for r in self.model.reactions_mut() {
                 for p in r.reactants.iter_mut().chain(&mut r.products) {
@@ -585,7 +590,11 @@ impl DiagramView {
                         let outer = Ctrl::outer(role);
                         let inner = Ctrl::inner(role);
                         outer.set(p, outer.get(p) + own);
-                        inner.set(p, inner.get(p) + shift);
+                        // A routed line's inner handle stays by its first
+                        // corner point, which Arrange leaves (S §5.6.5).
+                        if p.points.is_empty() {
+                            inner.set(p, inner.get(p) + shift);
+                        }
                     }
                 }
                 if r.mode == ReactionMode::Bezier && r.junction_smooth {

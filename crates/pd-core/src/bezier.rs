@@ -114,6 +114,19 @@ pub fn leg_curve(model: &Model, r: &Reaction, role: Role, index: usize) -> Optio
     Some(CubicBezier::new(a, c1, c2, b))
 }
 
+/// Takes the corner points off every reactant's and product's line of `r`
+/// (S §5.6.5), as the commands that reshape a reaction from scratch do. A line
+/// that had some goes back to automatic handles, since its stored ones were
+/// shaped for its first corner point. Modifier arcs keep theirs (S §5.7.1).
+pub fn drop_leg_corners(r: &mut Reaction) {
+    for p in r.reactants.iter_mut().chain(&mut r.products) {
+        if !p.points.is_empty() {
+            p.points.clear();
+            p.ctrl_pts_set = false;
+        }
+    }
+}
+
 /// Where a reactant's or product's end piece meets the rest of its leg: its
 /// first corner point, or its side's end of the stem, or the junction
 /// (S §5.6.5). A leg's handles and its drawn end piece run between the

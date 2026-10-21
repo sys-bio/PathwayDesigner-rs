@@ -105,3 +105,329 @@ fn files_keep_corner_points_as_version_15() {
     assert!(crate::json::needed_version(&plain) < 15);
     assert!(!crate::json::to_json(&plain).contains("points"));
 }
+
+// ----- Editing (step 2) ------------------------------------------------------
+
+fn view() -> DiagramView {
+    DiagramView::new(model(ReactionMode::Bezier))
+}
+
+/// A's line's corner points.
+fn points(v: &DiagramView) -> Vec<Pt> {
+    v.model().find_reaction("R1").unwrap().reactants[0]
+        .points
+        .clone()
+}
+
+fn a_leg(v: &DiagramView) -> Participant {
+    v.model().find_reaction("R1").unwrap().reactants[0].clone()
+}
+
+/// A's line with stored handles: outer (0,30), inner (0,70), by its first
+/// corner point (0,100).
+fn with_handles(v: &mut DiagramView) {
+    let p = &mut v.model.find_reaction_mut("R1").unwrap().reactants[0];
+    (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (pt(0.0, 30.0), pt(0.0, 70.0), true);
+}
+
+fn press(v: &mut DiagramView, at: Pt, button: Button) -> ViewResponse {
+    v.handle(&ViewEvent::PointerDown {
+        pos: at,
+        button,
+        modifiers: Modifiers::NONE,
+    })
+}
+
+fn drag(v: &mut DiagramView, from: Pt, to: Pt) {
+    press(v, from, Button::Primary);
+    v.handle(&ViewEvent::PointerMove { pos: to });
+    v.handle(&ViewEvent::PointerUp {
+        pos: to,
+        button: Button::Primary,
+    });
+}
+
+#[test]
+fn a_selected_reaction_s_corner_points_can_be_grabbed() {
+    let mut v = view();
+    // Not while the reaction isn't selected: the line is there instead.
+    assert_eq!(v.target_at(pt(0.0, 100.0)), Target::Leg("R1".into()));
+    v.select_item(&Target::Leg("R1".into()), false);
+    assert_eq!(
+        v.target_at(pt(1.0, 101.0)),
+        Target::CornerPoint("R1".into(), Role::Reactant, 0, 0)
+    );
+    assert_eq!(
+        v.target_at(pt(200.0, 100.0)),
+        Target::CornerPoint("R1".into(), Role::Reactant, 0, 1)
+    );
+    // A right click on one asks for the point's menu.
+    let r = press(&mut v, pt(200.0, 100.0), Button::Secondary);
+    assert_eq!(
+        r.request,
+        Some(Request::ContextMenu(Target::CornerPoint(
+            "R1".into(),
+            Role::Reactant,
+            0,
+            1
+        )))
+    );
+}
+
+#[test]
+fn a_corner_point_is_dragged_and_its_handle_follows_the_first() {
+    let mut v = view();
+    with_handles(&mut v);
+    v.select_item(&Target::Leg("R1".into()), false);
+    // The second: only it moves.
+    drag(&mut v, pt(200.0, 100.0), pt(200.0, 140.0));
+    assert_eq!(points(&v), [pt(0.0, 100.0), pt(200.0, 140.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(0.0, 70.0));
+    assert_eq!(v.undo_description(), Some("Move Corner Point"));
+    // The first: the end piece's inner handle moves as much.
+    drag(&mut v, pt(0.0, 100.0), pt(20.0, 120.0));
+    assert_eq!(points(&v), [pt(20.0, 120.0), pt(200.0, 140.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(20.0, 90.0));
+    assert_eq!(a_leg(&v).ctrl1, pt(0.0, 30.0), "the outer one stays");
+    v.undo();
+    assert_eq!(points(&v), [pt(0.0, 100.0), pt(200.0, 140.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(0.0, 70.0));
+    // The arrow keys move the current one, its handle with it.
+    v.select_item(&Target::Leg("R1".into()), false);
+    press(&mut v, pt(0.0, 100.0), Button::Primary);
+    v.handle(&ViewEvent::PointerUp {
+        pos: pt(0.0, 100.0),
+        button: Button::Primary,
+    });
+    assert_eq!(v.current_corner_point(), Some(pt(0.0, 100.0)));
+    v.nudge_key(pt(1.0, 0.0), true, false);
+    assert_eq!(points(&v)[0], pt(10.0, 100.0));
+    assert_eq!(a_leg(&v).ctrl2, pt(10.0, 70.0));
+}
+
+#[test]
+fn a_double_click_adds_a_corner_point_on_the_piece_clicked() {
+    // On the run, between the two corner points.
+    let mut v = view();
+    v.handle(&ViewEvent::DoubleClick {
+        pos: pt(100.0, 100.0),
+    });
+    assert_eq!(
+        points(&v),
+        [pt(0.0, 100.0), pt(100.0, 100.0), pt(200.0, 100.0)]
+    );
+    assert_eq!(v.undo_description(), Some("Add Corner Point"));
+    // On the last piece, into the junction.
+    v.handle(&ViewEvent::DoubleClick {
+        pos: pt(200.0, 50.0),
+    });
+    assert_eq!(points(&v).last(), Some(&pt(200.0, 50.0)));
+    // On the end piece, by A: it becomes the first.
+    let mut v = view();
+    v.handle(&ViewEvent::DoubleClick { pos: pt(0.0, 60.0) });
+    assert_eq!(points(&v)[..2], [pt(0.0, 60.0), pt(0.0, 100.0)]);
+    // A line without corner points gets its first: B's, from the junction.
+    let mut v = view();
+    v.handle(&ViewEvent::DoubleClick {
+        pos: pt(300.0, 0.0),
+    });
+    let r = v.model().find_reaction("R1").unwrap();
+    assert_eq!(r.products[0].points, [pt(300.0, 0.0)]);
+    // Which piece is where.
+    let v = view();
+    assert_eq!(
+        v.line_piece_at("R1", pt(0.0, 60.0)),
+        Some((Role::Reactant, 0, 0))
+    );
+    assert_eq!(
+        v.line_piece_at("R1", pt(100.0, 100.0)),
+        Some((Role::Reactant, 0, 1))
+    );
+    assert_eq!(
+        v.line_piece_at("R1", pt(200.0, 50.0)),
+        Some((Role::Reactant, 0, 2))
+    );
+    assert_eq!(v.line_piece_at("R1", pt(100.0, 300.0)), None);
+}
+
+#[test]
+fn corner_points_are_removed_and_straightened_with_the_handle_following() {
+    let mut v = view();
+    with_handles(&mut v);
+    let line = (Role::Reactant, 0);
+    assert!(v.line_bent("R1", line));
+    // The first goes: the end piece now runs to (200,100), its inner handle
+    // moved as much.
+    v.remove_corner_point("R1", line, 0);
+    assert_eq!(points(&v), [pt(200.0, 100.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(200.0, 70.0));
+    assert_eq!(v.undo_description(), Some("Remove Corner Point"));
+    v.undo();
+    // Straighten Line: all go, and the end piece runs to the junction.
+    v.straighten_line("R1", line);
+    assert!(points(&v).is_empty());
+    assert!(!v.line_bent("R1", line));
+    assert_eq!(a_leg(&v).ctrl2, pt(200.0, -30.0));
+    assert_eq!(v.undo_description(), Some("Straighten Line"));
+    // Nothing to straighten (C's line has no corner points): no undo step,
+    // and the redo is still there.
+    v.undo();
+    v.straighten_line("R1", (Role::Reactant, 1));
+    assert_eq!(v.undo_description(), None);
+    assert_eq!(v.redo_description(), Some("Straighten Line"));
+    assert_eq!(points(&v), [pt(0.0, 100.0), pt(200.0, 100.0)]);
+}
+
+#[test]
+fn corner_points_move_only_when_the_species_and_the_junction_do() {
+    let mut v = view();
+    with_handles(&mut v);
+    // A alone: the points and the inner handle stay; the outer one follows.
+    v.select_item(&Target::Species("A".into()), false);
+    drag(&mut v, pt(0.0, 0.0), pt(-20.0, 0.0));
+    assert_eq!(points(&v), [pt(0.0, 100.0), pt(200.0, 100.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(0.0, 70.0));
+    assert_eq!(a_leg(&v).ctrl1, pt(-20.0, 30.0));
+    v.undo();
+    // Everything: they all follow.
+    for id in ["A", "B", "C"] {
+        v.select_item(&Target::Species(id.into()), true);
+    }
+    drag(&mut v, pt(0.0, 0.0), pt(10.0, 20.0));
+    assert_eq!(points(&v), [pt(10.0, 120.0), pt(210.0, 120.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(10.0, 90.0));
+    // The junction alone: they stay, and so does the inner handle.
+    let before = (points(&v), a_leg(&v).ctrl2);
+    v.select_item(&Target::Junction("R1".into()), false);
+    drag(&mut v, pt(210.0, 20.0), pt(210.0, 60.0));
+    assert_eq!((points(&v), a_leg(&v).ctrl2), before);
+    // Adding a stem leaves the routed line's inner handle too.
+    v.add_stem("R1");
+    assert_eq!(a_leg(&v).ctrl2, before.1);
+    // Arrange moves species but leaves routes.
+    v.select_item(&Target::Species("A".into()), false);
+    v.select_item(&Target::Species("C".into()), true);
+    v.arrange(crate::view::Arrange::Right);
+    assert_eq!(points(&v), before.0);
+}
+
+#[test]
+fn commands_that_reshape_a_reaction_take_its_lines_corner_points_off() {
+    // Modifier E's arc keeps its own (S §5.7.1).
+    let with_modifier = || {
+        let mut v = view();
+        with_handles(&mut v);
+        v.model
+            .push_species(SpeciesNode::new("E", pt(200.0, -200.0)))
+            .unwrap();
+        let r = v.model.find_reaction_mut("R1").unwrap();
+        let mut e = Participant::new("E", 1.0);
+        e.points = vec![pt(300.0, -200.0)];
+        r.modifiers.push(e);
+        v.select_item(&Target::Leg("R1".into()), false);
+        v
+    };
+    let check = |v: &DiagramView, what: &str| {
+        let r = v.model().find_reaction("R1").unwrap();
+        assert!(r.reactants[0].points.is_empty(), "{what}");
+        assert!(!r.reactants[0].ctrl_pts_set, "{what}: automatic handles");
+        assert_eq!(r.modifiers[0].points, [pt(300.0, -200.0)], "{what}");
+    };
+    let mut v = with_modifier();
+    v.set_straight();
+    check(&v, "Set Straight");
+    v.undo();
+    assert_eq!(points(&v).len(), 2, "undo puts them back");
+    let mut v = with_modifier();
+    v.make_nice();
+    check(&v, "Make Nice");
+    let mut v = with_modifier();
+    v.start_layout(crate::layout::LayoutParams::default(), 1);
+    while v.is_laying_out() {
+        v.layout_step(200);
+    }
+    check(&v, "Auto-layout");
+    // Set Bézier keeps them.
+    let mut v = with_modifier();
+    v.set_bezier();
+    assert_eq!(points(&v).len(), 2);
+}
+
+/// C's line with stored handles: outer (40,160), inner (150,50).
+fn c_handles(v: &mut DiagramView) {
+    let p = &mut v.model.find_reaction_mut("R1").unwrap().reactants[1];
+    (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (pt(40.0, 160.0), pt(150.0, 50.0), true);
+}
+
+#[test]
+fn what_moves_the_junction_alone_leaves_a_routed_line_s_inner_handle() {
+    // A box round the junction only: dragging it carries the junction, not
+    // the species, so the corner points stay, and so does the inner handle
+    // by them.
+    let mut v = view();
+    with_handles(&mut v);
+    let mut c = crate::model::Compartment::new("box");
+    c.frame = Some(crate::model::Frame {
+        center: pt(200.0, 0.0),
+        width: 60.0,
+        height: 40.0,
+    });
+    v.model.compartments.push(c);
+    v.select_item(&Target::Compartment("box".into()), false);
+    drag(&mut v, pt(215.0, -20.0), pt(215.0, 20.0));
+    assert_eq!(
+        v.model().find_reaction("R1").unwrap().junction,
+        pt(200.0, 40.0)
+    );
+    assert_eq!(points(&v), [pt(0.0, 100.0), pt(200.0, 100.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(0.0, 70.0));
+
+    // Arrange shifting the junction: the same.
+    let mut v = view();
+    with_handles(&mut v);
+    for id in ["A", "B", "C"] {
+        v.select_item(&Target::Species(id.into()), true);
+    }
+    v.arrange(crate::view::Arrange::Middle);
+    assert_ne!(
+        v.model().find_reaction("R1").unwrap().junction,
+        pt(200.0, 0.0)
+    );
+    assert_eq!(points(&v), [pt(0.0, 100.0), pt(200.0, 100.0)]);
+    assert_eq!(a_leg(&v).ctrl2, pt(0.0, 70.0));
+}
+
+#[test]
+fn a_stem_end_dragged_leaves_a_routed_line_s_inner_handle() {
+    let mut v = view();
+    with_handles(&mut v);
+    c_handles(&mut v);
+    v.add_stem("R1");
+    let r = v.model().find_reaction("R1").unwrap();
+    let end = r.junction + r.stem.unwrap().0;
+    let c_inner = r.reactants[1].ctrl2;
+    v.select_item(&Target::Leg("R1".into()), false);
+    assert_eq!(
+        v.target_at(end),
+        Target::StemEnd("R1".into(), Role::Reactant)
+    );
+    drag(&mut v, end, end + pt(0.0, 20.0));
+    let r = v.model().find_reaction("R1").unwrap();
+    assert_eq!(r.reactants[1].ctrl2, c_inner + pt(0.0, 20.0), "C's follows");
+    assert_eq!(r.reactants[0].ctrl2, pt(0.0, 70.0), "A's stays");
+}
+
+#[test]
+fn a_smooth_junction_s_handle_drag_leaves_routed_lines() {
+    let mut v = view();
+    with_handles(&mut v);
+    c_handles(&mut v);
+    v.model.find_reaction_mut("R1").unwrap().junction_smooth = true;
+    v.select_item(&Target::Leg("R1".into()), false);
+    // C's inner handle: the others swing into line, B's among them.
+    drag(&mut v, pt(150.0, 50.0), pt(140.0, 60.0));
+    let r = v.model().find_reaction("R1").unwrap();
+    assert_eq!(r.reactants[1].ctrl2, pt(140.0, 60.0));
+    assert!(r.products[0].ctrl_pts_set, "B's swung");
+    assert_eq!(r.reactants[0].ctrl2, pt(0.0, 70.0), "A's stays");
+}
