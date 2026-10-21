@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 use crate::geometry::pt;
 use crate::model::TextFont;
 use crate::model::{Model, Rgba};
-use crate::render::draw::{DrawOptions, Shown, content_bounds, draw_model};
+use crate::render::draw::{DrawOptions, Highlight, Shown, content_bounds, draw_model_highlighted};
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
 use crate::text::{fmt_num, font_metrics_in, text_path_in, text_width_in};
 
@@ -168,6 +168,18 @@ impl Renderer for SvgRenderer {
 /// `scale` user units per world unit, with nothing that depends on the
 /// selection, and the optional parts `shown`.
 pub fn model_to_svg(model: &Model, scale: f64, shown: Shown) -> String {
+    model_to_svg_highlighted(model, scale, shown, None)
+}
+
+/// [`model_to_svg`] with a part of the network's structure highlighted
+/// (docs/structural-analysis-design.md §6): output draws what the screen
+/// shows.
+pub fn model_to_svg_highlighted(
+    model: &Model,
+    scale: f64,
+    shown: Shown,
+    highlight: Option<&Highlight>,
+) -> String {
     let (min, max) = content_bounds(model);
     let size = (max - min) * scale;
     let (w, h) = (size.x.ceil() as f32, size.y.ceil() as f32);
@@ -183,7 +195,7 @@ pub fn model_to_svg(model: &Model, scale: f64, shown: Shown) -> String {
         ..DrawOptions::default()
     }
     .with(shown);
-    draw_model(model, &opts, &mut svg);
+    draw_model_highlighted(model, &opts, highlight, &mut svg);
     svg.finish()
 }
 

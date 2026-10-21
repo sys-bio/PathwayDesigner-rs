@@ -6,9 +6,9 @@
 
 use pd_core::model::Model;
 use pd_core::render::constants::PNG_DEFAULT_DPI;
-pub use pd_core::render::draw::Shown;
-pub use pd_core::render::pdf::{PageSize, model_to_pdf};
-pub use pd_core::render::svg::model_to_svg;
+pub use pd_core::render::draw::{Highlight, Shown};
+pub use pd_core::render::pdf::{PageSize, model_to_pdf, model_to_pdf_highlighted};
+pub use pd_core::render::svg::{model_to_svg, model_to_svg_highlighted};
 pub use resvg::tiny_skia::Pixmap;
 
 /// SVG user units per inch: CSS pixels.
@@ -45,7 +45,17 @@ pub fn svg_to_pixmap(svg: &str) -> Result<Pixmap, ExportError> {
 /// default, so a scale of 150/96), without anything that depends on the
 /// selection.
 pub fn model_to_png(model: &Model, dpi: f64, shown: Shown) -> Result<Vec<u8>, ExportError> {
-    let svg = model_to_svg(model, dpi / SVG_DPI, shown);
+    model_to_png_highlighted(model, dpi, shown, None)
+}
+
+/// [`model_to_png`] with a part of the network's structure highlighted.
+pub fn model_to_png_highlighted(
+    model: &Model,
+    dpi: f64,
+    shown: Shown,
+    highlight: Option<&Highlight>,
+) -> Result<Vec<u8>, ExportError> {
+    let svg = model_to_svg_highlighted(model, dpi / SVG_DPI, shown, highlight);
     svg_to_pixmap(&svg)?
         .encode_png()
         .map_err(|e| ExportError(format!("the PNG could not be written: {e}")))

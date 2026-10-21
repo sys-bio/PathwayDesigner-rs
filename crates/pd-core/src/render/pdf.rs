@@ -11,7 +11,7 @@ use std::fmt::Write as _;
 use crate::geometry::pt;
 use crate::model::TextFont;
 use crate::model::{Model, Rgba};
-use crate::render::draw::{DrawOptions, Shown, content_bounds, draw_model};
+use crate::render::draw::{DrawOptions, Highlight, Shown, content_bounds, draw_model_highlighted};
 use crate::render::{Renderer, SPt, SRect, Stroke, spt};
 use crate::text::{PathSink, font_metrics_in, text_outline_in, text_width_in};
 
@@ -63,6 +63,18 @@ impl PageSize {
 /// on the selection, and the optional parts `shown`. `landscape` turns a
 /// Letter or A4 page sideways.
 pub fn model_to_pdf(model: &Model, page: PageSize, landscape: bool, shown: Shown) -> Vec<u8> {
+    model_to_pdf_highlighted(model, page, landscape, shown, None)
+}
+
+/// [`model_to_pdf`] with a part of the network's structure highlighted
+/// (docs/structural-analysis-design.md §6).
+pub fn model_to_pdf_highlighted(
+    model: &Model,
+    page: PageSize,
+    landscape: bool,
+    shown: Shown,
+    highlight: Option<&Highlight>,
+) -> Vec<u8> {
     let (min, max) = content_bounds(model);
     let (cw, ch) = (max.x - min.x, max.y - min.y);
     // The drawing's place on the page: (scale, left, top, width, height).
@@ -94,7 +106,7 @@ pub fn model_to_pdf(model: &Model, page: PageSize, landscape: bool, shown: Shown
         ..DrawOptions::default()
     }
     .with(shown);
-    draw_model(model, &opts, &mut pdf);
+    draw_model_highlighted(model, &opts, highlight, &mut pdf);
     pdf.finish()
 }
 

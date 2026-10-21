@@ -157,7 +157,11 @@ panel under the canvas, the author's choice; the basis choice of §5b in step 3b
   negative in a second colour (they run the other way in that pattern);
 - a conservation law's species, every drawing of each (aliases included), are
   outlined in the highlight colour, with the coefficient beside each.
-- Choosing another replaces it; Esc or a click on the empty canvas clears it.
+- Choosing another replaces it; clicking it again lets it go. It is drawn only
+  while the Structure tab or the matrix panel is open (built in step 4; Esc and a
+  click on the empty canvas, planned here, do not clear it: they belong to the
+  diagram's own selection).
+- A highlighted reaction's name, if shown, is drawn over the veil too.
 - The highlight is a view, not an edit: no undo step, not saved, and the model is
   not changed. Graphics export draws what is shown, highlight included, so a
   figure of a null-space vector can be made directly (D3).
@@ -195,14 +199,12 @@ about 600 × 600 (`WORK_LIMIT`): measured, 366 × 340 takes 91 ms natively and
 207 ms in the browser, so 600 × 600 is some 1.5 s in the browser, the most to
 wait for while the analysis runs in the foreground.
 
-**D2. Exported figures.**
-- (a) Graphics export draws the highlight as shown *(recommended)*: the point of
-  the feature is a picture.
-- (b) Export never shows it.
+**D2. Exported figures.** Built as recommended (step 4): SVG, PNG, PDF and Print
+draw the highlight as shown. Not yet confirmed by the author.
 
-**D3. Colours.** One highlight colour for positive and another for negative
-coefficients, fixed, chosen to read in colour-blind vision (blue and orange)
-*(recommended)*; or taken from the theme.
+**D3. Colours.** Built as recommended (step 4): blue (#1F6FD1) for positive and
+orange (#E07B00) for negative coefficients, fixed. Not yet confirmed by the
+author.
 
 ## 9. Steps
 

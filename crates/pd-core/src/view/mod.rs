@@ -59,7 +59,8 @@ use crate::geometry::{Pt, normalize, pt, screen_to_world, world_to_screen};
 use crate::model::{Id, Model, ReactionMode, Role};
 use crate::render::constants::{RUBBER_BAND, ZOOM_MAX, ZOOM_MIN};
 use crate::render::draw::{
-    DrawOptions, Shown, content_bounds, draw_model, linear_junction_t, linear_line,
+    DrawOptions, Highlight, Shown, content_bounds, draw_model_highlighted, linear_junction_t,
+    linear_line,
 };
 use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::textbox::{MIN_WRAP_WIDTH, lay_out, text_box};
@@ -135,6 +136,10 @@ pub struct DiagramView {
     /// The corner point last clicked or dragged, which the arrow keys move
     /// (S §5.7.1): the reaction, the modifier's index and the point's.
     current_corner: Option<(Id, modifier_lines::LineRef, usize)>,
+    /// A part of the network's structure drawn over the rest, from the
+    /// Structure tab (docs/structural-analysis-design.md §6). A view: not
+    /// saved, no undo.
+    highlight: Option<Highlight>,
     /// The undo history's version after the last change to a text's words,
     /// and which text: typing more joins that undo step (S §7.8).
     text_edited: Option<(u64, Id)>,
@@ -419,6 +424,7 @@ impl DiagramView {
             layout: None,
             nudged: None,
             current_corner: None,
+            highlight: None,
             text_edited: None,
         }
     }
@@ -526,7 +532,7 @@ impl DiagramView {
             grid: self.show_grid,
             current_corner: self.current_corner_point(),
         };
-        draw_model(&self.model, &opts, r);
+        draw_model_highlighted(&self.model, &opts, self.highlight.as_ref(), r);
         self.draw_overlays(r);
         if let Gesture::NewCompartment { start, current } = &self.gesture {
             let (a, b) = corners(self.world_to_screen(*start), self.world_to_screen(*current));
@@ -578,6 +584,19 @@ impl DiagramView {
     /// `world` (S §5.6.5): its role, index and piece.
     pub fn line_piece_at(&self, id: &str, world: Pt) -> Option<(Role, usize, usize)> {
         hit::line_piece_at(&self.model, id, world, self.zoom, self.show_null_species)
+    }
+
+    /// The part of the network's structure drawn over the rest, if any.
+    pub fn highlight(&self) -> Option<&Highlight> {
+        self.highlight.as_ref()
+    }
+
+    /// Draws `highlight` over the diagram from now on (`None`: nothing).
+    /// Returns whether it changed, so the caller can repaint.
+    pub fn set_highlight(&mut self, highlight: Option<Highlight>) -> bool {
+        let changed = self.highlight != highlight;
+        self.highlight = highlight;
+        changed
     }
 
     /// True while a drag or rubber band is in progress.

@@ -43,7 +43,12 @@ const DPI_RANGE: std::ops::RangeInclusive<f64> = 36.0..=600.0;
 impl PathwayApp {
     /// Saves the drawing as SVG, at its size on screen at 100%.
     pub(crate) fn export_svg(&mut self) {
-        let svg = pd_export::model_to_svg(self.view.model(), 1.0, self.view.shown());
+        let svg = pd_export::model_to_svg_highlighted(
+            self.view.model(),
+            1.0,
+            self.view.shown(),
+            self.view.highlight(),
+        );
         let name = with_extension(&self.doc.name, "svg");
         self.files.save(
             &self.ctx,
@@ -65,23 +70,39 @@ impl PathwayApp {
         self.export_settings = s;
         let shown = self.view.shown();
         let model = self.view.model();
+        // Output draws what the screen shows, a highlight included.
+        let highlight = self.view.highlight();
         match kind {
-            ExportKind::Png => match pd_export::model_to_png(model, s.dpi, shown) {
-                Ok(png) => {
-                    let name = with_extension(&self.doc.name, "png");
-                    self.files
-                        .save(&self.ctx, Purpose::ExportPng, name, png, None, true);
+            ExportKind::Png => {
+                match pd_export::model_to_png_highlighted(model, s.dpi, shown, highlight) {
+                    Ok(png) => {
+                        let name = with_extension(&self.doc.name, "png");
+                        self.files
+                            .save(&self.ctx, Purpose::ExportPng, name, png, None, true);
+                    }
+                    Err(e) => self.warnings = vec![format!("The PNG couldn't be made: {e}.")],
                 }
-                Err(e) => self.warnings = vec![format!("The PNG couldn't be made: {e}.")],
-            },
+            }
             ExportKind::Pdf => {
-                let pdf = pd_export::model_to_pdf(model, s.page, s.landscape, shown);
+                let pdf = pd_export::model_to_pdf_highlighted(
+                    model,
+                    s.page,
+                    s.landscape,
+                    shown,
+                    highlight,
+                );
                 let name = with_extension(&self.doc.name, "pdf");
                 self.files
                     .save(&self.ctx, Purpose::ExportPdf, name, pdf, None, true);
             }
             ExportKind::Print => {
-                let pdf = pd_export::model_to_pdf(model, s.page, s.landscape, shown);
+                let pdf = pd_export::model_to_pdf_highlighted(
+                    model,
+                    s.page,
+                    s.landscape,
+                    shown,
+                    highlight,
+                );
                 self.print(pdf);
             }
         }

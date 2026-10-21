@@ -6,7 +6,7 @@
 use crate::bezier::{Ctrl, leg_curve, leg_inner_end, leg_run};
 use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
-    BorderDash, Compartment, Frame, LinePattern, Model, ModifierKind, NodeShape, Participant,
+    BorderDash, Compartment, Frame, Id, LinePattern, Model, ModifierKind, NodeShape, Participant,
     Reaction, ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem, VisualStyle,
 };
 use crate::render::constants::*;
@@ -158,6 +158,143 @@ pub fn draw_model(model: &Model, opts: &DrawOptions, r: &mut dyn Renderer) {
             d.stem_ends(reaction, r);
             d.corner_points(reaction, r);
             d.add_line_handle(reaction, r);
+        }
+    }
+}
+
+/// A part of the network's structure picked in the Structure tab, drawn over
+/// the rest (docs/structural-analysis-design.md §6): a flux null-space
+/// vector's reactions or a conservation law's species, each with its
+/// coefficient. A view, never saved.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Highlight {
+    /// Reactions by id, with their coefficients.
+    pub reactions: Vec<(Id, f64)>,
+    /// Species by primary id (every drawing of each is outlined), with
+    /// their coefficients.
+    pub species: Vec<(Id, f64)>,
+}
+
+/// A highlighted item with a positive coefficient (blue) or a negative one
+/// (orange): a pair that reads in colour-blind vision.
+pub const HIGHLIGHT_POSITIVE: Rgba = Rgba([0x1F, 0x6F, 0xD1, 0xFF]);
+pub const HIGHLIGHT_NEGATIVE: Rgba = Rgba([0xE0, 0x7B, 0x00, 0xFF]);
+/// How opaque the background laid over the rest of the drawing is.
+const HIGHLIGHT_FADE_ALPHA: u8 = 200;
+
+/// [`draw_model`], then `highlight` over it: everything faded under a veil of
+/// the background, then the highlighted reactions redrawn in the highlight
+/// colours (their species with them), or the highlighted species redrawn and
+/// outlined; a coefficient other than 1 beside each.
+pub fn draw_model_highlighted(
+    model: &Model,
+    opts: &DrawOptions,
+    highlight: Option<&Highlight>,
+    r: &mut dyn Renderer,
+) {
+    draw_model(model, opts, r);
+    if let Some(h) = highlight.filter(|h| !h.reactions.is_empty() || !h.species.is_empty()) {
+        Drawer { model, opts }.highlight(h, r);
+    }
+}
+
+/// A coefficient's label: `×2`, `×1/2`, `×0.25`; none for 1.
+fn coefficient_label(k: f64) -> Option<String> {
+    let m = k.abs();
+    if (m - 1.0).abs() < 1e-9 {
+        return None;
+    }
+    Some(match crate::structure::as_fraction(m) {
+        Some((n, 1)) => format!("×{n}"),
+        Some((n, d)) => format!("×{n}/{d}"),
+        None => format!("×{m:.3}"),
+    })
+}
+
+/// The colour of a coefficient's highlight.
+fn highlight_colour(k: f64) -> Rgba {
+    if k < 0.0 {
+        HIGHLIGHT_NEGATIVE
+    } else {
+        HIGHLIGHT_POSITIVE
+    }
+}
+
+impl Drawer<'_> {
+    fn highlight(&self, h: &Highlight, out: &mut dyn Renderer) {
+        // The veil: over the canvas, or for output the drawing's extent.
+        let veil = self.opts.background.unwrap_or_else(|| {
+            let (min, max) = content_bounds(self.model);
+            let (a, b) = (self.to_screen(min), self.to_screen(max));
+            SRect { min: a, max: b }
+        });
+        let mut fade = background_colour(self.model);
+        fade.0[3] = HIGHLIGHT_FADE_ALPHA;
+        out.round_rect(veil, 0.0, Some(fade), None);
+
+        let label = |at: Pt, k: f64, out: &mut dyn Renderer| {
+            if let Some(t) = coefficient_label(k) {
+                let font = TextFont {
+                    bold: true,
+                    ..TextFont::default()
+                };
+                out.text(
+                    self.to_screen(at),
+                    &t,
+                    self.len(13.0),
+                    font,
+                    highlight_colour(k),
+                );
+            }
+        };
+        // A null-space vector's reactions, in its colours and thicker, with
+        // the species they join.
+        for (id, k) in &h.reactions {
+            let Some(reaction) = self.model.find_reaction(id) else {
+                continue;
+            };
+            let mut shown = reaction.clone();
+            shown.selected = false;
+            shown.style.has_custom_style = true;
+            shown.style.line_color = highlight_colour(*k);
+            shown.style.line_width = reaction_line_width(reaction) * 1.8;
+            self.reaction_legs(&shown, out);
+            for p in reaction.reactants.iter().chain(&reaction.products) {
+                if let Some(node) = self.visible(&p.species) {
+                    self.species(node, out);
+                }
+            }
+            self.junction(&shown, out);
+            // Its name too, if shown, so it can be read through the veil.
+            self.reaction_name(reaction, out);
+            label(
+                effective_junction(self.model, reaction) + pt(0.0, -16.0),
+                *k,
+                out,
+            );
+        }
+        // A conservation law's species: every drawing of each, outlined.
+        for (id, k) in &h.species {
+            for node in self
+                .model
+                .species()
+                .iter()
+                .filter(|s| s.primary_id() == id.as_str())
+            {
+                self.species(node, out);
+                let pad = 5.0;
+                out.round_rect(
+                    self.rect(node.center, node.width / 2.0 + pad, node.height / 2.0 + pad),
+                    self.len(6.0),
+                    None,
+                    Some(Stroke::solid(self.len(3.0), highlight_colour(*k))),
+                );
+                label(
+                    node.center + pt(node.width / 2.0 + pad + 10.0, -node.height / 2.0 - pad),
+                    *k,
+                    out,
+                );
+            }
         }
     }
 }
@@ -1762,6 +1899,107 @@ mod tests {
         let lines = polylines(&calls);
         assert_eq!(lines.len(), 1, "one line from A to B: {lines:?}");
         assert!(lines[0].iter().all(|p| p.y.abs() < 1e-3));
+    }
+
+    #[test]
+    fn a_highlight_veils_the_rest_and_draws_its_items_in_their_colours() {
+        let mut m = uni_uni();
+        // Its name shown (S §5.12), to be drawn again over the veil.
+        m.reactions_mut().next().unwrap().label_offset = Some(pt(0.0, -30.0));
+        let id = m.reactions()[0].id.clone();
+        let plain = draw(&m, &DrawOptions::default());
+        let mut rec = Recorder::default();
+        draw_model_highlighted(&m, &DrawOptions::default(), None, &mut rec);
+        assert_eq!(rec.calls, plain, "no highlight: the plain drawing");
+
+        // A vector with the reaction at −2: orange, thicker, labelled ×2,
+        // over a veil of the background.
+        let h = Highlight {
+            reactions: vec![(id, -2.0)],
+            species: Vec::new(),
+        };
+        let mut rec = Recorder::default();
+        draw_model_highlighted(&m, &DrawOptions::default(), Some(&h), &mut rec);
+        let extra = &rec.calls[plain.len()..];
+        assert!(
+            matches!(&extra[0], Call::RoundRect(_, Some(c), None) if c.0[3] == HIGHLIGHT_FADE_ALPHA),
+            "the veil first: {:?}",
+            extra[0]
+        );
+        let orange: Vec<&Call> = extra
+            .iter()
+            .filter(|c| matches!(c, Call::Polyline(_, s) if s.color == HIGHLIGHT_NEGATIVE))
+            .collect();
+        assert_eq!(orange.len(), 2, "both legs");
+        if let Call::Polyline(_, s) = orange[0] {
+            assert!(s.width > 1.5 * reaction_line_width(&m.reactions()[0]) as f32);
+        }
+        assert!(extra.iter().any(|c| matches!(c,
+            Call::TextIn(_, t, _, _, col) if t == "×2" && *col == HIGHLIGHT_NEGATIVE)));
+        let name = m.reactions()[0].id.clone();
+        assert!(
+            extra
+                .iter()
+                .any(|c| matches!(c, Call::Text(_, t, ..) | Call::TextIn(_, t, ..) if *t == name)),
+            "its name over the veil"
+        );
+
+        // A law: every drawing of its species outlined, aliases too.
+        let mut m = uni_uni();
+        let a = m.species()[0].id.clone();
+        m.add_alias(&a, pt(0.0, 200.0)).unwrap();
+        let plain = draw(&m, &DrawOptions::default());
+        let h = Highlight {
+            reactions: Vec::new(),
+            species: vec![(a, 1.0)],
+        };
+        let mut rec = Recorder::default();
+        draw_model_highlighted(&m, &DrawOptions::default(), Some(&h), &mut rec);
+        let outlines = rec.calls[plain.len()..]
+            .iter()
+            .filter(
+                |c| matches!(c, Call::RoundRect(_, None, Some(s)) if s.color == HIGHLIGHT_POSITIVE),
+            )
+            .count();
+        assert_eq!(outlines, 2, "the species and its alias");
+        assert!(
+            !rec.calls[plain.len()..]
+                .iter()
+                .any(|c| matches!(c, Call::TextIn(_, t, ..) if t.starts_with('×'))),
+            "no label for 1"
+        );
+        assert_eq!(coefficient_label(0.5).as_deref(), Some("×1/2"));
+        assert_eq!(coefficient_label(-1.0), None);
+    }
+
+    #[test]
+    fn output_draws_the_highlight() {
+        let m = uni_uni();
+        let h = Highlight {
+            reactions: vec![(m.reactions()[0].id.clone(), 1.0)],
+            species: Vec::new(),
+        };
+        let shown = Shown::ALL;
+        let with = crate::render::svg::model_to_svg_highlighted(&m, 1.0, shown, Some(&h));
+        let without = crate::render::svg::model_to_svg(&m, 1.0, shown);
+        assert!(with.contains("#1F6FD1"), "blue in the SVG");
+        assert!(!without.contains("#1F6FD1"));
+        let pdf = crate::render::pdf::model_to_pdf_highlighted(
+            &m,
+            crate::render::pdf::PageSize::Drawing,
+            false,
+            shown,
+            Some(&h),
+        );
+        assert_ne!(
+            pdf,
+            crate::render::pdf::model_to_pdf(
+                &m,
+                crate::render::pdf::PageSize::Drawing,
+                false,
+                shown
+            )
+        );
     }
 
     #[test]

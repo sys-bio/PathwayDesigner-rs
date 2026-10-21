@@ -5,6 +5,7 @@
 
 use eframe::egui;
 use pd_core::model::{Id, Model};
+use pd_core::render::draw::Highlight;
 use pd_core::structure::{self, ConservationLaw, FluxVector, Matrix, Structure, WORK_LIMIT};
 use web_time::Instant;
 
@@ -130,6 +131,32 @@ impl StructurePanel {
             }),
             _ => None,
         }
+    }
+
+    /// What to draw over the network for the pick, if anything: a vector's
+    /// reactions or a law's species, with their coefficients as the list
+    /// shows them.
+    pub fn highlight(&self) -> Option<Highlight> {
+        let (s, bases) = (self.structure()?, self.bases()?);
+        Some(match self.picked? {
+            Picked::Flux(i) => {
+                let v = bases.fluxes.get(i)?;
+                Highlight {
+                    reactions: structure::shown_coefficients(&v.terms, Some(v.independent))
+                        .into_iter()
+                        .map(|(c, k)| (s.reactions[c].clone(), k))
+                        .collect(),
+                    species: Vec::new(),
+                }
+            }
+            Picked::Law(i) => Highlight {
+                reactions: Vec::new(),
+                species: structure::shown_coefficients(&bases.laws.get(i)?.terms, None)
+                    .into_iter()
+                    .map(|(j, k)| (s.species[j].clone(), k))
+                    .collect(),
+            },
+        })
     }
 
     /// The Structure tab. Returns a file to save, if Export… was clicked.

@@ -579,6 +579,29 @@ pub fn sparsify(mut basis: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     basis
 }
 
+/// Terms `(index, coefficient)` as they are shown: the term for `lead`
+/// first (if given), the rest in index order; in the smallest whole numbers
+/// of their proportions when those are simple fractions, otherwise scaled so
+/// the first is 1; the first positive. The text of a vector or law and the
+/// coefficients drawn on the network both come from this.
+pub fn shown_coefficients(terms: &[(usize, f64)], lead: Option<usize>) -> Vec<(usize, f64)> {
+    let mut terms = terms.to_vec();
+    terms.sort_by_key(|t| (Some(t.0) != lead, t.0));
+    let values: Vec<f64> = terms.iter().map(|t| t.1).collect();
+    let flip = values.first().is_some_and(|&v| v < 0.0);
+    let scaled: Vec<f64> = match smallest_integers(&values) {
+        Some(ints) => ints
+            .iter()
+            .map(|&k| if flip { -k } else { k } as f64)
+            .collect(),
+        None => {
+            let first = values.first().copied().unwrap_or(1.0);
+            values.iter().map(|&v| v / first).collect()
+        }
+    };
+    terms.iter().map(|t| t.0).zip(scaled).collect()
+}
+
 /// A sum of terms `(index, coefficient)` as text, by `name`: the term for
 /// `lead` first (if given), the rest in index order. Whole numbers when the
 /// proportions allow; otherwise scaled so the first term is 1, to four
@@ -588,21 +611,18 @@ fn terms_text<'a>(
     lead: Option<usize>,
     name: impl Fn(usize) -> &'a str,
 ) -> String {
-    let mut terms = terms.to_vec();
-    terms.sort_by_key(|t| (Some(t.0) != lead, t.0));
-    let values: Vec<f64> = terms.iter().map(|t| t.1).collect();
-    let flip = values.first().is_some_and(|&v| v < 0.0);
-    let shown: Vec<String> = match smallest_integers(&values) {
-        Some(ints) => ints
-            .iter()
-            .map(|&k| if flip { -k } else { k })
-            .map(|k| k.to_string())
-            .collect(),
-        None => {
-            let first = values.first().copied().unwrap_or(1.0);
-            values.iter().map(|&v| significant(v / first)).collect()
-        }
-    };
+    let terms = shown_coefficients(terms, lead);
+    let whole = terms.iter().all(|t| t.1.fract() == 0.0);
+    let shown: Vec<String> = terms
+        .iter()
+        .map(|&(_, v)| {
+            if whole {
+                (v as i64).to_string()
+            } else {
+                significant(v)
+            }
+        })
+        .collect();
     let mut out = String::new();
     for (i, ((index, _), k)) in terms.iter().zip(&shown).enumerate() {
         let (negative, magnitude) = match k.strip_prefix('-') {

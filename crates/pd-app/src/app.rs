@@ -1579,8 +1579,15 @@ impl eframe::App for PathwayApp {
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
         // The stoichiometry matrix, under the canvas and the side panels
         // (docs/structural-analysis-design.md §6).
-        if self.right_tab == RightTab::Structure || self.structure.show_matrix {
+        let structure_open = self.right_tab == RightTab::Structure || self.structure.show_matrix;
+        if structure_open {
             self.structure.refresh(self.view.model());
+        }
+        // The pick is drawn over the network while the tab or the matrix is
+        // open (docs/structural-analysis-design.md §6).
+        let highlight = structure_open.then(|| self.structure.highlight()).flatten();
+        if self.view.set_highlight(highlight) {
+            ui.ctx().request_repaint();
         }
         if self.structure.show_matrix {
             egui::Panel::bottom("matrix")
@@ -2071,8 +2078,26 @@ mod tests {
             h.app.structure.picked,
             Some(crate::structure_panel::Picked::Law(_))
         ));
+        // The law is drawn over the network: its species, none of the
+        // reactions.
+        h.run(vec![]);
+        let shown = h.app.view.highlight().expect("highlighted").clone();
+        assert!(shown.reactions.is_empty());
+        assert_eq!(
+            shown.species.len(),
+            h.app.structure.bases().unwrap().laws[0].terms.len()
+        );
+        // Not while another tab is shown; again when the tab is back.
+        h.app.right_tab = RightTab::Properties;
+        h.run(vec![]);
+        assert!(h.app.view.highlight().is_none());
+        h.app.right_tab = RightTab::Structure;
+        h.run(vec![]);
+        assert!(h.app.view.highlight().is_some());
         h.click(h.widget(&law));
         assert_eq!(h.app.structure.picked, None);
+        h.run(vec![]);
+        assert!(h.app.view.highlight().is_none(), "let go");
         // The sparse basis: the same number of vectors and laws, each no
         // longer than the factorization's; the K matrix again on the other
         // button.
