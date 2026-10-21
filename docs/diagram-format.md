@@ -1,10 +1,12 @@
 # A readable diagram format for Antimony models — draft specification
 
-**Status: draft for discussion, version 0.3, 2026-10-20. Nothing here is
+**Status: draft for discussion, version 0.4, 2026-10-21. Nothing here is
 implemented.** 0.2: the file type and COMBINE archives settled (§3). 0.3: made
 consistent with the app and with the minimal Render profile
 (`docs/render-design.md` §11): bold and italic names added; the reaction line
-pattern and the compartment name colour removed; the §14 mapping corrected. Working name: *Antimony diagram* (file extension `.antd`, open
+pattern and the compartment name colour removed; the §14 mapping corrected. 0.4:
+corner points on reactant and product lines (`leg … via`, §9), as the app now has
+them (SPECIFICATION.md §5.6.5). Working name: *Antimony diagram* (file extension `.antd`, open
 question §15).
 
 ## Contents
@@ -293,16 +295,19 @@ src_R1     at (100, 0) source (40, 0)
   to `ATP#2`. A species not listed is drawn to its first drawing.
 - **`name`** shows the reaction's id, at an offset from the junction or placed
   clear of its lines when none is given.
-- **Legs with moved handles** get a line of their own:
+- **Legs with moved handles or corner points** get a line of their own:
 
   ```
   leg Glc -> hexokinase curve (210, 140) (205, 165)
   leg hexokinase -> G6P curve (195, 200) (200, 220)
+  leg ATP -> hexokinase via (100, 200) (100, 100)
   ```
 
   `leg <drawing> -> <reaction>` for a reactant, `leg <reaction> -> <drawing>`
-  for a product, then the two handles in the order of SPECIFICATION.md §5.6.1.
-  Legs left out have automatic handles.
+  for a product, then `via` and the line's corner points, in order from the
+  species whichever way the line runs (SPECIFICATION.md §5.6.5), and `curve` and
+  the two handles of its end piece in the order of SPECIFICATION.md §5.6.1; one
+  of them or both. Legs left out have automatic handles and no corner points.
 
 ## 10. Modifier lines
 
@@ -330,7 +335,7 @@ line E#2 to R5 kind catalyst
 | A species' position | Laid out automatically, with everything else that has none |
 | A reaction's position | Its junction between its species |
 | A reaction's shape | `straight` |
-| A leg | Automatic handles |
+| A leg | Automatic handles, no corner points |
 | A modifier line | A plain straight line |
 | Any property | The class's, theme's or built-in value (§6.3) |
 | The whole diagram section | The model laid out automatically |
@@ -377,6 +382,7 @@ warning with a line and column.
 | Reaction `at` | `jx`, `jy` | the reaction glyph's position |
 | `stem` | `stem` | the reaction glyph's curve |
 | `leg … curve` | participant handles | `speciesReferenceGlyph` curve (cubic Bézier) |
+| `leg … via` | participant `points` | that curve's further segments (line segments) |
 | `line … via` | modifier `points` | modifier's reference glyph curve (line segments) |
 | `kind catalyst` | modifier `kind` | SBO term on the modifier reference |
 | Modifier line look | modifier look keys | Render style on that reference glyph |
@@ -431,7 +437,8 @@ stem        = "stem" offset offset [ "free" ] ;
 uses        = "uses" drawing { "," drawing } ;
 ends        = [ "source" point ] [ "sink" point ] ;
 name        = "name" [ offset ] ;
-leg         = "leg" ( drawing "->" id | id "->" drawing ) "curve" point point ;
+leg         = "leg" ( drawing "->" id | id "->" drawing )
+              ( "via" point { point } [ "curve" point point ] | "curve" point point ) ;
 mline       = "line" drawing "to" id [ "via" point { point } ]
               [ "kind" id ] { class } [ block ] ;
 

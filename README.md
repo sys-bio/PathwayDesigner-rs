@@ -58,8 +58,9 @@ Delphi version does, and some more (see [Status](#status)).
 - **Modifiers** (drawn as dashed arcs, found from the rate law), and **null
   nodes** for sources and sinks. A modifier can be an **activator** (open
   arrowhead), **inhibitor** (blunt bar) or **catalyst** (open circle), carried to
-  and from SBML and Antimony (`-o`, `-|`), and its line can be routed round the
-  diagram through **corner points**.
+  and from SBML and Antimony (`-o`, `-|`). Modifier lines, and reactants' and
+  products' lines, can be routed round the diagram through **corner points**,
+  carried in SBML Layout as curves of several segments.
 - **Compartments**, drawn as boxes you can move and resize; species move with
   their compartment, a box can be hidden, and its name can be any size.
 - **Free text** for titles and notes, with typeface, size, bold, italic, colour,
@@ -124,7 +125,9 @@ Delphi version does, and some more (see [Status](#status)).
 - **Escher maps**: *File ▸ Open* reads an [Escher](https://escher.github.io) map
   (`.json`) and draws it as Escher does: its layout, each reaction's straight
   centre line and the map's own curves, its labels, and each extra drawing of a
-  metabolite as an alias, in the Escher theme.
+  metabolite as an alias, in the Escher theme, each at the size the map gives it.
+  Maps whose lines are routed through chains of markers (such as the BiGG maps
+  drawn by MetaCarto) keep their routes as corner points.
 - **Graphics**: SVG, PNG at any resolution, and vector PDF (Letter, A4 or the
   drawing's own size), and printing.
 - **The Gallery**: *File ▸ Open from Gallery…* opens example models, from small
@@ -178,7 +181,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Alt while dragging | Place freely while Snap to grid is on |
 | Double-click a species | Rename it |
 | Double-click a text | Edit its words |
-| Double-click a modifier line | Add a corner point there, so the line can turn a corner; drag the small square to move it, right-click it to remove it |
+| Double-click a modifier line, or a reactant's or product's line | Add a corner point there, so the line can turn a corner; drag the small square to move it, right-click it to remove it |
 | Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more) |
 | Rest the pointer on an item | A tooltip: a species' value, a reaction's rate law, a compartment's volume |
 
