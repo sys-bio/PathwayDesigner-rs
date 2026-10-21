@@ -144,10 +144,56 @@ pub fn import(text: &str) -> Result<Imported, String> {
             continue;
         };
 
-        // Each metabolite drawing in this reaction: its node, the node it
-        // joins (its side's multimarker, or the midmarker), and the curve's
-        // handles by the metabolite and by that node.
-        let mut legs: Vec<(&str, Pt, Pt, Pt)> = Vec::new();
+        // The reaction's segments as a tree from its midmarker: each node's
+        // next node on the way to the centre.
+        let mut next: HashMap<&str, &str> = HashMap::new();
+        {
+            let mut joined: HashMap<&str, Vec<&str>> = HashMap::new();
+            for s in &segments {
+                if let (Some(a), Some(b)) = ends(s) {
+                    joined.entry(a).or_default().push(b);
+                    joined.entry(b).or_default().push(a);
+                }
+            }
+            let mut queue = std::collections::VecDeque::from([mid]);
+            let mut seen: std::collections::HashSet<&str> = [mid].into();
+            while let Some(n) = queue.pop_front() {
+                for &o in joined.get(n).into_iter().flatten() {
+                    if seen.insert(o) {
+                        next.insert(o, n);
+                        queue.push_back(o);
+                    }
+                }
+            }
+        }
+        // The places a metabolite's line passes on its way from the node it
+        // joins to the centre (the midmarker itself left out): one, its side's
+        // multimarker, in a map drawn in Escher; more where the line is routed
+        // (S §5.6.5). Empty when it joins the midmarker.
+        let way = |from: &str, at: Pt| -> Vec<Pt> {
+            let mut out = Vec::new();
+            let mut n = from;
+            while n != mid {
+                match nodes.get(n).and_then(|v| point(v, "x", "y")) {
+                    Some(p) => out.push(p),
+                    None => break,
+                }
+                match next.get(n) {
+                    Some(&up) => n = up,
+                    // Not joined to the centre: the node it joins is its end.
+                    None => return vec![at],
+                }
+                if out.len() > nodes.len() {
+                    break;
+                }
+            }
+            out
+        };
+
+        // Each metabolite drawing in this reaction: its node, its way to the
+        // centre, and the curve's handles by the metabolite and by the node
+        // it joins.
+        let mut legs: Vec<(&str, Vec<Pt>, Pt, Pt)> = Vec::new();
         for s in &segments {
             let (Some(from), Some(to)) = ends(s) else {
                 continue;
@@ -172,7 +218,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
             // way along keep it so.
             let outer = near_m.unwrap_or(mp + (op - mp) / 3.0);
             let inner = near_other.unwrap_or(op + (mp - op) / 3.0);
-            legs.push((m, op, outer, inner));
+            legs.push((m, way(other, op), outer, inner));
         }
 
         let mut rx = Reaction::new(id.clone(), j);
@@ -213,20 +259,33 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 continue;
             };
             used[i] = true;
-            let (node, joins, outer, inner) = legs[i];
+            let (node, ref way, outer, inner) = legs[i];
             let Some(species) = species_of.get(node) else {
                 continue;
             };
             let mut p = Participant::new(species.as_str(), coef.abs());
             p.ctrl_pts_set = true;
+            // Its side's end of the stem is where the side's first line
+            // meets the centre's marker.
+            let joins = way.last().copied().unwrap_or(j);
+            let side_end = if coef < 0.0 {
+                *reactant_end.get_or_insert(joins)
+            } else {
+                *product_end.get_or_insert(joins)
+            };
+            // The rest of its way are its corner points, in order from the
+            // metabolite; a line that reaches the centre by another marker
+            // keeps its own, then runs straight to the side's end.
+            p.points = match way.split_last() {
+                Some((&last, rest)) if last == side_end => rest.to_vec(),
+                _ => way.clone(),
+            };
             if coef < 0.0 {
                 (p.ctrl1, p.ctrl2) = (outer, inner);
                 rx.reactants.push(p);
-                reactant_end.get_or_insert(joins);
             } else {
                 (p.ctrl1, p.ctrl2) = (inner, outer);
                 rx.products.push(p);
-                product_end.get_or_insert(joins);
             }
         }
         // The spine: each side's metabolites join one node (its multimarker,
@@ -500,6 +559,95 @@ mod tests {
         assert!(adp.ctrl2.distance(a + (k - a) / 3.0) < 1e-9);
         // An exchange joins the midmarker itself: no stem.
         assert_eq!(m.find_reaction("EX_atp_c").unwrap().stem, None);
+    }
+
+    /// A routed reaction, as MetaCarto draws them: centre (100,200), the
+    /// reactants' marker (100,170) up a chain through (100,100) to (0,100),
+    /// where a_c's line starts; b_c joins the chain at (100,100); d_c reaches
+    /// the centre by another marker, (70,200). The product c_c comes down
+    /// from (100,230) through (100,300).
+    const ROUTED: &str = r#"[
+      {"map_name": "routed"},
+      {"reactions": {
+        "1": {"bigg_id": "R", "reversibility": false,
+              "metabolites": [{"bigg_id": "a_c", "coefficient": -1},
+                              {"bigg_id": "b_c", "coefficient": -1},
+                              {"bigg_id": "d_c", "coefficient": -1},
+                              {"bigg_id": "c_c", "coefficient": 1}],
+              "segments": {
+                "a": {"from_node_id": "11", "to_node_id": "10"},
+                "b": {"from_node_id": "10", "to_node_id": "15"},
+                "c": {"from_node_id": "12", "to_node_id": "11"},
+                "d": {"from_node_id": "13", "to_node_id": "12"},
+                "e": {"from_node_id": "20", "to_node_id": "13", "b1": {"x": 0, "y": 30}, "b2": {"x": 0, "y": 70}},
+                "f": {"from_node_id": "21", "to_node_id": "12"},
+                "g": {"from_node_id": "15", "to_node_id": "16"},
+                "h": {"from_node_id": "16", "to_node_id": "22"},
+                "i": {"from_node_id": "23", "to_node_id": "17"},
+                "j": {"from_node_id": "17", "to_node_id": "10"}
+              }}
+      },
+      "nodes": {
+        "10": {"node_type": "midmarker", "x": 100, "y": 200},
+        "11": {"node_type": "multimarker", "x": 100, "y": 170},
+        "12": {"node_type": "multimarker", "x": 100, "y": 100},
+        "13": {"node_type": "multimarker", "x": 0, "y": 100},
+        "15": {"node_type": "multimarker", "x": 100, "y": 230},
+        "16": {"node_type": "multimarker", "x": 100, "y": 300},
+        "17": {"node_type": "multimarker", "x": 70, "y": 200},
+        "20": {"node_type": "metabolite", "bigg_id": "a_c", "x": 0, "y": 0},
+        "21": {"node_type": "metabolite", "bigg_id": "b_c", "x": 200, "y": 100},
+        "22": {"node_type": "metabolite", "bigg_id": "c_c", "x": 200, "y": 300},
+        "23": {"node_type": "metabolite", "bigg_id": "d_c", "x": -100, "y": 200}
+      }
+    }]"#;
+
+    #[test]
+    fn a_routed_reaction_s_lines_keep_their_routes() {
+        let m = import(ROUTED).unwrap().model;
+        let r = m.find_reaction("R").unwrap();
+        // The stem runs between the markers next to the centre.
+        assert_eq!(r.stem, Some((pt(0.0, -30.0), pt(0.0, 30.0))));
+        let points = |list: &[Participant], i: usize| list[i].points.clone();
+        // a_c: up its chain, in order from a_c, to the reactants' end.
+        assert_eq!(points(&r.reactants, 0), [pt(0.0, 100.0), pt(100.0, 100.0)]);
+        // b_c joins the chain: the shared run is its own too.
+        assert_eq!(points(&r.reactants, 1), [pt(100.0, 100.0)]);
+        // d_c keeps its own marker, then runs straight to the reactants' end.
+        assert_eq!(points(&r.reactants, 2), [pt(70.0, 200.0)]);
+        // c_c, the product: from c_c up to the products' end.
+        assert_eq!(points(&r.products, 0), [pt(100.0, 300.0)]);
+        // a_c's handles are its segment's, the inner one by its first corner.
+        let a = &r.reactants[0];
+        assert_eq!((a.ctrl1, a.ctrl2), (pt(0.0, 30.0), pt(0.0, 70.0)));
+        let c = crate::bezier::leg_curve(&m, r, Role::Reactant, 0).unwrap();
+        assert_eq!((c.p0, c.p3), (pt(0.0, 0.0), pt(0.0, 100.0)));
+        // The routes survive SBML.
+        let opts = crate::antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        let back = crate::sbml::import(&crate::sbml::export(&m).xml, &opts)
+            .unwrap()
+            .model;
+        let b = back.find_reaction("R").unwrap();
+        for (p, q) in r
+            .reactants
+            .iter()
+            .chain(&r.products)
+            .zip(b.reactants.iter().chain(&b.products))
+        {
+            assert_eq!(p.points, q.points, "{}", p.species);
+        }
+        // A map drawn in Escher has none (the other tests' map).
+        let plain = map().model;
+        assert!(
+            plain
+                .reactions()
+                .iter()
+                .flat_map(|r| r.reactants.iter().chain(&r.products))
+                .all(|p| p.points.is_empty())
+        );
     }
 
     #[test]

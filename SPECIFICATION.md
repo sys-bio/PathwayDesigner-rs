@@ -493,7 +493,7 @@ junction). With none, the line is as above.
   segments: its end piece (cut at the border, as drawn), then a line segment per
   straight piece (SPEC-Rust §8.3). Reading, a curve of several segments gives
   corner points where its segments meet, from another tool as from this app.
-- The Escher import is a later step of the design.
+- The Escher import gives routed maps' lines their corner points (§11.7).
 
 ### 5.7 Modifier arcs
 
@@ -2356,6 +2356,19 @@ Save never writes over the map. Opening it is not an edit, so the status bar say
   side's end of the stem, its handles as the map has them: the drawing is the map's.
   A segment with no handles is straight, its handles a third of the way along. A
   reaction whose metabolites all join the midmarker has no stem.
+- **Routed lines.** Maps drawn by other programs (MetaCarto's maps of the BiGG
+  models, for one) route a line from its metabolite through a chain of
+  multimarkers to the midmarker. The segments are walked as a tree from the
+  midmarker: each side's stem end is the marker next to the midmarker on its first
+  line's way, and each line's other markers on its way become its **corner
+  points** (§5.6.5), in order from the metabolite, its segment's handles those of
+  its end piece. Lines that share a run each get it (they are drawn on top of one
+  another). A line that reaches the midmarker by another marker than its side's
+  keeps that marker as a corner point and runs straight from it to the stem end. A
+  map drawn in Escher has no chains, so its lines get none. Pieces between two
+  markers are straight in every map tried; a curved piece between a marker and the
+  midmarker is drawn straight, as part of the stem (2,988 of them in the 96 Recon3D
+  maps).
 - **Exchange reactions** draw only one side: the other gets a null node (§5.4)
   across the junction from the species, `NULL_OFFSET` away.
 - **Look.** The diagram takes the Escher theme (§8.7), keeping the map's handles
