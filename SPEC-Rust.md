@@ -889,6 +889,11 @@ replace `sbml-io` behind the same bridge.
     centre (`ctrl1`, `ctrl2`), and it is split where it crosses the node's border,
     so its base points are that part's (S §11.5). Reactant and product legs keep
     their direction, with no swapping;
+  - a line with corner points (S §5.6.5) as several segments in the direction of
+    flow: a reactant's end piece (as above, to its first corner point), then a
+    `LineSegment` through each corner point to the junction or its end of the
+    stem; a product's the other way round, from there back through them, then its
+    end piece into the node;
   - glyphs for modifiers;
   - a reaction glyph's box is its junction dot's (8 × 8) when the dot is drawn, a
     point otherwise;
@@ -914,6 +919,12 @@ replace `sbml-io` behind the same bridge.
     no swapping), `ctrlPtsSet = true` and mode `Bezier`; a single Bézier segment
     that, carried on along the same cubic, reaches the node's centre (as this app
     writes them) gives the handles of that whole curve instead;
+  - a reactant's or product's curve of several segments gives the line corner
+    points (S §5.6.5) where its segments meet, in order from the species (the end
+    nearer the species is taken as its end, whichever way round it was written);
+    the segment at the species is the end piece, its base points the handles
+    (carried on to the centre as above) if it is a Bézier, and other Bézier
+    segments are read as straight pieces;
   - a species has one glyph that draws it, the one named `sg_<id>` if there is
     one, or else the first; each other glyph of it becomes an **alias**, named
     after its glyph (`sg_<alias>`) when that name is free;

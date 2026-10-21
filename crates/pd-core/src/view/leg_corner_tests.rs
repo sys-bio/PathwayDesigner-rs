@@ -431,3 +431,190 @@ fn a_smooth_junction_s_handle_drag_leaves_routed_lines() {
     assert!(r.products[0].ctrl_pts_set, "B's swung");
     assert_eq!(r.reactants[0].ctrl2, pt(0.0, 70.0), "A's stays");
 }
+
+// ----- SBML (step 3) ---------------------------------------------------------
+
+const SBML_OPTS: crate::antimony::ImportOptions = crate::antimony::ImportOptions {
+    convert_catalytic: false,
+    seed: 1,
+};
+
+/// [`model`] with B's line routed too, up and over from the junction, and A's
+/// with stored handles.
+fn routed_both(mode: ReactionMode) -> Model {
+    let mut m = model(mode);
+    let r = m.find_reaction_mut("R1").unwrap();
+    r.products[0].points = vec![pt(400.0, -100.0), pt(300.0, -100.0)];
+    let a = &mut r.reactants[0];
+    (a.ctrl1, a.ctrl2, a.ctrl_pts_set) = (pt(-10.0, 30.0), pt(10.0, 70.0), true);
+    m
+}
+
+fn round_trip(m: &Model) -> Model {
+    crate::sbml::import(&crate::sbml::export(m).xml, &SBML_OPTS)
+        .unwrap()
+        .model
+}
+
+/// The layout of `m` as written.
+fn written(m: &Model) -> sbml_io::Document {
+    sbml_io::read(&crate::sbml::export(m).xml).unwrap().document
+}
+
+/// The curve of the species reference glyph of `species` in reaction R1.
+fn curve_of<'a>(doc: &'a sbml_io::Document, species: &str) -> &'a sbml_io::Curve {
+    let l = &doc.model.as_ref().unwrap().layouts[0];
+    let glyph_of: std::collections::HashMap<&str, &str> = l
+        .species_glyphs
+        .iter()
+        .map(|g| (g.id.as_str(), g.species.as_deref().unwrap_or("")))
+        .collect();
+    let rg = &l.reaction_glyphs[0];
+    let srg = rg
+        .species_reference_glyphs
+        .iter()
+        .find(|s| glyph_of[s.species_glyph.as_str()] == species)
+        .unwrap();
+    srg.curve.as_ref().unwrap()
+}
+
+fn ends(s: &sbml_io::Segment) -> (Pt, Pt) {
+    let (a, b) = (s.start(), s.end());
+    (pt(a.x, a.y), pt(b.x, b.y))
+}
+
+#[test]
+fn a_routed_line_is_written_as_drawn_in_the_direction_of_flow() {
+    let doc = written(&routed_both(ReactionMode::Bezier));
+    // A, a reactant: its end piece from A's border (curved, as drawn), then
+    // straight on through its corner points to the junction.
+    let a = curve_of(&doc, "A");
+    assert_eq!(a.segments.len(), 3);
+    assert!(matches!(a.segments[0], sbml_io::Segment::Bezier { .. }));
+    let (start, end) = ends(&a.segments[0]);
+    assert!((start.y - 18.0).abs() < 1e-4, "A's border: {start:?}");
+    assert_eq!(end, pt(0.0, 100.0));
+    assert_eq!(ends(&a.segments[1]), (pt(0.0, 100.0), pt(200.0, 100.0)));
+    assert_eq!(ends(&a.segments[2]), (pt(200.0, 100.0), pt(200.0, 0.0)));
+    // B, a product: from the junction back through its corner points, then
+    // its end piece into B's border.
+    let b = curve_of(&doc, "B");
+    assert_eq!(b.segments.len(), 3);
+    assert_eq!(ends(&b.segments[0]), (pt(200.0, 0.0), pt(300.0, -100.0)));
+    assert_eq!(ends(&b.segments[1]), (pt(300.0, -100.0), pt(400.0, -100.0)));
+    let (start, end) = ends(&b.segments[2]);
+    assert_eq!(start, pt(400.0, -100.0));
+    assert!((end.y + 18.0).abs() < 1e-4, "B's border: {end:?}");
+    // C, without corner points: one piece, as before.
+    assert_eq!(curve_of(&doc, "C").segments.len(), 1);
+    // Straight: every piece a line.
+    let doc = written(&routed_both(ReactionMode::Straight));
+    let a = curve_of(&doc, "A");
+    assert_eq!(a.segments.len(), 3);
+    // It leaves A's border towards the first corner point, below A.
+    assert_eq!(ends(&a.segments[0]), (pt(0.0, 18.0), pt(0.0, 100.0)));
+    assert!(
+        a.segments
+            .iter()
+            .all(|s| matches!(s, sbml_io::Segment::Line { .. }))
+    );
+}
+
+#[test]
+fn routed_lines_come_back_from_sbml() {
+    for mode in [ReactionMode::Bezier, ReactionMode::Straight] {
+        let m = routed_both(mode);
+        let back = round_trip(&m);
+        let (r, b) = (
+            m.find_reaction("R1").unwrap(),
+            back.find_reaction("R1").unwrap(),
+        );
+        assert_eq!(b.mode, mode);
+        for (p, q) in r
+            .reactants
+            .iter()
+            .chain(&r.products)
+            .zip(b.reactants.iter().chain(&b.products))
+        {
+            assert_eq!(q.points, p.points, "{mode:?} {}", p.species);
+        }
+        if mode == ReactionMode::Bezier {
+            // The stored handles, carried on to A's centre again.
+            let a = &b.reactants[0];
+            assert!(a.ctrl_pts_set);
+            assert!(a.ctrl1.distance(pt(-10.0, 30.0)) < 1e-6, "{:?}", a.ctrl1);
+            assert!(a.ctrl2.distance(pt(10.0, 70.0)) < 1e-6, "{:?}", a.ctrl2);
+            // B's end piece, written from its first corner point into B, is
+            // turned round: the same curve as drawn.
+            let drawn = leg_curve(&m, r, Role::Product, 0).unwrap();
+            let read = leg_curve(&back, b, Role::Product, 0).unwrap();
+            assert!(read.p1.distance(drawn.p1) < 1e-6, "{read:?} {drawn:?}");
+            assert!(read.p2.distance(drawn.p2) < 1e-6, "{read:?} {drawn:?}");
+        }
+    }
+    // With a stem, the run ends at its end of the stem.
+    let mut m = routed_both(ReactionMode::Bezier);
+    m.find_reaction_mut("R1").unwrap().stem = Some((pt(0.0, 30.0), pt(30.0, 0.0)));
+    let doc = written(&m);
+    let a = curve_of(&doc, "A");
+    assert_eq!(ends(a.segments.last().unwrap()).1, pt(200.0, 30.0));
+    let back = round_trip(&m);
+    let b = back.find_reaction("R1").unwrap();
+    assert_eq!(b.stem, Some((pt(0.0, 30.0), pt(30.0, 0.0))));
+    assert_eq!(b.reactants[0].points, [pt(0.0, 100.0), pt(200.0, 100.0)]);
+}
+
+#[test]
+fn a_linear_reaction_writes_its_line_without_corner_points() {
+    let mut m = model(ReactionMode::Linear);
+    let r = m.find_reaction_mut("R1").unwrap();
+    r.reactants.truncate(1);
+    let doc = written(&m);
+    assert_eq!(curve_of(&doc, "A").segments.len(), 1);
+}
+
+#[test]
+fn another_tool_s_routed_curves_are_read_whichever_way_round() {
+    // A's curve as another tool might write it: from the junction to A,
+    // straight pieces, with a curved piece in the middle (read as straight).
+    let m = routed_both(ReactionMode::Straight);
+    let mut doc = written(&m);
+    let l = &mut doc.model.as_mut().unwrap().layouts[0];
+    let a_glyph = l
+        .species_glyphs
+        .iter()
+        .find(|g| g.species.as_deref() == Some("A"))
+        .unwrap()
+        .id
+        .clone();
+    let srg = l.reaction_glyphs[0]
+        .species_reference_glyphs
+        .iter_mut()
+        .find(|s| s.species_glyph == a_glyph)
+        .unwrap();
+    let p = |x, y| sbml_io::Point { x, y, z: None };
+    srg.curve = Some(sbml_io::Curve {
+        segments: vec![
+            sbml_io::Segment::Line {
+                start: p(200.0, 0.0),
+                end: p(200.0, 100.0),
+            },
+            sbml_io::Segment::Bezier {
+                start: p(200.0, 100.0),
+                end: p(0.0, 100.0),
+                base1: p(150.0, 120.0),
+                base2: p(50.0, 120.0),
+            },
+            sbml_io::Segment::Line {
+                start: p(0.0, 100.0),
+                end: p(0.0, 18.0),
+            },
+        ],
+    });
+    let xml = sbml_io::write(&doc);
+    let back = crate::sbml::import(&xml, &SBML_OPTS).unwrap().model;
+    let r = back.find_reaction("R1").unwrap();
+    assert_eq!(r.reactants[0].points, [pt(0.0, 100.0), pt(200.0, 100.0)]);
+    assert!(!r.reactants[0].ctrl_pts_set, "its end piece is a line");
+    assert_eq!(r.mode, ReactionMode::Straight);
+}

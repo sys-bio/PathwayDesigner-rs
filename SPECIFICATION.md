@@ -489,7 +489,11 @@ junction). With none, the line is as above.
   Toggle Linear, Make Nice and auto-layout. A line that had some goes back to
   automatic handles. Undo puts them back. Set Bézier, themes and saved styles
   keep them. (Modifier arcs keep theirs, §5.7.1.)
-- SBML and the Escher import are later steps of the design.
+- **SBML:** a line with corner points is a species reference curve of several
+  segments: its end piece (cut at the border, as drawn), then a line segment per
+  straight piece (SPEC-Rust §8.3). Reading, a curve of several segments gives
+  corner points where its segments meet, from another tool as from this app.
+- The Escher import is a later step of the design.
 
 ### 5.7 Modifier arcs
 

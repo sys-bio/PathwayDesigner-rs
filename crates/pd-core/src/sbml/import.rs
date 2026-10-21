@@ -742,7 +742,36 @@ impl Builder {
                         p.look = look;
                     }
                 }
-                if prole != crate::model::Role::Modifier
+                // A curve of several segments: corner points where they meet
+                // (S §5.6.5), the one at the species the end piece.
+                let routed = srg
+                    .curve
+                    .as_ref()
+                    .filter(|c| prole != crate::model::Role::Modifier && c.segments.len() > 1);
+                if let Some(curve) = routed {
+                    let (corners, end_piece) = leg_route(curve, center);
+                    let first = corners[0];
+                    p.points = corners;
+                    if let sb::Segment::Bezier {
+                        start,
+                        end,
+                        base1,
+                        base2,
+                    } = end_piece
+                    {
+                        let q = |v: sb::Point| pt(v.x, v.y);
+                        let reactant = prole == crate::model::Role::Reactant;
+                        (p.ctrl1, p.ctrl2) = handles_to_centre(
+                            (q(start), q(end), q(base1), q(base2)),
+                            first,
+                            center,
+                            reactant,
+                            true,
+                        );
+                        p.ctrl_pts_set = true;
+                        rx.mode = ReactionMode::Bezier;
+                    }
+                } else if prole != crate::model::Role::Modifier
                     && let Some((a, b, c1, c2)) = handles
                 {
                     let reactant = prole == crate::model::Role::Reactant;
@@ -884,9 +913,46 @@ fn junction_of(g: &sb::ReactionGlyph) -> Option<Pt> {
     Some(pt((a.x + b.x) / 2.0, (a.y + b.y) / 2.0))
 }
 
-/// A curve's ends and handles: (start, end, base point 1, base point 2), or
-/// `None` unless it has a Bézier segment. With several segments, the first
-/// segment gives the first handle and the last the second.
+/// A reactant's or product's curve of several segments (S §5.6.5): its corner
+/// points, where the segments meet, in order from the species (the end
+/// nearer `species` is taken as the species', whichever way round it was
+/// written); and the segment at the species, run from the species' end to
+/// the first corner point.
+fn leg_route(curve: &sb::Curve, species: Pt) -> (Vec<Pt>, sb::Segment) {
+    let q = |v: sb::Point| pt(v.x, v.y);
+    let segs = &curve.segments;
+    let (first, last) = (q(segs[0].start()), q(segs[segs.len() - 1].end()));
+    let from_species = first.distance(species) <= last.distance(species);
+    let mut ordered: Vec<sb::Segment> = segs.clone();
+    if !from_species {
+        ordered.reverse();
+        for s in &mut ordered {
+            *s = match *s {
+                sb::Segment::Line { start, end } => sb::Segment::Line {
+                    start: end,
+                    end: start,
+                },
+                sb::Segment::Bezier {
+                    start,
+                    end,
+                    base1,
+                    base2,
+                } => sb::Segment::Bezier {
+                    start: end,
+                    end: start,
+                    base1: base2,
+                    base2: base1,
+                },
+            };
+        }
+    }
+    let corners = ordered[..ordered.len() - 1]
+        .iter()
+        .map(|s| q(s.end()))
+        .collect();
+    (corners, ordered[0].clone())
+}
+
 /// A modifier's corner points from its glyph's curve (S §5.7.1): where its
 /// segments meet, in order from the modifier. A curve written from the
 /// junction end is turned round; Bézier segments count as straight.
@@ -903,6 +969,9 @@ fn corner_points(curve: Option<&sb::Curve>, junction: Pt) -> Vec<Pt> {
     points
 }
 
+/// A curve's ends and handles: (start, end, base point 1, base point 2), or
+/// `None` unless it has a Bézier segment. With several segments, the first
+/// segment gives the first handle and the last the second.
 fn handles(curve: Option<&sb::Curve>) -> Option<(Pt, Pt, Pt, Pt)> {
     let segs = &curve?.segments;
     if !segs.iter().any(|s| matches!(s, sb::Segment::Bezier { .. })) {

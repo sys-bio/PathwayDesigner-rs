@@ -578,7 +578,17 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             } else {
                 j
             };
-            let edge = border(node, j);
+            // A line with corner points (S §5.6.5), unless the reaction is
+            // drawn Linear: its end piece runs to the first of them, then
+            // straight pieces run on to `j`.
+            let corners: &[Pt] =
+                if leg.role != Role::Modifier && effective_mode(r) != ReactionMode::Linear {
+                    &p.points
+                } else {
+                    &[]
+                };
+            let inner = corners.first().copied().unwrap_or(j);
+            let edge = border(node, inner);
             let segment = match (
                 leg.role,
                 bezier
@@ -608,13 +618,33 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                     }
                 }
                 (Role::Product, None) => sb::Segment::Line {
-                    start: point(j),
+                    start: point(inner),
                     end: point(edge),
                 },
                 _ => sb::Segment::Line {
                     start: point(edge),
-                    end: point(j),
+                    end: point(inner),
                 },
+            };
+            // The whole line in the direction of flow: a reactant's from the
+            // species through its corner points to `j`, a product's from `j`
+            // back through them to the species.
+            let run: Vec<sb::Segment> = {
+                let mut pts: Vec<Pt> = corners.to_vec();
+                pts.push(j);
+                if leg.role == Role::Product {
+                    pts.reverse();
+                }
+                pts.windows(2)
+                    .map(|w| sb::Segment::Line {
+                        start: point(w[0]),
+                        end: point(w[1]),
+                    })
+                    .collect()
+            };
+            let leg_segments: Vec<sb::Segment> = match leg.role {
+                Role::Reactant => std::iter::once(segment).chain(run).collect(),
+                _ => run.into_iter().chain(std::iter::once(segment)).collect(),
             };
             let role = match leg.role {
                 Role::Reactant => sb::Role::Substrate,
@@ -649,7 +679,7 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                                 end: point(w[1]),
                             })
                             .collect(),
-                        _ => vec![segment],
+                        _ => leg_segments,
                     },
                 }),
                 ..Default::default()

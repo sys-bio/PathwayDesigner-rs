@@ -1,7 +1,7 @@
 # Design: corner points on reaction legs
 
 Status: **decisions recorded** (2026-10-20): D1 (a), D2 (a), D3 as recommended.
-Steps 1 (41aaac0) and 2 done.
+Steps 1 (41aaac0), 2 (8b0ce59) and 3 done.
 
 ## 1. Why
 
