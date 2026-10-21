@@ -312,7 +312,7 @@ impl StructurePanel {
     pub fn matrix(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.strong("Stoichiometry matrix");
-            ui.label(egui::RichText::new("species by reactions; blank is 0").weak());
+            ui.label(egui::RichText::new("species by reactions").weak());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button("✕")
@@ -354,11 +354,10 @@ fn lines(items: impl Iterator<Item = String>) -> String {
     items.map(|t| t + "\n").collect()
 }
 
-/// A cell's text: blank for 0, a simple fraction as one (`1/2`), else four
-/// significant figures.
+/// A cell's text: a whole number or simple fraction as one (`0`, `-1`,
+/// `1/2`), else four significant figures.
 fn cell(v: f64) -> String {
     match structure::as_fraction(v) {
-        Some((0, _)) => String::new(),
         Some((n, 1)) => n.to_string(),
         Some((n, d)) => format!("{n}/{d}"),
         None => format!("{v:.4}"),
@@ -412,9 +411,12 @@ fn grid(ui: &mut egui::Ui, s: &Structure, shaded_rows: &[usize], shaded_cols: &[
             let in_view = columns_in(view.min.x, view.max.x);
             let first_row = ((view.min.y - row_h) / row_h).floor().max(0.0) as usize;
             let last_row = (((view.max.y - row_h) / row_h).ceil().max(0.0) as usize).min(rows);
+            // Names strong, entries plain, zeros faint so the rest stand out.
             let text = |p: egui::Pos2, t: &str, align: egui::Align2, strong: bool| {
                 let color = if strong {
                     visuals.strong_text_color()
+                } else if t == "0" {
+                    visuals.weak_text_color()
                 } else {
                     visuals.text_color()
                 };
@@ -430,15 +432,12 @@ fn grid(ui: &mut egui::Ui, s: &Structure, shaded_rows: &[usize], shaded_cols: &[
                     if shaded_rows.contains(&r) || shaded_cols.contains(&c) {
                         painter.rect_filled(cell_rect, 0.0, shade);
                     }
-                    let t = cell(s.n.get(r, c));
-                    if !t.is_empty() {
-                        text(
-                            cell_rect.right_center() - egui::vec2(char_w, 0.0),
-                            &t,
-                            egui::Align2::RIGHT_CENTER,
-                            false,
-                        );
-                    }
+                    text(
+                        cell_rect.right_center() - egui::vec2(char_w, 0.0),
+                        &cell(s.n.get(r, c)),
+                        egui::Align2::RIGHT_CENTER,
+                        false,
+                    );
                 }
             }
             // The header row, pinned to the top of the view.
@@ -509,7 +508,8 @@ mod tests {
 
     #[test]
     fn cells_show_fractions_and_hide_zeros() {
-        assert_eq!(cell(0.0), "");
+        assert_eq!(cell(0.0), "0");
+        assert_eq!(cell(-0.0), "0");
         assert_eq!(cell(-1.0), "-1");
         assert_eq!(cell(0.5), "1/2");
         assert_eq!(cell(0.123456), "0.1235");

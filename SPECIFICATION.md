@@ -1929,7 +1929,7 @@ says before any rate law is known, and draws it on the network.
   line) on the clipboard; *Export…* saves the matrix, the basis or the laws as CSV.
 - **The matrix panel** (*Stoichiometry matrix*, a toggle in the tab) opens under
   the canvas, resizable: the matrix with species and reaction names pinned as it
-  scrolls, zeros blank, fractions as fractions; ✕ closes it.
+  scrolls, zeros in a fainter colour, fractions as fractions; ✕ closes it.
 - **Highlighting.** Clicking a vector or a law picks it (clicking again lets it go),
   and while the tab or the matrix panel is open it is drawn over the network: the
   rest faded under a veil of the background; a vector's reactions redrawn thicker
