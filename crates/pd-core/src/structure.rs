@@ -71,8 +71,9 @@ pub struct PivotedQr {
 }
 
 /// QR with column pivoting, as `DGEQP3`: at each step the remaining column
-/// with the largest norm (over the rows not yet reduced) comes next, and a
-/// Householder reflection clears it below the diagonal. The rank is the
+/// with the largest norm (over the rows not yet reduced) comes next, ties to
+/// the column first in A, and a Householder reflection clears it below the
+/// diagonal. The rank is the
 /// number of diagonal entries of R larger than
 /// `max(rows, cols) × |R₁₁| × ε`, COPASI's tolerance.
 pub fn pivoted_qr(a: &Matrix) -> PivotedQr {
@@ -84,14 +85,18 @@ pub fn pivoted_qr(a: &Matrix) -> PivotedQr {
         // The column with the largest norm over rows k.., computed afresh
         // (no downdating), so ties and tiny norms are judged exactly.
         let norm2 = |r: &Matrix, c: usize| (k..m).map(|i| r.get(i, c).powi(2)).sum::<f64>();
-        let mut best = k;
-        let mut best_norm = norm2(&r, k);
-        for c in k + 1..n {
-            let v = norm2(&r, c);
-            if v > best_norm {
-                (best, best_norm) = (c, v);
-            }
-        }
+        // Columns whose norms are equal but for rounding tie, and a tie goes
+        // to the column that comes first in A (the species or reaction
+        // listed first), whatever the swaps so far: a choice that is stable
+        // and can be explained, where DGEQP3's depends on its rounding.
+        let norms: Vec<f64> = (k..n).map(|c| norm2(&r, c)).collect();
+        let largest = norms.iter().copied().fold(0.0, f64::max);
+        let tie = largest * (1.0 - 1e-12);
+        let best = (k..n)
+            .filter(|&c| norms[c - k] >= tie)
+            .min_by_key(|&c| perm[c])
+            .unwrap_or(k);
+        let best_norm = norms[best - k];
         r.swap_cols(k, best);
         perm.swap(k, best);
         if best_norm == 0.0 {
@@ -582,6 +587,31 @@ mod tests {
             }
         }
         assert_eq!(pivoted_qr(&b).rank, 1);
+    }
+
+    #[test]
+    fn ties_go_to_the_species_and_reaction_listed_first() {
+        // ATP ⇄ ADP: two species of equal norm. Listed ATP first, ATP is
+        // independent; listed ADP first, ADP is.
+        for (first, second) in [("ATP", "ADP"), ("ADP", "ATP")] {
+            let mut m = Model::new();
+            for id in [first, second] {
+                m.push_species(SpeciesNode::new(id, pt(0.0, 0.0))).unwrap();
+            }
+            for (id, a, b) in [("J1", "ATP", "ADP"), ("J2", "ADP", "ATP")] {
+                let mut r = Reaction::new(id, pt(0.0, 0.0));
+                r.reactants = vec![Participant::new(a, 1.0)];
+                r.products = vec![Participant::new(b, 1.0)];
+                m.push_reaction(r).unwrap();
+            }
+            let s = Structure::of(&m);
+            let name = |i: usize| s.species[i].as_str();
+            assert_eq!(name(s.independent_species[0]), first);
+            assert_eq!(name(s.dependent_species[0]), second);
+            // J1 and J2 tie too: J1 comes first, so it is the dependent one
+            // the pivoting takes, and J2 the independent flux.
+            assert_eq!(s.reactions[s.independent_reactions[0]], "J2");
+        }
     }
 
     #[test]

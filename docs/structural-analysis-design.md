@@ -68,10 +68,21 @@ a tolerance, and the link matrix from the inverse of the triangular factor
   a simple fraction (denominator up to 12) is shown as that, so the usual results
   read 1, −1, 2, 1/2 rather than 0.9999999. The unrounded values are what is
   exported.
-- Genome-scale models work: the factorization is O(m n min(m, n)); Recon3D's
-  matrix (about 5,800 × 10,600) is a matter of seconds natively, and is computed
-  only when the Structure tab is open (§6). Whether that is fast enough in the
-  browser is measured in step 2.
+- **Size.** The factorization is dense, O(m n min(m, n)). Measured natively
+  (step 2, 2026-10-21): 66 × 43 in 0.4 ms, 155 × 205 in 12 ms, 366 × 340 in 91 ms;
+  about a cube law, so some 1,000 reactions take seconds. Recon3D whole (about
+  5,800 × 10,600) was stopped after ten minutes; it would also need about 1 GB for
+  two dense copies. Every Gallery model, Escher map and BioModel tried is far
+  inside the range. Genome-scale models would need a sparse factorization, a
+  project of its own; until then the Structure tab says a network is too large
+  above a limit (step 3; D4). It is computed only while the tab is open (§6).
+- **Ties.** Columns of equal norm (common: most stoichiometry columns are a few
+  ±1) go to the one first in the matrix, the species or reaction listed first in
+  the model. LAPACK breaks such ties by its rounding, and libRoadRunner reorders
+  species first, so the independent species it reports can be another, equally
+  valid choice (step 2: the same species, or the same set in another order, in 23
+  of the 36 BioModels where libRoadRunner reports them and 12 of the 16 Gallery
+  models; every matrix, rank and space the same).
 
 ## 4. Conservation laws and the link matrix
 
@@ -150,6 +161,10 @@ point handles them).
 reaction to be independent (it is moved last before factorizing, so the pivoting
 keeps it out of the dependent set where it can), to ask "if I change this enzyme,
 what else must change?". Not in the first version.
+
+**D4. The size limit.** Above how many reactions the tab declines (e.g. 2,000,
+some 10 s natively, more in the browser), or computes in the background with a
+progress bar. To be decided with step 3, after timing in the browser.
 
 **D2. Exported figures.**
 - (a) Graphics export draws the highlight as shown *(recommended)*: the point of
