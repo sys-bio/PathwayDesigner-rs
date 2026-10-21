@@ -288,7 +288,7 @@ impl Writer<'_> {
         // As drawn with the alias indicator on, the default (S §5.3).
         let (fill, border) = draw::species_colours(s, true);
         let mut width = draw::species_border_width(s);
-        if s.is_boundary {
+        if draw::is_boundary(self.model, s) {
             width *= BOUNDARY_BORDER_FACTOR;
         }
         let dashed = match s.border_dash {

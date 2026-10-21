@@ -98,6 +98,8 @@ fn styled() -> Model {
         s.style.has_custom_style = true;
         s.style.border_width = 2.0;
     }
+    // An alias of it: drawn with its primary's boundary border.
+    m.add_alias(&b, pt(500.0, 120.0)).unwrap();
     {
         let s = m.find_species_mut(&e).unwrap();
         s.shape = NodeShape::Rectangle;

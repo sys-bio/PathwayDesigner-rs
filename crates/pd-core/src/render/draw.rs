@@ -465,6 +465,16 @@ pub fn compartment_colours(c: &Compartment) -> (Rgba, Rgba, f64) {
     )
 }
 
+/// Whether `node` is drawn as a boundary species, with a thicker border
+/// (S §5.3): its primary's flag, which an alias draws too. An alias's own
+/// copy of the flag isn't kept up to date, so it doesn't count.
+pub fn is_boundary(model: &Model, node: &SpeciesNode) -> bool {
+    match &node.alias_of {
+        Some(p) => model.find_species(p).is_some_and(|p| p.is_boundary),
+        None => node.is_boundary,
+    }
+}
+
 /// The border width a species is drawn with, before a boundary species'
 /// thicker border; 0 for no border (S §5.3).
 pub fn species_border_width(s: &SpeciesNode) -> f64 {
@@ -1043,7 +1053,7 @@ impl Drawer<'_> {
         let style = custom(&node.style);
         let (fill, border_color) = species_colours(node, self.opts.show_alias_indicator);
         let mut border_width = species_border_width(node);
-        if node.is_boundary {
+        if is_boundary(self.model, node) {
             border_width *= BOUNDARY_BORDER_FACTOR;
         }
         let stroke = Stroke {
@@ -2156,6 +2166,33 @@ mod tests {
             calls.iter().find(|c| matches!(c, Call::RoundRect(..))),
             Some(Call::RoundRect(_, Some(f), _)) if *f == SPECIES_FILL
         ));
+    }
+
+    #[test]
+    fn an_alias_of_a_boundary_species_has_its_thick_border() {
+        // The border width drawn round the node centred at (0, y).
+        fn border_at(m: &Model, y: f32) -> f32 {
+            draw(m, &DrawOptions::default())
+                .iter()
+                .find_map(|c| match c {
+                    Call::RoundRect(r, _, Some(s))
+                        if ((r.min.y + r.max.y) / 2.0 - y).abs() < 1e-3 =>
+                    {
+                        Some(s.width)
+                    }
+                    _ => None,
+                })
+                .unwrap()
+        }
+        let mut m = uni_uni();
+        let alias = m.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        m.find_species_mut("S1").unwrap().is_boundary = true;
+        assert!((border_at(&m, 0.0) - 1.5 * 2.4).abs() < 1e-5);
+        assert!((border_at(&m, 100.0) - 1.5 * 2.4).abs() < 1e-5);
+        // The alias's own copy of the flag is not used.
+        m.find_species_mut("S1").unwrap().is_boundary = false;
+        m.find_species_mut(&alias).unwrap().is_boundary = true;
+        assert!((border_at(&m, 100.0) - 1.5).abs() < 1e-5);
     }
 
     #[test]

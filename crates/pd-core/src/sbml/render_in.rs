@@ -381,6 +381,9 @@ fn name(style: &mut VisualStyle, look: &Look) {
 }
 
 fn species(model: &mut Model, id: &str, look: &Look) {
+    let boundary = model
+        .find_species(id)
+        .is_some_and(|s| crate::render::draw::is_boundary(model, s));
     let Some(s) = model.find_species_mut(id).filter(|s| !s.is_null_node) else {
         return;
     };
@@ -402,7 +405,7 @@ fn species(model: &mut Model, id: &str, look: &Look) {
                 colour,
                 border_default,
             );
-            let width = if s.is_boundary {
+            let width = if boundary {
                 width / BOUNDARY_BORDER_FACTOR
             } else {
                 width

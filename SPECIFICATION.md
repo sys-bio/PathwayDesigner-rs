@@ -312,7 +312,9 @@ Each frame MUST be drawn in this order:
     can then look the same; the model tree still marks aliases, and *Go to Primary*
     still finds the primary. Saved like the shape (§5.10): JSON version 5, and the
     SBML species glyph's note.
-- **Boundary species:** the border stroke width is multiplied by **2.4**.
+- **Boundary species:** the border stroke width is multiplied by **2.4**. *(Rust
+  version:)* an alias is drawn so too when its primary is a boundary species: the
+  primary holds the flag, and an alias's own copy of it is not used.
 - **Label:** the id (for an alias, the primary's id), centred horizontally. It is
   centred vertically on the font's cap height. Default size 12, colour `#1A1A1A`.
   Custom `fontSize` and `labelColor` are used when set.
