@@ -368,6 +368,47 @@ impl Structure {
         )
     }
 
+    /// A sparse basis of the flux null space ([`sparsify`] on the K basis):
+    /// the same space, each vector touching as few reactions as the greedy
+    /// search finds, so it tends to be one route through the network. Each
+    /// is led by its first reaction in the model's order, coefficient
+    /// positive; the vectors in the order of their lead reactions.
+    pub fn sparse_null_space(&self) -> Vec<FluxVector> {
+        let dense: Vec<Vec<f64>> = self
+            .null_space()
+            .iter()
+            .map(|v| dense(&v.terms, self.reactions.len()))
+            .collect();
+        sparsify(dense)
+            .into_iter()
+            .map(|v| {
+                let terms = sparse_terms(&v);
+                FluxVector {
+                    independent: terms[0].0,
+                    terms,
+                }
+            })
+            .collect()
+    }
+
+    /// Sparse conservation laws ([`sparsify`] on the link matrix's): the
+    /// same laws, combined so each names as few species as the greedy search
+    /// finds (ATP + ADP and NAD + NADH rather than a mixture of the two). Each
+    /// is led by its first species in the model's order.
+    pub fn sparse_conservation_laws(&self) -> Vec<ConservationLaw> {
+        let dense: Vec<Vec<f64>> = self
+            .conservation_laws()
+            .iter()
+            .map(|l| dense(&l.terms, self.species.len()))
+            .collect();
+        sparsify(dense)
+            .into_iter()
+            .map(|v| ConservationLaw {
+                terms: sparse_terms(&v),
+            })
+            .collect()
+    }
+
     /// The stoichiometry matrix as CSV: a header of reaction ids, then one
     /// row per species, its id first.
     pub fn n_csv(&self) -> String {
@@ -396,10 +437,10 @@ impl Structure {
         out
     }
 
-    /// The null-space basis as CSV: one column per vector, named by its
-    /// independent reaction; one row per reaction, in the model's order.
-    pub fn null_space_csv(&self) -> String {
-        let basis = self.null_space();
+    /// A null-space basis (the K basis or the sparse one) as CSV: one column
+    /// per vector, named by its lead reaction; one row per reaction, in the
+    /// model's order.
+    pub fn null_space_csv(&self, basis: &[FluxVector]) -> String {
         let mut out = csv_row(
             std::iter::once(String::new())
                 .chain(basis.iter().map(|v| self.reactions[v.independent].clone())),
@@ -416,14 +457,15 @@ impl Structure {
         out
     }
 
-    /// The conservation laws as CSV: one row per law, named by its dependent
-    /// species; one column per species, in the model's order.
-    pub fn laws_csv(&self) -> String {
-        let laws = self.conservation_laws();
+    /// Conservation laws (from the link matrix or the sparse ones) as CSV:
+    /// one row per law, named by its lead species (its first term); one
+    /// column per species, in the model's order.
+    pub fn laws_csv(&self, laws: &[ConservationLaw]) -> String {
         let mut out = csv_row(std::iter::once(String::new()).chain(self.species.iter().cloned()));
-        for (law, &dep) in laws.iter().zip(&self.dependent_species) {
+        for law in laws {
+            let lead = law.terms.first().map_or(0, |t| t.0);
             out += &csv_row(
-                std::iter::once(self.species[dep].clone()).chain(
+                std::iter::once(self.species[lead].clone()).chain(
                     (0..self.species.len())
                         .map(|i| number(law.terms.iter().find(|t| t.0 == i).map_or(0.0, |t| t.1))),
                 ),
@@ -431,6 +473,110 @@ impl Structure {
         }
         out
     }
+}
+
+/// `terms` as a full vector of length `n`.
+fn dense(terms: &[(usize, f64)], n: usize) -> Vec<f64> {
+    let mut v = vec![0.0; n];
+    for &(i, k) in terms {
+        v[i] = k;
+    }
+    v
+}
+
+/// A vector's nonzero entries, in index order.
+fn sparse_terms(v: &[f64]) -> Vec<(usize, f64)> {
+    v.iter()
+        .enumerate()
+        .filter(|(_, k)| **k != 0.0)
+        .map(|(i, &k)| (i, k))
+        .collect()
+}
+
+/// Entries within [`TINY`] of zero, relative to the vector's largest, are
+/// zero.
+fn clean(v: &mut [f64]) {
+    let scale = v.iter().fold(0.0_f64, |m, x| m.max(x.abs())).max(1.0);
+    for x in v.iter_mut() {
+        if x.abs() <= TINY * scale {
+            *x = 0.0;
+        }
+    }
+}
+
+fn support(v: &[f64]) -> usize {
+    v.iter().filter(|x| **x != 0.0).count()
+}
+
+/// A sparser basis of the space `basis` spans (docs/structural-analysis-design.md
+/// §5): greedily, a vector is replaced by itself minus the multiple of
+/// another that cancels an entry they share, whenever that leaves it fewer
+/// nonzero entries (the most-reducing such entry each time), until no
+/// replacement helps. Each replacement keeps the vectors a basis of the same
+/// space, and the total number of nonzero entries falls every time, so it
+/// ends. Not always the sparsest basis there is (finding that is hard in
+/// general), but deterministic. Each vector then in whole numbers when its
+/// proportions are simple fractions, else with its first entry 1; its first
+/// entry positive; the vectors in the order of their first entries.
+pub fn sparsify(mut basis: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    for v in &mut basis {
+        clean(v);
+    }
+    let k = basis.len();
+    let mut improved = true;
+    while improved {
+        improved = false;
+        for i in 0..k {
+            for j in 0..k {
+                if i == j {
+                    continue;
+                }
+                let current = support(&basis[i]);
+                let mut best: Option<(usize, Vec<f64>)> = None;
+                for e in 0..basis[i].len() {
+                    if basis[i][e] == 0.0 || basis[j][e] == 0.0 {
+                        continue;
+                    }
+                    let a = basis[i][e] / basis[j][e];
+                    let mut w: Vec<f64> = basis[i]
+                        .iter()
+                        .zip(&basis[j])
+                        .map(|(x, y)| x - a * y)
+                        .collect();
+                    w[e] = 0.0;
+                    clean(&mut w);
+                    let n = support(&w);
+                    if n < current && best.as_ref().is_none_or(|(b, _)| n < *b) {
+                        best = Some((n, w));
+                    }
+                }
+                if let Some((_, w)) = best {
+                    basis[i] = w;
+                    improved = true;
+                }
+            }
+        }
+    }
+    for v in &mut basis {
+        let nonzero: Vec<f64> = v.iter().copied().filter(|x| *x != 0.0).collect();
+        let lead = nonzero.first().copied().unwrap_or(1.0);
+        match smallest_integers(&nonzero) {
+            Some(ints) => {
+                let sign = if lead < 0.0 { -1.0 } else { 1.0 };
+                let mut ints = ints.into_iter();
+                for x in v.iter_mut().filter(|x| **x != 0.0) {
+                    *x = sign * ints.next().expect("one per nonzero") as f64;
+                }
+            }
+            None => {
+                for x in v.iter_mut() {
+                    *x /= lead;
+                }
+            }
+        }
+    }
+    basis.sort_by_key(|v| v.iter().position(|x| *x != 0.0).unwrap_or(usize::MAX));
+    basis
 }
 
 /// A sum of terms `(index, coefficient)` as text, by `name`: the term for
@@ -888,14 +1034,14 @@ mod tests {
         let s = Structure::of(&m);
         assert_eq!(s.n_csv(), ",J1,J2\nA,-1,1\nB,1,-1\n");
         assert_eq!(s.n_tsv(), "\tJ1\tJ2\nA\t-1\t1\nB\t1\t-1\n");
-        let k = s.null_space_csv();
+        let k = s.null_space_csv(&s.null_space());
         let lines: Vec<&str> = k.lines().collect();
         assert_eq!(lines.len(), 3, "{k}");
         assert!(
             lines[1].starts_with("J1,1") && lines[2].starts_with("J2,1"),
             "{k}"
         );
-        let l = s.laws_csv();
+        let l = s.laws_csv(&s.conservation_laws());
         assert_eq!(l.lines().count(), 2, "{l}");
         assert!(l.lines().nth(1).unwrap().ends_with(",1,1"), "{l}");
         // A name with a comma is quoted.
@@ -903,6 +1049,181 @@ mod tests {
             csv_row(["a,b".to_string(), "c\"d".to_string()].into_iter()),
             "\"a,b\",\"c\"\"d\"\n"
         );
+    }
+
+    /// The rank of a set of vectors, by the pivoted QR.
+    fn rank_of(vs: &[Vec<f64>]) -> usize {
+        if vs.is_empty() {
+            return 0;
+        }
+        let mut m = Matrix::zeros(vs.len(), vs[0].len());
+        for (r, v) in vs.iter().enumerate() {
+            for (c, &x) in v.iter().enumerate() {
+                m.set(r, c, x);
+            }
+        }
+        pivoted_qr(&m).rank
+    }
+
+    #[test]
+    fn a_branch_that_rejoins_gives_its_two_routes() {
+        // X → A (J0); A → B → Y (J1, J2); A → C → Y (J3, J4).
+        let mut m = model(&[
+            ("J0", &[("X", 1.0)], &[("A", 1.0)]),
+            ("J1", &[("A", 1.0)], &[("B", 1.0)]),
+            ("J2", &[("B", 1.0)], &[("Y", 1.0)]),
+            ("J3", &[("A", 1.0)], &[("C", 1.0)]),
+            ("J4", &[("C", 1.0)], &[("Y", 1.0)]),
+        ]);
+        for id in ["X", "Y"] {
+            m.find_species_mut(id).unwrap().is_boundary = true;
+        }
+        let s = Structure::of(&m);
+        let sparse = s.sparse_null_space();
+        let texts: Vec<String> = sparse.iter().map(|v| s.flux_text(v)).collect();
+        assert_eq!(texts, ["J0 + J1 + J2", "J0 + J3 + J4"], "the two routes");
+        // A mixture turns into the route it is closest to.
+        let mixed = vec![
+            vec![1.0, 1.0, 1.0, 0.0, 0.0],
+            vec![0.0, 1.0, 1.0, -1.0, -1.0],
+        ];
+        assert_eq!(
+            sparsify(mixed),
+            [vec![1.0, 1.0, 1.0, 0.0, 0.0], vec![1.0, 0.0, 0.0, 1.0, 1.0]]
+        );
+    }
+
+    #[test]
+    fn mixed_conservation_laws_come_apart() {
+        // ATP + ADP and NAD + NADH, written mixed.
+        let mixed = vec![vec![1.0, 1.0, 1.0, 1.0], vec![1.0, 1.0, 0.0, 0.0]];
+        let out = sparsify(mixed);
+        assert_eq!(out, [vec![1.0, 1.0, 0.0, 0.0], vec![0.0, 0.0, 1.0, 1.0]]);
+        // A cycle that couples them (ATP + NAD → ADP + NADH and back): the
+        // sparse laws are the two moieties.
+        let m = model(&[
+            (
+                "J1",
+                &[("ATP", 1.0), ("NAD", 1.0)],
+                &[("ADP", 1.0), ("NADH", 1.0)],
+            ),
+            ("J2", &[("ADP", 1.0)], &[("ATP", 1.0)]),
+            ("J3", &[("NADH", 1.0)], &[("NAD", 1.0)]),
+        ]);
+        let s = Structure::of(&m);
+        let mut texts: Vec<String> = s
+            .sparse_conservation_laws()
+            .iter()
+            .map(|l| s.law_text(l))
+            .collect();
+        texts.sort();
+        assert_eq!(texts, ["ATP + ADP = constant", "NAD + NADH = constant"]);
+    }
+
+    #[test]
+    fn mixed_k_laws_are_made_sparse() {
+        // A matrix whose link-matrix laws come out mixed: E + A + B + 2 C and
+        // E + A + B + 2 D. The sparse laws keep one and replace the other
+        // with C − D.
+        let rows = [
+            [2.0, 2.0, 0.0],
+            [-1.0, 0.0, 1.0],
+            [-1.0, 0.0, -1.0],
+            [0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0],
+        ];
+        let mut n = Matrix::zeros(5, 3);
+        for (r, row) in rows.iter().enumerate() {
+            for (c, &x) in row.iter().enumerate() {
+                n.set(r, c, x);
+            }
+        }
+        let names = ["E", "A", "B", "C", "D"].map(String::from).to_vec();
+        let s = Structure::from_matrix(names, ["J0", "J1", "J2"].map(String::from).to_vec(), n);
+        let text = |laws: Vec<ConservationLaw>| -> Vec<String> {
+            laws.iter().map(|l| s.law_text(l)).collect()
+        };
+        assert_eq!(
+            text(s.conservation_laws()),
+            ["E + A + B + 2 C = constant", "E + A + B + 2 D = constant"]
+        );
+        assert_eq!(
+            text(s.sparse_conservation_laws()),
+            ["E + A + B + 2 D = constant", "C − D = constant"]
+        );
+    }
+
+    #[test]
+    fn the_sparse_bases_span_the_same_spaces() {
+        // The moiety example and the branch point together.
+        let mut m = model(&[
+            ("J0", &[("X", 1.0)], &[("A", 2.0)]),
+            ("J1", &[("A", 1.0)], &[("Y", 1.0)]),
+            ("J2", &[("A", 1.0)], &[("Z", 1.0)]),
+            ("J3", &[("ATP", 1.0)], &[("ADP", 1.0)]),
+            ("J4", &[("ADP", 1.0)], &[("ATP", 1.0)]),
+            (
+                "J5",
+                &[("A", 1.0), ("ATP", 1.0)],
+                &[("Y", 1.0), ("ADP", 1.0)],
+            ),
+        ]);
+        for id in ["X", "Y", "Z"] {
+            m.find_species_mut(id).unwrap().is_boundary = true;
+        }
+        let s = Structure::of(&m);
+        let k: Vec<Vec<f64>> = s
+            .null_space()
+            .iter()
+            .map(|v| dense(&v.terms, s.reactions.len()))
+            .collect();
+        let sp: Vec<Vec<f64>> = s
+            .sparse_null_space()
+            .iter()
+            .map(|v| dense(&v.terms, s.reactions.len()))
+            .collect();
+        assert_eq!(sp.len(), k.len());
+        let both: Vec<Vec<f64>> = k.iter().chain(&sp).cloned().collect();
+        assert_eq!(rank_of(&both), k.len(), "the same space");
+        for v in &sp {
+            for i in 0..s.n.rows {
+                let sum: f64 = (0..s.n.cols).map(|c| s.n.get(i, c) * v[c]).sum();
+                assert!(sum.abs() < 1e-9, "N v = 0");
+            }
+        }
+        let total = |vs: &[Vec<f64>]| vs.iter().map(|v| support(v)).sum::<usize>();
+        assert!(total(&sp) <= total(&k), "never denser");
+        let laws_k: Vec<Vec<f64>> = s
+            .conservation_laws()
+            .iter()
+            .map(|l| dense(&l.terms, s.species.len()))
+            .collect();
+        let laws_sp: Vec<Vec<f64>> = s
+            .sparse_conservation_laws()
+            .iter()
+            .map(|l| dense(&l.terms, s.species.len()))
+            .collect();
+        let both: Vec<Vec<f64>> = laws_k.iter().chain(&laws_sp).cloned().collect();
+        assert_eq!(rank_of(&both), laws_k.len());
+        // Export takes either basis.
+        assert_eq!(
+            s.null_space_csv(&s.sparse_null_space()).lines().count(),
+            s.reactions.len() + 1
+        );
+    }
+
+    #[test]
+    fn the_sparse_search_takes_the_best_cancellation() {
+        // On the E. coli core map (95 reactions, 28 independent fluxes) the
+        // sparse vectors average under 17 reactions (15.9 at 2026-10-21; the
+        // K basis 40; taking the first cancellation that helps, rather than
+        // the best, gives 22.6).
+        let map = include_str!("../../../Escher/e_coli_core.Core metabolism.json");
+        let m = crate::escher::import(map).unwrap().model;
+        let s = Structure::of(&m);
+        let sparse = s.sparse_null_space();
+        let mean = sparse.iter().map(|v| v.terms.len()).sum::<usize>() as f64 / sparse.len() as f64;
+        assert!(mean < 17.0, "{mean}");
     }
 
     #[test]

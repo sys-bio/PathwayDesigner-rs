@@ -63,7 +63,7 @@ def check(path):
     r = roadrunner.RoadRunner(path if original else xml)
     row = {"model": os.path.basename(path), "species": len(o["species"]),
            "reactions": len(o["reactions"]), "rank": o["rank"],
-           "seconds": o["seconds"]}
+           "seconds": o["seconds"], "sparse_seconds": o["sparse_seconds"]}
 
     # N, matched by id. A model with no floating species has none in
     # libRoadRunner either (it refuses to build the matrix).
@@ -149,6 +149,15 @@ def check(path):
             basis[j, rx.index(d)] = k0[i, j]
     n_rr = nr_kept
     row["N v = 0"] = bool(basis.size == 0 or np.allclose(n_rr @ basis.T, 0.0, atol=1e-7))
+    # The sparse basis: the same space, and N v = 0.
+    sparse = np.array(o["sparse_null_space"], dtype=float).reshape(-1, len(o["reactions"]))
+    if sparse.size:
+        sparse = sparse[:, [o["reactions"].index(c) for c in rx]]
+    row["sparse N v = 0"] = bool(sparse.size == 0 or np.allclose(n_rr @ sparse.T, 0.0, atol=1e-7))
+    row["sparse same span"] = same_span(basis, sparse) if basis.size else sparse.size == 0
+    ks = o["k_support"]
+    ss = [int(np.count_nonzero(v)) for v in sparse]
+    row["support"] = (sum(ks) / len(ks), sum(ss) / len(ss)) if ks else (0.0, 0.0)
     kr = r.getKMatrix()
     k_rr = np.zeros((np.array(kr).shape[1], len(rx)))
     for i, name in enumerate(kr.rownames):
@@ -185,7 +194,16 @@ def check(path):
     else:
         deps = [s for s in r.getDependentFloatingSpeciesIds() if s not in dropped]
         row["laws same span"] = len(deps) == 0
+    # The sparse laws span the same space as ours.
+    sl = np.array(o["sparse_laws"], dtype=float).reshape(-1, len(o["species"]))
+    if sl.size:
+        sl = sl[:, [o["species"].index(x) for x in sp]]
+    row["sparse laws same span"] = same_span(laws, sl) if laws.size else sl.size == 0
     return row
+
+
+def o_sparse_ms(row):
+    return row.get("sparse_seconds", 0.0) * 1000
 
 
 def main():
@@ -194,7 +212,8 @@ def main():
     # breaks by its rounding and we break by the model's order, so the bases
     # can differ while spanning the same spaces; that is reported, not failed.
     keys = ["same species", "same reactions", "N equal", "rank equal",
-            "N v = 0", "null space same span", "laws same span"]
+            "N v = 0", "null space same span", "laws same span",
+            "sparse N v = 0", "sparse same span", "sparse laws same span"]
     allok = True
     for path in sys.argv[1:]:
         try:
@@ -215,6 +234,8 @@ def main():
               f"rank {row['rank']}, {row['seconds'] * 1000:.2f} ms: "
               + ("agree" if not bad else "DIFFER: " + ", ".join(bad))
               + f"; {choice}"
+              + (f"; reactions per vector {row['support'][0]:.1f} -> {row['support'][1]:.1f}"
+                 f" (sparse {o_sparse_ms(row):.1f} ms)" if "support" in row else "")
               + (f" ({row['note']})" if "note" in row else ""))
     sys.exit(0 if allok else 1)
 

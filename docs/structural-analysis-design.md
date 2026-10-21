@@ -107,10 +107,37 @@ libRoadRunner's `getKMatrix`. Each vector is shown named by its independent
 reaction, `J3: J3 + J4 − J5`, scaled so its entries are the smallest integers when
 they are rational (they usually are).
 
+## 5b. A sparse basis (step 3b, author's request 2026-10-21)
+
+The K basis is the standard object, but on a large network its vectors are long:
+the dependent reactions the pivoting chose are spread over the map, so every vector
+is a mixture of routes (RECON1 carbohydrate: 35 reactions per vector on average, up
+to 69). The same space has bases whose vectors are short routes, which read and
+highlight far better. The tab offers both: **Basis: K matrix | Sparse**, the K
+matrix by default.
+
+`sparsify`: starting from the K basis, a vector is replaced by itself minus the
+multiple of another that cancels an entry they share, whenever that leaves it fewer
+nonzero entries, taking the cancellation that leaves fewest; repeated until nothing
+helps. Each replacement keeps a basis of the same space, and the total number of
+nonzero entries falls each time, so it ends. Greedy, so not always the sparsest
+basis (which is hard to find in general), but deterministic. Vectors are then in
+whole numbers where their proportions allow, first entry positive, sorted by their
+first entry. The same is done to the conservation laws (a mixed law becomes
+separate moieties).
+
+Measured (step 3b): mean reactions per vector, K → sparse: BioModels 6.2 → 3.9 (41
+models), Millard 30 → 9.3, E. coli core 40 → 15.9, RECON1 carbohydrate 34.7 → 6.5
+(95 ms natively). Every sparse basis spans the same space as libRoadRunner's K
+matrix and conservation matrix (scripts/structure_check.py). Taking the first
+helpful cancellation instead of the best gives longer vectors (E. coli core 22.6,
+RECON1 7.7), so the best is taken.
+
 ## 6. The interface
 
 **A new tab, Structure,** beside Properties, Antimony and Styles, recomputed
-whenever the model changes while it is open:
+whenever the model changes while it is open (built in step 3; the matrix in a
+panel under the canvas, the author's choice; the basis choice of §5b in step 3b):
 
 - A summary: species (floating), reactions, rank, number of independent fluxes,
   number of conservation laws.

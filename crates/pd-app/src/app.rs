@@ -2073,6 +2073,24 @@ mod tests {
         ));
         h.click(h.widget(&law));
         assert_eq!(h.app.structure.picked, None);
+        // The sparse basis: the same number of vectors and laws, each no
+        // longer than the factorization's; the K matrix again on the other
+        // button.
+        let k = h.app.structure.bases().unwrap().clone();
+        h.click(h.widget("Sparse"));
+        h.run(vec![]);
+        assert!(h.app.structure.sparse);
+        let sparse = h.app.structure.bases().unwrap().clone();
+        assert_eq!(sparse.fluxes.len(), k.fluxes.len());
+        assert_eq!(sparse.laws.len(), k.laws.len());
+        let size = |b: &crate::structure_panel::Bases| {
+            b.fluxes.iter().map(|v| v.terms.len()).sum::<usize>()
+                + b.laws.iter().map(|l| l.terms.len()).sum::<usize>()
+        };
+        assert!(size(&sparse) <= size(&k));
+        h.click(h.widget("K matrix"));
+        h.run(vec![]);
+        assert!(!h.app.structure.sparse);
         // An edit is followed: with the first reaction gone, the analysis is
         // of 9 reactions.
         let first = h.app.view.model().reactions()[0].id.clone();

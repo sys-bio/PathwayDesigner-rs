@@ -48,6 +48,19 @@ fn main() {
     let names = |list: &[String], idx: &[usize]| -> Vec<String> {
         idx.iter().map(|&i| list[i].clone()).collect()
     };
+    // The sparse bases, as full vectors (reactions, species in model order).
+    let start = std::time::Instant::now();
+    let sparse_fluxes = s.sparse_null_space();
+    let sparse_laws = s.sparse_conservation_laws();
+    let sparse_seconds = start.elapsed().as_secs_f64();
+    let full = |terms: &[(usize, f64)], n: usize| {
+        let mut v = vec![0.0; n];
+        for &(i, k) in terms {
+            v[i] = k;
+        }
+        v
+    };
+    let k_support: Vec<usize> = s.null_space().iter().map(|v| v.terms.len()).collect();
     let out = json!({
         "species": s.species,
         "reactions": s.reactions,
@@ -60,6 +73,10 @@ fn main() {
         "independent_reactions": names(&s.reactions, &s.independent_reactions),
         "k0": matrix(&s.k0),
         "seconds": seconds,
+        "sparse_null_space": sparse_fluxes.iter().map(|v| full(&v.terms, s.reactions.len())).collect::<Vec<_>>(),
+        "sparse_laws": sparse_laws.iter().map(|l| full(&l.terms, s.species.len())).collect::<Vec<_>>(),
+        "k_support": k_support,
+        "sparse_seconds": sparse_seconds,
     });
     println!("{out}");
     if let Some(xml) = args.get(1) {

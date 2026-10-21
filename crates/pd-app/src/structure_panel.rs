@@ -5,16 +5,16 @@
 
 use eframe::egui;
 use pd_core::model::{Id, Model};
-use pd_core::structure::{self, Matrix, Structure, WORK_LIMIT};
+use pd_core::structure::{self, ConservationLaw, FluxVector, Matrix, Structure, WORK_LIMIT};
 use web_time::Instant;
 
-/// What the user picked in the lists: a null-space vector, by its
-/// independent reaction, or a conservation law, by its dependent species.
-/// Kept by id, so it survives a recomputation that keeps them.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// What the user picked in the lists: a null-space vector or a conservation
+/// law, by its place in the list shown. Let go when the matrix or the basis
+/// changes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Picked {
-    Flux(Id),
-    Law(Id),
+    Flux(usize),
+    Law(usize),
 }
 
 /// A file the tab asks the app to save.
@@ -23,12 +23,24 @@ pub struct Export {
     pub csv: String,
 }
 
+/// A basis of the flux null space and the conservation laws.
+#[derive(Clone)]
+pub struct Bases {
+    pub fluxes: Vec<FluxVector>,
+    pub laws: Vec<ConservationLaw>,
+}
+
 /// The analysis of the model's current stoichiometry matrix, or why there is
 /// none.
 enum Analysis {
     Done {
         structure: Box<Structure>,
         millis: f64,
+        /// From the factorization: the K matrix and the link matrix.
+        k: Bases,
+        /// The sparse bases, made when first asked for, and how long that
+        /// took.
+        sparse: Option<(Bases, f64)>,
     },
     TooLarge {
         rows: usize,
@@ -46,43 +58,57 @@ pub struct StructurePanel {
     cache: Option<(Key, Analysis)>,
     /// The matrix panel under the canvas is open.
     pub show_matrix: bool,
+    /// The sparse bases are shown, not those of the factorization.
+    pub sparse: bool,
     pub picked: Option<Picked>,
 }
 
 impl StructurePanel {
     /// Brings the analysis up to date with `model`: the matrix is rebuilt
-    /// (cheap), and factorized only if it changed and isn't too large.
+    /// (cheap), and factorized only if it changed and isn't too large; the
+    /// sparse bases are made if they are shown and not made yet.
     pub fn refresh(&mut self, model: &Model) {
         let key = structure::stoichiometry(model);
-        if self.cache.as_ref().is_some_and(|(k, _)| *k == key) {
-            return;
-        }
-        let (rows, cols) = (key.2.rows, key.2.cols);
-        let analysis = if structure::work(rows, cols) > WORK_LIMIT {
-            Analysis::TooLarge { rows, cols }
-        } else {
-            let start = Instant::now();
-            let structure = Structure::from_matrix(key.0.clone(), key.1.clone(), key.2.clone());
-            let millis = start.elapsed().as_secs_f64() * 1000.0;
-            log::info!("structure: {rows} x {cols} in {millis:.1} ms");
-            Analysis::Done {
-                structure: Box::new(structure),
-                millis,
-            }
-        };
-        self.cache = Some((key, analysis));
-        // Let go of a pick the new analysis doesn't have.
-        if let (Some(p), Some(s)) = (&self.picked, self.structure()) {
-            let still = match p {
-                Picked::Flux(r) => s
-                    .independent_reactions
-                    .iter()
-                    .any(|&c| s.reactions[c] == *r),
-                Picked::Law(sp) => s.dependent_species.iter().any(|&i| s.species[i] == *sp),
+        if !self.cache.as_ref().is_some_and(|(k, _)| *k == key) {
+            let (rows, cols) = (key.2.rows, key.2.cols);
+            let analysis = if structure::work(rows, cols) > WORK_LIMIT {
+                Analysis::TooLarge { rows, cols }
+            } else {
+                let start = Instant::now();
+                let structure = Structure::from_matrix(key.0.clone(), key.1.clone(), key.2.clone());
+                let k = Bases {
+                    fluxes: structure.null_space(),
+                    laws: structure.conservation_laws(),
+                };
+                let millis = start.elapsed().as_secs_f64() * 1000.0;
+                log::info!("structure: {rows} x {cols} in {millis:.1} ms");
+                Analysis::Done {
+                    structure: Box::new(structure),
+                    millis,
+                    k,
+                    sparse: None,
+                }
             };
-            if !still {
-                self.picked = None;
-            }
+            self.cache = Some((key, analysis));
+            self.picked = None;
+        }
+        if self.sparse
+            && let Some((
+                _,
+                Analysis::Done {
+                    structure, sparse, ..
+                },
+            )) = &mut self.cache
+            && sparse.is_none()
+        {
+            let start = Instant::now();
+            let bases = Bases {
+                fluxes: structure.sparse_null_space(),
+                laws: structure.sparse_conservation_laws(),
+            };
+            let millis = start.elapsed().as_secs_f64() * 1000.0;
+            log::info!("structure: sparse bases in {millis:.1} ms");
+            *sparse = Some((bases, millis));
         }
     }
 
@@ -94,13 +120,25 @@ impl StructurePanel {
         }
     }
 
+    /// The bases shown: the sparse ones when chosen (and made), else the
+    /// factorization's.
+    pub fn bases(&self) -> Option<&Bases> {
+        match &self.cache {
+            Some((_, Analysis::Done { k, sparse, .. })) => Some(match sparse {
+                Some((b, _)) if self.sparse => b,
+                _ => k,
+            }),
+            _ => None,
+        }
+    }
+
     /// The Structure tab. Returns a file to save, if Export… was clicked.
     pub fn show(&mut self, ui: &mut egui::Ui, model_name: &str) -> Option<Export> {
         let mut export = None;
         let Some((_, analysis)) = &self.cache else {
             return None;
         };
-        let (structure, millis) = match analysis {
+        let (s, millis, sparse_millis) = match analysis {
             Analysis::TooLarge { rows, cols } => {
                 ui.label(format!(
                     "The network is too large to analyse here: {rows} species by {cols} \
@@ -108,9 +146,13 @@ impl StructurePanel {
                 ));
                 return None;
             }
-            Analysis::Done { structure, millis } => (structure, *millis),
+            Analysis::Done {
+                structure,
+                millis,
+                sparse,
+                ..
+            } => (structure, *millis, sparse.as_ref().map(|(_, m)| *m)),
         };
-        let s = structure;
         if s.reactions.is_empty() {
             ui.label("The model has no reactions.");
             return None;
@@ -130,11 +172,11 @@ impl StructurePanel {
                     ui.end_row();
                 }
             });
-        ui.label(
-            egui::RichText::new(format!("Computed in {millis:.1} ms"))
-                .weak()
-                .small(),
-        );
+        let timing = match (self.sparse, sparse_millis) {
+            (true, Some(sm)) => format!("Computed in {millis:.1} ms, sparse bases {sm:.1} ms"),
+            _ => format!("Computed in {millis:.1} ms"),
+        };
+        ui.label(egui::RichText::new(timing).weak().small());
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.toggle_value(&mut self.show_matrix, "Stoichiometry matrix")
@@ -153,21 +195,47 @@ impl StructurePanel {
                 });
             }
         });
+        // Which basis: the factorization's (as COPASI and libRoadRunner
+        // report them) or the sparse one (each vector as few reactions or
+        // species as the search finds).
+        ui.horizontal(|ui| {
+            ui.label("Basis:");
+            let before = self.sparse;
+            ui.selectable_value(&mut self.sparse, false, "K matrix")
+                .on_hover_text(
+                    "One vector per independent reaction, as COPASI and libRoadRunner give them",
+                );
+            ui.selectable_value(&mut self.sparse, true, "Sparse")
+                .on_hover_text("The same space, each vector with as few reactions as can be found");
+            if self.sparse != before {
+                self.picked = None;
+            }
+        });
         ui.separator();
+        // The sparse bases are made by the next refresh; until then, the
+        // factorization's are shown.
+        let Some(bases) = self.bases() else {
+            return export;
+        };
+        let bases = bases.clone();
+        let tag = if self.sparse && sparse_millis.is_some() {
+            " sparse"
+        } else {
+            ""
+        };
 
         // The flux null space, one row per basis vector.
-        let basis = s.null_space();
         ui.horizontal(|ui| {
-            ui.strong(format!("Flux null space ({})", basis.len()));
-            if !basis.is_empty() {
+            ui.strong(format!("Flux null space ({})", bases.fluxes.len()));
+            if !bases.fluxes.is_empty() {
                 if ui.small_button("Copy").clicked() {
                     ui.ctx()
-                        .copy_text(lines(basis.iter().map(|v| s.flux_text(v))));
+                        .copy_text(lines(bases.fluxes.iter().map(|v| s.flux_text(v))));
                 }
                 if ui.small_button("Export…").clicked() {
                     export = Some(Export {
-                        name: format!("{model_name} null space.csv"),
-                        csv: s.null_space_csv(),
+                        name: format!("{model_name}{tag} null space.csv"),
+                        csv: s.null_space_csv(&bases.fluxes),
                     });
                 }
             }
@@ -180,51 +248,46 @@ impl StructurePanel {
             .weak()
             .small(),
         );
-        if basis.is_empty() {
+        if bases.fluxes.is_empty() {
             ui.label("None: no flux can change without unbalancing a species.");
         }
-        for v in &basis {
-            let id = s.reactions[v.independent].clone();
-            let picked = self.picked == Some(Picked::Flux(id.clone()));
-            // It starts with its independent reaction, which names it.
-            let text = s.flux_text(v);
+        for (i, v) in bases.fluxes.iter().enumerate() {
+            let picked = self.picked == Some(Picked::Flux(i));
             if ui
-                .add(egui::Button::selectable(picked, text).wrap())
+                .add(egui::Button::selectable(picked, s.flux_text(v)).wrap())
                 .clicked()
             {
-                self.picked = (!picked).then_some(Picked::Flux(id));
+                self.picked = (!picked).then_some(Picked::Flux(i));
             }
         }
         ui.separator();
 
         // The conservation laws.
-        let laws = s.conservation_laws();
         ui.horizontal(|ui| {
-            ui.strong(format!("Conservation laws ({})", laws.len()));
-            if !laws.is_empty() {
+            ui.strong(format!("Conservation laws ({})", bases.laws.len()));
+            if !bases.laws.is_empty() {
                 if ui.small_button("Copy").clicked() {
                     ui.ctx()
-                        .copy_text(lines(laws.iter().map(|l| s.law_text(l))));
+                        .copy_text(lines(bases.laws.iter().map(|l| s.law_text(l))));
                 }
                 if ui.small_button("Export…").clicked() {
                     export = Some(Export {
-                        name: format!("{model_name} conservation laws.csv"),
-                        csv: s.laws_csv(),
+                        name: format!("{model_name}{tag} conservation laws.csv"),
+                        csv: s.laws_csv(&bases.laws),
                     });
                 }
             }
         });
-        if laws.is_empty() {
+        if bases.laws.is_empty() {
             ui.label("None.");
         }
-        for (law, &dep) in laws.iter().zip(&s.dependent_species) {
-            let id = s.species[dep].clone();
-            let picked = self.picked == Some(Picked::Law(id.clone()));
+        for (i, law) in bases.laws.iter().enumerate() {
+            let picked = self.picked == Some(Picked::Law(i));
             if ui
                 .add(egui::Button::selectable(picked, s.law_text(law)).wrap())
                 .clicked()
             {
-                self.picked = (!picked).then_some(Picked::Law(id));
+                self.picked = (!picked).then_some(Picked::Law(i));
             }
         }
         export
@@ -248,35 +311,29 @@ impl StructurePanel {
                 }
             });
         });
-        let Some(s) = self.structure() else {
+        let (Some(s), Some(bases)) = (self.structure(), self.bases()) else {
             ui.label("Not available for this network (see the Structure tab).");
             return;
         };
-        let shaded_cols: Vec<usize>;
-        let shaded_rows: Vec<usize>;
-        match &self.picked {
-            Some(Picked::Flux(r)) => {
-                let v = s
-                    .null_space()
-                    .into_iter()
-                    .find(|v| s.reactions[v.independent] == *r);
-                shaded_cols = v
+        let (shaded_rows, shaded_cols): (Vec<usize>, Vec<usize>) = match self.picked {
+            Some(Picked::Flux(i)) => (
+                Vec::new(),
+                bases
+                    .fluxes
+                    .get(i)
                     .map(|v| v.terms.iter().map(|t| t.0).collect())
-                    .unwrap_or_default();
-                shaded_rows = Vec::new();
-            }
-            Some(Picked::Law(sp)) => {
-                let i = s
-                    .dependent_species
-                    .iter()
-                    .position(|&d| s.species[d] == *sp);
-                shaded_rows = i
-                    .map(|i| s.conservation_laws()[i].terms.iter().map(|t| t.0).collect())
-                    .unwrap_or_default();
-                shaded_cols = Vec::new();
-            }
-            None => (shaded_cols, shaded_rows) = (Vec::new(), Vec::new()),
-        }
+                    .unwrap_or_default(),
+            ),
+            Some(Picked::Law(i)) => (
+                bases
+                    .laws
+                    .get(i)
+                    .map(|l| l.terms.iter().map(|t| t.0).collect())
+                    .unwrap_or_default(),
+                Vec::new(),
+            ),
+            None => (Vec::new(), Vec::new()),
+        };
         grid(ui, s, &shaded_rows, &shaded_cols);
     }
 }
