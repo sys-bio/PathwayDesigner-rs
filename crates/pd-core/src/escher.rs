@@ -12,7 +12,8 @@
 //! it. A reaction's junction is its midmarker, its stem (S §5.13) the spine,
 //! and each leg Escher's own curve from the species to its side's end of the
 //! stem: the drawing is the map's. Labels keep their places, and the diagram
-//! takes the Escher theme (S §8.7).
+//! takes the Escher theme (S §8.7), each drawing at the size the map gives it
+//! (`node_is_primary`: a drawing that isn't primary is small).
 
 use std::collections::HashMap;
 
@@ -69,6 +70,8 @@ pub fn import(text: &str) -> Result<Imported, String> {
     // aliases. Nodes in the order of their ids, as Escher numbers them.
     let mut species_of: HashMap<&str, Id> = HashMap::new();
     let mut labels: Vec<(Id, Pt)> = Vec::new();
+    // Escher draws a drawing that isn't primary small.
+    let mut primary: Vec<(Id, bool)> = Vec::new();
     for (key, n) in ordered(nodes) {
         if n.get("node_type").and_then(Value::as_str) != Some("metabolite") {
             continue;
@@ -99,6 +102,9 @@ pub fn import(text: &str) -> Result<Imported, String> {
         };
         if let Some(l) = point(n, "label_x", "label_y") {
             labels.push((node_id.clone(), l));
+        }
+        if let Some(p) = n.get("node_is_primary").and_then(Value::as_bool) {
+            primary.push((node_id.clone(), p));
         }
         species_of.insert(key, node_id);
     }
@@ -299,6 +305,11 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 old.stem_straight,
             );
         }
+    }
+    // Each drawing at the size the map gives it; a drawing without the flag
+    // keeps the theme's, which goes by its name.
+    for (id, p) in primary {
+        themes::give_escher_size(&mut model, &id, !p);
     }
     // Labels where Escher draws them: its point is the start of the text, on
     // its baseline; ours is the text's centre, measured in the face the
@@ -546,6 +557,75 @@ mod tests {
             .unwrap();
         themes::style_new_items(&before, &mut more);
         assert_eq!(more.find_species("glx_c").unwrap().width, big.metabolite);
+    }
+
+    #[test]
+    fn each_drawing_is_the_size_the_map_gives_it() {
+        // 3pg_c not primary (small, though not a cofactor); adp_c primary
+        // (big, though a cofactor); atp_c small in one drawing, big in its
+        // other; 13dpg_c without the flag, so by its name.
+        let flagged = MAP
+            .replace(
+                r#""bigg_id": "3pg_c", "x""#,
+                r#""bigg_id": "3pg_c", "node_is_primary": false, "x""#,
+            )
+            .replace(
+                r#""bigg_id": "adp_c", "x""#,
+                r#""bigg_id": "adp_c", "node_is_primary": true, "x""#,
+            )
+            .replace(
+                r#""bigg_id": "atp_c", "x": 160"#,
+                r#""bigg_id": "atp_c", "node_is_primary": false, "x": 160"#,
+            )
+            .replace(
+                r#""bigg_id": "atp_c", "x": 400"#,
+                r#""bigg_id": "atp_c", "node_is_primary": true, "x": 400"#,
+            );
+        assert_eq!(flagged.matches("node_is_primary").count(), 4);
+        // Opened as the app opens it: through the view, which gives items an
+        // edit adds the theme's look.
+        let mut v = crate::view::DiagramView::new(Model::new());
+        v.import_escher(&flagged).unwrap();
+        let m = v.model().clone();
+        let big = EscherSizes::MAP;
+        let size = |id: &str| {
+            let s = m.find_species(id).unwrap();
+            (s.width, label_size(s), s.style_name.clone().unwrap())
+        };
+        let small = (
+            big.cofactor,
+            big.cofactor_font,
+            themes::ESCHER_COFACTOR.to_owned(),
+        );
+        let large = (
+            big.metabolite,
+            big.metabolite_font,
+            themes::ESCHER_METABOLITE.to_owned(),
+        );
+        assert_eq!(size("M_3pg_c"), small);
+        assert_eq!(size("adp_c"), large);
+        assert_eq!(size("atp_c"), small);
+        let alias = m.aliases_of("atp_c").next().unwrap().id.clone();
+        assert_eq!(size(&alias), large);
+        assert_eq!(size("M_13dpg_c"), large);
+        // The 3pg_c name starts at the map's label point at its small size.
+        let pg = m.find_species("M_3pg_c").unwrap();
+        let c = pg.center + pg.label_offset.unwrap();
+        let w = text_width_in(name_font(&pg.style), "M_3pg_c", label_size(pg));
+        assert!((c.x - w / 2.0 - 115.0).abs() < 1e-9);
+
+        // The sizes travel through SBML.
+        let opts = crate::antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        let back = crate::sbml::import(&crate::sbml::export(&m).xml, &opts)
+            .unwrap()
+            .model;
+        for id in ["M_3pg_c", "adp_c", "atp_c", alias.as_str(), "M_13dpg_c"] {
+            let (a, b) = (m.find_species(id).unwrap(), back.find_species(id).unwrap());
+            assert_eq!((a.width, label_size(a)), (b.width, label_size(b)), "{id}");
+        }
     }
 
     #[test]

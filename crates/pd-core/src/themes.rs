@@ -269,6 +269,11 @@ fn theme_item(model: &mut Model, theme: Theme, kind: StyleKind, id: &str) {
     let Some(name) = style_for(theme, model, kind, id) else {
         return;
     };
+    give_style(model, kind, id, name);
+}
+
+/// Gives the item the model's style `name`, and links it to the style.
+fn give_style(model: &mut Model, kind: StyleKind, id: &str, name: &str) {
     let Some(look) = styles::find(model, kind, name).map(|s| s.look) else {
         return;
     };
@@ -414,10 +419,24 @@ pub fn apply_escher(model: &mut Model, sizes: EscherSizes) {
     model.theme = Some(Theme::Escher);
 }
 
+/// Gives the metabolite drawing `id` the Escher metabolite style, or the
+/// cofactor style if `small`: an Escher map says which of its drawings are
+/// small (S §11.7), where the theme goes by the name (S §8.7).
+pub fn give_escher_size(model: &mut Model, id: &str, small: bool) {
+    let name = if small {
+        ESCHER_COFACTOR
+    } else {
+        ESCHER_METABOLITE
+    };
+    give_style(model, StyleKind::Species, id, name);
+}
+
 /// While the diagram has a theme, items an edit added (in `model`, not in
 /// `before`) take its look, as they would had the theme been applied after.
 /// Only kinds with more items than before count, so a rename, which changes
-/// an id, never re-themes an item restyled by hand.
+/// an id, never re-themes an item restyled by hand. An item that comes
+/// already following one of the model's styles keeps it: an Escher map's
+/// drawings come at the sizes the map gives them (S §11.7).
 pub fn style_new_items(before: &Model, model: &mut Model) {
     let Some(theme) = model.theme else {
         return;
@@ -429,7 +448,14 @@ pub fn style_new_items(before: &Model, model: &mut Model) {
         if now.len() <= old.len() {
             continue;
         }
-        for id in now.iter().filter(|id| !old.contains(*id)) {
+        let styled = |id: &str| {
+            styles::link(model, kind, id).is_some_and(|n| styles::find(model, kind, &n).is_some())
+        };
+        let new: Vec<&String> = now
+            .iter()
+            .filter(|id| !old.contains(*id) && !styled(id))
+            .collect();
+        for id in new {
             theme_item(model, theme, kind, id);
         }
     }

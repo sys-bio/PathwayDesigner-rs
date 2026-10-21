@@ -1823,7 +1823,9 @@ Applying a theme is **one undo step**, *Escher Theme* or *Classic Theme*.
   (with a tool, by Create Alias or Split into Aliases, by loading Antimony text)
   take the theme's look as they are added. An edit counts as adding only when the
   number of items of that kind goes up, so a rename never re-themes an item
-  recoloured by hand. Classic forgets the theme. The theme is saved in the file
+  recoloured by hand. An item that arrives already following one of the model's
+  styles keeps it, so an Escher map's drawings keep the sizes the map gives them
+  (§11.7). Classic forgets the theme. The theme is saved in the file
   (JSON version 6, SPEC-Rust §4.2).
 - The theme's styles are ordinary saved styles of the model: they show in the
   Styles tab and can be edited (Edit Style…), which changes every item following
@@ -2310,8 +2312,13 @@ Save never writes over the map. Opening it is not an edit, so the status bar say
   point is the start of the text on its baseline, so a name's centre is half its
   width right of it and half its height above the baseline's middle. Reaction names
   are shown (§5.12) at the reactions' label points.
+- **Sizes.** Escher draws a metabolite node whose `node_is_primary` is false small.
+  Each drawing takes the theme's cofactor style if it isn't primary and its
+  metabolite style if it is, whatever its name, so a species and its alias may
+  differ. A drawing without the flag keeps the theme's choice by name (§8.7), as
+  do items added later.
 - **Text labels** become free text (§7.8) at their points.
-- Left out: genes and gene rules, the canvas size, and node "primary" flags.
+- Left out: genes and gene rules, and the canvas size.
 
 ### 11.8 The Gallery (online examples)
 
