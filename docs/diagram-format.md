@@ -1,7 +1,10 @@
 # A readable diagram format for Antimony models — draft specification
 
-**Status: draft for discussion, version 0.2, 2026-10-19. Nothing here is
-implemented.** 0.2: the file type and COMBINE archives settled (§3). Working name: *Antimony diagram* (file extension `.antd`, open
+**Status: draft for discussion, version 0.3, 2026-10-20. Nothing here is
+implemented.** 0.2: the file type and COMBINE archives settled (§3). 0.3: made
+consistent with the app and with the minimal Render profile
+(`docs/render-design.md` §11): bold and italic names added; the reaction line
+pattern and the compartment name colour removed; the §14 mapping corrected. Working name: *Antimony diagram* (file extension `.antd`, open
 question §15).
 
 ## Contents
@@ -120,7 +123,7 @@ end
 | Size | `w x h`, or one number for a circle | `80 x 36`, `24` |
 | Colour | `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `none` | `none` = transparent (no fill). |
 | Border | `<colour> <width>` | `#8D6E00 1.5`; `none` for no border. |
-| Line | `<colour> <width> [dashed\|dotted\|solid]` | |
+| Line | `<colour> <width> [dashed\|dotted\|solid]` | The pattern only for modifier lines (§6.2). |
 | Flag | the word alone | `bold`, `locked`, `straight`. |
 
 Coordinates are absolute. Relative placement ("`G6P below Glc by 120`") is
@@ -154,15 +157,17 @@ gives only the properties it names.
 | `label` | `inside`, `outside`, `outside (dx, dy)` | `inside` |
 | `labelColour` | colour | `#1A1A1A` |
 | `fontSize` | number | 12 |
+| `labelBold`, `labelItalic` | flags | off |
 
 **Reactions**
 
 | Property | Values | Default |
 |---|---|---|
-| `line` | line | `#444444 1.5 solid` |
+| `line` | colour and width | `#444444 1.5` |
 | `junction` | colour, `hidden` | `#FF8800` |
 | `name` | `shown`, `shown (dx, dy)`, `hidden` | `hidden` |
 | `nameSize`, `nameColour` | number, colour | 12, `#1A1A1A` |
+| `nameBold`, `nameItalic` | flags | off |
 
 **Compartments**
 
@@ -170,7 +175,10 @@ gives only the properties it names.
 |---|---|---|
 | `fill` | colour, `none` | `#F0F6EA` |
 | `border` | border, `none` | `#7FA36B 2` |
-| `labelColour`, `fontSize` | colour, number | `#3D5C2B`, 12 |
+| `fontSize` | number | 12 |
+
+The compartment's name is drawn in its border colour when the border colour is
+set, otherwise in `#3D5C2B`; it has no colour of its own.
 
 **Text**
 
@@ -353,8 +361,8 @@ warning with a line and column.
 |---|---|---|
 | Species drawing | `species[]` (an alias for `#2` …) | `speciesGlyph` (several per species for aliases) |
 | `at`, `size` | `x`, `y`, `w`, `h` | the glyph's bounding box |
-| Style, class | saved style, `styleName` | Render `style` with `typeList`/`idList` |
-| Item's `{ … }` | the item's style | Render local style for that glyph |
+| Style, class | saved style, `styleName` | the `name` of the Render style of the items that follow it (one named style, `idList` of their glyphs) |
+| Item's `{ … }` | the item's style | part of the item's look, written as the Render style of its glyph; an item with several classes or its own settings gets an unnamed style with its combined look |
 | `box` | compartment `x`, `y`, `w`, `h` | `compartmentGlyph` |
 | `text` | `texts[]` | `textGlyph` |
 | Reaction `at` | `jx`, `jy` | the reaction glyph's position |
@@ -363,10 +371,13 @@ warning with a line and column.
 | `line … via` | modifier `points` | modifier's reference glyph curve (line segments) |
 | `kind catalyst` | modifier `kind` | SBO term on the modifier reference |
 | Modifier line look | modifier look keys | Render style on that reference glyph |
-| `theme`, `background` | `theme`, `background` | Render default values, background colour |
+| `theme` | `theme` | not carried by Render: the profile writes what is drawn, not the look of items added later |
+| `background` | `background` | the render information's background colour |
 
-Things SBML Layout and Render can't hold (Linear reactions, smooth junctions,
-names outside nodes) go in PathwayDesigner's existing SBML notes, as now.
+The Render written is PathwayDesigner's minimal Render profile
+(`docs/render-design.md`). Things SBML Layout and Render can't hold (Linear
+reactions, smooth junctions, names outside nodes, automatic border dashes, hidden
+compartments, text wrapping) go in PathwayDesigner's existing SBML notes, as now.
 
 ## 15. Open questions
 
