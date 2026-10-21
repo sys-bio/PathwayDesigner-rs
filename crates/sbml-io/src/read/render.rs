@@ -13,6 +13,34 @@ use crate::render::*;
 type P<'p> = Option<&'p str>;
 
 impl<'a, 'i: 'a> Reader<'a, 'i> {
+    /// The local name of an element of Render: in its namespace, or, as some
+    /// tools write the drawing inside a style, with no prefix in the core
+    /// namespace. libSBML reads both.
+    fn rname<'n>(&self, n: Node<'n, 'i>, rns: &str) -> Option<&'n str> {
+        self.name_in(n, rns).or_else(|| self.core_name(n))
+    }
+
+    /// `list`, with items named as [`rname`](Self::rname) accepts them.
+    fn rlist<T>(
+        &mut self,
+        n: Node<'a, 'i>,
+        rns: &str,
+        names: &[&str],
+        mut item: impl FnMut(&mut Self, Node<'a, 'i>) -> T,
+    ) -> Vec<T> {
+        let mut out = Vec::new();
+        let list_name = n.tag_name().name();
+        for c in n.children().filter(|c| c.is_element()) {
+            if self.rname(c, rns).is_some_and(|name| names.contains(&name)) {
+                out.push(item(self, c));
+            } else {
+                let msg = format!("<{}> in <{list_name}> is dropped", c.tag_name().name());
+                self.warn(c, &msg);
+            }
+        }
+        out
+    }
+
     /// `listOfGlobalRenderInformation` or `listOfRenderInformation`.
     pub(super) fn render_list(&mut self, n: Node<'a, 'i>, pkg: &str) -> RenderList {
         let mut items = Vec::new();
@@ -40,9 +68,9 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
             ..Default::default()
         };
         ri.meta = self.meta(e, pkg, |r, c| {
-            match r.name_in(c, rns) {
+            match r.rname(c, rns) {
                 Some("listOfColorDefinitions") => {
-                    ri.color_definitions = r.list(c, rns, &["colorDefinition"], |r, c| {
+                    ri.color_definitions = r.rlist(c, rns, &["colorDefinition"], |r, c| {
                         let mut e = E::new(c);
                         ColorDefinition {
                             id: r.req_pkg(&mut e, pkg, "id"),
@@ -53,15 +81,15 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
                     })
                 }
                 Some("listOfGradientDefinitions") => {
-                    ri.gradients = r.list(c, rns, &["linearGradient", "radialGradient"], |r, c| {
+                    ri.gradients = r.rlist(c, rns, &["linearGradient", "radialGradient"], |r, c| {
                         r.gradient(c, pkg)
                     })
                 }
                 Some("listOfLineEndings") => {
-                    ri.line_endings = r.list(c, rns, &["lineEnding"], |r, c| r.line_ending(c, pkg))
+                    ri.line_endings = r.rlist(c, rns, &["lineEnding"], |r, c| r.line_ending(c, pkg))
                 }
                 Some("listOfStyles") => {
-                    ri.styles = r.list(c, rns, &["style"], |r, c| r.style(c, pkg))
+                    ri.styles = r.rlist(c, rns, &["style"], |r, c| r.style(c, pkg))
                 }
                 _ => return false,
             }
@@ -99,7 +127,7 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         };
         let mut stops = Vec::new();
         let meta = self.meta(e, pkg, |r, c| {
-            if r.name_in(c, rns) != Some("stop") {
+            if r.rname(c, rns) != Some("stop") {
                 return false;
             }
             let mut e = E::new(c);
@@ -147,7 +175,7 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         };
         let mut bb: Option<BoundingBox> = None;
         le.meta = self.meta(e, pkg, |r, c| {
-            if r.name_in(c, rns) == Some("g") {
+            if r.rname(c, rns) == Some("g") {
                 le.group = Some(r.group(c, pkg));
                 return true;
             }
@@ -174,7 +202,7 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
             ..Default::default()
         };
         st.meta = self.meta(e, pkg, |r, c| {
-            if r.name_in(c, rns) == Some("g") && st.group.is_none() {
+            if r.rname(c, rns) == Some("g") && st.group.is_none() {
                 st.group = Some(r.group(c, pkg));
                 true
             } else {
@@ -223,7 +251,7 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
 
     fn primitive(&mut self, n: Node<'a, 'i>, pkg: P) -> Option<Primitive> {
         let rns = pkg.unwrap_or(ns::RENDER);
-        let name = self.name_in(n, rns)?;
+        let name = self.rname(n, rns)?;
         if name == "g" {
             return Some(Primitive::Group(self.group(n, pkg)));
         }
@@ -335,14 +363,14 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
     /// `listOfElements`, or the older `listOfCurveSegments`.
     fn points_child(&mut self, c: Node<'a, 'i>, pkg: P, out: &mut Vec<RenderPoint>) -> bool {
         let rns = pkg.unwrap_or(ns::RENDER);
-        match self.name_in(c, rns) {
+        match self.rname(c, rns) {
             Some("listOfElements") => {
-                *out = self.list(c, rns, &["element"], |r, k| r.render_point(k, pkg));
+                *out = self.rlist(c, rns, &["element"], |r, k| r.render_point(k, pkg));
                 true
             }
             Some("listOfCurveSegments") => {
                 for k in c.children().filter(|k| k.is_element()) {
-                    if self.name_in(k, rns) != Some("curveSegment") {
+                    if self.rname(k, rns) != Some("curveSegment") {
                         self.warn(k, "dropped from <listOfCurveSegments>");
                         continue;
                     }
@@ -393,7 +421,7 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
             .map(|t| t.rsplit(':').next().unwrap_or(t));
         let mut pts: [Option<RenderPoint>; 4] = Default::default();
         for k in n.children().filter(|k| k.is_element()) {
-            let i = match self.name_in(k, rns) {
+            let i = match self.rname(k, rns) {
                 Some("start") => 0,
                 Some("end") => 1,
                 Some("basePoint1") => 2,

@@ -329,8 +329,11 @@ impl Builder {
         }
         // How it all looks, from Render: after the notes, which give what
         // Render can't say (docs/render-design.md §6).
-        if let Some(l) = layout {
-            super::render_in::apply(&mut self.model, l, m.global_render.as_ref(), &self.targets);
+        if let Some(l) = layout
+            && let Some(w) =
+                super::render_in::apply(&mut self.model, l, m.global_render.as_ref(), &self.targets)
+        {
+            self.warn(w);
         }
         self.model.recompute_id_counter();
         (layout.is_some(), unplaced)

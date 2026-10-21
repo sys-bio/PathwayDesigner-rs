@@ -392,3 +392,42 @@ fn relabs_values_read() {
     assert_eq!(RelAbs::rel(50.0).0, "50%");
     assert_eq!(RelAbs::abs(8.0).0, "8");
 }
+
+#[test]
+fn drawing_written_without_a_prefix_is_read() {
+    // As SBMLNetwork's examples write it, and libSBML reads it: the drawing
+    // inside a style with no render: prefix, so in the core namespace.
+    let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1" xmlns:render="http://www.sbml.org/sbml/level3/version1/render/version1" level="3" version="1" layout:required="false" render:required="false">
+  <model id="m">
+    <layout:listOfLayouts>
+      <layout:layout layout:id="l">
+        <layout:dimensions layout:width="10" layout:height="10"/>
+        <render:listOfRenderInformation>
+          <render:renderInformation render:id="r">
+            <render:listOfStyles>
+              <render:style render:id="s" render:idList="sg">
+                <g stroke="black" fill="#FF0000">
+                  <rectangle x="0" y="0" width="100%" height="100%" rx="6"/>
+                </g>
+              </render:style>
+            </render:listOfStyles>
+          </render:renderInformation>
+        </render:listOfRenderInformation>
+      </layout:layout>
+    </layout:listOfLayouts>
+  </model>
+</sbml>"##;
+    let r = read(xml).unwrap();
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let l = &r.document.model.unwrap().layouts[0];
+    let g = l.render.as_ref().unwrap().items[0].styles[0]
+        .group
+        .as_ref()
+        .expect("the group");
+    assert_eq!(g.presentation.fill.as_deref(), Some("#FF0000"));
+    let Primitive::Rectangle(rect) = &g.children[0] else {
+        panic!("no rectangle")
+    };
+    assert_eq!(rect.rx, rel("6"));
+}

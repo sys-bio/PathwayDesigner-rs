@@ -5,6 +5,7 @@
 //! the rest (§6). A value equal to the default PathwayDesigner would draw is
 //! kept as "the default", so a theme applied later still works on it.
 
+use std::cell::Cell;
 use std::collections::HashMap;
 
 use sbml_io as sb;
@@ -31,26 +32,42 @@ pub(super) enum Target {
 }
 
 /// Gives the model the look its layout's render information describes.
+/// Returns a warning saying what could only be approximated, if anything.
 pub(super) fn apply(
     model: &mut Model,
     layout: &sb::Layout,
     global: Option<&sr::RenderList>,
     targets: &[(String, Target)],
-) {
-    let Some(r) = Resolver::new(layout, global) else {
-        return;
-    };
-    let types = glyph_types(layout);
+) -> Option<String> {
+    let r = Resolver::new(layout, global)?;
+    let glyphs = glyph_info(layout);
+    let none = GlyphInfo::default();
     let mut hidden_lines = (0, 0);
     for (glyph, target) in targets {
-        let (typ, role) = types.get(glyph.as_str()).copied().unwrap_or(("ANY", None));
-        let Some((style, at)) = r.style(glyph, typ, role) else {
+        let info = glyphs.get(glyph.as_str()).unwrap_or(&none);
+        // A text glyph with no style of its own takes its owner's (§5.1).
+        let own = r.style(glyph, &info.types, info.role);
+        let found = own.or_else(|| {
+            let owner = info.owner?;
+            let o = glyphs.get(owner)?;
+            r.style(owner, &o.types, o.role)
+        });
+        let Some((style, at)) = found else {
             continue;
         };
         let Some(g) = style.group.as_ref() else {
             continue;
         };
-        let look = Look { r: &r, at, g };
+        // What it can't show, counted once: for the glyph whose style it is.
+        if own.is_some() {
+            r.note_unshown(g);
+        }
+        let look = Look {
+            r: &r,
+            at,
+            g,
+            size: info.size,
+        };
         match target {
             Target::Species(id) => species(model, id, &look),
             Target::SpeciesName(id) => {
@@ -105,36 +122,125 @@ pub(super) fn apply(
         model.background = c;
     }
     saved_styles(model, &r, targets);
+    r.tally.warning()
 }
 
-/// Each glyph's Render type and, for a species reference glyph, its role.
-fn glyph_types(l: &sb::Layout) -> HashMap<&str, (&'static str, Option<&str>)> {
+/// What styles look for in a glyph.
+#[derive(Default)]
+struct GlyphInfo<'a> {
+    /// Its Render types, most particular first. Besides the package's own,
+    /// SBMLNetwork's: a text glyph by what it labels (`SPECIESGLYPH_TEXTGLYPH`)
+    /// and a species glyph of no species (`EMPTY_SPECIESGLYPH`).
+    types: Vec<String>,
+    /// A species reference glyph's role.
+    role: Option<&'a str>,
+    /// A text glyph's graphical object.
+    owner: Option<&'a str>,
+    /// Its box's width and height.
+    size: (f64, f64),
+}
+
+fn glyph_info(l: &sb::Layout) -> HashMap<&str, GlyphInfo<'_>> {
+    let size = |b: Option<&sb::BoundingBox>| {
+        b.map_or((0.0, 0.0), |b| (b.dimensions.width, b.dimensions.height))
+    };
+    let info = |types: &[&str], b: Option<&sb::BoundingBox>| GlyphInfo {
+        types: types.iter().map(|t| t.to_string()).collect(),
+        size: size(b),
+        ..Default::default()
+    };
     let mut out = HashMap::new();
     for g in &l.species_glyphs {
-        out.insert(g.id.as_str(), ("SPECIESGLYPH", None));
+        let types: &[&str] = if g.species.is_some() {
+            &["SPECIESGLYPH"]
+        } else {
+            &["EMPTY_SPECIESGLYPH", "SPECIESGLYPH"]
+        };
+        out.insert(g.id.as_str(), info(types, g.bounding_box.as_ref()));
     }
     for g in &l.compartment_glyphs {
-        out.insert(g.id.as_str(), ("COMPARTMENTGLYPH", None));
-    }
-    for g in &l.text_glyphs {
-        out.insert(g.id.as_str(), ("TEXTGLYPH", None));
+        out.insert(
+            g.id.as_str(),
+            info(&["COMPARTMENTGLYPH"], g.bounding_box.as_ref()),
+        );
     }
     for g in &l.reaction_glyphs {
-        out.insert(g.id.as_str(), ("REACTIONGLYPH", None));
+        out.insert(
+            g.id.as_str(),
+            info(&["REACTIONGLYPH"], g.bounding_box.as_ref()),
+        );
         for s in &g.species_reference_glyphs {
-            out.insert(
-                s.id.as_str(),
-                ("SPECIESREFERENCEGLYPH", s.role.as_ref().map(|r| r.as_str())),
-            );
+            let mut i = info(&["SPECIESREFERENCEGLYPH"], s.bounding_box.as_ref());
+            i.role = s.role.as_ref().map(|r| r.as_str());
+            out.insert(s.id.as_str(), i);
         }
     }
+    for g in &l.text_glyphs {
+        let owner = g.graphical_object.as_deref();
+        let mut types = Vec::new();
+        if let Some(t) = owner.and_then(|o| out.get(o)).and_then(|o| o.types.first()) {
+            types.push(format!("{t}_TEXTGLYPH"));
+        }
+        types.push("TEXTGLYPH".to_string());
+        out.insert(
+            g.id.as_str(),
+            GlyphInfo {
+                types,
+                owner,
+                size: size(g.bounding_box.as_ref()),
+                ..Default::default()
+            },
+        );
+    }
     out
+}
+
+/// What could only be approximated, for the warning (§5.6).
+#[derive(Default)]
+struct Tally {
+    gradients: Cell<usize>,
+    shapes: Cell<usize>,
+    images: Cell<usize>,
+    transforms: Cell<usize>,
+}
+
+impl Tally {
+    fn add(c: &Cell<usize>) {
+        c.set(c.get() + 1);
+    }
+
+    fn warning(&self) -> Option<String> {
+        let mut parts = Vec::new();
+        let mut say = |n: usize, one: &str, many: &str| match n {
+            0 => {}
+            1 => parts.push(format!("1 {one}")),
+            n => parts.push(format!("{n} {many}")),
+        };
+        say(
+            self.gradients.get(),
+            "gradient shown as one colour",
+            "gradients shown as one colour",
+        );
+        say(
+            self.shapes.get(),
+            "shape approximated",
+            "shapes approximated",
+        );
+        say(self.images.get(), "image left out", "images left out");
+        say(
+            self.transforms.get(),
+            "transformation ignored",
+            "transformations ignored",
+        );
+        (!parts.is_empty()).then(|| format!("Render: {}", parts.join(", ")))
+    }
 }
 
 /// The render information that applies, in the order styles are looked for:
 /// the layout's own, the global one it refers to, then the first global one.
 pub(super) struct Resolver<'a> {
     infos: Vec<&'a sr::RenderInformation>,
+    tally: Tally,
 }
 
 impl<'a> Resolver<'a> {
@@ -158,23 +264,32 @@ impl<'a> Resolver<'a> {
         {
             infos.push(first);
         }
-        (!infos.is_empty()).then_some(Resolver { infos })
+        (!infos.is_empty()).then_some(Resolver {
+            infos,
+            tally: Tally::default(),
+        })
     }
 
     /// The style for a glyph: in the first render information that has one,
-    /// a style naming its id, else its role, else its type. With the index
-    /// of the render information it came from.
+    /// a style naming its id, else its role, else one of its types (most
+    /// particular first), else `ANY`. With the index of the render
+    /// information it came from.
     pub(super) fn style(
         &self,
         glyph: &str,
-        typ: &str,
+        types: &[String],
         role: Option<&str>,
     ) -> Option<(&'a sr::Style, usize)> {
         for (k, info) in self.infos.iter().enumerate() {
             let by = |f: &dyn Fn(&sr::Style) -> bool| info.styles.iter().find(|s| f(s));
             let found = by(&|s| s.id_list.iter().any(|i| i == glyph))
                 .or_else(|| role.and_then(|r| by(&|s| s.role_list.iter().any(|x| x == r))))
-                .or_else(|| by(&|s| s.type_list.iter().any(|t| t == typ || t == "ANY")));
+                .or_else(|| {
+                    types
+                        .iter()
+                        .find_map(|t| by(&|s| s.type_list.iter().any(|x| x == t)))
+                })
+                .or_else(|| by(&|s| s.type_list.iter().any(|x| x == "ANY")));
             if let Some(s) = found {
                 return Some((s, k));
             }
@@ -209,10 +324,48 @@ impl<'a> Resolver<'a> {
                     };
                     d(a).total_cmp(&d(b))
                 })?;
+                Tally::add(&self.tally.gradients);
                 return self.colour(at, middle.stop_color.as_deref()?);
             }
         }
         None
+    }
+
+    /// Counts what a style draws that PathwayDesigner can't: images, and
+    /// transformations.
+    fn note_unshown(&self, g: &sr::Group) {
+        fn moved(t: &Option<String>) -> bool {
+            t.as_deref().is_some_and(|t| {
+                let v: Vec<f64> = t
+                    .split([',', ' '])
+                    .filter_map(|x| x.trim().parse().ok())
+                    .collect();
+                let identity_2d = v.len() == 6 && v == [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+                let identity_3d = v.len() == 12
+                    && v == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
+                !(identity_2d || identity_3d)
+            })
+        }
+        fn walk(g: &sr::Group, images: &mut usize, transforms: &mut usize) {
+            if moved(&g.presentation.transform) {
+                *transforms += 1;
+            }
+            for c in &g.children {
+                match c {
+                    sr::Primitive::Group(g) => walk(g, images, transforms),
+                    sr::Primitive::Image(_) => *images += 1,
+                    _ => {}
+                }
+            }
+        }
+        let (mut images, mut transforms) = (0, 0);
+        walk(g, &mut images, &mut transforms);
+        if images > 0 {
+            Tally::add(&self.tally.images);
+        }
+        if transforms > 0 {
+            Tally::add(&self.tally.transforms);
+        }
     }
 
     fn ending(&self, at: usize, id: &str) -> Option<&'a sr::LineEnding> {
@@ -246,17 +399,36 @@ struct Look<'r, 'a> {
     r: &'r Resolver<'a>,
     at: usize,
     g: &'a sr::Group,
+    /// The glyph's box: width and height.
+    size: (f64, f64),
 }
 
 impl Look<'_, '_> {
     /// The first shape the group draws (a rectangle, ellipse or polygon).
+    /// The shape the group draws: the largest, if it draws several.
     fn shape(&self) -> Option<&sr::Primitive> {
-        self.g.children.iter().find(|p| {
-            matches!(
-                p,
-                sr::Primitive::Rectangle(_) | sr::Primitive::Ellipse(_) | sr::Primitive::Polygon(_)
-            )
-        })
+        self.shapes()
+            .into_iter()
+            .max_by(|a, b| area(a, self.size).total_cmp(&area(b, self.size)))
+    }
+
+    /// Every rectangle, ellipse and polygon the group draws, its own groups'
+    /// included.
+    fn shapes(&self) -> Vec<&sr::Primitive> {
+        fn walk<'g>(g: &'g sr::Group, out: &mut Vec<&'g sr::Primitive>) {
+            for c in &g.children {
+                match c {
+                    sr::Primitive::Group(g) => walk(g, out),
+                    sr::Primitive::Rectangle(_)
+                    | sr::Primitive::Ellipse(_)
+                    | sr::Primitive::Polygon(_) => out.push(c),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(self.g, &mut out);
+        out
     }
 
     /// An attribute of the shape, else of the group.
@@ -437,9 +609,24 @@ fn species(model: &mut Model, id: &str, look: &Look) {
             BorderDash::Solid
         };
     }
-    if let Some(shape) = species_shape(look.shape(), s.shape, s.width, s.height) {
-        s.shape = shape;
+    // One shape filling the box is drawn as given; anything else is
+    // approximated by the largest shape (§5.3).
+    let shapes = look.shapes();
+    let main = look.shape();
+    let exact = main.is_some_and(|p| {
+        shapes.len() == 1
+            && fills_box(p, look.size)
+            && !matches!(p, sr::Primitive::Polygon(q) if !is_hexagon(q))
+    });
+    if main.is_some() && !exact {
+        Tally::add(&look.r.tally.shapes);
     }
+    s.shape = match (species_shape(main, s.shape, s.width, s.height), main) {
+        (Some(shape), _) => shape,
+        // Any other polygon: a rectangle.
+        (None, Some(_)) => NodeShape::Rectangle,
+        (None, None) => s.shape,
+    };
 }
 
 /// The species shape a primitive draws, if it is one of PathwayDesigner's;
@@ -680,6 +867,59 @@ fn saved_styles(model: &mut Model, r: &Resolver, targets: &[(String, Target)]) {
     }
 }
 
+/// The area a shape covers in a box of `(w, h)`, to choose the main one.
+fn area(p: &sr::Primitive, (w, h): (f64, f64)) -> f64 {
+    let at = |v: &Option<sr::RelAbs>, size: f64| v.as_ref().and_then(|v| v.resolve(size));
+    match p {
+        sr::Primitive::Rectangle(r) => {
+            at(&r.width, w).unwrap_or(0.0).abs() * at(&r.height, h).unwrap_or(0.0).abs()
+        }
+        sr::Primitive::Ellipse(e) => {
+            let rx = at(&e.rx, w).unwrap_or(0.0).abs();
+            std::f64::consts::PI * rx * at(&e.ry, h).map_or(rx, f64::abs)
+        }
+        sr::Primitive::Polygon(p) => {
+            let xs: Vec<f64> = p.elements.iter().filter_map(|e| at(&e.x, w)).collect();
+            let ys: Vec<f64> = p.elements.iter().filter_map(|e| at(&e.y, h)).collect();
+            let span = |v: &[f64]| {
+                v.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+                    - v.iter().copied().fold(f64::INFINITY, f64::min)
+            };
+            if xs.is_empty() || ys.is_empty() {
+                0.0
+            } else {
+                span(&xs) * span(&ys)
+            }
+        }
+        _ => 0.0,
+    }
+}
+
+/// True if a rectangle or an ellipse fills its box (to 1 %); a polygon is
+/// judged by its points elsewhere.
+fn fills_box(p: &sr::Primitive, (w, h): (f64, f64)) -> bool {
+    let near = |v: &Option<sr::RelAbs>, size: f64, want: f64| {
+        v.as_ref()
+            .and_then(|v| v.resolve(size))
+            .is_some_and(|x| (x - want).abs() <= 0.01 * size.max(1.0))
+    };
+    match p {
+        sr::Primitive::Rectangle(r) => {
+            (r.x.is_none() || near(&r.x, w, 0.0))
+                && (r.y.is_none() || near(&r.y, h, 0.0))
+                && near(&r.width, w, w)
+                && near(&r.height, h, h)
+        }
+        sr::Primitive::Ellipse(e) => {
+            near(&e.cx, w, w / 2.0)
+                && near(&e.cy, h, h / 2.0)
+                && near(&e.rx, w, w / 2.0)
+                && (e.ry.is_none() || near(&e.ry, h, h / 2.0))
+        }
+        _ => true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -706,7 +946,8 @@ mod tests {
     }
 
     fn found(r: &Resolver, glyph: &str, typ: &str, role: Option<&str>) -> Option<String> {
-        r.style(glyph, typ, role).and_then(|(s, _)| s.id.clone())
+        r.style(glyph, &[typ.to_string()], role)
+            .and_then(|(s, _)| s.id.clone())
     }
 
     #[test]

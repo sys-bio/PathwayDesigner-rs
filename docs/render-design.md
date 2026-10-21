@@ -335,6 +335,33 @@ Results:
 - 4 integration tests (`tests/render_import.rs`) and 3 unit tests; 23
   deliberate breakages, all caught; 1110 workspace tests pass.
 
+### 5.8 Built (R5, 2026-10-20)
+
+Other tools' Render, from the survey's files:
+- **Types beyond the package's.** SBMLNetwork styles text by what it labels
+  (`SPECIESGLYPH_TEXTGLYPH`, `REACTIONGLYPH_TEXTGLYPH`,
+  `COMPARTMENTGLYPH_TEXTGLYPH`) and a species glyph of no species
+  (`EMPTY_SPECIESGLYPH`). Each glyph is given its types, most particular first;
+  `ANY` comes last.
+- **Text with no style of its own** takes its owner's (5.1).
+- **Shapes** as 5.3: the largest of several; one set inside its box, fitted;
+  any polygon but the hexagon, a rectangle.
+- **The warning** (5.6), one line, for example *"Render: 1 gradient shown as
+  one colour, 3 shapes approximated, 1 image left out"*; images and
+  transformations are counted once per glyph whose own style has them.
+- **sbml-io:** inside Render elements, drawing written with no prefix (in the
+  core namespace) is read as Render, as libSBML reads it. SBMLNetwork's
+  glycolysis example writes its styles' drawing so; it was read as nothing.
+
+Results on the survey's 45 files: all import; warnings only for the two
+SBGN-compliant SBMLNetwork examples (15 and 3 shapes) and three libSBML
+samples (gradients, shapes); none for COPASI's, SBMLNetwork's ordinary files,
+SBMLDiagrams', or PathwayDesigner's own exports. Shown in the web build:
+COPASI's MAPK example opens in COPASI's look; SBMLNetwork's glycolysis map in
+its own colours, with the large names SBMLNetwork's own drawing also has.
+4 integration tests (`tests/render_import_others.rs`) and 1 in sbml-io;
+9 deliberate breakages, all caught.
+
 ## 6. Render and PathwayDesigner's notes
 
 Several looks are now in both: shapes, border dashes, compartment fill and border,
