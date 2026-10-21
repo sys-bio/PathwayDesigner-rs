@@ -52,6 +52,86 @@ enum Analysis {
 /// A stoichiometry matrix with its species and reactions.
 type Key = (Vec<Id>, Vec<Id>, Matrix);
 
+/// The matrices the panel under the canvas can show.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MatrixTab {
+    /// The stoichiometry matrix, species by reactions.
+    #[default]
+    N,
+    /// The K matrix, `[K₀; I]`: reactions (the dependent ones, then the
+    /// independent ones) by independent fluxes.
+    K,
+    /// The link matrix, `[I; L₀]`: species (the independent ones, then the
+    /// dependent ones) by independent species.
+    L,
+}
+
+/// A matrix as the panel draws it: row and column names, entries, and the
+/// row after which a line separates two blocks (`K₀` from `I`, `I` from
+/// `L₀`).
+pub struct Table {
+    pub rows: Vec<String>,
+    pub cols: Vec<String>,
+    pub values: Matrix,
+    pub split: Option<usize>,
+}
+
+/// The table for `tab`: N as it is; K and L with their rows in the
+/// pivoting's order, so that their identity blocks show as ones and zeros.
+pub fn table(s: &Structure, tab: MatrixTab) -> Table {
+    let names = |list: &[Id], idx: &[usize]| -> Vec<String> {
+        idx.iter().map(|&i| list[i].clone()).collect()
+    };
+    match tab {
+        MatrixTab::N => Table {
+            rows: s.species.clone(),
+            cols: s.reactions.clone(),
+            values: s.n.clone(),
+            split: None,
+        },
+        MatrixTab::K => {
+            let (dep, ind) = (&s.dependent_reactions, &s.independent_reactions);
+            let mut values = Matrix::zeros(dep.len() + ind.len(), ind.len());
+            for r in 0..dep.len() {
+                for c in 0..ind.len() {
+                    values.set(r, c, s.k0.get(r, c));
+                }
+            }
+            for c in 0..ind.len() {
+                values.set(dep.len() + c, c, 1.0);
+            }
+            let mut rows = names(&s.reactions, dep);
+            rows.extend(names(&s.reactions, ind));
+            Table {
+                rows,
+                cols: names(&s.reactions, ind),
+                values,
+                split: (!dep.is_empty() && !ind.is_empty()).then_some(dep.len()),
+            }
+        }
+        MatrixTab::L => {
+            let (ind, dep) = (&s.independent_species, &s.dependent_species);
+            let mut values = Matrix::zeros(ind.len() + dep.len(), ind.len());
+            for c in 0..ind.len() {
+                values.set(c, c, 1.0);
+            }
+            for r in 0..dep.len() {
+                for c in 0..ind.len() {
+                    values.set(ind.len() + r, c, s.l0.get(r, c));
+                }
+            }
+            let mut rows = names(&s.species, ind);
+            rows.extend(names(&s.species, dep));
+            Table {
+                rows,
+                cols: names(&s.species, ind),
+                values,
+                split: (!ind.is_empty() && !dep.is_empty()).then_some(ind.len()),
+            }
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct StructurePanel {
     /// The matrix the analysis is of (species, reactions, entries), and the
@@ -61,6 +141,8 @@ pub struct StructurePanel {
     pub show_matrix: bool,
     /// The sparse bases are shown, not those of the factorization.
     pub sparse: bool,
+    /// Which matrix the panel under the canvas shows.
+    pub matrix_tab: MatrixTab,
     pub picked: Option<Picked>,
 }
 
@@ -191,8 +273,10 @@ impl StructurePanel {
         ui.label(egui::RichText::new(timing).weak().small());
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.toggle_value(&mut self.show_matrix, "Stoichiometry matrix")
-                .on_hover_text("Show the matrix in a panel under the diagram");
+            ui.toggle_value(&mut self.show_matrix, "Matrices")
+                .on_hover_text(
+                    "Show the stoichiometry, K and link matrices in a panel under the diagram",
+                );
             if ui
                 .button("Copy")
                 .on_hover_text("Copy the matrix, to paste into a spreadsheet")
@@ -222,6 +306,18 @@ impl StructurePanel {
             if self.sparse != before {
                 self.picked = None;
             }
+        });
+        // What the highlight's colours mean (S §8.9).
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Highlight:").small());
+            for (colour, meaning) in [
+                (pd_core::render::draw::HIGHLIGHT_POSITIVE, "positive"),
+                (pd_core::render::draw::HIGHLIGHT_NEGATIVE, "negative"),
+            ] {
+                swatch(ui, colour);
+                ui.label(egui::RichText::new(meaning).small());
+            }
+            ui.label(egui::RichText::new("coefficient").small());
         });
         ui.separator();
         // The sparse bases are made by the next refresh; until then, the
@@ -305,49 +401,114 @@ impl StructurePanel {
         export
     }
 
-    /// The matrix panel: the stoichiometry matrix, its species and reaction
-    /// names pinned to the left and top edges as it scrolls. Only the cells in
-    /// view are drawn, so a large matrix scrolls smoothly. A picked vector's
-    /// reactions and a picked law's species are shaded.
+    /// The matrix panel: the stoichiometry matrix, the K matrix or the link
+    /// matrix (tabs), its names pinned to the left and top edges as it
+    /// scrolls. Only the cells in view are drawn, so a large matrix scrolls
+    /// smoothly. The rows and columns of the picked vector's reactions or
+    /// law's species are shaded.
     pub fn matrix(&mut self, ui: &mut egui::Ui) {
+        let table = self.structure().map(|s| table(s, self.matrix_tab));
         ui.horizontal(|ui| {
-            ui.strong("Stoichiometry matrix");
-            ui.label(egui::RichText::new("species by reactions").weak());
+            for (tab, label, tip) in [
+                (
+                    MatrixTab::N,
+                    "N",
+                    "The stoichiometry matrix: species by reactions",
+                ),
+                (
+                    MatrixTab::K,
+                    "K",
+                    "The K matrix [K₀; I]: each column a flux null-space vector",
+                ),
+                (
+                    MatrixTab::L,
+                    "L",
+                    "The link matrix [I; L₀]: each species from the independent ones",
+                ),
+            ] {
+                ui.selectable_value(&mut self.matrix_tab, tab, label)
+                    .on_hover_text(tip);
+            }
+            let caption = match self.matrix_tab {
+                MatrixTab::N => "stoichiometry matrix: species by reactions",
+                MatrixTab::K => {
+                    "K = [K₀; I]: dependent, then independent reactions, by independent fluxes"
+                }
+                MatrixTab::L => {
+                    "L = [I; L₀]: independent, then dependent species, by independent species"
+                }
+            };
+            ui.label(egui::RichText::new(caption).weak());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button("✕")
-                    .on_hover_text("Close the matrix")
+                    .on_hover_text("Close the matrices")
                     .clicked()
                 {
                     self.show_matrix = false;
                 }
+                if let Some(t) = &table
+                    && ui
+                        .small_button("Copy")
+                        .on_hover_text("Copy this matrix, to paste into a spreadsheet")
+                        .clicked()
+                {
+                    ui.ctx().copy_text(tsv(t));
+                }
             });
         });
-        let (Some(s), Some(bases)) = (self.structure(), self.bases()) else {
+        let (Some(table), Some(s), Some(bases)) = (table, self.structure(), self.bases()) else {
             ui.label("Not available for this network (see the Structure tab).");
             return;
         };
-        let (shaded_rows, shaded_cols): (Vec<usize>, Vec<usize>) = match self.picked {
-            Some(Picked::Flux(i)) => (
-                Vec::new(),
-                bases
-                    .fluxes
-                    .get(i)
-                    .map(|v| v.terms.iter().map(|t| t.0).collect())
-                    .unwrap_or_default(),
-            ),
-            Some(Picked::Law(i)) => (
-                bases
-                    .laws
-                    .get(i)
-                    .map(|l| l.terms.iter().map(|t| t.0).collect())
-                    .unwrap_or_default(),
-                Vec::new(),
-            ),
-            None => (Vec::new(), Vec::new()),
+        // The picked item's reactions or species, shaded wherever they name
+        // a row or a column.
+        let picked: Vec<&str> = match self.picked {
+            Some(Picked::Flux(i)) => bases
+                .fluxes
+                .get(i)
+                .map(|v| v.terms.iter().map(|t| s.reactions[t.0].as_str()).collect())
+                .unwrap_or_default(),
+            Some(Picked::Law(i)) => bases
+                .laws
+                .get(i)
+                .map(|l| l.terms.iter().map(|t| s.species[t.0].as_str()).collect())
+                .unwrap_or_default(),
+            None => Vec::new(),
         };
-        grid(ui, s, &shaded_rows, &shaded_cols);
+        let shaded = |names: &[String]| -> Vec<usize> {
+            (0..names.len())
+                .filter(|&i| picked.contains(&names[i].as_str()))
+                .collect()
+        };
+        let (rows, cols) = (shaded(&table.rows), shaded(&table.cols));
+        grid(ui, &table, &rows, &cols);
     }
+}
+
+/// A small square of `colour`, for the key.
+fn swatch(ui: &mut egui::Ui, colour: pd_core::model::Rgba) {
+    let [r, g, b, a] = colour.0;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+    ui.painter()
+        .rect_filled(rect, 2.0, egui::Color32::from_rgba_unmultiplied(r, g, b, a));
+}
+
+/// A table tab-separated, as a spreadsheet pastes it.
+fn tsv(t: &Table) -> String {
+    let mut out = std::iter::once(String::new())
+        .chain(t.cols.iter().cloned())
+        .collect::<Vec<_>>()
+        .join("\t")
+        + "\n";
+    for (r, name) in t.rows.iter().enumerate() {
+        out += &(std::iter::once(name.clone())
+            .chain((0..t.values.cols).map(|c| cell(t.values.get(r, c))))
+            .collect::<Vec<_>>()
+            .join("\t")
+            + "\n");
+    }
+    out
 }
 
 fn lines(items: impl Iterator<Item = String>) -> String {
@@ -367,22 +528,22 @@ fn cell(v: f64) -> String {
 /// The matrix as a grid in a scroll area, drawn by hand: only the visible
 /// cells, with the header row and the name column painted over the edges of
 /// the view so they stay in place.
-fn grid(ui: &mut egui::Ui, s: &Structure, shaded_rows: &[usize], shaded_cols: &[usize]) {
+fn grid(ui: &mut egui::Ui, t: &Table, shaded_rows: &[usize], shaded_cols: &[usize]) {
     let font = egui::TextStyle::Monospace.resolve(ui.style());
     let char_w = ui.fonts_mut(|f| f.glyph_width(&font, '0'));
     let row_h = ui.text_style_height(&egui::TextStyle::Monospace) + 4.0;
-    let longest = |names: &[Id]| names.iter().map(|n| n.chars().count()).max().unwrap_or(1);
-    let name_w = (longest(&s.species).max(4) as f32 + 2.0) * char_w;
-    let (rows, cols) = (s.n.rows, s.n.cols);
+    let longest = |names: &[String]| names.iter().map(|n| n.chars().count()).max().unwrap_or(1);
+    let name_w = (longest(&t.rows).max(4) as f32 + 2.0) * char_w;
+    let (rows, cols) = (t.values.rows, t.values.cols);
     // Each column as wide as its name or its widest entry; `left[c]` is
     // where column c starts, the name column before them all.
     let widths: Vec<f32> = (0..cols)
         .map(|c| {
-            let entries = (0..rows).map(|r| cell(s.n.get(r, c)).chars().count());
+            let entries = (0..rows).map(|r| cell(t.values.get(r, c)).chars().count());
             let chars = entries
                 .max()
                 .unwrap_or(0)
-                .max(s.reactions[c].chars().count())
+                .max(t.cols[c].chars().count())
                 .max(3);
             (chars as f32 + 2.0) * char_w
         })
@@ -434,7 +595,7 @@ fn grid(ui: &mut egui::Ui, s: &Structure, shaded_rows: &[usize], shaded_cols: &[
                     }
                     text(
                         cell_rect.right_center() - egui::vec2(char_w, 0.0),
-                        &cell(s.n.get(r, c)),
+                        &cell(t.values.get(r, c)),
                         egui::Align2::RIGHT_CENTER,
                         false,
                     );
@@ -455,7 +616,7 @@ fn grid(ui: &mut egui::Ui, s: &Structure, shaded_rows: &[usize], shaded_cols: &[
                 }
                 text(
                     r.right_center() - egui::vec2(char_w, 0.0),
-                    &s.reactions[c],
+                    &t.cols[c],
                     egui::Align2::RIGHT_CENTER,
                     true,
                 );
@@ -478,7 +639,7 @@ fn grid(ui: &mut egui::Ui, s: &Structure, shaded_rows: &[usize], shaded_cols: &[
                 }
                 text(
                     rr.left_center() + egui::vec2(char_w, 0.0),
-                    &s.species[r],
+                    &t.rows[r],
                     egui::Align2::LEFT_CENTER,
                     true,
                 );
@@ -499,12 +660,79 @@ fn grid(ui: &mut egui::Ui, s: &Structure, shaded_rows: &[usize], shaded_cols: &[
                 top..=top + view.height(),
                 visuals.widgets.noninteractive.bg_stroke,
             );
+            // The line between the two blocks of K or L.
+            if let Some(split) = t.split {
+                let y = origin.y + row_h * (split as f32 + 1.0);
+                if y > top + row_h {
+                    painter.hline(
+                        left..=left + view.width(),
+                        y,
+                        egui::Stroke::new(1.5, visuals.strong_text_color()),
+                    );
+                }
+            }
         });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A → B → C → A (J1, J2, J3), closed: rank 2, one law, one flux.
+    fn cycle() -> Structure {
+        let mut m = Model::new();
+        for id in ["A", "B", "C"] {
+            m.push_species(pd_core::model::SpeciesNode::new(
+                id,
+                pd_core::geometry::pt(0.0, 0.0),
+            ))
+            .unwrap();
+        }
+        for (id, a, b) in [("J1", "A", "B"), ("J2", "B", "C"), ("J3", "C", "A")] {
+            let mut r = pd_core::model::Reaction::new(id, pd_core::geometry::pt(0.0, 0.0));
+            r.reactants = vec![pd_core::model::Participant::new(a, 1.0)];
+            r.products = vec![pd_core::model::Participant::new(b, 1.0)];
+            m.push_reaction(r).unwrap();
+        }
+        Structure::of(&m)
+    }
+
+    #[test]
+    fn k_and_l_show_their_identity_blocks() {
+        let s = cycle();
+        let n = table(&s, MatrixTab::N);
+        assert_eq!((n.rows.len(), n.cols.len(), n.split), (3, 3, None));
+        // K: two dependent reactions, then the independent one at 1.
+        let k = table(&s, MatrixTab::K);
+        assert_eq!((k.rows.len(), k.cols.len(), k.split), (3, 1, Some(2)));
+        assert_eq!(
+            k.rows[2], k.cols[0],
+            "the independent flux last, against itself"
+        );
+        assert_eq!(k.values.get(2, 0), 1.0);
+        assert!(
+            (0..2).all(|r| (k.values.get(r, 0) - 1.0).abs() < 1e-9),
+            "the cycle: all 1"
+        );
+        // L: two independent species at the top as I, then the dependent one.
+        let l = table(&s, MatrixTab::L);
+        assert_eq!((l.rows.len(), l.cols.len(), l.split), (3, 2, Some(2)));
+        assert_eq!(
+            (
+                l.values.get(0, 0),
+                l.values.get(0, 1),
+                l.values.get(1, 0),
+                l.values.get(1, 1)
+            ),
+            (1.0, 0.0, 0.0, 1.0)
+        );
+        assert_eq!(&l.rows[..2], &l.cols[..]);
+        // The dependent species is minus the sum of the others.
+        assert!((l.values.get(2, 0) + 1.0).abs() < 1e-9 && (l.values.get(2, 1) + 1.0).abs() < 1e-9);
+        // Copied for a spreadsheet: a header, then one row each.
+        assert_eq!(tsv(&l).lines().count(), 4);
+        assert!(tsv(&l).lines().nth(1).unwrap().ends_with("\t1\t0"));
+    }
 
     #[test]
     fn cells_show_fractions_and_hide_zeros() {

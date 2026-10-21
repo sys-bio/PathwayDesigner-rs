@@ -804,9 +804,9 @@ which draws names as now.
 junction, as Escher's metabolic maps label reactions. There is no separate display
 name: renaming the reaction renames the label.
 
-- **Shown or not** is the reaction's own setting, off by default: the **Show name**
-  tick box in the Reaction group (§8.1), for every selected reaction; one undo
-  step, *Show Name* or *Hide Name*. A name shown starts beside the junction on the
+- **Shown or not** is the reaction's own setting, off by default: the **Show Id**
+  tick box in the Reaction group (§8.1), named to match its Id field, for every
+  selected reaction; one undo step, *Show Id* or *Hide Id*. A name shown starts beside the junction on the
   side clearest of its lines, as a species' name does (§5.11): of the same eight
   directions, the one furthest from every line leaving the junction. A line
   leaves towards its handle on a Bézier reaction (§5.6), otherwise towards its
@@ -1927,16 +1927,23 @@ says before any rate law is known, and draws it on the network.
   significant figures. Values within 10⁻⁹ of a simple fraction (denominator up to
   12) are taken as it. *Copy* puts the matrix (tab-separated) or a list (one per
   line) on the clipboard; *Export…* saves the matrix, the basis or the laws as CSV.
-- **The matrix panel** (*Stoichiometry matrix*, a toggle in the tab) opens under
-  the canvas, resizable: the matrix with species and reaction names pinned as it
-  scrolls, zeros in a fainter colour, fractions as fractions; ✕ closes it.
+- **The matrix panel** (*Matrices*, a toggle in the tab) opens under the canvas,
+  resizable, with three tabs: **N**, the stoichiometry matrix; **K**, the K matrix
+  `[K₀; I]`, its rows the dependent reactions and then the independent ones, its
+  columns the independent fluxes (each column a null-space vector); and **L**, the
+  link matrix `[I; L₀]`, its rows the independent species and then the dependent
+  ones, its columns the independent species. In K and L a line separates the two
+  blocks, so the identity block shows as ones and zeros. Names are pinned as it
+  scrolls, zeros are drawn fainter, fractions as fractions; *Copy* copies the
+  matrix shown (tab-separated); ✕ closes the panel. The picked vector's reactions
+  or law's species are shaded wherever they name a row or a column.
 - **Highlighting.** Clicking a vector or a law picks it (clicking again lets it go),
   and while the tab or the matrix panel is open it is drawn over the network: the
   rest faded under a veil of the background; a vector's reactions redrawn thicker
   in blue (`#1F6FD1`) for a positive coefficient and orange (`#E07B00`) for a
   negative one, with their species and names; a law's species outlined in every
-  drawing, aliases included; a coefficient other than 1 labelled (`×2`). The matrix
-  panel shades the picked vector's columns or law's rows. A view only: not saved,
+  drawing, aliases included; a coefficient other than 1 labelled (`×2`). A key
+  under the basis choice says what the two colours mean. A view only: not saved,
   no undo step. Graphics output draws it as shown (§11.6).
 - **Recomputed** when the matrix changes (it is rebuilt every frame while the tab or
   panel is open, which is cheap; the factorization only when it differs). A network

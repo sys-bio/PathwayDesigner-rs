@@ -2044,9 +2044,20 @@ mod tests {
         let law = s.law_text(&s.conservation_laws()[0]);
         // The matrix panel opens from the tab and closes from its own button.
         assert!(!h.app.structure.show_matrix);
-        h.click(h.widget("Stoichiometry matrix"));
+        h.click(h.widget("Matrices"));
         h.run(vec![]);
         assert!(h.app.structure.show_matrix);
+        // Its tabs: K and L, then N again.
+        use crate::structure_panel::MatrixTab;
+        for (label, tab) in [
+            ("K", MatrixTab::K),
+            ("L", MatrixTab::L),
+            ("N", MatrixTab::N),
+        ] {
+            h.click(h.widget(label));
+            h.run(vec![]);
+            assert_eq!(h.app.structure.matrix_tab, tab);
+        }
         h.click(h.widget("✕"));
         h.run(vec![]);
         assert!(!h.app.structure.show_matrix);
