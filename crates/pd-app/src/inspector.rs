@@ -456,7 +456,7 @@ impl Inspector {
                         // Its id beside the junction, for every selected
                         // reaction (S §5.12). Where it is isn't part of a look.
                         if !look_only {
-                            ui.label("Show name");
+                            ui.label("Show Id");
                             let mut named = view.selected_reactions_label_shown() == Some(true);
                             if ui
                                 .checkbox(&mut named, "")

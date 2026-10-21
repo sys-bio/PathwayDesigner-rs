@@ -430,7 +430,7 @@ impl DiagramView {
                 r.label_offset = place;
             }
         }
-        let desc = if shown { "Show Name" } else { "Hide Name" };
+        let desc = if shown { "Show Id" } else { "Hide Id" };
         self.record_if_changed(desc, before)
     }
 

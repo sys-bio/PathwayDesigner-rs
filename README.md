@@ -82,7 +82,7 @@ Delphi version does, and some more (see [Status](#status)).
   screen and in exported pictures.
 - **Names outside the node**, as in Escher's metabolic maps: small circles with
   their names beside them, each name dragged where you want it.
-- **Reaction names**: show a reaction's id beside it (*Show name* in the
+- **Reaction names**: show a reaction's id beside it (*Show Id* in the
   Properties panel), placed clear of its lines, with its own size and colour;
   drag it where you want it.
 - **Copy Style** and **Paste Style** (Ctrl+Alt+C, Ctrl+Alt+V) copy a look from one
