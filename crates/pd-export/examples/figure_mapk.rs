@@ -8,6 +8,9 @@
 //! them, never narrowed), and the title and subtitle, which the caption
 //! carries, are left out. The model is otherwise as in the Gallery.
 //!
+//! Also `mapk_as_exported.pdf`: the model drawn exactly as it is exported,
+//! for the figure comparing it with COPASI's drawing of `mapk.xml`.
+//!
 //! ```text
 //! cargo run -p pd-export --release --example figure_mapk -- <out>
 //! ```
@@ -34,6 +37,16 @@ fn main() {
     // PathwayDesigner exports from the Gallery model.
     std::fs::write(out.join("mapk.xml"), pd_core::sbml::export(&model).xml).unwrap();
     std::fs::write(out.join("mapk.ant"), pd_core::antimony::export(&model)).unwrap();
+
+    // The model drawn exactly as it is exported, titles and background
+    // included: what COPASI draws from mapk.xml is compared with it.
+    let pdf = pd_core::render::pdf::model_to_pdf(
+        &model,
+        pd_core::render::pdf::PageSize::Drawing,
+        false,
+        Shown::ALL,
+    );
+    std::fs::write(out.join("mapk_as_exported.pdf"), pdf).unwrap();
 
     // The drawing, for print.
     let mut m = model.clone();
