@@ -234,6 +234,12 @@ fn reactions_their_junctions_and_arrowheads() {
     );
     assert_eq!(rule(group(&ri, "sg_S1")).as_deref(), Some("nonzero"));
     assert_eq!(rule(group(&ri, "srg_R4_sub_S1")), None);
+    // On its shape too, or COPASI's diagram view draws only its outline.
+    let sr::Primitive::Polygon(head) = &arrow.group.as_ref().unwrap().children[0] else {
+        panic!("no polygon")
+    };
+    assert_eq!(value(&ri, &head.presentation.fill), "#444444");
+    assert_eq!(head.presentation.fill_rule.as_deref(), Some("nonzero"));
     let b = arrow.bounding_box.as_ref().unwrap();
     assert_eq!((b.position.x, b.dimensions.width), (-12.0, 12.0));
     let sub = group(&ri, "srg_R4_sub_S1");

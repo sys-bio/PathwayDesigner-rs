@@ -530,12 +530,22 @@ fn triangle() -> sr::Primitive {
     })
 }
 
+/// A line ending: its look on its group, and on its shape too. COPASI's
+/// diagram view (`CQRenderConverter`, 4.47) fills an ending only when its
+/// shape, or the line's own style, has a fill; one on the ending's group
+/// alone is drawn as an outline.
 fn ending(
     id: String,
     (x, y, w, h): (f64, f64, f64, f64),
     presentation: sr::Presentation,
-    shape: sr::Primitive,
+    mut shape: sr::Primitive,
 ) -> sr::LineEnding {
+    match &mut shape {
+        sr::Primitive::Rectangle(r) => r.presentation = presentation.clone(),
+        sr::Primitive::Ellipse(e) => e.presentation = presentation.clone(),
+        sr::Primitive::Polygon(p) => p.presentation = presentation.clone(),
+        _ => {}
+    }
     sr::LineEnding {
         id,
         bounding_box: Some(sbml_io::BoundingBox::new(x, y, w, h)),
