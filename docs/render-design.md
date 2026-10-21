@@ -202,6 +202,17 @@ with every optional part shown as in the default view. Decided while building:
 - **The background** is written as a value (`#RRGGBB`), not a colour id.
 - **Saved styles:** the name goes on the style of the item's own glyph only,
   not on its name's or its lines'.
+- **Fill rules (after R3, 2026-10-20):** `fill-rule="nonzero"` wherever
+  something is filled. COPASI (`CLLayoutRenderer`) fills a shape only when a
+  fill rule is set, so it drew arrowheads and modifier dots unfilled.
+- **Curved legs (after R3, 2026-10-20):** the author's COPASI check showed
+  arrowheads turned away from the curves, and curves hooking where they meet
+  a node. A Bézier leg was written with its end moved to the node's border but
+  the base points of the whole curve, which runs to the node's centre; COPASI
+  points an arrowhead from the last base point to the end. The Layout export
+  now writes the drawn part, split at the border, and import carries it on to
+  the centre again (S §11.5). The E4 report is unchanged; SBMLNetwork draws the
+  curves as PathwayDesigner does.
 
 Checks:
 - all 16 Gallery exports valid under libSBML (Render package enabled), only

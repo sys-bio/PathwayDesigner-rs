@@ -209,6 +209,47 @@ impl CubicBezier {
             CubicBezier::new(mid, p123, p23, self.p3),
         )
     }
+
+    /// The longer curve this one is the start of, if one reaches `target`:
+    /// the same cubic carried on past `p3` until it passes through `target`,
+    /// which becomes its end. The inverse of keeping [`split`](Self::split)'s
+    /// first half. `None` if the curve carried on (up to 64 times its
+    /// parameter range) never comes within `tolerance` of `target`.
+    pub fn extended_to(&self, target: Pt, tolerance: f64) -> Option<CubicBezier> {
+        if self.p3.distance(target) <= tolerance {
+            return Some(CubicBezier::new(self.p0, self.p1, self.p2, target));
+        }
+        let gap = |l: f64| self.eval(l).distance(target);
+        // Samples evenly spaced in log λ; each local minimum, nearest first,
+        // refined by golden-section search between its neighbours. The first
+        // that reaches the target is the one: a curve can pass through a
+        // point more than once (a straight one, carried on, comes back).
+        const SAMPLES: usize = 600;
+        let at = |i: usize| (64f64.ln() * i as f64 / SAMPLES as f64).exp();
+        let phi = (5f64.sqrt() - 1.0) / 2.0;
+        let found = (0..=SAMPLES)
+            .filter(|&i| {
+                let g = gap(at(i));
+                (i == 0 || g <= gap(at(i - 1))) && (i == SAMPLES || g <= gap(at(i + 1)))
+            })
+            .find_map(|i| {
+                let (mut lo, mut hi) = (at(i.saturating_sub(1)), at((i + 1).min(SAMPLES)));
+                for _ in 0..200 {
+                    let (a, b) = (hi - phi * (hi - lo), lo + phi * (hi - lo));
+                    if gap(a) < gap(b) {
+                        hi = b;
+                    } else {
+                        lo = a;
+                    }
+                }
+                let l = 0.5 * (lo + hi);
+                (gap(l) <= tolerance).then_some(l)
+            });
+        found.map(|l| {
+            let (whole, _) = self.split(l);
+            CubicBezier::new(whole.p0, whole.p1, whole.p2, target)
+        })
+    }
 }
 
 /// Bisection steps used by [`bezier_rect_crossing`] (S §17.1).
@@ -250,6 +291,41 @@ mod tests {
 
     fn close(a: Pt, b: Pt) -> bool {
         a.distance(b) < EPS
+    }
+
+    #[test]
+    fn a_split_curve_extends_back_to_the_whole() {
+        let whole = CubicBezier::new(
+            pt(0.0, 0.0),
+            pt(120.0, -40.0),
+            pt(260.0, 90.0),
+            pt(300.0, 30.0),
+        );
+        for t in [0.2, 0.55, 0.93, 0.999] {
+            let (first, _) = whole.split(t);
+            let back = first.extended_to(whole.p3, 1e-6).expect("extends");
+            for (a, b) in [
+                (back.p1, whole.p1),
+                (back.p2, whole.p2),
+                (back.p3, whole.p3),
+            ] {
+                assert!(a.distance(b) < 1e-6, "t {t}: {a:?} against {b:?}");
+            }
+        }
+        // A straight curve passes through the point twice when carried on:
+        // the first is the one.
+        let line = CubicBezier::new(pt(0.0, 0.0), pt(30.0, 0.0), pt(150.0, 0.0), pt(190.0, 0.0));
+        let (_, rest) = line.split(0.1);
+        let back = CubicBezier::new(rest.p3, rest.p2, rest.p1, rest.p0)
+            .extended_to(line.p0, 1e-6)
+            .expect("extends");
+        assert!(
+            back.p2.distance(line.p1) < 1e-6 && back.p1.distance(line.p2) < 1e-6,
+            "{back:?}"
+        );
+        // A point the curve never reaches.
+        let (first, _) = whole.split(0.5);
+        assert!(first.extended_to(pt(0.0, 500.0), 1e-6).is_none());
     }
 
     #[test]

@@ -226,6 +226,14 @@ fn reactions_their_junctions_and_arrowheads() {
         value(&ri, &arrow.group.as_ref().unwrap().presentation.fill),
         "#444444"
     );
+    // With a fill rule, or COPASI draws it unfilled.
+    let rule = |g: &sr::Group| g.presentation.fill_rule.clone();
+    assert_eq!(
+        rule(arrow.group.as_ref().unwrap()).as_deref(),
+        Some("nonzero")
+    );
+    assert_eq!(rule(group(&ri, "sg_S1")).as_deref(), Some("nonzero"));
+    assert_eq!(rule(group(&ri, "srg_R4_sub_S1")), None);
     let b = arrow.bounding_box.as_ref().unwrap();
     assert_eq!((b.position.x, b.dimensions.width), (-12.0, 12.0));
     let sub = group(&ri, "srg_R4_sub_S1");

@@ -43,7 +43,8 @@ pub(super) fn render_list(model: &Model, glyphs: &[(String, Item)]) -> sr::Rende
         styles: Vec::new(),
     };
     for (id, item) in glyphs {
-        let (group, name) = w.look(item);
+        let (mut group, name) = w.look(item);
+        fill_rules(&mut group);
         match w
             .styles
             .iter_mut()
@@ -486,9 +487,33 @@ impl Writer<'_> {
                 }
             }
         };
+        let mut le = le;
+        if let Some(g) = le.group.as_mut() {
+            fill_rules(g);
+        }
         let id = le.id.clone();
         self.endings.push((e, le));
         id
+    }
+}
+
+/// A fill rule wherever something is filled: COPASI fills a shape only when
+/// one is set (`CLLayoutRenderer`, 4.45), and draws it unfilled otherwise.
+fn fill_rules(g: &mut sr::Group) {
+    fn set(p: &mut sr::Presentation) {
+        if p.fill.as_deref().is_some_and(|f| f != "none") {
+            p.fill_rule = Some("nonzero".into());
+        }
+    }
+    set(&mut g.presentation);
+    for c in &mut g.children {
+        match c {
+            sr::Primitive::Group(g) => fill_rules(g),
+            sr::Primitive::Rectangle(r) => set(&mut r.presentation),
+            sr::Primitive::Ellipse(e) => set(&mut e.presentation),
+            sr::Primitive::Polygon(p) => set(&mut p.presentation),
+            _ => {}
+        }
     }
 }
 

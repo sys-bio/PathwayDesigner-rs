@@ -506,3 +506,96 @@ fn compartments_without_a_box_come_back_as_they_were_seen() {
     let back = sbml::import(&bare, &OPTS).unwrap().model;
     assert!(back.compartments.iter().all(|c| !c.hidden));
 }
+
+/// A curved leg is written as the part that is drawn (S §11.5): it meets the
+/// node at its border, and its last base point lies on the reaction's side,
+/// so a reader draws the same curve and points an arrowhead along it into
+/// the node. Checked on every Bézier leg of every model.
+#[test]
+fn curved_legs_are_written_as_drawn() {
+    let mut legs = 0;
+    for path in model_files() {
+        let model = from_json(&fs::read_to_string(&path).unwrap())
+            .unwrap()
+            .model;
+        let xml = sbml::export(&model).xml;
+        let doc = sbml_io::read(&xml).unwrap().document;
+        let layout = &doc.model.unwrap().layouts[0];
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        for g in &layout.reaction_glyphs {
+            for srg in &g.species_reference_glyphs {
+                let Some(curve) = &srg.curve else { continue };
+                let [
+                    sbml_io::Segment::Bezier {
+                        start,
+                        end,
+                        base1,
+                        base2,
+                    },
+                ] = curve.segments[..]
+                else {
+                    continue;
+                };
+                let p = |q: sbml_io::Point| Pt { x: q.x, y: q.y };
+                let node_id = srg.species_glyph.strip_prefix("sg_").unwrap();
+                let node = model.find_species(node_id).unwrap();
+                // The node's end, the base point next to it, and the other end.
+                let (at_node, next, far) = match srg.role {
+                    Some(sbml_io::Role::Product) => (p(end), p(base2), p(start)),
+                    _ => (p(start), p(base1), p(end)),
+                };
+                // At the border: a step further in is inside, a step back out
+                // isn't.
+                let inward = pd_core::geometry::normalize(node.center - at_node);
+                assert!(
+                    pd_core::node_shape::contains(node, at_node + inward * 0.5)
+                        && !pd_core::node_shape::contains(node, at_node - inward * 0.5)
+                        || at_node.distance(far) < 1.0,
+                    "{name}: {} doesn't end at the border",
+                    srg.id
+                );
+                // The curve arrives from outside: its last stretch points into
+                // the node, not back out of it.
+                assert!(
+                    (at_node - next).dot(node.center - at_node) >= -1e-9,
+                    "{name}: {} hooks back at its end",
+                    srg.id
+                );
+                legs += 1;
+            }
+        }
+    }
+    assert!(legs > 50, "only {legs} curved legs");
+}
+
+/// A leg that meets its reaction at a stem's end on the far side of its
+/// species from the junction still comes back with its own handles: which
+/// end of the written curve is the species' is decided by the species alone.
+#[test]
+fn a_curved_leg_to_a_far_stem_end_comes_back() {
+    use pd_core::geometry::pt;
+    use pd_core::model::Participant;
+    let mut m = Model::new();
+    let a = m.add_species(pt(-150.0, 60.0), 40.0, 40.0);
+    let b = m.add_species(pt(300.0, 0.0), 80.0, 36.0);
+    let r = m.add_reaction(pt(0.0, 0.0));
+    {
+        let r = m.find_reaction_mut(&r).unwrap();
+        r.mode = ReactionMode::Bezier;
+        // The reactants' end of the stem lies beyond the reactant.
+        r.stem = Some((pt(-400.0, 0.0), pt(100.0, 0.0)));
+        let mut p = Participant::new(a.clone(), 1.0);
+        p.ctrl1 = pt(-200.0, 120.0);
+        p.ctrl2 = pt(-330.0, 40.0);
+        p.ctrl_pts_set = true;
+        r.reactants.push(p);
+        r.products.push(Participant::new(b, 1.0));
+    }
+    let back = sbml::import(&sbml::export(&m).xml, &OPTS).unwrap().model;
+    let (r0, r1) = (&m.reactions()[0], &back.reactions()[0]);
+    let (c0, c1) = (
+        leg_curve(&m, r0, Role::Reactant, 0).unwrap(),
+        leg_curve(&back, r1, Role::Reactant, 0).unwrap(),
+    );
+    assert!(close(c0.p1, c1.p1) && close(c0.p2, c1.p2), "{c0:?}\n{c1:?}");
+}

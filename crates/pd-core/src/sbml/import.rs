@@ -694,8 +694,9 @@ impl Builder {
                         !matches!(role, Some(sb::Role::Product | sb::Role::SideProduct));
                     let leg = if is_source { &mut source } else { &mut sink };
                     leg.place = Some(*place);
-                    leg.handles = handles.map(|(a, b, c1, c2)| {
-                        orient(a, b, c1, c2, rx.junction, place.center, is_source)
+                    let single = srg.curve.as_ref().is_some_and(|c| c.segments.len() == 1);
+                    leg.handles = handles.map(|h| {
+                        handles_to_centre(h, rx.junction, place.center, is_source, single)
                     });
                     continue;
                 }
@@ -742,7 +743,9 @@ impl Builder {
                     && let Some((a, b, c1, c2)) = handles
                 {
                     let reactant = prole == crate::model::Role::Reactant;
-                    (p.ctrl1, p.ctrl2) = orient(a, b, c1, c2, junction, center, reactant);
+                    let single = srg.curve.as_ref().is_some_and(|c| c.segments.len() == 1);
+                    (p.ctrl1, p.ctrl2) =
+                        handles_to_centre((a, b, c1, c2), junction, center, reactant, single);
                     p.ctrl_pts_set = true;
                     rx.mode = ReactionMode::Bezier;
                 }
@@ -935,6 +938,42 @@ fn orient(
         (c1, c2)
     } else {
         (c2, c1)
+    }
+}
+
+/// `(ctrl1, ctrl2)` for a leg drawn by one Bézier segment from `start` to
+/// `end`. This app's legs run to the node's centre and are drawn cut at its
+/// border, and that drawn part is what it writes (S §11.5): when the segment,
+/// carried on, passes through the node's centre, the handles are those of
+/// the whole curve. Otherwise, or with several segments, they are the
+/// segment's own, as other tools write them.
+fn handles_to_centre(
+    (start, end, c1, c2): (Pt, Pt, Pt, Pt),
+    junction: Pt,
+    species: Pt,
+    reactant: bool,
+    single: bool,
+) -> (Pt, Pt) {
+    let (h1, h2) = orient(start, end, c1, c2, junction, species, reactant);
+    if !single {
+        return (h1, h2);
+    }
+    use crate::geometry::CubicBezier;
+    // From the junction's end to the border, as written or turned round, as
+    // `orient` decides.
+    let from_species = start.distance(species) + end.distance(junction)
+        <= start.distance(junction) + end.distance(species);
+    let drawn = if from_species {
+        CubicBezier::new(end, c2, c1, start)
+    } else {
+        CubicBezier::new(start, c1, c2, end)
+    };
+    let tolerance = 1e-6 * (1.0 + species.x.abs().max(species.y.abs()));
+    match drawn.extended_to(species, tolerance) {
+        // A reactant's curve runs from the species to the junction.
+        Some(whole) if reactant => (whole.p2, whole.p1),
+        Some(whole) => (whole.p1, whole.p2),
+        None => (h1, h2),
     }
 }
 

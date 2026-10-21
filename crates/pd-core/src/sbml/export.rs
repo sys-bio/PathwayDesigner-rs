@@ -585,20 +585,28 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                     .then(|| leg_curve(model, r, leg.role, leg.index))
                     .flatten(),
             ) {
-                // basePoint1 = ctrl1 and basePoint2 = ctrl2 on both sides
-                // (S §5.6.1, §11.5).
-                (Role::Reactant, Some(c)) => sb::Segment::Bezier {
-                    start: point(edge),
-                    end: point(j),
-                    base1: point(c.p1),
-                    base2: point(c.p2),
-                },
-                (Role::Product, Some(c)) => sb::Segment::Bezier {
-                    start: point(j),
-                    end: point(edge),
-                    base1: point(c.p1),
-                    base2: point(c.p2),
-                },
+                // The part of the curve that is drawn: it runs to the node's
+                // centre and is cut where it crosses the node's border
+                // (S §5.6.3), so a reader draws the same curve and points an
+                // arrowhead along it. Its base points are the drawn part's;
+                // import carries it on to the centre again (S §11.5).
+                (role, Some(c)) => {
+                    let t = crate::geometry::bezier_crossing(&c, |p| {
+                        crate::node_shape::contains(node, p)
+                    });
+                    let (first, second) = c.split(t);
+                    let d = if role == Role::Reactant {
+                        second
+                    } else {
+                        first
+                    };
+                    sb::Segment::Bezier {
+                        start: point(d.p0),
+                        end: point(d.p3),
+                        base1: point(d.p1),
+                        base2: point(d.p2),
+                    }
+                }
                 (Role::Product, None) => sb::Segment::Line {
                     start: point(j),
                     end: point(edge),

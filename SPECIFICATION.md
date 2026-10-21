@@ -2220,7 +2220,15 @@ libSBML. The reference writes the XML itself.
     - Product: from the junction to the node's border point.
     - Bézier reactions use `xsi:type="CubicBezier"` with `basePoint1 = ctrl1` and
       `basePoint2 = ctrl2`, using the stored or automatic handles. Because of the
-      convention in §5.6.1, no reversal is needed.
+      convention in §5.6.1, no reversal is needed. *(Rust version:)* the curve
+      written is the part that is drawn: the leg's curve runs to the node's
+      centre, so it is split where it crosses the node's border (§5.6.3), and
+      its start, end and base points are that part's. Another reader then draws
+      the same curve and points an arrowhead along it. Import carries a single
+      Bézier segment on, along the same cubic, to the first point where it
+      reaches the node's centre, and takes that whole curve's handles; a segment
+      that never reaches it keeps its own (other tools' curves, and files
+      written before this).
     - Other reactions use `xsi:type="LineSegment"`.
   - Ids MUST be unique. If one species appears twice on the same side, add a suffix
     (§15, D-13).
