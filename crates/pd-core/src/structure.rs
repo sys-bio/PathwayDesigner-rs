@@ -198,6 +198,24 @@ pub struct Structure {
 impl Structure {
     /// The structure of `model`.
     pub fn of(model: &Model) -> Self {
+        let (species, reactions, n) = stoichiometry(model);
+        Self::from_matrix(species, reactions, n)
+    }
+
+    /// The structure of the stoichiometry matrix `n`, rows `species`,
+    /// columns `reactions`.
+    pub fn from_matrix(species: Vec<Id>, reactions: Vec<Id>, n: Matrix) -> Self {
+        Self::factorize(species, reactions, n)
+    }
+}
+
+/// A model's stoichiometry matrix: its rows (the floating species, see
+/// [`Structure::species`]), its columns (every reaction) and its entries,
+/// products minus reactants, aliases counted as their primary, modifiers not
+/// at all. Cheap: the factorization is the costly part, so a view can build
+/// this every frame and factorize only when it changes.
+pub fn stoichiometry(model: &Model) -> (Vec<Id>, Vec<Id>, Matrix) {
+    {
         let ruled: std::collections::HashSet<&str> = model
             .assignment_rules
             .iter()
@@ -234,12 +252,25 @@ impl Structure {
                 }
             }
         }
-        Self::from_matrix(species, reactions, n)
+        (species, reactions, n)
     }
+}
 
-    /// The structure of the stoichiometry matrix `n`, rows `species`,
-    /// columns `reactions`.
-    pub fn from_matrix(species: Vec<Id>, reactions: Vec<Id>, n: Matrix) -> Self {
+/// How much work factorizing an `rows × cols` matrix is, in multiply-adds,
+/// roughly (`rows × cols × min`, for each of the two factorizations).
+pub fn work(rows: usize, cols: usize) -> f64 {
+    2.0 * rows as f64 * cols as f64 * rows.min(cols) as f64
+}
+
+/// The most work the Structure tab does (docs/structural-analysis-design.md
+/// D4, author 2026-10-21): about a 600 × 600 network, some 0.6 s natively and
+/// 1.5 s in the browser (366 × 340 measured at 91 and 207 ms), since the
+/// analysis runs while the user waits. Larger networks would need a sparse
+/// factorization.
+pub const WORK_LIMIT: f64 = 4.5e8;
+
+impl Structure {
+    fn factorize(species: Vec<Id>, reactions: Vec<Id>, n: Matrix) -> Self {
         // Conservation: Nᵀ P = Q [R₁₁ R₁₂] over the species; the pivot
         // columns are the independent species, and N_dep = (R₁₁⁻¹R₁₂)ᵀ N_indep.
         let qr_t = pivoted_qr(&n.transpose());
@@ -314,6 +345,175 @@ impl Structure {
             })
             .collect()
     }
+}
+
+impl Structure {
+    /// A null-space vector as text: its independent reaction first, the
+    /// others in the model's order; in the smallest whole numbers of its
+    /// proportions when they are simple fractions, else with the independent
+    /// reaction at 1 and the rest to four significant figures:
+    /// `J1 + J0`, `2 J1 + J0`, `PTA + 0.0795 PGI − 0.0909 GLT`.
+    pub fn flux_text(&self, v: &FluxVector) -> String {
+        terms_text(&v.terms, Some(v.independent), |c| {
+            self.reactions[c].as_str()
+        })
+    }
+
+    /// A conservation law as text, its species in the model's order:
+    /// `ATP + ADP = constant`, `A + 2 B = constant`.
+    pub fn law_text(&self, law: &ConservationLaw) -> String {
+        format!(
+            "{} = constant",
+            terms_text(&law.terms, None, |i| self.species[i].as_str())
+        )
+    }
+
+    /// The stoichiometry matrix as CSV: a header of reaction ids, then one
+    /// row per species, its id first.
+    pub fn n_csv(&self) -> String {
+        let mut out = csv_row(std::iter::once(String::new()).chain(self.reactions.iter().cloned()));
+        for (i, sp) in self.species.iter().enumerate() {
+            out += &csv_row(
+                std::iter::once(sp.clone())
+                    .chain((0..self.n.cols).map(|c| number(self.n.get(i, c)))),
+            );
+        }
+        out
+    }
+
+    /// The stoichiometry matrix tab-separated, as a spreadsheet pastes it: a
+    /// header of reaction ids, then one row per species.
+    pub fn n_tsv(&self) -> String {
+        let row = |fields: Vec<String>| fields.join("\t") + "\n";
+        let mut out = row(std::iter::once(String::new())
+            .chain(self.reactions.iter().cloned())
+            .collect());
+        for (i, sp) in self.species.iter().enumerate() {
+            out += &row(std::iter::once(sp.clone())
+                .chain((0..self.n.cols).map(|c| number(self.n.get(i, c))))
+                .collect());
+        }
+        out
+    }
+
+    /// The null-space basis as CSV: one column per vector, named by its
+    /// independent reaction; one row per reaction, in the model's order.
+    pub fn null_space_csv(&self) -> String {
+        let basis = self.null_space();
+        let mut out = csv_row(
+            std::iter::once(String::new())
+                .chain(basis.iter().map(|v| self.reactions[v.independent].clone())),
+        );
+        for (c, rx) in self.reactions.iter().enumerate() {
+            out += &csv_row(
+                std::iter::once(rx.clone()).chain(
+                    basis
+                        .iter()
+                        .map(|v| number(v.terms.iter().find(|t| t.0 == c).map_or(0.0, |t| t.1))),
+                ),
+            );
+        }
+        out
+    }
+
+    /// The conservation laws as CSV: one row per law, named by its dependent
+    /// species; one column per species, in the model's order.
+    pub fn laws_csv(&self) -> String {
+        let laws = self.conservation_laws();
+        let mut out = csv_row(std::iter::once(String::new()).chain(self.species.iter().cloned()));
+        for (law, &dep) in laws.iter().zip(&self.dependent_species) {
+            out += &csv_row(
+                std::iter::once(self.species[dep].clone()).chain(
+                    (0..self.species.len())
+                        .map(|i| number(law.terms.iter().find(|t| t.0 == i).map_or(0.0, |t| t.1))),
+                ),
+            );
+        }
+        out
+    }
+}
+
+/// A sum of terms `(index, coefficient)` as text, by `name`: the term for
+/// `lead` first (if given), the rest in index order. Whole numbers when the
+/// proportions allow; otherwise scaled so the first term is 1, to four
+/// significant figures. The first coefficient is positive.
+fn terms_text<'a>(
+    terms: &[(usize, f64)],
+    lead: Option<usize>,
+    name: impl Fn(usize) -> &'a str,
+) -> String {
+    let mut terms = terms.to_vec();
+    terms.sort_by_key(|t| (Some(t.0) != lead, t.0));
+    let values: Vec<f64> = terms.iter().map(|t| t.1).collect();
+    let flip = values.first().is_some_and(|&v| v < 0.0);
+    let shown: Vec<String> = match smallest_integers(&values) {
+        Some(ints) => ints
+            .iter()
+            .map(|&k| if flip { -k } else { k })
+            .map(|k| k.to_string())
+            .collect(),
+        None => {
+            let first = values.first().copied().unwrap_or(1.0);
+            values.iter().map(|&v| significant(v / first)).collect()
+        }
+    };
+    let mut out = String::new();
+    for (i, ((index, _), k)) in terms.iter().zip(&shown).enumerate() {
+        let (negative, magnitude) = match k.strip_prefix('-') {
+            Some(m) => (true, m),
+            None => (false, k.as_str()),
+        };
+        match (i, negative) {
+            (0, true) => out.push('−'),
+            (0, false) => {}
+            (_, true) => out.push_str(" − "),
+            (_, false) => out.push_str(" + "),
+        }
+        if magnitude != "1" {
+            out.push_str(magnitude);
+            out.push(' ');
+        }
+        out.push_str(name(*index));
+    }
+    out
+}
+
+/// `v` to four significant figures, without trailing zeros: `0.0795`,
+/// `1.25`, `1`.
+fn significant(v: f64) -> String {
+    if v == 0.0 || !v.is_finite() {
+        return "0".into();
+    }
+    let digits = (3 - v.abs().log10().floor() as i32).max(0) as usize;
+    let text = format!("{v:.digits$}");
+    if text.contains('.') {
+        text.trim_end_matches('0').trim_end_matches('.').to_owned()
+    } else {
+        text
+    }
+}
+
+/// A number for CSV: cleaned as for display (within [`TINY`] of a simple
+/// fraction, that fraction's value, so a 1 the factorization left as
+/// 0.9999999999999999 is 1), then as Rust writes it, the shortest that reads
+/// back the same; negative zero as 0.
+fn number(v: f64) -> String {
+    let v = as_fraction(v).map_or(v, |(n, d)| n as f64 / d as f64);
+    if v == 0.0 { "0".into() } else { format!("{v}") }
+}
+
+/// One CSV line; a field with a comma, quote or line break is quoted.
+fn csv_row(fields: impl Iterator<Item = String>) -> String {
+    let quoted: Vec<String> = fields
+        .map(|f| {
+            if f.contains([',', '"', '\n', '\r']) {
+                format!("\"{}\"", f.replace('"', "\"\""))
+            } else {
+                f
+            }
+        })
+        .collect();
+    quoted.join(",") + "\n"
 }
 
 /// Entries this close to zero are zero, as COPASI clears entries below
@@ -639,6 +839,78 @@ mod tests {
         let basis = s.null_space();
         assert_eq!(basis.len(), 1);
         assert_eq!(basis[0].terms, [(0, 1.0)]);
+    }
+
+    #[test]
+    fn vectors_and_laws_read_as_equations() {
+        // X → 2 A (J0), A → Y (J1), A → Z (J2): J0's basis vector is
+        // J0 + 2 J1 (or with J2), the other J2 − J1.
+        let mut m = model(&[
+            ("J0", &[("X", 1.0)], &[("A", 2.0)]),
+            ("J1", &[("A", 1.0)], &[("Y", 1.0)]),
+            ("J2", &[("A", 1.0)], &[("Z", 1.0)]),
+        ]);
+        for id in ["X", "Y", "Z"] {
+            m.find_species_mut(id).unwrap().is_boundary = true;
+        }
+        let s = Structure::of(&m);
+        // J0 has the largest column (2), so it is the dependent flux; each
+        // vector is led by its independent branch, in whole numbers.
+        let texts: Vec<String> = s.null_space().iter().map(|v| s.flux_text(v)).collect();
+        assert_eq!(texts, ["2 J1 + J0", "2 J2 + J0"]);
+        // A law, whole numbers, species in the model's order.
+        let m = model(&[
+            ("J1", &[("A", 2.0)], &[("B", 1.0)]),
+            ("J2", &[("B", 1.0)], &[("A", 2.0)]),
+        ]);
+        let s = Structure::of(&m);
+        let laws = s.conservation_laws();
+        assert_eq!(s.law_text(&laws[0]), "A + 2 B = constant");
+        // Not simple fractions: the first at 1, four significant figures.
+        let pq = |i: usize| ["P", "Q", "R"][i];
+        let terms = [(0, 1.0), (1, 0.123456), (2, -0.0795)];
+        assert_eq!(terms_text(&terms, None, pq), "P + 0.1235 Q − 0.0795 R");
+        // The lead first, whatever its index.
+        assert_eq!(terms_text(&terms, Some(2), pq), "R − 12.58 P − 1.553 Q");
+        // The first coefficient is made positive.
+        assert_eq!(terms_text(&[(0, -1.0), (1, 1.0)], None, pq), "P − Q");
+        assert_eq!(significant(2.5), "2.5");
+        assert_eq!(significant(1.0), "1");
+        assert_eq!(significant(-0.000123456), "-0.0001235");
+    }
+
+    #[test]
+    fn matrices_export_as_csv() {
+        let m = model(&[
+            ("J1", &[("A", 1.0)], &[("B", 1.0)]),
+            ("J2", &[("B", 1.0)], &[("A", 1.0)]),
+        ]);
+        let s = Structure::of(&m);
+        assert_eq!(s.n_csv(), ",J1,J2\nA,-1,1\nB,1,-1\n");
+        assert_eq!(s.n_tsv(), "\tJ1\tJ2\nA\t-1\t1\nB\t1\t-1\n");
+        let k = s.null_space_csv();
+        let lines: Vec<&str> = k.lines().collect();
+        assert_eq!(lines.len(), 3, "{k}");
+        assert!(
+            lines[1].starts_with("J1,1") && lines[2].starts_with("J2,1"),
+            "{k}"
+        );
+        let l = s.laws_csv();
+        assert_eq!(l.lines().count(), 2, "{l}");
+        assert!(l.lines().nth(1).unwrap().ends_with(",1,1"), "{l}");
+        // A name with a comma is quoted.
+        assert_eq!(
+            csv_row(["a,b".to_string(), "c\"d".to_string()].into_iter()),
+            "\"a,b\",\"c\"\"d\"\n"
+        );
+    }
+
+    #[test]
+    fn the_limit_is_measured_in_work() {
+        assert!(work(600, 600) <= WORK_LIMIT);
+        assert!(work(1000, 1000) > WORK_LIMIT);
+        assert!(work(5800, 10600) > WORK_LIMIT);
+        assert_eq!(work(0, 50), 0.0);
     }
 
     #[test]

@@ -65,6 +65,7 @@ pub enum Filter {
     Pdf,
     /// Saved styles (S §8.6): a style list, or a diagram for its styles.
     Styles,
+    Csv,
 }
 
 impl Filter {
@@ -86,6 +87,7 @@ impl Filter {
             Filter::Png => &[("PNG image", &["png"])],
             Filter::Pdf => &[("PDF document", &["pdf"])],
             Filter::Styles => &[("PathwayDesigner styles or diagram", &["json"])],
+            Filter::Csv => &[("Comma-separated values", &["csv"])],
         }
     }
 }
@@ -125,6 +127,8 @@ pub enum Purpose {
     ImportStyles,
     /// Write My Styles.
     ExportStyles,
+    /// Write a matrix or list from the Structure tab, as CSV.
+    ExportCsv,
 }
 
 /// A finished file operation.
@@ -274,6 +278,7 @@ impl Files {
             Purpose::ExportPng => Filter::Png,
             Purpose::ExportPdf => Filter::Pdf,
             Purpose::ExportStyles => Filter::Styles,
+            Purpose::ExportCsv => Filter::Csv,
             _ => Filter::Json,
         };
         spawn(async move {

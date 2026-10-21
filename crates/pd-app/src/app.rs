@@ -153,6 +153,9 @@ pub(crate) enum RightTab {
     Antimony,
     /// The saved styles of the model and of My Styles (S §8.6).
     Styles,
+    /// The network's structure: its stoichiometry matrix, flux null space and
+    /// conservation laws (docs/structural-analysis-design.md).
+    Structure,
 }
 
 pub struct PathwayApp {
@@ -161,6 +164,8 @@ pub struct PathwayApp {
     canvas: CanvasState,
     inspector: Inspector,
     pub(crate) antimony: AntimonyPanel,
+    /// The Structure tab and the matrix panel.
+    pub(crate) structure: crate::structure_panel::StructurePanel,
     /// Which of the right panel's tabs is shown.
     pub(crate) right_tab: RightTab,
     /// The Edit Style window, while it is open (S §8.6).
@@ -248,6 +253,7 @@ impl PathwayApp {
             canvas: CanvasState::default(),
             inspector: Inspector::default(),
             antimony: AntimonyPanel::default(),
+            structure: Default::default(),
             right_tab: RightTab::default(),
             style_editor: None,
             prefs: Preferences::load(cc.storage),
@@ -1571,12 +1577,24 @@ impl eframe::App for PathwayApp {
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
         egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
+        // The stoichiometry matrix, under the canvas and the side panels
+        // (docs/structural-analysis-design.md §6).
+        if self.right_tab == RightTab::Structure || self.structure.show_matrix {
+            self.structure.refresh(self.view.model());
+        }
+        if self.structure.show_matrix {
+            egui::Panel::bottom("matrix")
+                .resizable(true)
+                .default_size(220.0)
+                .show(ui, |ui| self.structure.matrix(ui));
+        }
         egui::Panel::left("tools").resizable(false).show(ui, |ui| {
             ui.add_enabled_ui(!busy, |ui| self.tool_palette(ui))
         });
         let opts = self.import_options();
         let mut antimony_action = None;
         let mut styles_action = None;
+        let mut structure_export = None;
         egui::Panel::right("inspector")
             .resizable(true)
             .default_size(280.0)
@@ -1586,6 +1604,7 @@ impl eframe::App for PathwayApp {
                         (RightTab::Properties, "Properties"),
                         (RightTab::Antimony, "Antimony"),
                         (RightTab::Styles, "Styles"),
+                        (RightTab::Structure, "Structure"),
                     ] {
                         ui.selectable_value(&mut self.right_tab, tab, name);
                     }
@@ -1600,9 +1619,21 @@ impl eframe::App for PathwayApp {
                         RightTab::Styles => {
                             styles_action = crate::styles_panel::show(ui, &mut self.view);
                         }
+                        RightTab::Structure => {
+                            let stem = self
+                                .doc
+                                .name
+                                .rsplit_once('.')
+                                .map_or(self.doc.name.as_str(), |(a, _)| a)
+                                .to_owned();
+                            structure_export = self.structure.show(ui, &stem);
+                        }
                     });
                 });
             });
+        if let Some(e) = structure_export {
+            self.export_csv(e.name, e.csv);
+        }
         match styles_action {
             Some(crate::styles_panel::StylesAction::Rename(kind, old)) => {
                 self.dialog = Some(Dialog::RenameStyle {
@@ -2007,6 +2038,51 @@ mod tests {
                 .is_some_and(|v| v.starts_with("Couldn't open Bad:"))),
             "the window says why"
         );
+    }
+
+    #[test]
+    fn the_structure_tab_and_the_matrix_panel() {
+        let mut h = Harness::new();
+        h.app.perform(Action::OpenText {
+            name: "mapk.json".into(),
+            text: include_str!("../../../ExampleModels/mapk_cascade.json").into(),
+            target: None,
+        });
+        h.run(vec![]);
+        // The tab: 8 species, 10 reactions, rank 5, three conservation laws.
+        h.click(h.widget("Structure"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Structure);
+        let s = h.app.structure.structure().expect("analysed");
+        assert_eq!((s.species.len(), s.reactions.len(), s.rank), (8, 10, 5));
+        assert_eq!(s.conservation_laws().len(), 3);
+        let law = s.law_text(&s.conservation_laws()[0]);
+        // The matrix panel opens from the tab and closes from its own button.
+        assert!(!h.app.structure.show_matrix);
+        h.click(h.widget("Stoichiometry matrix"));
+        h.run(vec![]);
+        assert!(h.app.structure.show_matrix);
+        h.click(h.widget("✕"));
+        h.run(vec![]);
+        assert!(!h.app.structure.show_matrix);
+        // A law is picked by clicking it, and let go by clicking again.
+        h.click(h.widget(&law));
+        assert!(matches!(
+            h.app.structure.picked,
+            Some(crate::structure_panel::Picked::Law(_))
+        ));
+        h.click(h.widget(&law));
+        assert_eq!(h.app.structure.picked, None);
+        // An edit is followed: with the first reaction gone, the analysis is
+        // of 9 reactions.
+        let first = h.app.view.model().reactions()[0].id.clone();
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg(first), false);
+        h.app.view.delete_selection();
+        h.run(vec![]);
+        let s = h.app.structure.structure().expect("analysed");
+        assert_eq!(s.reactions.len(), 9);
     }
 
     #[test]

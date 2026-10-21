@@ -66,8 +66,9 @@ a tolerance, and the link matrix from the inverse of the triangular factor
 - **Clean-up for display**, as COPASI zeroes entries below 100 × epsilon: an entry
   within a small tolerance of zero is zero, and one within it of a small integer or
   a simple fraction (denominator up to 12) is shown as that, so the usual results
-  read 1, −1, 2, 1/2 rather than 0.9999999. The unrounded values are what is
-  exported.
+  read 1, −1, 2, 1/2 rather than 0.9999999. Exported CSV is cleaned the same
+  way (a value within the tolerance of a simple fraction is written as that
+  fraction's value); any other value as computed.
 - **Size.** The factorization is dense, O(m n min(m, n)). Measured natively
   (step 2, 2026-10-21): 66 × 43 in 0.4 ms, 155 × 205 in 12 ms, 366 × 340 in 91 ms;
   about a cube law, so some 1,000 reactions take seconds. Recon3D whole (about
@@ -162,9 +163,10 @@ reaction to be independent (it is moved last before factorizing, so the pivoting
 keeps it out of the dependent set where it can), to ask "if I change this enzyme,
 what else must change?". Not in the first version.
 
-**D4. The size limit.** Above how many reactions the tab declines (e.g. 2,000,
-some 10 s natively, more in the browser), or computes in the background with a
-progress bar. To be decided with step 3, after timing in the browser.
+**D4. The size limit (decided 2026-10-21).** The tab declines networks above
+about 600 × 600 (`WORK_LIMIT`): measured, 366 × 340 takes 91 ms natively and
+207 ms in the browser, so 600 × 600 is some 1.5 s in the browser, the most to
+wait for while the analysis runs in the foreground.
 
 **D2. Exported figures.**
 - (a) Graphics export draws the highlight as shown *(recommended)*: the point of

@@ -20,6 +20,7 @@ mod prefs;
 mod recent;
 mod renderer;
 mod samples;
+mod structure_panel;
 mod styles_panel;
 mod tree;
 #[cfg(target_arch = "wasm32")]

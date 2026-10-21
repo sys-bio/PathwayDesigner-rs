@@ -243,6 +243,18 @@ impl PathwayApp {
         );
     }
 
+    /// Saves a matrix or list from the Structure tab as CSV.
+    pub(crate) fn export_csv(&mut self, name: String, csv: String) {
+        self.files.save(
+            &self.ctx,
+            Purpose::ExportCsv,
+            name,
+            csv.into_bytes(),
+            None,
+            true,
+        );
+    }
+
     pub(crate) fn export_antimony(&mut self) {
         let name = with_extension(&self.doc.name, "ant");
         let text = self.view.export_antimony();
@@ -398,6 +410,7 @@ impl PathwayApp {
             FileEvent::Saved {
                 purpose:
                     Purpose::ExportAntimony
+                    | Purpose::ExportCsv
                     | Purpose::ExportSvg
                     | Purpose::ExportPng
                     | Purpose::ExportPdf,
