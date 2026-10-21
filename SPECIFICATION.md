@@ -1925,7 +1925,9 @@ says before any rate law is known, and draws it on the network.
   by its independent reaction (K matrix) or its first item (sparse), in whole
   numbers where the proportions allow, else with the lead at 1 and four
   significant figures. Values within 10⁻⁹ of a simple fraction (denominator up to
-  12) are taken as it. *Copy* puts the matrix (tab-separated) or a list (one per
+  12) are taken as it. The two lists are sections that fold away by their headers
+  (*Flux null space (n)*, *Conservation laws (n)*), open at first, so a long list
+  need not push the other out of sight. *Copy* puts the matrix (tab-separated) or a list (one per
   line) on the clipboard; *Export…* saves the matrix, the basis or the laws as CSV.
 - **The matrix panel** (*Matrices*, a toggle in the tab) opens under the canvas,
   resizable, with three tabs: **N**, the stoichiometry matrix; **K**, the K matrix

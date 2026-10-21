@@ -332,72 +332,87 @@ impl StructurePanel {
             ""
         };
 
-        // The flux null space, one row per basis vector.
-        ui.horizontal(|ui| {
-            ui.strong(format!("Flux null space ({})", bases.fluxes.len()));
+        // The flux null space and the conservation laws, each a section that
+        // folds away (open at first; egui remembers), so a long list doesn't
+        // push the other out of sight.
+        let mut picked = self.picked;
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!("Flux null space ({})", bases.fluxes.len())).strong(),
+        )
+        .id_salt("structure-null-space")
+        .default_open(true)
+        .show(ui, |ui| {
             if !bases.fluxes.is_empty() {
-                if ui.small_button("Copy").clicked() {
-                    ui.ctx()
-                        .copy_text(lines(bases.fluxes.iter().map(|v| s.flux_text(v))));
-                }
-                if ui.small_button("Export…").clicked() {
-                    export = Some(Export {
-                        name: format!("{model_name}{tag} null space.csv"),
-                        csv: s.null_space_csv(&bases.fluxes),
-                    });
+                ui.horizontal(|ui| {
+                    if ui.small_button("Copy").clicked() {
+                        ui.ctx()
+                            .copy_text(lines(bases.fluxes.iter().map(|v| s.flux_text(v))));
+                    }
+                    if ui.small_button("Export…").clicked() {
+                        export = Some(Export {
+                            name: format!("{model_name}{tag} null space.csv"),
+                            csv: s.null_space_csv(&bases.fluxes),
+                        });
+                    }
+                });
+            }
+            ui.label(
+                egui::RichText::new(
+                    "Each set of reactions can change together, in these proportions, \
+                     with every species staying balanced.",
+                )
+                .weak()
+                .small(),
+            );
+            if bases.fluxes.is_empty() {
+                ui.label("None: no flux can change without unbalancing a species.");
+            }
+            for (i, v) in bases.fluxes.iter().enumerate() {
+                let on = picked == Some(Picked::Flux(i));
+                if ui
+                    .add(egui::Button::selectable(on, s.flux_text(v)).wrap())
+                    .clicked()
+                {
+                    picked = (!on).then_some(Picked::Flux(i));
                 }
             }
         });
-        ui.label(
-            egui::RichText::new(
-                "Each set of reactions can change together, in these proportions, \
-                 with every species staying balanced.",
-            )
-            .weak()
-            .small(),
-        );
-        if bases.fluxes.is_empty() {
-            ui.label("None: no flux can change without unbalancing a species.");
-        }
-        for (i, v) in bases.fluxes.iter().enumerate() {
-            let picked = self.picked == Some(Picked::Flux(i));
-            if ui
-                .add(egui::Button::selectable(picked, s.flux_text(v)).wrap())
-                .clicked()
-            {
-                self.picked = (!picked).then_some(Picked::Flux(i));
-            }
-        }
         ui.separator();
 
-        // The conservation laws.
-        ui.horizontal(|ui| {
-            ui.strong(format!("Conservation laws ({})", bases.laws.len()));
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!("Conservation laws ({})", bases.laws.len())).strong(),
+        )
+        .id_salt("structure-laws")
+        .default_open(true)
+        .show(ui, |ui| {
             if !bases.laws.is_empty() {
-                if ui.small_button("Copy").clicked() {
-                    ui.ctx()
-                        .copy_text(lines(bases.laws.iter().map(|l| s.law_text(l))));
-                }
-                if ui.small_button("Export…").clicked() {
-                    export = Some(Export {
-                        name: format!("{model_name}{tag} conservation laws.csv"),
-                        csv: s.laws_csv(&bases.laws),
-                    });
+                ui.horizontal(|ui| {
+                    if ui.small_button("Copy").clicked() {
+                        ui.ctx()
+                            .copy_text(lines(bases.laws.iter().map(|l| s.law_text(l))));
+                    }
+                    if ui.small_button("Export…").clicked() {
+                        export = Some(Export {
+                            name: format!("{model_name}{tag} conservation laws.csv"),
+                            csv: s.laws_csv(&bases.laws),
+                        });
+                    }
+                });
+            }
+            if bases.laws.is_empty() {
+                ui.label("None.");
+            }
+            for (i, law) in bases.laws.iter().enumerate() {
+                let on = picked == Some(Picked::Law(i));
+                if ui
+                    .add(egui::Button::selectable(on, s.law_text(law)).wrap())
+                    .clicked()
+                {
+                    picked = (!on).then_some(Picked::Law(i));
                 }
             }
         });
-        if bases.laws.is_empty() {
-            ui.label("None.");
-        }
-        for (i, law) in bases.laws.iter().enumerate() {
-            let picked = self.picked == Some(Picked::Law(i));
-            if ui
-                .add(egui::Button::selectable(picked, s.law_text(law)).wrap())
-                .clicked()
-            {
-                self.picked = (!picked).then_some(Picked::Law(i));
-            }
-        }
+        self.picked = picked;
         export
     }
 

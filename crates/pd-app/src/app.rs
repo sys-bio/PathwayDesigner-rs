@@ -2087,6 +2087,30 @@ mod tests {
         assert_eq!(h.app.structure.picked, None);
         h.run(vec![]);
         assert!(h.app.view.highlight().is_none(), "let go");
+        // The null-space list folds away, leaving the laws in view; and
+        // opens again.
+        let has = |h: &Harness, label: &str| {
+            h.access
+                .as_ref()
+                .is_some_and(|t| t.nodes.iter().any(|(_, n)| n.label() == Some(label)))
+        };
+        let first = {
+            let s = h.app.structure.structure().unwrap();
+            s.flux_text(&h.app.structure.bases().unwrap().fluxes[0])
+        };
+        assert!(has(&h, &first));
+        h.click(h.widget("Flux null space (5)"));
+        // Past the folding animation.
+        for _ in 0..10 {
+            h.run(vec![]);
+        }
+        assert!(!has(&h, &first), "folded");
+        assert!(has(&h, &law), "the laws still there");
+        h.click(h.widget("Flux null space (5)"));
+        for _ in 0..10 {
+            h.run(vec![]);
+        }
+        assert!(has(&h, &first), "open again");
         // The sparse basis: the same number of vectors and laws, each no
         // longer than the factorization's; the K matrix again on the other
         // button.
