@@ -9,8 +9,11 @@ use crate::bezier::leg_curve;
 use crate::expr;
 use crate::geometry::Pt;
 use crate::model::{DEFAULT_COMPARTMENT, Model, ModifierKind, ReactionMode, Role, SpeciesNode};
+use crate::render::constants::JUNCTION_RADIUS;
 use crate::render::draw::{border, effective_junction, effective_mode, modifier_route};
 use crate::textbox::lay_out;
+
+use super::appearance::Item;
 
 const LEVEL: u32 = 3;
 const VERSION: u32 = 1;
@@ -438,6 +441,8 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
     // gets it right). A null node's glyph names no species, so its place
     // survives a round trip.
     let mut glyph_of: HashMap<&str, String> = HashMap::new();
+    // Every glyph and what it draws, for the render information.
+    let mut glyphs: Vec<(String, Item)> = Vec::new();
     let nodes = model.species();
     let in_order = nodes
         .iter()
@@ -455,19 +460,22 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         // Its shape, in PathwayDesigner's note (S §5.10).
         glyph.meta.annotation = super::shape::species_note(s);
         l.species_glyphs.push(glyph);
+        glyphs.push((id.clone(), Item::Species(s)));
         if !s.is_null_node {
             // A name outside the node has a box of its own (S §5.11).
             let text_box = match crate::render::draw::outside_label_box(s) {
                 Some((a, b)) => sb::BoundingBox::new(a.x, a.y, b.x - a.x, b.y - a.y),
                 None => bbox(s),
             };
+            let tid = ids.unique(format!("tg_{}", s.id));
             l.text_glyphs.push(sb::TextGlyph {
-                id: ids.unique(format!("tg_{}", s.id)),
+                id: tid.clone(),
                 graphical_object: Some(id),
                 origin_of_text: Some(s.primary_id().to_owned()),
                 bounding_box: Some(text_box),
                 ..Default::default()
             });
+            glyphs.push((tid, Item::SpeciesName(s)));
         }
     }
 
@@ -488,6 +496,18 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             ..Default::default()
         };
         g.meta.annotation = super::shape::compartment_note(c);
+        // Its name, in the box the app draws it in (S §7.9).
+        let (a, b) = crate::render::draw::compartment_label_box(c, &f);
+        let tid = ids.unique(format!("tg_{}", c.id));
+        l.text_glyphs.push(sb::TextGlyph {
+            id: tid.clone(),
+            graphical_object: Some(g.id.clone()),
+            origin_of_text: Some(c.id.clone()),
+            bounding_box: Some(sb::BoundingBox::new(a.x, a.y, b.x - a.x, b.y - a.y)),
+            ..Default::default()
+        });
+        glyphs.push((g.id.clone(), Item::Compartment(c, f)));
+        glyphs.push((tid, Item::CompartmentName(c)));
         l.compartment_glyphs.push(g);
     }
 
@@ -506,6 +526,7 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             ..Default::default()
         };
         g.meta.annotation = Some(super::shape::text_note(t));
+        glyphs.push((g.id.clone(), Item::Text(t)));
         l.text_glyphs.push(g);
     }
 
@@ -515,7 +536,18 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         let mut g = sb::ReactionGlyph {
             id: ids.unique(format!("rg_{}", r.id)),
             reaction: Some(r.id.clone()),
-            bounding_box: Some(sb::BoundingBox::new(j.x, j.y, 0.0, 0.0)),
+            // The junction dot's box, so a reader can draw it (S §5.8); a
+            // point where none is drawn.
+            bounding_box: Some(if super::appearance::junction_drawn(r) {
+                sb::BoundingBox::new(
+                    j.x - JUNCTION_RADIUS,
+                    j.y - JUNCTION_RADIUS,
+                    2.0 * JUNCTION_RADIUS,
+                    2.0 * JUNCTION_RADIUS,
+                )
+            } else {
+                sb::BoundingBox::new(j.x, j.y, 0.0, 0.0)
+            }),
             // Its stem (S §5.13) is the glyph's own curve: from the
             // reactants' end through the junction to the products'.
             curve: crate::render::draw::stem_line(r).map(|[a, m, b]| sb::Curve {
@@ -585,8 +617,10 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                     ModifierKind::Modifier | ModifierKind::Catalyst => sb::Role::Modifier,
                 },
             };
+            let sid = ids.unique(format!("srg_{}_{}_{}", r.id, leg.tag, node.id));
+            glyphs.push((sid.clone(), Item::Leg(r, leg.role, p)));
             g.species_reference_glyphs.push(sb::SpeciesReferenceGlyph {
-                id: ids.unique(format!("srg_{}_{}_{}", r.id, leg.tag, node.id)),
+                id: sid,
                 species_glyph: glyph_of[node.id.as_str()].clone(),
                 species_reference: leg.reference.clone(),
                 role: Some(role),
@@ -615,9 +649,12 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         }
         // A name shown: a text glyph of the reaction's id on its glyph, in
         // the name's own box (S §5.12).
+        glyphs.push((g.id.clone(), Item::Reaction(r)));
         if let Some((a, b)) = crate::render::draw::reaction_label_box(model, r) {
+            let tid = ids.unique(format!("tg_{}", r.id));
+            glyphs.push((tid.clone(), Item::ReactionName(r)));
             l.text_glyphs.push(sb::TextGlyph {
-                id: ids.unique(format!("tg_{}", r.id)),
+                id: tid,
                 graphical_object: Some(g.id.clone()),
                 origin_of_text: Some(r.id.clone()),
                 bounding_box: Some(sb::BoundingBox::new(a.x, a.y, b.x - a.x, b.y - a.y)),
@@ -626,6 +663,8 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         }
         l.reaction_glyphs.push(g);
     }
+    // How it all looks (docs/render-design.md).
+    l.render = Some(super::appearance::render_list(model, &glyphs));
     l
 }
 

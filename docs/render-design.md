@@ -175,6 +175,46 @@ what the file says; the *profile* lives in pd-core. Gradients, images and text
 primitives are kept as typed values but never interpreted. Estimate: 900–1,200
 lines with tests.
 
+### 3.6 Built (R2, 2026-10-20)
+
+`pd-core/src/sbml/appearance.rs`; the export registers each glyph with what it
+draws, and the look is resolved by the drawing's own functions (`render::draw`),
+with every optional part shown as in the default view. Decided while building:
+
+- **Layout geometry is unchanged.** Curves end where they did, so the SBML
+  Layout round trip (E4) is exactly as before (its report is identical). The
+  cost, accepted as part of the minimum: a product's arrowhead is drawn with
+  its tip at the node's border, 3 units from where PathwayDesigner draws it;
+  a modifier's line runs on to the junction, under its symbol (open symbols are
+  filled with the background, so this shows only past an inhibitor's bar).
+- **Line endings name their colours** (fill and stroke on the ending's group),
+  one ending per kind, size, distance and colour, since Render doesn't say
+  whether an ending takes its line's colour.
+- **The junction dot:** the reaction glyph's box is the dot's (8 × 8 about the
+  junction) when the dot is drawn, a point otherwise; import already took the
+  box's centre as the junction.
+- **Compartment names** get a text glyph on the compartment's glyph, in the
+  box the app draws the name in; import leaves such glyphs alone.
+- **Hidden modifier lines** (the diagram's setting) are written with no stroke
+  and no ending.
+- **Dotted lines** are written as dashes `round(w),round(2.5w)`: Render's dash
+  arrays are whole numbers and it has no round caps.
+- **The background** is written as a value (`#RRGGBB`), not a colour id.
+- **Saved styles:** the name goes on the style of the item's own glyph only,
+  not on its name's or its lines'.
+
+Checks:
+- all 16 Gallery exports valid under libSBML (Render package enabled), only
+  the usual unit warnings; every glyph has exactly one style (Millard: 792
+  glyphs, 17 styles);
+- SBMLNetwork 0.5.11 draws the exports in PathwayDesigner's colours, shapes,
+  fonts, junction dots, arrowheads and modifier symbols (MAPK cascade, upper
+  glycolysis in the Escher theme). It doesn't draw dash arrays (solid modifier
+  lines), and it misplaces curves in models with compartment boxes
+  (compartment_1) with or without Render: a Layout matter, to look at in R3;
+- 6 new tests (`tests/render_export.rs`); 19 deliberate breakages, all caught;
+  1103 workspace tests pass.
+
 ## 5. Reading (pd-core)
 
 ### 5.1 Which style applies

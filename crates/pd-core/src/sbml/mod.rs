@@ -7,6 +7,7 @@
 //! passes every import gets. A more complete SBML crate could replace
 //! `sbml-io` by changing only this module.
 
+mod appearance;
 mod export;
 mod import;
 pub mod math;
