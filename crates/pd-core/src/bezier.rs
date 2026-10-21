@@ -97,7 +97,7 @@ pub fn leg_curve(model: &Model, r: &Reaction, role: Role, index: usize) -> Optio
     let list = r.participants(role);
     let p = list.get(index)?;
     let s = model.find_species(&p.species)?.center;
-    let j = r.leg_anchor(role);
+    let j = leg_inner_end(r, role, p);
     let (a, b) = if role == Role::Reactant {
         (s, j)
     } else {
@@ -105,10 +105,36 @@ pub fn leg_curve(model: &Model, r: &Reaction, role: Role, index: usize) -> Optio
     };
     let (c1, c2) = if p.ctrl_pts_set {
         (p.ctrl1, p.ctrl2)
-    } else {
+    } else if p.points.is_empty() {
         auto_handles(a, b, role, index, list.len())
+    } else {
+        // Not fanned: the legs don't meet here (S §5.6.5).
+        auto_handles(a, b, role, 0, 1)
     };
     Some(CubicBezier::new(a, c1, c2, b))
+}
+
+/// Where a reactant's or product's end piece meets the rest of its leg: its
+/// first corner point, or its side's end of the stem, or the junction
+/// (S §5.6.5). A leg's handles and its drawn end piece run between the
+/// species and this point.
+pub fn leg_inner_end(r: &Reaction, role: Role, p: &Participant) -> Pt {
+    p.points
+        .first()
+        .copied()
+        .unwrap_or_else(|| r.leg_anchor(role))
+}
+
+/// The straight run of a leg with corner points (S §5.6.5): from its first
+/// corner point through the others to its side's anchor. Empty for a leg
+/// without corner points, and for a modifier (whose arc is drawn apart).
+pub fn leg_run(r: &Reaction, role: Role, p: &Participant) -> Vec<Pt> {
+    if role == Role::Modifier || p.points.is_empty() {
+        return Vec::new();
+    }
+    let mut run = p.points.clone();
+    run.push(r.leg_anchor(role));
+    run
 }
 
 /// How a leg is drawn: cut at the node border (S §5.6.3).
@@ -230,7 +256,9 @@ pub fn smooth_handles(model: &Model, r: &Reaction) -> Vec<LegHandles> {
     out
 }
 
-/// Stores the smooth-junction handles of reaction `id` (S §7.4.4).
+/// Stores the smooth-junction handles of reaction `id` (S §7.4.4). A leg
+/// with corner points doesn't reach the junction, and keeps its handles
+/// (S §5.6.5).
 pub fn apply_smooth_handles(model: &mut Model, id: &str) {
     let Some(r) = model.find_reaction(id) else {
         return;
@@ -239,6 +267,9 @@ pub fn apply_smooth_handles(model: &mut Model, id: &str) {
     let r = model.find_reaction_mut(id).expect("found above");
     for (role, index, h) in handles {
         let p = &mut r.participants_mut(role)[index];
+        if !p.points.is_empty() {
+            continue;
+        }
         match h {
             Some((c1, c2)) => {
                 p.ctrl1 = c1;
@@ -253,7 +284,8 @@ pub fn apply_smooth_handles(model: &mut Model, id: &str) {
 /// Lines up the inner (junction-side) handles of smooth reaction `id` again
 /// after something moved (S §6.4, §7.5), keeping each stored outer handle:
 /// the outer handles are the user's shaping, and only the inner ones make
-/// the junction smooth. A leg with automatic handles is given both.
+/// the junction smooth. A leg with automatic handles is given both; a leg
+/// with corner points is left alone (S §5.6.5).
 pub fn apply_smooth_inner_handles(model: &mut Model, id: &str) {
     let Some(r) = model.find_reaction(id) else {
         return;
@@ -262,6 +294,9 @@ pub fn apply_smooth_inner_handles(model: &mut Model, id: &str) {
     let r = model.find_reaction_mut(id).expect("found above");
     for (role, index, h) in handles {
         let p = &mut r.participants_mut(role)[index];
+        if !p.points.is_empty() {
+            continue;
+        }
         match h {
             Some((c1, c2)) if p.ctrl_pts_set => match role {
                 Role::Reactant => p.ctrl2 = c2,

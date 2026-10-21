@@ -346,6 +346,11 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 15: corner points on reactant and product lines (S §5.6.5).** A
+reactant or product object may have `"points"`: `[x1, y1, x2, y2, …]`, the line's
+corner points in order from the species, as a modifier object has (version 11);
+left out when it has none. A document with a line with corner points is version 15.
+
 **Version 14: bold and italic names (S §5.11.1).** A species' or reaction's
 style object, and a saved style's, may have `"bold": true` and `"italic": true`,
 after `junctionVisible`; left out when false. A document with a

@@ -446,6 +446,32 @@ joins each handle to its anchor: the species centre for an outer handle, the
 junction for an inner handle. When the reaction has a smooth junction, the inner
 handles are outlined in teal (`#009999`, width 1.5).
 
+#### 5.6.5 Corner points on reactant and product lines (Rust version)
+
+*Added in the Rust version*, for routed maps (§11.7) and SBML curves of several
+segments (design: docs/leg-corners-design.md). A reactant's or product's line may
+have **corner points**, stored in world coordinates on its participant, in order
+from the species to its side's anchor (its end of the stem, §5.13, or the
+junction). With none, the line is as above.
+
+- **The pieces.** With corner points, the line is an **end piece** from the
+  species to the first corner point, then **straight pieces** through the other
+  corner points to the anchor. On a Bézier reaction the end piece is the leg's
+  curve (§5.6.1, with the first corner point in place of the junction), cut at the
+  node's border with the reactant gap or the arrowhead as in §5.6.3; without stored
+  handles it is straight, not fanned (§5.6.2), since such lines don't meet at the
+  junction. On a Straight reaction the end piece is straight. The inner handle's
+  guide line (§5.6.4) runs to the first corner point.
+- **Linear** reactions are drawn as one line and ignore corner points, as they
+  ignore the stem. A **smooth junction** smooths only lines without corner points.
+- **Clicking** any piece selects the reaction, as its other lines do.
+- A reaction's name (§5.12) keeps clear of a line with corner points as one that
+  leaves the junction towards the last corner point.
+- Corner points count in the drawing's extent (Fit, export).
+- **Files:** JSON version 15 (SPEC-Rust §4.2): a reactant or product object may
+  have `"points"`, as a modifier's (§5.7.1).
+- Editing, SBML and the Escher import are later steps of the design.
+
 ### 5.7 Modifier arcs
 
 For each modifier of a reaction:

@@ -10,9 +10,9 @@
 //! inside one still reaches what is in it, or starts a rubber band. Tolerances are in screen points, so they are divided by the zoom to
 //! compare in world space.
 
-use crate::bezier::{Ctrl, leg_curve};
+use crate::bezier::{Ctrl, leg_curve, leg_inner_end, leg_run};
 use crate::geometry::{Pt, point_in_rect, point_to_segment_dist};
-use crate::model::{Model, Reaction, ReactionMode, Role, SpeciesNode};
+use crate::model::{Model, Participant, Reaction, ReactionMode, Role, SpeciesNode};
 use crate::render::constants::{
     BEZIER_HIT_SAMPLES, HANDLE_HIT_TOLERANCE_PX, JUNCTION_HIT_TOLERANCE_PX, LEG_HIT_TOLERANCE_PX,
 };
@@ -227,6 +227,10 @@ fn leg_segments<'a>(
             .filter(|s| show_null_species || !s.is_null_node)
     };
     let mut segments = Vec::new();
+    // A leg's straight run through its corner points (S §5.6.5).
+    let run = |segments: &mut Vec<(Pt, Pt)>, role: Role, p: &Participant| {
+        segments.extend(leg_run(r, role, p).windows(2).map(|w| (w[0], w[1])));
+    };
     if let Some([a, j, b]) = crate::render::draw::stem_line(r) {
         segments.push((a, j));
         segments.push((j, b));
@@ -248,6 +252,7 @@ fn leg_segments<'a>(
                         segments.push((w[0], w[1]));
                     }
                 }
+                run(&mut segments, role, part);
             }
         }
     } else if effective_mode(r) == ReactionMode::Linear {
@@ -255,16 +260,18 @@ fn leg_segments<'a>(
             segments.push((leg_start(a, b.center), leg_end(b, a.center).0));
         }
     } else {
-        let j = r.leg_anchor(Role::Reactant);
         for p in &r.reactants {
             if let Some(n) = node(&p.species) {
+                let j = leg_inner_end(r, Role::Reactant, p);
                 segments.push((leg_start(n, j), j));
+                run(&mut segments, Role::Reactant, p);
             }
         }
-        let j = r.leg_anchor(Role::Product);
         for p in &r.products {
             if let Some(n) = node(&p.species) {
+                let j = leg_inner_end(r, Role::Product, p);
                 segments.push((j, leg_end(n, j).0));
+                run(&mut segments, Role::Product, p);
             }
         }
     }

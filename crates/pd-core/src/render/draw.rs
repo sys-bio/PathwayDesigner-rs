@@ -3,7 +3,7 @@
 //! The passes skip work the current options don't need, and never draw
 //! anything that depends on the selection when drawing for output (S §11.6).
 
-use crate::bezier::{Ctrl, leg_curve};
+use crate::bezier::{Ctrl, leg_curve, leg_inner_end, leg_run};
 use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
     BorderDash, Compartment, Frame, LinePattern, Model, ModifierKind, NodeShape, Participant,
@@ -396,6 +396,14 @@ pub fn clear_reaction_label_offset(model: &Model, r: &Reaction) -> Pt {
             }
         }
         for (i, p) in r.participants(role).iter().enumerate() {
+            // A leg with corner points leaves the junction towards the last
+            // of them (S §5.6.5).
+            if role != Role::Modifier
+                && let Some(&last) = p.points.last()
+            {
+                toward.push(last);
+                continue;
+            }
             let curve = (bezier && role != Role::Modifier)
                 .then(|| leg_curve(model, r, role, i))
                 .flatten();
@@ -566,6 +574,11 @@ pub fn content_bounds(model: &Model) -> (Pt, Pt) {
     }
     for r in model.reactions() {
         grow(r.junction);
+        // A leg's corner points may be routed outside everything else
+        // (S §5.6.5).
+        for p in r.reactants.iter().chain(&r.products) {
+            p.points.iter().for_each(|&q| grow(q));
+        }
         if let Some((a, b)) = reaction_label_box(model, r) {
             grow(a);
             grow(b);
@@ -811,15 +824,16 @@ impl Drawer<'_> {
                     if let Some((tip, dir)) = leg.arrow {
                         self.arrowhead(tip, dir, stroke.color, &size, out);
                     }
+                    self.leg_run(r, role, p, stroke, out);
                 }
             }
             return;
         }
 
-        let j = r.leg_anchor(Role::Reactant);
         let size = ArrowSize::of(r);
         for p in &r.reactants {
             if let Some(node) = self.visible(&p.species) {
+                let j = leg_inner_end(r, Role::Reactant, p);
                 let start = if self.both_ends(r) {
                     let (start, tip) = leg_end_sized(node, j, &size);
                     self.arrowhead(tip, node.center - j, stroke.color, &size, out);
@@ -828,15 +842,34 @@ impl Drawer<'_> {
                     leg_start(node, j)
                 };
                 out.polyline(&[self.to_screen(start), self.to_screen(j)], stroke);
+                self.leg_run(r, Role::Reactant, p, stroke, out);
             }
         }
-        let j = r.leg_anchor(Role::Product);
         for p in &r.products {
             if let Some(node) = self.visible(&p.species) {
+                let j = leg_inner_end(r, Role::Product, p);
                 let (end, tip) = leg_end_sized(node, j, &size);
                 out.polyline(&[self.to_screen(j), self.to_screen(end)], stroke);
                 self.arrowhead(tip, node.center - j, stroke.color, &size, out);
+                self.leg_run(r, Role::Product, p, stroke, out);
             }
+        }
+    }
+
+    /// A leg's straight run through its corner points to its side's anchor
+    /// (S §5.6.5), if it has corner points.
+    fn leg_run(
+        &self,
+        r: &Reaction,
+        role: Role,
+        p: &Participant,
+        stroke: Stroke,
+        out: &mut dyn Renderer,
+    ) {
+        let run = leg_run(r, role, p);
+        if run.len() >= 2 {
+            let pts: Vec<SPt> = run.iter().map(|&q| self.to_screen(q)).collect();
+            out.polyline(&pts, stroke);
         }
     }
 
@@ -1636,6 +1669,115 @@ mod tests {
             .unwrap();
         assert!(close(arrow[0], spt(357.0, 0.0)));
         assert!(close(arrow[1], spt(345.0, -5.0)) || close(arrow[1], spt(345.0, 5.0)));
+    }
+
+    /// [`uni_uni`] routed round the junction (S §5.6.5): A's line goes down
+    /// through (0,100) and (200,100) and up to the junction; B's leaves the
+    /// junction up through (200,-100) and (400,-100) and comes down into B.
+    fn routed(mode: ReactionMode) -> Model {
+        let mut m = uni_uni();
+        let r = m.reactions_mut().next().unwrap();
+        r.mode = mode;
+        r.reactants[0].points = vec![pt(0.0, 100.0), pt(200.0, 100.0)];
+        r.products[0].points = vec![pt(400.0, -100.0), pt(200.0, -100.0)];
+        m
+    }
+
+    fn polylines(calls: &[Call]) -> Vec<Vec<SPt>> {
+        calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::Polyline(p, _) => Some(p.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn arrow_tip(calls: &[Call]) -> SPt {
+        calls
+            .iter()
+            .find_map(|c| match c {
+                Call::Polygon(p, _) => Some(p[0]),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn a_straight_leg_runs_through_its_corner_points() {
+        let calls = draw(&routed(ReactionMode::Straight), &DrawOptions::default());
+        let lines = polylines(&calls);
+        let same = |got: &Vec<SPt>, want: &[(f32, f32)]| {
+            got.len() == want.len()
+                && got
+                    .iter()
+                    .zip(want)
+                    .all(|(g, &(x, y))| close(*g, spt(x, y)))
+        };
+        // A's end piece leaves A's bottom (y 18) 6 out, to the first corner.
+        assert!(
+            same(&lines[0], &[(0.0, 24.0), (0.0, 100.0)]),
+            "{:?}",
+            lines[0]
+        );
+        assert!(same(
+            &lines[1],
+            &[(0.0, 100.0), (200.0, 100.0), (200.0, 0.0)]
+        ));
+        // B's end piece comes down from its first corner to 6 short of B's
+        // top (y -18), and the arrowhead points down into B.
+        assert!(
+            same(&lines[2], &[(400.0, -100.0), (400.0, -24.0)]),
+            "{:?}",
+            lines[2]
+        );
+        assert!(same(
+            &lines[3],
+            &[(400.0, -100.0), (200.0, -100.0), (200.0, 0.0)]
+        ));
+        assert!(close(arrow_tip(&calls), spt(400.0, -21.0)));
+    }
+
+    #[test]
+    fn a_bezier_leg_curves_only_into_its_species() {
+        let calls = draw(&routed(ReactionMode::Bezier), &DrawOptions::default());
+        let lines = polylines(&calls);
+        // The runs are straight; the end pieces are curves (not polylines).
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert_eq!(lines[0][0], spt(0.0, 100.0));
+        assert_eq!(lines[1][0], spt(400.0, -100.0));
+        // Without stored handles the end piece is straight, not fanned: the
+        // arrowhead points straight down into B.
+        assert!(close(arrow_tip(&calls), spt(400.0, -21.0)));
+    }
+
+    #[test]
+    fn a_linear_reaction_ignores_corner_points() {
+        let calls = draw(&routed(ReactionMode::Linear), &DrawOptions::default());
+        let lines = polylines(&calls);
+        assert_eq!(lines.len(), 1, "one line from A to B: {lines:?}");
+        assert!(lines[0].iter().all(|p| p.y.abs() < 1e-3));
+    }
+
+    #[test]
+    fn corner_points_count_in_the_drawing_s_extent() {
+        let mut m = routed(ReactionMode::Straight);
+        m.reactions_mut().next().unwrap().reactants[0].points[1] = pt(200.0, 900.0);
+        let (_, max) = content_bounds(&m);
+        assert!(max.y >= 900.0, "{max:?}");
+    }
+
+    #[test]
+    fn a_name_keeps_clear_of_lines_that_leave_through_corner_points() {
+        // Unrouted, the lines leave the junction left and right: the name
+        // goes above or below. Routed, they leave up and down: it goes to a
+        // side.
+        let plain = uni_uni();
+        let o = clear_reaction_label_offset(&plain, &plain.reactions()[0]);
+        assert!(o.y.abs() > o.x.abs(), "{o:?}");
+        let m = routed(ReactionMode::Straight);
+        let o = clear_reaction_label_offset(&m, &m.reactions()[0]);
+        assert!(o.x.abs() > o.y.abs(), "{o:?}");
     }
 
     #[test]

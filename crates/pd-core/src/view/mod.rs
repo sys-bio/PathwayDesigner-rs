@@ -25,6 +25,8 @@ mod interchange;
 #[cfg(test)]
 mod label_tests;
 #[cfg(test)]
+mod leg_corner_tests;
+#[cfg(test)]
 mod modifier_line_tests;
 mod modifier_lines;
 #[cfg(test)]

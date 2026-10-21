@@ -21,8 +21,11 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought bold and italic names (S §5.11.1).
-pub const FORMAT_VERSION: u32 = 14;
+/// one that brought corner points on reactant and product lines (S §5.6.5).
+pub const FORMAT_VERSION: u32 = 15;
+
+/// The version that brought bold and italic names (S §5.11.1).
+pub const NAME_FONT_VERSION: u32 = 14;
 
 /// The version that saved a diagram's modifier lines being hidden (S §7.6).
 pub const HIDDEN_MODIFIERS_VERSION: u32 = 13;
@@ -60,7 +63,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 14 if a name is bold or italic (S §5.11.1), 13 if its
+/// (SPEC-Rust §4.2): 15 if a reactant's or product's line has corner points
+/// (S §5.6.5), 14 if a name is bold or italic (S §5.11.1), 13 if its
 /// modifier lines are hidden (S §7.6), 12 if a
 /// modifier line has its own look (S §5.7.2),
 /// 11 if a modifier has a kind or corner points
@@ -91,8 +95,16 @@ pub fn needed_version(model: &Model) -> u32 {
             Look::Species { style, .. } | Look::Reaction { style } => styled_name(style),
             _ => false,
         });
-    if name_fonts {
+    let leg_corners = model.reactions().iter().any(|r| {
+        r.reactants
+            .iter()
+            .chain(&r.products)
+            .any(|p| !p.points.is_empty())
+    });
+    if leg_corners {
         FORMAT_VERSION
+    } else if name_fonts {
+        NAME_FONT_VERSION
     } else if model.hide_modifier_lines {
         HIDDEN_MODIFIERS_VERSION
     } else if looks {
@@ -519,8 +531,9 @@ struct FileParticipantObject {
     /// `"inhibitor"` or `"catalyst"`. Left out for a plain modifier.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<String>,
-    /// Version 11: a modifier's corner points (S §5.7.1), as
-    /// `[x1, y1, x2, y2, …]`. Left out when it has none.
+    /// Version 11: a modifier's corner points (S §5.7.1), and version 15: a
+    /// reactant's or product's (S §5.6.5), as `[x1, y1, x2, y2, …]`. Left
+    /// out when it has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     points: Option<Vec<f64>>,
     /// Version 12: a modifier line's own look (S §5.7.2), each left out at
@@ -1300,7 +1313,9 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     ctrl2y: set.then_some(c2.y),
                     ctrl_set: set.then_some(true),
                     kind: None,
-                    points: None,
+                    // Version 15: the line's corner points (S §5.6.5).
+                    points: (!p.points.is_empty())
+                        .then(|| p.points.iter().flat_map(|q| [q.x, q.y]).collect()),
                     line_color: None,
                     line_width: None,
                     pattern: None,
@@ -1634,8 +1649,11 @@ mod tests {
 
     #[test]
     fn newer_versions_load_with_a_warning() {
-        let text = r#"{ "version": 15, "species": [ { "id": "A", "glow": true } ] }"#;
-        let loaded = from_json(text).unwrap();
+        let text = format!(
+            r#"{{ "version": {}, "species": [ {{ "id": "A", "glow": true }} ] }}"#,
+            FORMAT_VERSION + 1
+        );
+        let loaded = from_json(&text).unwrap();
         assert!(loaded.is_newer_than_supported());
         assert_eq!(loaded.model.species().len(), 1);
         assert_eq!(loaded.warnings.len(), 1);
