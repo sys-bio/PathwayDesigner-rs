@@ -202,6 +202,15 @@ set, otherwise in `#3D5C2B`; it has no colour of its own.
 The defaults are the app's (SPECIFICATION.md §5, §8). A property not listed is
 an error in a style, but kept (§13).
 
+**How each look is drawn.** The format names looks; it doesn't draw them. What
+a reader must draw for each is defined in SPECIFICATION.md, so that two
+readers draw a file the same way: species and their shapes (§5.3, §5.10),
+null nodes (§5.4), reaction lines, arrowheads and the gaps at their ends
+(§5.5, §5.6), modifier lines and their symbols, sizes and distances (§5.7),
+junctions (§5.8), names outside a node (§5.11), reaction names (§5.12), stems
+(§5.13), compartment boxes (§7.9) and text (§7.8). Written as SBML, the same
+looks become Render as `docs/render-design.md` §3 describes.
+
 ### 6.3 Precedence
 
 For each property, the first of these that gives it wins:
