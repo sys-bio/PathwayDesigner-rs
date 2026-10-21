@@ -2237,6 +2237,14 @@ libSBML. The reference writes the XML itself.
 
 All numbers MUST be written with a `.` decimal separator whatever the locale.
 
+**Appearance** *(Rust version)*. The look of the diagram is written as SBML Render
+(Level 3 Render Version 1): a style for every glyph, holding its colours, widths,
+dashes, shape, fonts, junction dot, arrowheads and modifier symbols as drawn.
+Import reads it back, and reads the Render other tools write as far as
+PathwayDesigner's looks allow, with a warning for what it approximates. The
+mapping, the minimal profile it keeps to and the rules for writing it so that
+other readers agree are in `docs/render-design.md`; SPEC-Rust §8.3 summarises them.
+
 **SBML import** is not part of the reference release (the code for it is disabled).
 See milestone F-1. *(Rust version:)* function definitions are expanded into the
 expressions that call them, as in Antimony import (§11.2); a function whose body

@@ -858,7 +858,8 @@ automatically.
 (`crates/sbml-io`), a crate meant for others to use too. It is licensed MIT OR
 Apache-2.0, and its design is in `crates/sbml-io/README.md`:
 - plain Rust data, not libSBML's class hierarchy;
-- Level 2 and Level 3 core plus the Layout package;
+- Level 2 and Level 3 core plus the Layout and Render packages (Render in Level 2
+  annotations too);
 - MathML as a tree;
 - other packages, notes, annotations and unknown XML kept for a round trip.
 
@@ -879,10 +880,23 @@ replace `sbml-io` behind the same bridge.
   - one glyph for every node, aliases included, each species' own glyph
     (`sg_<id>`) before its aliases';
   - curves that start and end on node borders;
-  - `basePoint1 = ctrl1` and `basePoint2 = ctrl2` on both reactant and product legs,
-    with no swapping (S §11.5);
+  - a Bézier leg written as the part that is drawn: its curve runs to the node's
+    centre (`ctrl1`, `ctrl2`), and it is split where it crosses the node's border,
+    so its base points are that part's (S §11.5). Reactant and product legs keep
+    their direction, with no swapping;
   - glyphs for modifiers;
+  - a reaction glyph's box is its junction dot's (8 × 8) when the dot is drawn, a
+    point otherwise;
+  - a text glyph for each drawn compartment's name;
   - unique glyph ids (D-13).
+- **Render:** one local render information, `pd_render`, with a style for every
+  glyph holding its look as drawn (colours, widths, dashes, shapes, fonts, the
+  junction dot, arrowheads and modifier symbols as line endings), glyphs that look
+  the same sharing a style, and a saved style's name on the style of the items
+  that follow it. Written to the minimal profile and its writing rules in
+  `docs/render-design.md` (§3, §3.6): every attribute where it is used, fills and
+  fill rules on shapes as well as groups, colours named in every line ending. The
+  theme is not written.
 
 **Import** (S §16.2 F-1), of Level 2 and Level 3 files:
 - **Core:** compartments, parameters, species (using `initialConcentration`, or
@@ -892,7 +906,9 @@ replace `sbml-io` behind the same bridge.
   - species-glyph boxes give the position and size;
   - the reaction glyph gives the junction;
   - each species-reference curve's base points become `ctrl1` and `ctrl2` (as stored,
-    no swapping), `ctrlPtsSet = true` and mode `Bezier`;
+    no swapping), `ctrlPtsSet = true` and mode `Bezier`; a single Bézier segment
+    that, carried on along the same cubic, reaches the node's centre (as this app
+    writes them) gives the handles of that whole curve instead;
   - a species has one glyph that draws it, the one named `sg_<id>` if there is
     one, or else the first; each other glyph of it becomes an **alias**, named
     after its glyph (`sg_<alias>`) when that name is free;
@@ -901,6 +917,15 @@ replace `sbml-io` behind the same bridge.
 
   This means files written by the Rust app or the Delphi app load back with their
   layout.
+- **Render, when the file has it** (`docs/render-design.md` §5): each glyph's
+  style by id, then role, then type (SBMLNetwork's types such as
+  `SPECIESGLYPH_TEXTGLYPH` first), in the layout's render information, the global
+  one it refers to, then the first global one; a text with no style of its own
+  takes its owner's. Colours, widths, dashes, shapes, fonts, junction dots,
+  modifier looks, the background and saved styles' names are read; a value equal
+  to the default stays the default. PathwayDesigner's notes, read first, give only
+  what Render can't say. What can only be approximated (gradients, several or
+  inset shapes, other polygons, images, transformations) gives one warning.
 - **Afterwards:** null nodes for empty sides, and the catalytic rewrite only when the
   preference asks for it.
 
@@ -1485,7 +1510,8 @@ In order of value. These follow S §16.2.
 3. **Node shapes and label position** (F-4, F-5). These add new keys to the file, so
    they are the first features in **JSON v4** (§4.2). Write the v4 keys down in §4.2
    before releasing them.
-4. **Styles in SBML using the Render package.** Map `VisualStyle` onto SBML Render so
+4. **Styles in SBML using the Render package.** **Done (2026-10-20,
+   `docs/render-design.md`).** Map `VisualStyle` onto SBML Render so
    colours and widths survive an SBML round-trip. Write down the mapping first. The
    Delphi app won't read it, and doesn't need to: it ignores packages it doesn't
    know.

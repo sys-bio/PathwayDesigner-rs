@@ -115,8 +115,12 @@ Delphi version does, and some more (see [Status](#status)).
 - **Antimony**: import and export, with a live Antimony panel next to the drawing.
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
   package, so positions, aliases, curves, reaction stems and reaction names survive
-  the round trip; shapes, names outside the node and compartment boxes come back
-  too.
+  the round trip, and the **Render** package, so colours, line widths, dashes,
+  shapes, fonts, arrowheads and modifier symbols do too. Other tools draw the
+  file in PathwayDesigner's look (checked with COPASI and SBMLNetwork), and the
+  Render that COPASI, SBMLNetwork and SBMLDiagrams write is read, with a
+  warning for anything that can only be approximated
+  ([docs/render-design.md](docs/render-design.md)).
 - **Escher maps**: *File ▸ Open* reads an [Escher](https://escher.github.io) map
   (`.json`) and draws it as Escher does: its layout, each reaction's straight
   centre line and the map's own curves, its labels, and each extra drawing of a
@@ -230,7 +234,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 |---|---|---|---|
 | PathwayDesigner diagram | `.json` | yes | yes |
 | Antimony | `.ant`, `.txt` | yes | yes |
-| SBML Level 2 and 3, with Layout | `.xml` | yes | Level 3 Version 1 |
+| SBML Level 2 and 3, with Layout and Render | `.xml` | yes | Level 3 Version 1 |
 | Escher map | `.json` | yes | |
 | SVG, PNG, PDF | `.svg`, `.png`, `.pdf` | | yes |
 
@@ -295,7 +299,7 @@ repository served on port 8080.
 | [`pd-app`](crates/pd-app) | The egui application, for the browser and the desktop. |
 | [`pd-export`](crates/pd-export) | Graphics output: SVG, PNG (through resvg) and PDF. |
 | [`antimony`](crates/antimony) | Reads and writes Antimony, all of the language, and converts it to SBML. Written to be reusable on its own, and checked case by case against a complete reference implementation. See its [README](crates/antimony/README.md). |
-| [`sbml-io`](crates/sbml-io) | Reads and writes SBML as plain Rust data. Written to be reusable on its own: Level 2 and 3 core plus Layout, pure Rust, with everything it doesn't understand kept for a lossless round trip. See its [README](crates/sbml-io/README.md). |
+| [`sbml-io`](crates/sbml-io) | Reads and writes SBML as plain Rust data. Written to be reusable on its own: Level 2 and 3 core plus Layout and Render, pure Rust, with everything it doesn't understand kept for a lossless round trip. See its [README](crates/sbml-io/README.md). |
 
 ## Building and testing
 
@@ -357,12 +361,13 @@ python crates/pd-core/tests/scripts/check_sbml.py out
 ```
 
 **`layout_report`**: what survives a round trip. Each model is exported as SBML
-with Layout and read back, as written and with PathwayDesigner's own notes
-removed (what a program that reads only standard SBML Layout sees), and compared
+with Layout and Render and read back, as written and with PathwayDesigner's own
+notes removed (what a program that reads only standard SBML sees), and compared
 with the original field by field. With `--antimony`, the model alone is compared
 after a trip through Antimony. Use it after changing an importer or exporter, to
 see at once what a change keeps and loses. It prints a Markdown report; with
-`DETAIL=<part of a model's title>` it also lists that model's every change.
+`DETAIL=<part of a model's title>` it also lists that model's every change (in
+the round trip without the notes with `DETAIL_STANDARD=1` too).
 
 ```
 cargo run -p pd-core --release --example layout_report > sbml.md
@@ -403,7 +408,7 @@ PDF page, the model tree, animated auto-layout, keyboard nudging, aligning
 junctions, Arrange in Circle, more alias commands, drawn compartments, free text,
 species shapes and resizing, names outside the node, Copy and Paste Style, saved
 styles, the grid and Snap to grid, themes, reaction names and stems, reactions with
-any number of species, Escher maps, transparent fills, a background colour, offline
+any number of species, Escher maps, SBML Render, transparent fills, a background colour, offline
 use and autosave, and fixes the defects
 listed in SPECIFICATION.md §15.
 

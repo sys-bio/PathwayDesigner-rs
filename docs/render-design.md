@@ -132,8 +132,11 @@ A modifier's curve ends at the junction (as now), so the ending's bounding box i
 placed back along the line by the symbol's distance from the junction (S §5.7.2).
 One ending per distinct (kind, size, distance); the colour comes from the line's
 style (the ending's `g` sets no `stroke` or `fill` of its own, except white for the
-open symbols' insides, to be checked in R3: Render does not define whether an
-ending inherits the curve's colour, and COPASI's endings name colours explicitly).
+open symbols' insides, to be checked in R3). *As built (R2):* each ending names
+its colours, one ending per kind, size, distance and colour. The specification
+does say that an ending's top group inherits all attributes of the line it is
+applied to (body.tex, "The LineEnding class"), but naming the colours costs
+nothing and doesn't depend on a reader implementing that.
 
 ### 3.5 Not written
 
@@ -402,7 +405,7 @@ files they agree.
 | R3 | Checked in COPASI and SBMLNetwork | the author's COPASI pictures; open points settled |
 | R4 | Import of our own Render | E4 extended passes |
 | R5 | Import of other tools' Render | survey files open as expected |
-| R6 | SPECIFICATION (§11.5, new §11.5.1), README, paper table | |
+| R6 | SPECIFICATION (§11.5, new §11.5.1), README, paper table | done 2026-10-20: SPECIFICATION §11.5 "Appearance", SPEC-Rust §8.3, README; paper Appendix B and Results |
 
 One step at a time, each committed when the author says.
 
