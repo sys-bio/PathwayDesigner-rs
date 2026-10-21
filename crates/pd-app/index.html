@@ -64,18 +64,6 @@
             padding: 3px 10px;
             cursor: pointer;
         }
-        /* The visitor counter (SPEC-Rust §14.6). The app puts it in the room
-           it leaves at the bottom of the left panel, and shows it. */
-        #visitor_counter {
-            position: fixed;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-        #visitor_counter br {
-            display: none;
-        }
         #loading_text {
             position: absolute;
             top: 50%;
@@ -135,22 +123,6 @@
 <body>
     <canvas id="the_canvas_id"></canvas>
     <p id="loading_text">Loading PathwayDesigner…</p>
-    <!-- The visitor counter from freevisitorcounters.com, on the published
-         site only, so copies hosted elsewhere don't count (SPEC-Rust §14.6).
-         Add ?counter to the address to see it anywhere. Its scripts must run
-         while the page loads (one uses document.write), and the first checks
-         that the link is there, then empties it. -->
-    <div id="visitor_counter">
-        <script>
-            if (location.hostname === "sys-bio.github.io" || /[?&]counter(=|&|$)/.test(location.search)) {
-                document.documentElement.setAttribute("data-counter", "");
-                document.write(
-                    '<a href="https://www.versicherungen.at/pflegevorsorge/">Pflege Vorsorge</a> '
-                    + '<script src="https://www.freevisitorcounters.com/auth.php?id=ac23365868bbb0430bee335b141e711fed3d83af"><\/script>'
-                    + '<script src="https://freevisitorcounters.com/en/home/counter/1665915/t/1"><\/script>');
-            }
-        </script>
-    </div>
     <div id="update_banner" role="status">
         <span>A new version of PathwayDesigner is available.</span>
         <button type="button" onclick="location.reload()">Reload</button>

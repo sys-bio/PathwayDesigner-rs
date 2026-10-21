@@ -42,8 +42,6 @@ const COPY_STYLE: KeyboardShortcut =
     KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::C);
 const PASTE_STYLE: KeyboardShortcut =
     KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::ALT), Key::V);
-/// Room at the bottom of the left panel for the visitor counter (web only).
-const COUNTER_ROOM: f32 = 72.0;
 const NEW: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
 const OPEN: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
 const SAVE_AS: KeyboardShortcut =
@@ -1063,12 +1061,6 @@ impl PathwayApp {
 
     /// The left tool palette (S §13.2). The current tool is highlighted.
     fn tool_palette(&mut self, ui: &mut egui::Ui) {
-        let panel = ui.max_rect();
-        #[cfg(target_arch = "wasm32")]
-        let counter = crate::web::has_counter();
-        #[cfg(not(target_arch = "wasm32"))]
-        let counter = false;
-        let room = if counter { COUNTER_ROOM } else { 0.0 };
         ui.add_space(4.0);
         for (tool, label, tip) in TOOLS {
             let selected = self.view.tool() == tool;
@@ -1087,23 +1079,9 @@ impl PathwayApp {
         )
         .on_hover_text("New Bézier reactions get a smooth junction");
         ui.separator();
-        egui::ScrollArea::vertical()
-            .id_salt("tree")
-            .max_height((ui.available_height() - room).max(0.0))
-            .show(ui, |ui| {
-                crate::tree::show(ui, &mut self.view, &mut self.tree)
-            });
-        // The visitor counter (web only, published site only) sits in the
-        // room left at the bottom of the panel (SPEC-Rust §14.6).
-        #[cfg(target_arch = "wasm32")]
-        if counter {
-            let strip = egui::Rect::from_min_max(
-                egui::pos2(panel.left(), panel.bottom() - room),
-                panel.max,
-            );
-            crate::web::place_counter(strip, ui.ctx().zoom_factor());
-        }
-        let _ = panel;
+        egui::ScrollArea::vertical().id_salt("tree").show(ui, |ui| {
+            crate::tree::show(ui, &mut self.view, &mut self.tree)
+        });
     }
 
     /// The status bar: the zoom control at the right, and the rest in the
