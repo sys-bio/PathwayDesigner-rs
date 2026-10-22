@@ -132,15 +132,22 @@ the semantic pass decides which it is.
 | Antimony | PathwayDesigner |
 |---|---|
 | Species `pos` + `size` | Centre = `pos` + size / 2; size as given |
-| Species with `pos` but no `size` | Centre = `pos` + (60, 36) / 2 (Antimony's default size); size: ours (D2) |
+| Species with `pos` but no `size` | Size 60 × 36, libAntimony's (D2); centre = `pos` + (30, 18) |
 | Category `species.size` | Each species' size, unless its own is given |
 | Reaction `pos` (+ `size`, default 20 × 20) | Junction = `pos` + size / 2 |
 | Compartment `pos` + `size` | Box at `pos`, that size |
-| `J0.--.position` (+ `size`) | The null node, centred as for a species |
-| `S1.position.J3.J4` | An alias of S1 at that place, used by J3 and J4's lines to S1 |
+| Compartment `size` alone | Box at (0, 0), as libAntimony reads it (its writer leaves out a zero position) |
+| Compartment `pos` alone | No box: fitted around its species, as a compartment without one is |
+| `J0.--.position` (+ `size`, default 30 × 30, libAntimony's) | The null node, centred as for a species; a null node without a position goes beside the junction, as the import puts it |
+| `S1.position.J3.J4` (+ `S1.size.J3.J4`) | An alias of S1 at that place, used by J3's and J4's lines to S1. libAntimony 3.2.1 attaches it to J3 only, against its reference (§8) |
+| The default compartment | No box, as SBML import does |
 | `x` alone or `y` alone | The other is 0, as the reference says |
 | Species or reaction with no position | Placed as SBML import places a species with no glyph, and auto-layout offered |
 | `model.layout.size` | Not used (the canvas has no size); no warning |
+
+**As built (step 2, 2026-10-22):** `pd-core/src/antimony_layout.rs`, applied after
+the import has built the model; without layout statements the import is exactly
+as before. `antimony::Imported` gains `had_layout` and `unplaced`.
 
 ## 5. Lines
 
@@ -206,11 +213,27 @@ style, as SBML Render import does today (D4).
   inside `model … end`); a submodule's `A.x = 3` is still a submodule assignment.
   The corpus checks (1788 files, BioModels) must stay as they are.
 - **pd-core:** each row of §4–§6 as a test; warnings for each ignored form.
-- **Against libAntimony (the oracle):** for a set of models with layout
-  statements, convert with libAntimony to SBML Layout and Render and read that
-  into PathwayDesigner; read the same Antimony directly; the positions, sizes,
-  handles and looks must agree. This needs a current libAntimony (3.1.3 or later)
-  in a separate Python environment (D7).
+- **Against libAntimony (the oracle):** `scripts/antimony_layout_check.py`. For
+  every Gallery model, two Antimony texts with layout statements: libAntimony's
+  own layout of the model, and PathwayDesigner's layout as libAntimony writes it.
+  Each text is read by PathwayDesigner, and by libAntimony into SBML that
+  PathwayDesigner's SBML import reads; the drawings must agree (node centres and
+  sizes, which drawing each line goes to, junctions, compartment boxes). The
+  reference is libAntimony's reading of the text, not the SBML the text was
+  written from: libAntimony's writer leaves out zero positions and some sizes,
+  and can write two drawings of a species for one reaction under one name.
+  SBMLNetwork's automatic aliasing (`maxNumConnectedEdges`, default 3) is turned
+  off for the reference, since it adds drawings the text doesn't have.
+  `crates/pd-core/examples/drawing_report.rs` prints a drawing for it.
+
+  Step 2 result (libAntimony 3.2.1, two minutes per model): 12 Gallery models
+  agree on both routes; e_coli_core, the Millard model and the Escher core map
+  ran out of time in libAntimony. The thirteenth, yeast glycolysis, shows one
+  known libAntimony fault: it attaches an alias such as `S1.position.J2.J3` to the first reaction
+  listed only (checked on a three-reaction model), where the reference and
+  PathwayDesigner attach it to all; the yeast glycolysis model shows it. Also
+  out of reach: a species drawn twice for one reaction (stoichiometry 2 split
+  over two drawings), since PathwayDesigner draws one line per participant.
 - **Mutation:** break the top-left → centre offset, swap `b1`/`b2`, drop the
   category fallback, restore the old block rule; each must fail a test.
 

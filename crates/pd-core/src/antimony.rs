@@ -39,6 +39,12 @@ pub struct Imported {
     pub model: Model,
     /// Statements that were skipped; the import went ahead anyway.
     pub warnings: Vec<Diagnostic>,
+    /// The text placed some species with Antimony's layout statements
+    /// (`S1.pos = {28, 35}`).
+    pub had_layout: bool,
+    /// Species the layout statements didn't place, left at random, when
+    /// they placed others.
+    pub unplaced: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,7 +76,7 @@ impl std::fmt::Display for Diagnostic {
 }
 
 impl Diagnostic {
-    fn at(severity: Severity, span: Span, message: impl Into<String>) -> Self {
+    pub(crate) fn at(severity: Severity, span: Span, message: impl Into<String>) -> Self {
         Self {
             severity,
             line: span.start.line as usize,
@@ -115,11 +121,18 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
         warnings: Vec::new(),
         functions: HashMap::new(),
     };
-    let model = b.build(opts);
+    let mut model = b.build(opts);
     warnings.append(&mut b.warnings);
+    // Antimony's layout statements, if any (docs/antimony-layout-design.md).
+    let applied = crate::antimony_layout::apply(&mut model, module, &mut warnings);
     warnings.sort_by_key(|d| (d.line, d.column));
     if b.errors.is_empty() {
-        Ok(Imported { model, warnings })
+        Ok(Imported {
+            model,
+            warnings,
+            had_layout: applied.had_layout,
+            unplaced: applied.unplaced,
+        })
     } else {
         Err(b.errors)
     }

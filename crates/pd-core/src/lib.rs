@@ -6,6 +6,7 @@
 //! (SPEC-Rust §2).
 
 pub mod antimony;
+pub mod antimony_layout;
 pub mod bezier;
 pub mod compartments;
 pub mod escher;
