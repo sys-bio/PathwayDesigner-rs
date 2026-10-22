@@ -690,16 +690,14 @@ impl Builder {
             let mut matched: HashSet<(crate::model::Role, usize)> = HashSet::new();
             for srg in &g.species_reference_glyphs {
                 let role = srg.role.as_ref();
-                let handles = handles(srg.curve.as_ref());
                 // A glyph that names no species: a null node.
                 if let Some(place) = nulls.get(&srg.species_glyph) {
                     let is_source =
                         !matches!(role, Some(sb::Role::Product | sb::Role::SideProduct));
                     let leg = if is_source { &mut source } else { &mut sink };
                     leg.place = Some(*place);
-                    let single = srg.curve.as_ref().is_some_and(|c| c.segments.len() == 1);
-                    leg.handles = handles.map(|h| {
-                        handles_to_centre(h, rx.junction, place.center, is_source, single)
+                    leg.handles = srg.curve.as_ref().and_then(|c| {
+                        null_leg_handles(c, rx.junction, place.center, is_source, None)
                     });
                     continue;
                 }
@@ -742,43 +740,17 @@ impl Builder {
                         p.look = look;
                     }
                 }
-                // A curve of several segments: corner points where they meet
-                // (S §5.6.5), the one at the species the end piece.
-                let routed = srg
-                    .curve
-                    .as_ref()
-                    .filter(|c| prole != crate::model::Role::Modifier && c.segments.len() > 1);
-                if let Some(curve) = routed {
-                    let (corners, end_piece) = leg_route(curve, center);
-                    let first = corners[0];
-                    p.points = corners;
-                    if let sb::Segment::Bezier {
-                        start,
-                        end,
-                        base1,
-                        base2,
-                    } = end_piece
-                    {
-                        let q = |v: sb::Point| pt(v.x, v.y);
-                        let reactant = prole == crate::model::Role::Reactant;
-                        (p.ctrl1, p.ctrl2) = handles_to_centre(
-                            (q(start), q(end), q(base1), q(base2)),
-                            first,
-                            center,
-                            reactant,
-                            true,
-                        );
-                        p.ctrl_pts_set = true;
-                        rx.mode = ReactionMode::Bezier;
-                    }
-                } else if prole != crate::model::Role::Modifier
-                    && let Some((a, b, c1, c2)) = handles
+                if prole != crate::model::Role::Modifier
+                    && let Some(curve) = srg.curve.as_ref()
+                    && leg_from_curve(
+                        p,
+                        prole == crate::model::Role::Reactant,
+                        curve,
+                        junction,
+                        center,
+                        None,
+                    )
                 {
-                    let reactant = prole == crate::model::Role::Reactant;
-                    let single = srg.curve.as_ref().is_some_and(|c| c.segments.len() == 1);
-                    (p.ctrl1, p.ctrl2) =
-                        handles_to_centre((a, b, c1, c2), junction, center, reactant, single);
-                    p.ctrl_pts_set = true;
                     rx.mode = ReactionMode::Bezier;
                 }
             }
@@ -896,6 +868,71 @@ fn positioned(bb: Option<&sb::BoundingBox>) -> Option<&sb::BoundingBox> {
         let (p, d) = (&b.position, &b.dimensions);
         p.x != 0.0 || p.y != 0.0 || d.width != 0.0 || d.height != 0.0
     })
+}
+
+/// A reactant's or product's line from its curve. With several segments,
+/// corner points where they meet (S §5.6.5) and the end piece's handles from
+/// the segment at the species; with one, the handles of the curve carried on
+/// to the node's centre. Returns whether it gave the line Bézier handles.
+/// Antimony's layout statements are read through this too, with a
+/// `tolerance` for carrying a curve on to the centre that allows for their
+/// rounded numbers (see [`handles_to_centre`]).
+pub(crate) fn leg_from_curve(
+    p: &mut crate::model::Participant,
+    reactant: bool,
+    curve: &sb::Curve,
+    junction: Pt,
+    center: Pt,
+    tolerance: Option<f64>,
+) -> bool {
+    if curve.segments.len() > 1 {
+        let (corners, end_piece) = leg_route(curve, center);
+        let first = corners[0];
+        p.points = corners;
+        if let sb::Segment::Bezier {
+            start,
+            end,
+            base1,
+            base2,
+        } = end_piece
+        {
+            let q = |v: sb::Point| pt(v.x, v.y);
+            (p.ctrl1, p.ctrl2) = handles_to_centre(
+                (q(start), q(end), q(base1), q(base2)),
+                first,
+                center,
+                reactant,
+                true,
+                tolerance,
+            );
+            p.ctrl_pts_set = true;
+            return true;
+        }
+        false
+    } else if let Some(h) = handles(Some(curve)) {
+        (p.ctrl1, p.ctrl2) = handles_to_centre(h, junction, center, reactant, true, tolerance);
+        p.ctrl_pts_set = true;
+        true
+    } else {
+        false
+    }
+}
+
+/// The handles of a line to a reaction's null node, from its curve.
+pub(crate) fn null_leg_handles(
+    curve: &sb::Curve,
+    junction: Pt,
+    null: Pt,
+    is_source: bool,
+    tolerance: Option<f64>,
+) -> Option<(Pt, Pt)> {
+    let single = curve.segments.len() == 1;
+    handles(Some(curve)).map(|h| handles_to_centre(h, junction, null, is_source, single, tolerance))
+}
+
+/// A modifier's corner points from its curve: see [`corner_points`].
+pub(crate) fn modifier_points(curve: &sb::Curve, junction: Pt) -> Vec<Pt> {
+    corner_points(Some(curve), junction)
 }
 
 /// A reaction glyph's junction: the centre of its bounding box, or else the
@@ -1018,13 +1055,15 @@ fn orient(
 /// border, and that drawn part is what it writes (S §11.5): when the segment,
 /// carried on, passes through the node's centre, the handles are those of
 /// the whole curve. Otherwise, or with several segments, they are the
-/// segment's own, as other tools write them.
+/// segment's own, as other tools write them. How near the centre the curve
+/// must pass: `tolerance`, or else a millionth of the coordinates' size.
 fn handles_to_centre(
     (start, end, c1, c2): (Pt, Pt, Pt, Pt),
     junction: Pt,
     species: Pt,
     reactant: bool,
     single: bool,
+    tolerance: Option<f64>,
 ) -> (Pt, Pt) {
     let (h1, h2) = orient(start, end, c1, c2, junction, species, reactant);
     if !single {
@@ -1040,7 +1079,8 @@ fn handles_to_centre(
     } else {
         CubicBezier::new(start, c1, c2, end)
     };
-    let tolerance = 1e-6 * (1.0 + species.x.abs().max(species.y.abs()));
+    let tolerance =
+        tolerance.unwrap_or_else(|| 1e-6 * (1.0 + species.x.abs().max(species.y.abs())));
     match drawn.extended_to(species, tolerance) {
         // A reactant's curve runs from the species to the junction.
         Some(whole) if reactant => (whole.p2, whole.p1),

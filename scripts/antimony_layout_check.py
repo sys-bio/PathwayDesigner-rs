@@ -11,19 +11,25 @@ drawings must agree. Two routes, over every Gallery model:
 2. PathwayDesigner's layout: its SBML export, written as Antimony by
    libAntimony.
 
-In both, the Antimony text is the thing compared: PathwayDesigner reads it,
-and libAntimony reads it into SBML, which PathwayDesigner's SBML import reads.
-(The text is not compared with the SBML it was written from: libAntimony's
-writer leaves out zero positions and some sizes, and writes several drawings
-of a species for one reaction under one name, so the text can say less than
-the SBML did. What matters here is that both read the text alike.)
+PathwayDesigner reads the Antimony text, and its drawing is compared with
+two references. Positions, sizes and which drawing each line goes to are
+compared with libAntimony's own reading of the text (into SBML, read by
+PathwayDesigner's SBML import): libAntimony's writer leaves out zero
+positions and some sizes, and writes several drawings of a species for one
+reaction under one name, so the text can say less than the SBML it came
+from. Lines (handles, corner points, curved or not) are compared with the
+SBML the text was written from: libAntimony's reading of its own lines is
+unreliable (an end it left out comes back at (0, 0), or at another
+reaction's place). A Linear reaction counts as straight: Linear is
+PathwayDesigner's own annotation, which Antimony doesn't carry.
 
 Known difference: libAntimony 3.2.1 attaches an alias (`S1.position.J2.J3`)
 to the first reaction listed only; the reference, and PathwayDesigner,
 attach it to every reaction listed. The yeast glycolysis model shows it.
 
 Compares every node's centre and size, which species each alias draws, every
-reaction's junction, the nodes its lines go to, and compartment boxes.
+reaction's junction and whether it is drawn curved, the nodes its lines go
+to, each line's handles and corner points, and compartment boxes.
 
     python scripts/antimony_layout_check.py [<work folder>]
 
@@ -43,7 +49,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOL = 0.01  # libAntimony writes positions with two decimals
-LIMIT = 600  # seconds of libAntimony per model
+LIMIT = 120  # seconds of libAntimony per model
 
 
 def cargo_example(name, *args):
@@ -81,7 +87,11 @@ def norm(d):
                 n = nodes.get(e)
                 at = None if n is None else (round(n["x"], 1), round(n["y"], 1))
                 ends.append((role, name(e), at))
-        reactions[r["id"]] = {"x": r["x"], "y": r["y"], "ends": sorted(ends, key=str)}
+        lines = sorted(
+            ((l["role"], name(l["node"]), l["handles"], l["points"]) for l in r.get("lines", [])),
+            key=lambda t: (t[0], t[1], str(t[2]), str(t[3])))
+        reactions[r["id"]] = {"x": r["x"], "y": r["y"], "ends": sorted(ends, key=str),
+                              "mode": r.get("mode"), "lines": lines}
     nulls = sorted((round(n["x"], 1), round(n["y"], 1), n["w"], n["h"])
                    for n in d["nodes"] if n["null"])
     comps = {c["id"]: c for c in d["compartments"]}
@@ -92,11 +102,14 @@ def close(a, b, tol=TOL):
     return abs(a - b) <= tol + 1e-9
 
 
-def compare(label, a, b):
-    """Differences between drawing a (from SBML) and b (from Antimony)."""
+def compare(label, a, b, lines_ref):
+    """Differences between drawing b (from Antimony) and the references: a
+    for places, lines_ref for lines (both read from SBML)."""
     sa, ra, na, ca = norm(a)
     sb, rb, nb, cb = norm(b)
+    _, rl, _, _ = norm(lines_ref)
     out = []
+    moved = 0
     for sid in sorted(set(sa) | set(sb)):
         xa = sorted((n["x"], n["y"], n["w"], n["h"]) for n in sa.get(sid, []))
         xb = sorted((n["x"], n["y"], n["w"], n["h"]) for n in sb.get(sid, []))
@@ -118,6 +131,35 @@ def compare(label, a, b):
             for u, v in zip(ea, eb))
         if not same:
             out.append(f"reaction {rid} lines: SBML {ea} / Antimony {eb}")
+        lp = rl.get(rid, p)
+        # libAntimony's writer drops a reaction box's zero size, which then
+        # means 20 x 20, so in its own reading the junction moves by (10, 10);
+        # such a reaction's lines can't match the SBML they came from.
+        if not (close(lp["x"], p["x"]) and close(lp["y"], p["y"])):
+            moved += 1
+            continue
+        straight = lambda m: "Straight" if m == "Linear" else m
+        if straight(lp["mode"]) != straight(q["mode"]):
+            out.append(f"reaction {rid} mode: SBML {lp['mode']} / Antimony {q['mode']}")
+        # Lines paired by role and species; a line only one side has (SBML
+        # import keeps a product that is also a modifier, Antimony import
+        # doesn't) is a difference of the models, not of the layout.
+        theirs = {}
+        for v in q["lines"]:
+            theirs.setdefault((v[0], v[1]), []).append(v)
+        pairs = []
+        for u in lp["lines"]:
+            if theirs.get((u[0], u[1])):
+                pairs.append((u, theirs[(u[0], u[1])].pop(0)))
+        for u, v in pairs:
+            hu, hv = u[2], v[2]
+            handles_same = (hu is None) == (hv is None) and (
+                hu is None or all(close(a_, b_, 0.05) for a_, b_ in zip(hu, hv)))
+            points_same = len(u[3]) == len(v[3]) and all(
+                close(a_[0], b_[0], 0.05) and close(a_[1], b_[1], 0.05) for a_, b_ in zip(u[3], v[3]))
+            if not (handles_same and points_same):
+                out.append(f"reaction {rid} {u[0]} line to {u[1]}: SBML handles {hu} points {u[3]} / "
+                           f"Antimony handles {hv} points {v[3]}")
     if len(na) != len(nb) or any(not (close(u[0], v[0], 0.11) and close(u[1], v[1], 0.11))
                                  for u, v in zip(na, nb)):
         out.append(f"null nodes: SBML {na} / Antimony {nb}")
@@ -125,7 +167,8 @@ def compare(label, a, b):
         u, v = ca.get(cid), cb.get(cid)
         if u is None or v is None or not all(close(u[k], v[k]) for k in ("x", "y", "w", "h")):
             out.append(f"compartment {cid}: SBML {u} / Antimony {v}")
-    print(f"  {label}: {'agree' if not out else str(len(out)) + ' differences'}", flush=True)
+    note = f" (lines of {moved} reactions not compared: libAntimony moved their junction)" if moved else ""
+    print(f"  {label}: {'agree' if not out else str(len(out)) + ' differences'}{note}", flush=True)
     for line in out[:8]:
         print("    " + line, flush=True)
     return len(out)
@@ -207,6 +250,7 @@ def main():
             failures += 1
             continue
         sb1 = os.path.join(work, stem + ".route1.read.xml")
+        src1 = os.path.join(work, stem + ".route1.xml")
         ant1 = os.path.join(work, stem + ".route1.ant")
         sb2 = os.path.join(work, stem + ".route2.xml")
         ant2 = os.path.join(work, stem + ".route2.ant")
@@ -218,8 +262,8 @@ def main():
                   flush=True)
             failures += 1
             continue
-        failures += compare("libAntimony's layout", report(sb1), report(ant1)) > 0
-        failures += compare("PathwayDesigner's layout", report(sb2), report(ant2)) > 0
+        failures += compare("libAntimony's layout", report(sb1), report(ant1), report(src1)) > 0
+        failures += compare("PathwayDesigner's layout", report(sb2), report(ant2), report(ours)) > 0
     print(f"{failures} comparisons with differences")
     return 1 if failures else 0
 

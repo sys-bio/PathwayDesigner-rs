@@ -52,12 +52,30 @@ fn main() {
             let ends = |list: &[pd_core::model::Participant]| -> Vec<String> {
                 list.iter().map(|p| p.species.to_string()).collect()
             };
+            // Each line's handles (when set) and corner points.
+            let legs = |role: &str, list: &[pd_core::model::Participant]| -> Vec<serde_json::Value> {
+                list.iter()
+                    .map(|p| {
+                        json!({
+                            "role": role,
+                            "node": p.species.to_string(),
+                            "handles": p.ctrl_pts_set.then_some([p.ctrl1.x, p.ctrl1.y, p.ctrl2.x, p.ctrl2.y]),
+                            "points": p.points.iter().map(|q| [q.x, q.y]).collect::<Vec<_>>(),
+                        })
+                    })
+                    .collect()
+            };
+            let mut lines = legs("reactants", &r.reactants);
+            lines.extend(legs("products", &r.products));
+            lines.extend(legs("modifiers", &r.modifiers));
             json!({
                 "id": r.id,
                 "x": r.junction.x, "y": r.junction.y,
+                "mode": format!("{:?}", r.mode),
                 "reactants": ends(&r.reactants),
                 "products": ends(&r.products),
                 "modifiers": ends(&r.modifiers),
+                "lines": lines,
             })
         })
         .collect();

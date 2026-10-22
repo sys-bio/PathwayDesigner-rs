@@ -151,27 +151,44 @@ as before. `antimony::Imported` gains `had_layout` and `unplaced`.
 
 ## 5. Lines
 
-PathwayDesigner's lines run species centre ↔ junction, cut at the node's border
-when drawn (SPECIFICATION.md §5.6.1), so:
+**As built (step 3, 2026-10-22).** A line's statements are an SBML species
+reference glyph's curve written out, and are read back into one: each segment
+an SBML segment, the curve read by the same code as SBML import
+(`sbml::import::leg_from_curve`, `null_leg_handles`, `modifier_points`, taken
+out of SBML import for this). So a reactant's or product's line gets corner
+points where its segments meet and Bézier handles from the piece at the species
+(or the whole curve's, carried on to the node's centre when it passes through
+it); a modifier's gets corner points only, as from SBML; a null node's line its
+handles. A reaction with handles on any line is made Bézier (D3). Further arcs
+(`arc2`, …) are skipped with one warning per model; a bent piece away from the
+species is drawn straight, with one warning.
 
-- `species_end` is **not needed** and is ignored (it is a border point, which
-  moves when the node does). `rxn_end` on a reactant or product line is ignored
-  likewise; on a modifier line it is where the line meets the reaction, which
-  PathwayDesigner works out itself, so it is ignored too.
-- **Handles.** Reactant: `ctrl1` (species side) = `b2`, `ctrl2` (junction side) =
-  `b1`. Product: `ctrl1` (junction side) = `b1`, `ctrl2` (species side) = `b2`.
-  Modifier: as a reactant. `ctrl_pts_set` is true, and the reaction is made
-  `curved` when any of its lines has handles (D3).
-- **`arcN`, N ≥ 2:** PathwayDesigner draws one line per participant, whatever its
-  stoichiometry; the further arcs are ignored, with one warning per model.
-- **Segments (`segN`):** become corner points. Each joint between segments is a
-  corner point, listed from the species, as `Participant.points` is; the species'
-  end piece keeps its Bézier handles from its segment's `b1`/`b2`; the other
-  segments are drawn straight (D3 of the corner-points design: only the end piece
-  is curved), with a warning if any of them was curved. Segments are numbered
-  from the species (§2), so the corner points are, in order, the `rxn_end` of
-  segment 1, 2, … up to the last but one.
-- **Null-node lines** (`J0.--.b1`, `b2`): the handles of the line to the null node.
+**libAntimony's conventions** (found against libAntimony 3.2.1 with
+`scripts/antimony_layout_check.py`; the reference doesn't say them):
+
+- **The names are positions on the SBML segment, not ends of the line.**
+  `rxn_end` is the segment's start and `species_end` its end, `b1` the base
+  point beside its start and `b2` beside its end, whichever way the line was
+  drawn. libAntimony's own layouts run from the reaction to the species, so
+  there the names fit; PathwayDesigner's SBML draws a reactant's line from the
+  species, so libAntimony writes that line with `rxn_end` on the species'
+  border. Which end is the species' is therefore decided by where the ends
+  are, as SBML import does.
+- **It leaves out an end it can work out again:** the reaction's centre, and
+  the point where the straight line from the species' centre to the line's
+  next point leaves the species' box. A missing end is read as whichever of
+  the two is farther from the other end. With both missing (a straight line,
+  or a person writing only `b1` and `b2`), the line starts at the junction, as
+  the reference says, unless its `b1` is nearer the species than its `b2`.
+- **It writes a straight segment's base points as `{0, 0}`**: both at the
+  origin means no handles.
+- **It rounds to two decimals**, so a curve carried on to a node's centre is
+  allowed to miss it by 0.1.
+- **Segments** are listed in path order by libAntimony, and from the species in
+  the reference's example; the order is told by the ends neighbouring segments
+  share.
+- **Its own reading of these statements is not to be relied on:** an end it
+  left out comes back at (0, 0), or at another reaction's place.
 
 ## 6. Looks
 
@@ -234,6 +251,13 @@ style, as SBML Render import does today (D4).
   PathwayDesigner attach it to all; the yeast glycolysis model shows it. Also
   out of reach: a species drawn twice for one reaction (stoichiometry 2 split
   over two drawings), since PathwayDesigner draws one line per participant.
+
+  Step 3 (lines compared with the SBML each text was written from; positions
+  still with libAntimony's reading): the same 12 models agree on both routes,
+  with the lines of reactions whose junction libAntimony itself moves (a
+  zero-size reaction box, read back as 20 x 20) left out of the comparison and
+  counted. The yeast model's differences are the alias fault above and one
+  line of a species with stoichiometry 2 drawn to two drawings.
 - **Mutation:** break the top-left → centre offset, swap `b1`/`b2`, drop the
   category fallback, restore the old block rule; each must fail a test.
 

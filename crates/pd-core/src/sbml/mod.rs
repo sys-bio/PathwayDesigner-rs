@@ -9,7 +9,7 @@
 
 mod appearance;
 mod export;
-mod import;
+pub(crate) mod import;
 pub mod math;
 mod render_in;
 mod shape;
