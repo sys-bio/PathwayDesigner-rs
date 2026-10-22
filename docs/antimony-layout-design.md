@@ -192,24 +192,45 @@ species is drawn straight, with one warning.
 
 ## 6. Looks
 
-Each look is resolved to what the item would show — its own setting, else its
-category's (`species.`), else `model.layout.` — and written into the item's own
-style, as SBML Render import does today (D4).
+**As built (step 4, 2026-10-22):** `pd-core/src/antimony_looks.rs`, called at the
+end of the layout reading. Each look is resolved to what the item would show —
+its own setting, else its kind's (`species.`), else `model.layout.` — and
+written into the item's own style through the helpers SBML Render import uses
+(`set_colour`, `set_width`, `settle`, now shared), so a value equal to
+PathwayDesigner's default is kept as the default (D4). An item given a look is
+unlinked from any saved style.
 
 | Antimony | PathwayDesigner |
 |---|---|
-| `color` | fill |
-| `linecolor`, `linewidth` | border colour and width (species, compartments); line colour and width (reactions) |
-| `fontcolor`, `fontsize` | label colour, font size |
-| `fontstyle` | bold, italic |
-| `font` | sans or serif: `serif` and serif names → serif, everything else → sans (D5) |
-| `shape` | `rectangle`, `ellipse`, `circle`, `hexagon` as they are; `square` → rectangle with equal sides; `triangle`, `diamond`, `pentagon`, `octagon` → rectangle, with a warning (D5) |
-| Reaction `shape` (the centroid square) | Not drawn by PathwayDesigner; ignored |
-| `model.layout.background` | Background colour |
-| Colour names | The CSS colour names (148), as a table in pd-core |
-| `"#RRGGBBAA"` | Colour with alpha (`Rgba` has it) |
-| `model.layout.style = …` | `escher` → the Escher theme; any other: not known, warning (D6) |
-| `model.layout.align_…`, `model.autolayout.…` | Instructions to SBMLNetwork's autolayout, not positions; ignored, with a warning when no positions are given either |
+| `color` (`fillcolor`) | fill; a reaction's: its junction |
+| `linecolor` (`strokecolor`), `linewidth` (`strokewidth`) | border colour and width (species, scaled for a boundary species' thicker border; compartments); line colour and width (reactions) |
+| `fontcolor`, `fontsize` | name colour, font size (species, reactions) |
+| `fontstyle` (`fontweight`) | `normal`, `bold`, `italic`, `bold_italic` → bold, italic |
+| `font` | not used (PathwayDesigner has no typeface for names), one warning |
+| `shape` | `rectangle` and `square` → rectangle; `ellipse` → ellipse, or circle in a square box (as SBML import reads it); `circle`; `hexagon`; `triangle`, `diamond`, `pentagon`, `octagon` → rectangle, one warning naming them (D5) |
+| `S1.color.J2` | the look of S1's alias for J2 (libAntimony writes an alias's own look so; not in the reference) |
+| `J0.E.linecolor`, `J0.E.linewidth` | a modifier line's colour and width; on a reactant's or product's line, not used (a reaction's lines are drawn alike), one warning |
+| `J0.--.color` and the like | not used: a null node has a fixed look |
+| `model.layout.background` | background colour |
+| `model.layout.style` | `escher` → the Escher theme, applied first, with every node kept where and as big as the statements put it; `default` → nothing; any other, one warning (D6) |
+| Reaction `shape` | not used (the junction is a dot) |
+
+**Colours** are libAntimony's names, which are SBMLNetwork's table of 227
+(`src/features/colors/libsbmlnetwork_colors.cpp` in sys-bio/SBMLNetwork, MIT
+licence), not only CSS's: `fieryorange`, `ochre`, `sanjuan` and the like.
+Generated into `pd-core/src/antimony_colors.rs`. Names are matched exactly
+(`Red` is an error to libAntimony too), `<name>_transparent` has alpha 0, and
+`"#RRGGBB"` / `"#RRGGBBAA"` are read as hex. SBMLNetwork's `orchid` is
+`#DA70D` (five digits), which libAntimony 3.2.1 draws black; it is read here as
+CSS's `#DA70D6`.
+
+**Against libAntimony** (route 2 of the check, where the text carries looks):
+every look the text states agrees with libAntimony's reading. What differs is
+what the text leaves out: libAntimony fills in SBMLNetwork's defaults (8-point
+reaction names, a white junction), PathwayDesigner its own. Also: SBMLNetwork
+draws a hexagon as a polygon that PathwayDesigner's SBML import doesn't take for
+a hexagon (it reads a rectangle), and one alias's look follows libAntimony's
+alias fault (§8).
 
 ## 7. In the app
 

@@ -23,6 +23,12 @@ unreliable (an end it left out comes back at (0, 0), or at another
 reaction's place). A Linear reaction counts as straight: Linear is
 PathwayDesigner's own annotation, which Antimony doesn't carry.
 
+Looks (each item's colours, widths, name and shape, the background) are
+compared with libAntimony's reading on route 2 only: on route 1 libAntimony
+leaves its own default look out of the text, so its SBML is drawn in
+SBMLNetwork's colours and PathwayDesigner's reading in its own defaults, by
+design.
+
 Known difference: libAntimony 3.2.1 attaches an alias (`S1.position.J2.J3`)
 to the first reaction listed only; the reference, and PathwayDesigner,
 attach it to every reaction listed. The yeast glycolysis model shows it.
@@ -102,7 +108,7 @@ def close(a, b, tol=TOL):
     return abs(a - b) <= tol + 1e-9
 
 
-def compare(label, a, b, lines_ref):
+def compare(label, a, b, lines_ref, looks=False):
     """Differences between drawing b (from Antimony) and the references: a
     for places, lines_ref for lines (both read from SBML)."""
     sa, ra, na, ca = norm(a)
@@ -167,6 +173,29 @@ def compare(label, a, b, lines_ref):
         u, v = ca.get(cid), cb.get(cid)
         if u is None or v is None or not all(close(u[k], v[k]) for k in ("x", "y", "w", "h")):
             out.append(f"compartment {cid}: SBML {u} / Antimony {v}")
+    if looks:
+        def by_name(d):
+            out = {}
+            for n in d["nodes"]:
+                if not n["null"]:
+                    out.setdefault(n["of"], []).append(n.get("look"))
+            return {k: sorted(v) for k, v in out.items()}
+        la, lb = by_name(a), by_name(b)
+        for sid in sorted(set(la) & set(lb)):
+            if la[sid] != lb[sid]:
+                out.append(f"species {sid} look: SBML {la[sid]} / Antimony {lb[sid]}")
+        ra_ = {r["id"]: r.get("look") for r in a["reactions"]}
+        rb_ = {r["id"]: r.get("look") for r in b["reactions"]}
+        for rid in sorted(set(ra_) & set(rb_)):
+            if ra_[rid] != rb_[rid]:
+                out.append(f"reaction {rid} look: SBML {ra_[rid]} / Antimony {rb_[rid]}")
+        ca_ = {c["id"]: c.get("look") for c in a["compartments"]}
+        cb_ = {c["id"]: c.get("look") for c in b["compartments"]}
+        for cid in sorted(set(ca_) & set(cb_)):
+            if ca_[cid] != cb_[cid]:
+                out.append(f"compartment {cid} look: SBML {ca_[cid]} / Antimony {cb_[cid]}")
+        if a.get("background") != b.get("background"):
+            out.append(f"background: SBML {a.get('background')} / Antimony {b.get('background')}")
     note = f" (lines of {moved} reactions not compared: libAntimony moved their junction)" if moved else ""
     print(f"  {label}: {'agree' if not out else str(len(out)) + ' differences'}{note}", flush=True)
     for line in out[:8]:
@@ -263,7 +292,8 @@ def main():
             failures += 1
             continue
         failures += compare("libAntimony's layout", report(sb1), report(ant1), report(src1)) > 0
-        failures += compare("PathwayDesigner's layout", report(sb2), report(ant2), report(ours)) > 0
+        failures += compare("PathwayDesigner's layout", report(sb2), report(ant2), report(ours),
+                            looks=True) > 0
     print(f"{failures} comparisons with differences")
     return 1 if failures else 0
 

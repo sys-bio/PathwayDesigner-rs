@@ -502,7 +502,7 @@ fn tidy(x: f64) -> f64 {
 }
 
 /// Sets a colour field: the default sentinel if it is the default.
-fn set_colour(
+pub(crate) fn set_colour(
     style: &mut VisualStyle,
     f: impl Fn(&mut VisualStyle) -> &mut Rgba,
     c: Rgba,
@@ -511,7 +511,7 @@ fn set_colour(
     *f(style) = if c == default { Rgba::DEFAULT } else { c };
 }
 
-fn set_width(
+pub(crate) fn set_width(
     style: &mut VisualStyle,
     f: impl Fn(&mut VisualStyle) -> &mut f64,
     w: f64,
@@ -522,7 +522,7 @@ fn set_width(
 }
 
 /// After setting fields: custom if any field is; otherwise as it was.
-fn settle(style: &mut VisualStyle) {
+pub(crate) fn settle(style: &mut VisualStyle) {
     let plain = VisualStyle {
         junction_visible: style.junction_visible,
         no_border: style.no_border,

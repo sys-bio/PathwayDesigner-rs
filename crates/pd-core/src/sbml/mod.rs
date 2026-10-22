@@ -11,7 +11,7 @@ mod appearance;
 mod export;
 pub(crate) mod import;
 pub mod math;
-mod render_in;
+pub(crate) mod render_in;
 mod shape;
 
 pub use export::{Exported, export};

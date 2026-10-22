@@ -42,6 +42,7 @@ fn main() {
                 "of": s.primary_id(),
                 "null": s.is_null_node,
                 "x": s.center.x, "y": s.center.y, "w": s.width, "h": s.height,
+                "look": look(&s.style, Some(format!("{:?}", s.shape))),
             })
         })
         .collect();
@@ -72,6 +73,7 @@ fn main() {
                 "id": r.id,
                 "x": r.junction.x, "y": r.junction.y,
                 "mode": format!("{:?}", r.mode),
+                "look": look(&r.style, None),
                 "reactants": ends(&r.reactants),
                 "products": ends(&r.products),
                 "modifiers": ends(&r.modifiers),
@@ -84,11 +86,21 @@ fn main() {
         .iter()
         .filter_map(|c| {
             let f = c.frame?;
-            Some(json!({"id": c.id, "x": f.center.x, "y": f.center.y, "w": f.width, "h": f.height}))
+            Some(
+                json!({"id": c.id, "x": f.center.x, "y": f.center.y, "w": f.width, "h": f.height,
+                        "look": look(&c.style, None)}),
+            )
         })
         .collect();
     println!(
         "{}",
-        json!({"nodes": nodes, "reactions": reactions, "compartments": compartments, "warnings": warnings})
+        json!({"nodes": nodes, "reactions": reactions, "compartments": compartments, "warnings": warnings,
+               "background": format!("{:?}", m.background), "theme": format!("{:?}", m.theme)})
     );
+}
+
+/// An item's look, as text, for comparing (every field "use the default"
+/// when the style isn't custom).
+fn look(style: &pd_core::model::VisualStyle, shape: Option<String>) -> String {
+    format!("{:?} {}", style.canonical(), shape.unwrap_or_default())
 }

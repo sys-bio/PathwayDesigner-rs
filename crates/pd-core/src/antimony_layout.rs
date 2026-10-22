@@ -11,7 +11,7 @@
 //! A line between a reaction and a species (`J0.S1.b1`, §5) is the curve of
 //! an SBML species reference glyph written as statements, and is read
 //! through the same code as SBML import reads such curves. Looks
-//! (`S1.color`, step 4) are recognised here and left for that step.
+//! (`S1.color`, §6) are read in [`crate::antimony_looks`].
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -115,7 +115,7 @@ struct Segment {
 
 /// What a dotted name refers to.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Item {
+pub(crate) enum Item {
     Species,
     Reaction,
     Compartment,
@@ -156,6 +156,7 @@ pub fn apply(model: &mut Model, module: &Module, warnings: &mut Vec<Diagnostic>)
     place_reactions(model, &places);
     place_compartments(model, &places);
     place_lines(model, &places, warnings);
+    crate::antimony_looks::apply(model, module, warnings);
     applied
 }
 
@@ -513,6 +514,8 @@ fn gather(model: &Model, s: &LayoutStatement, places: &mut Places) -> Result<(),
             }
         }
         // `S1.position.J3.J4`: an alias of S1 for those reactions.
+        // An alias's look, `ATP.color.PFK`: read in antimony_looks.
+        [_, setting, _, ..] if is_look(setting) => Ok(()),
         [_, setting @ ("pos" | "position" | "size"), ..] => {
             let species = match find(model, path[0]) {
                 Some((Item::Species, id)) => id,
@@ -718,7 +721,7 @@ fn is_look(setting: &str) -> bool {
 /// The species (never an alias or a null node), reaction or compartment an
 /// id names, matched as written, else ignoring case, as the import resolves
 /// names.
-fn find(model: &Model, id: &str) -> Option<(Item, String)> {
+pub(crate) fn find(model: &Model, id: &str) -> Option<(Item, String)> {
     let species = |exact: bool| {
         model
             .species()
@@ -1165,11 +1168,12 @@ defaultCompartment.pos = {0, 0}; defaultCompartment.size = {500, 400}
     }
 
     #[test]
-    fn looks_are_accepted_quietly_for_now() {
+    fn looks_leave_the_layout_reading_alone() {
+        // Read in antimony_looks; the layout reading says nothing of them.
         let i = load(&format!(
             "{TWO}S1.pos = {{0, 0}}; S2.pos = {{100, 0}}\nS1.color = \"#FF0000\"\n\
-             species.linecolor = black\nmodel.layout.background = white\n\
-             J0.S1.linecolor = red\nmodel.layout = on\nmodel.layout.size = {{400, 300}}\n"
+             species.linecolor = black\nmodel.layout.background = white\nS1.color.J0 = red\n\
+             J0.--.color = white\nmodel.layout = on\nmodel.layout.size = {{400, 300}}\n"
         ));
         assert!(i.warnings.is_empty(), "{:?}", messages(&i));
     }
