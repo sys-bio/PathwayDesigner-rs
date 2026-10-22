@@ -1,12 +1,14 @@
 # A readable diagram format for Antimony models — draft specification
 
-**Status: draft for discussion, version 0.4, 2026-10-21. Nothing here is
+**Status: draft for discussion, version 0.5, 2026-10-22. Nothing here is
 implemented.** 0.2: the file type and COMBINE archives settled (§3). 0.3: made
 consistent with the app and with the minimal Render profile
 (`docs/render-design.md` §11): bold and italic names added; the reaction line
 pattern and the compartment name colour removed; the §14 mapping corrected. 0.4:
 corner points on reactant and product lines (`leg … via`, §9), as the app now has
-them (SPECIFICATION.md §5.6.5). Working name: *Antimony diagram* (file extension `.antd`, open
+them (SPECIFICATION.md §5.6.5). 0.5: the diagram may say whether a modifier activates or
+inhibits (`kind activator`, `kind inhibitor`, §10), so a model need not use
+Antimony's interaction syntax. Working name: *Antimony diagram* (file extension `.antd`, open
 question §15).
 
 ## Contents
@@ -51,9 +53,10 @@ diagrams of one model (open question §15).
 ## 2. Design principles
 
 1. **Biology once, drawing separately.** The diagram never restates the
-   biology: reactants, products, rate laws, reversibility, and whether a
-   modifier activates or inhibits all live in the model. The diagram only says
-   where things are and how they look. Remove the diagram section and the model
+   biology: reactants, products, rate laws and reversibility all live in the
+   model. The diagram says where things are and how they look, and, for a
+   modifier line, which kind of line it is (activator, inhibitor, catalyst)
+   when the model doesn't say (§10). Remove the diagram section and the model
    is unchanged.
 2. **Looks have names.** Repeated looks (metabolite, cofactor, enzyme, flux) are
    named styles, defined once and given by class. An item's own settings
@@ -312,16 +315,19 @@ src_R1     at (100, 0) source (40, 0)
 ## 10. Modifier lines
 
 ```
-line MAPK_PP to J1 via (1160, 650) (1160, 112) (360, 116) { line #C80000 3 solid; symbol 30 }
-line MKKK_P to J3
+line MAPK_PP to J1 via (1160, 650) (1160, 112) (360, 116) kind inhibitor { line #C80000 3 solid; symbol 30 }
+line MKKK_P to J3 kind activator
 line E#2 to R5 kind catalyst
 ```
 
 `line <drawing> to <reaction> [via <point> …] [kind <kind>] [<classes>] [{ … }]`.
 
-- **The kind is the model's.** `X -| J1` (inhibitor) and `X -o J1` (activator)
-  are Antimony and stay in the model section. Only a kind Antimony has no syntax
-  for is written here: `kind catalyst`. `kind modifier` is the default.
+- **The kind** is `modifier` (the default), `activator`, `inhibitor` or
+  `catalyst`. Most models name a modifier only in the rate law, so the diagram
+  is where its kind is said. A model may instead use Antimony's interactions,
+  `X -o J1` (activator) and `X -| J1` (inhibitor); then the line needs no
+  `kind`, and if it gives one that disagrees, the model's wins, with a warning
+  (§13). A writer gives the kind here unless the model already states it.
 - `via` lists the line's corner points in order from the modifier.
 - The look is the modifier properties of §6.2, from a `modifier` style or the
   line's own `{ … }`.
@@ -368,6 +374,8 @@ warning with a line and column.
   newer file passes through an older tool unharmed.
 - A value that doesn't read: that property is skipped.
 - A newer `v` number: read as far as understood, with one warning.
+- A modifier line whose `kind` disagrees with the model's interaction
+  (`X -o J1`, `X -| J1`): the model's kind is used.
 
 ## 14. Mapping to the app and to SBML Layout and Render
 
@@ -384,7 +392,7 @@ warning with a line and column.
 | `leg … curve` | participant handles | `speciesReferenceGlyph` curve (cubic Bézier) |
 | `leg … via` | participant `points` | that curve's further segments (line segments) |
 | `line … via` | modifier `points` | modifier's reference glyph curve (line segments) |
-| `kind catalyst` | modifier `kind` | SBO term on the modifier reference |
+| `kind` | modifier `kind` | SBO term on the modifier reference |
 | Modifier line look | modifier look keys | Render style on that reference glyph |
 | `theme` | `theme` | not carried by Render: the profile writes what is drawn, not the look of items added later |
 | `background` | `background` | the render information's background colour |
@@ -510,8 +518,8 @@ About 30 lines of diagram, against 665 lines of JSON for the same drawing.
 
 ```
 model mapk_cascade
-  // … the ten reactions and their rate laws, as in the Gallery model …
-  MAPK_PP -| J1        // the feedback: biology, so it is here
+  // … the ten reactions and their rate laws, as in the Gallery model; MAPK_PP
+  // appears in J1's rate law, which is where the feedback is …
 end
 
 diagram mapk_cascade v1
@@ -528,6 +536,6 @@ diagram mapk_cascade v1
   J1 at (360, 158) curved .phosphorylation name (-20, -29)
   // … the other reactions …
 
-  line MAPK_PP to J1 via (1160, 650) (1160, 112) (360, 116) { line #C80000 3 solid; symbol 30 }
+  line MAPK_PP to J1 via (1160, 650) (1160, 112) (360, 116) kind inhibitor { line #C80000 3 solid; symbol 30 }
 end
 ```
