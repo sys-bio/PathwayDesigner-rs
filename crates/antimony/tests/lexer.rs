@@ -530,34 +530,44 @@ fn block_comment_advances_the_line_number() {
 }
 
 // --- TLexerLayoutTests -----------------------------------------------------
+//
+// Changed for Rust: the Delphi lexer read `layout … end` and `layout { … }`
+// as one token. Antimony has no such block; its layout is dotted statements,
+// so `layout` is an ordinary word (docs/antimony-layout-design.md, D1).
 
 #[test]
-fn braced_layout_becomes_one_token() {
+fn layout_is_an_ordinary_word() {
     assert_eq!(
-        kinds("layout { node S1 { x: 1; y: 2; } } k1"),
-        [K::LayoutBlock, K::Identifier, K::Eof]
+        kinds("model.layout = on\nk1 = 1"),
+        [
+            K::Identifier,
+            K::Dot,
+            K::Identifier,
+            K::Assign,
+            K::Identifier,
+            K::Newline,
+            K::Identifier,
+            K::Assign,
+            K::Number,
+            K::Eof
+        ]
     );
 }
 
 #[test]
-fn end_terminated_layout_becomes_one_token() {
+fn layout_followed_by_end_swallows_nothing() {
     assert_eq!(
-        kinds("layout\n  node S1 at 3, 4\nend\nk1"),
-        [K::LayoutBlock, K::Newline, K::Identifier, K::Eof]
-    );
-}
-
-#[test]
-fn layout_token_keeps_the_raw_text() {
-    // The writer puts it back verbatim, so a load and save keeps the layout.
-    assert_eq!(tokens("layout { a }")[0].text, "layout { a }");
-}
-
-#[test]
-fn identifier_starting_with_layout_is_not_a_layout_block() {
-    assert_eq!(
-        kinds("layoutWidth = 3"),
-        [K::Identifier, K::Assign, K::Number, K::Eof]
+        kinds("layout\nk1 = 1\nend"),
+        [
+            K::Identifier,
+            K::Newline,
+            K::Identifier,
+            K::Assign,
+            K::Number,
+            K::Newline,
+            K::Identifier,
+            K::Eof
+        ]
     );
 }
 

@@ -147,8 +147,18 @@ The other model types follow Delphi §4.2 one for one, with these choices:
   `ConstraintKind::Range { lower, subject, upper, lower_inclusive,
   upper_inclusive }` for a chained comparison (decision 18). Delphi had four
   nullable fields.
-- `RawSection.kind` is `RawKind::Layout` or `RawKind::Annotation`, not a
-  string.
+- `RawSection.kind` is `RawKind::Annotation`, not a string. (`RawKind::Layout`
+  went with the `layout` block, R37.)
+- `Module.layout` holds Antimony 3's layout statements in the order read, each
+  a `LayoutStatement { path, value, comment, span }`: the dotted parts as
+  written (`["J0", "S1", "arc2", "b1"]`, a null node's part `"--"`) and a
+  `LayoutValue` (`Number`, `Point(x, y)` for a braced pair of numbers, `List`
+  for any other braced list, `Word` for one or more words, `Text` for a
+  string). The parser takes a statement as layout when it starts `model.`
+  (but not `model.sboTerm`), `species.`, `reaction.` or `compartment.`, or is
+  a dotted name with a layout word (`pos`, `size`, `b1`, `color`, `arc2`, …,
+  any case) or `--` after its first part. The writer puts them after
+  everything else, `path = value`, each with its comments.
 - `Module.name` is `Option<String>`: `None` for the statements of a file
   with no `model` block.
 - Every optional string is `Option<String>` (R4). So `S1 notes ""` keeps an
@@ -275,8 +285,8 @@ pub struct Diagnostic {
 - The lexer owns its `Diagnostics`; the parser takes them with
   `take_diagnostics()`. In Delphi the lexer and parser share one list.
 - Behaviour is the Delphi lexer's in every detail, including its edge cases
-  (a `\` before a line break inside a string escapes the break; `3end`
-  closes an `end`-terminated layout section). The corpus check is exact:
+  (a `\` before a line break inside a string escapes the break). The one
+  exception is the `layout` block (R37). The corpus check is exact:
   the same 273,129 tokens over the 1788 files, and the same 44,001 in the
   5000-line benchmark.
 - Scanning is by byte: every character the language gives a meaning to is
@@ -737,6 +747,7 @@ licence and API.
 | R34 | The facade's queries raise on a bad index or id, with a message naming the method | `None`, or the `Vec`'s own indexing (§6) | R8: Rust's idiom; there is no method name to report |
 | R35 | `doc/api.md`, a separate reference | The crate-level documentation (`src/lib.rs`) and the README, whose examples are run as doc tests | One place, shown by docs.rs, and checked by `cargo test` |
 | R36 | `const`, `var` and `$` declare only: `const k1 = 0.5`, `var k = 3` and `$B = 4` are syntax errors | An item of `const` or `var` may have `in c` and `= value`, and a statement `$x = value` (or `$x in c …`) is `const $x = value`, as libantimony reads it. A `$` on something that is not a species is kept (`is_boundary`), so a later use as a species makes a boundary one, and the writer writes it back as `const $x`; it also writes `x in c;` for a symbol that is not a species or compartment, which it used to drop | libantimony accepts all three, and the language reference outranks the Delphi version (Delphi decision 19). Found when the crate's first user met `$B = 4` |
+| R37 | `layout … end` and `layout { … }` are one token, kept verbatim (Delphi N1, §5.6) | `layout` is an ordinary word. Antimony 3's layout statements (`model.layout = on`, `S1.pos = {28, 35}`) are read into `Module.layout` and written back (§3) | Antimony has no `layout` block; its layout is dotted statements (the reference's "Layout and Render", libAntimony 3.0). The block rule swallowed `model.layout = on` and everything after it up to the next `end`, losing values and the model's own `end`. The author chose this on 2026-10-22 (docs/antimony-layout-design.md, D1) |
 
 ## 10. Left open, for the milestone that needs it
 

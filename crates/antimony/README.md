@@ -81,7 +81,10 @@ guide: the error contract, the model, writing, and what is not built.
 
 Not built: reading SBML, expanding submodules (`comp`) and `import`, writing
 the `fbc` package to SBML, DNA strand syntax, unit algebra beyond base units,
-and simulation. Layout sections are kept and written back.
+and simulation. Antimony 3's layout statements (`model.layout = on`,
+`S1.pos = {28, 35}`, `J0.S1.b1 = {55, 31}`) are read into
+`Module::layout`, kept in order and written back; what they draw is the
+caller's to decide.
 
 ## Design
 

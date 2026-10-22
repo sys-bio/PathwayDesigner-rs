@@ -185,7 +185,9 @@
 //! - **Unit algebra.** A unit definition is kept as text. SBML output
 //!   understands base units, `^` exponents and a leading multiplier, and
 //!   writes an empty definition for anything more.
-//! - **Layout and render syntax.** Kept verbatim and written back.
+//! - **Layout and render statements** (Antimony 3: `model.layout = on`,
+//!   `S1.pos = {28, 35}`). Read into [`model::Module::layout`], kept and
+//!   written back, but not turned into SBML Layout or Render.
 //!
 //! # Conventions
 //!

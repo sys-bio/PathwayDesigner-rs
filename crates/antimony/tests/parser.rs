@@ -576,12 +576,11 @@ fn dna_syntax_is_rejected_by_name() {
 }
 
 #[test]
-fn layout_block_is_skipped_and_preserved() {
-    let parsed = clean("k1 = 1;\nlayout { node S1 { x: 1; } }\nk2 = 2;");
-    let sections = &parsed.main().unparsed_sections;
-    assert_eq!(sections.len(), 1);
-    assert_eq!(sections[0].kind, RawKind::Layout);
-    assert!(sections[0].text.contains("node"));
+fn layout_statement_is_read_and_kept() {
+    // Antimony 3's layout (tests/layout.rs has the rest).
+    let parsed = clean("k1 = 1;\nmodel.layout = on\nk2 = 2;");
+    assert_eq!(parsed.main().layout.len(), 1);
+    assert!(parsed.main().unparsed_sections.is_empty());
     assert!(parsed.main().symbol("k2").is_some());
 }
 

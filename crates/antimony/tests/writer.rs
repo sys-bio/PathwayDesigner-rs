@@ -247,10 +247,16 @@ fn no_section_headers_are_invented() {
     );
 }
 
+// Changed for Rust: Delphi re-emitted a `layout { … }` block, which Antimony
+// does not have; its layout statements are re-emitted instead (D1 of
+// docs/antimony-layout-design.md; tests/layout.rs has the rest).
 #[test]
-fn layout_block_is_re_emitted_verbatim() {
-    let text = w("k1 = 1;\nlayout { node S1 { x: 1; } }");
-    assert!(text.contains("layout { node S1 { x: 1; } }"), "{text}");
+fn layout_statements_are_re_emitted() {
+    let text = w("k1 = 1;\nmodel.layout = on\nS1.pos = {1, 2}");
+    assert!(
+        text.contains("model.layout = on\nS1.pos = {1, 2}"),
+        "{text}"
+    );
 }
 
 #[test]

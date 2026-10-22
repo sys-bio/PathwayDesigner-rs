@@ -18,9 +18,11 @@ use crate::lexer::{Keyword, Lexer, Token, TokenKind};
 use crate::messages;
 use crate::model::{
     AlgebraicRule, Constness, Constraint, ConstraintKind, CvTerm, Document, Event, EventAssignment,
-    Function, Interaction, InteractionKind, Metadata, Module, Objective, Participant, Qualifier,
-    RawKind, RawSection, Reaction, ReactionKind, Rule, RuleKind, Symbol, SymbolKind, UnitDef,
+    Function, Interaction, InteractionKind, LayoutStatement, LayoutValue, Metadata, Module,
+    Objective, Participant, Qualifier, RawKind, RawSection, Reaction, ReactionKind, Rule, RuleKind,
+    Symbol, SymbolKind, UnitDef,
 };
+use crate::number;
 use crate::span::Span;
 
 /// Reads `source` into a document. Never fails: problems are in the
@@ -393,17 +395,12 @@ impl<'a> Parser<'a> {
         let token = self.peek(0).clone();
         self.comment = non_empty(&token.trivia);
 
+        if self.looks_like_layout_statement() {
+            self.parse_layout_statement();
+            return;
+        }
+
         match token.kind {
-            TokenKind::LayoutBlock => {
-                // Kept verbatim, never interpreted, so a load and save keeps it.
-                self.module_mut().unparsed_sections.push(RawSection {
-                    kind: RawKind::Layout,
-                    text: token.text,
-                    span: token.span,
-                });
-                self.next();
-                return;
-            }
             TokenKind::DashDash | TokenKind::Ellipsis => {
                 self.error(
                     Code::DnaNotSupported,
@@ -529,6 +526,144 @@ impl<'a> Parser<'a> {
         let detail = format!("{} cannot start a statement", token.describe());
         self.syntax_error(token.span, &detail);
         self.resynchronise();
+    }
+
+    // --- layout statements ---------------------------------------------------------
+
+    /// Whether a layout statement starts here (Antimony 3: `model.layout = on`,
+    /// `species.color = azure`, `S1.pos = {28, 35}`, `J0.S1.b1 = {55, 31}`,
+    /// `J0.--.position = {520, 483}`). `model.`, `species.`, `reaction.` and
+    /// `compartment.` always start one, except `model.sboTerm`. Any other
+    /// dotted name starts one when a later part is a layout word or `--`.
+    /// In Antimony `A.x = 3` can also set a submodule's `x`; this library
+    /// does not read submodules (M10), so such a statement is read as
+    /// layout.
+    fn looks_like_layout_statement(&mut self) -> bool {
+        if self.kind(0) != TokenKind::Identifier || self.kind(1) != TokenKind::Dot {
+            return false;
+        }
+        let first = self.text(0);
+        if first == "model" {
+            return !self.is_keyword(2, Keyword::SboTerm);
+        }
+        if matches!(first.as_str(), "species" | "reaction" | "compartment") {
+            return true;
+        }
+        let mut at = 2;
+        let mut layout = false;
+        loop {
+            match self.kind(at) {
+                TokenKind::DashDash => layout = true,
+                TokenKind::Identifier => layout |= is_layout_word(&self.text(at)),
+                _ => return false,
+            }
+            match self.kind(at + 1) {
+                TokenKind::Dot => at += 2,
+                TokenKind::Assign => return layout,
+                _ => return false,
+            }
+        }
+    }
+
+    /// `path = value`: the path is dotted ids (and `--`), the value a number,
+    /// `{x, y}`, a braced list, words or a string.
+    fn parse_layout_statement(&mut self) {
+        let comment = self.comment.clone();
+        let first = self.next();
+        let mut span = first.span;
+        let mut path = vec![first.text];
+        while self.try_consume(TokenKind::Dot) {
+            if !matches!(self.kind(0), TokenKind::Identifier | TokenKind::DashDash) {
+                self.expected_identifier();
+                self.resynchronise();
+                return;
+            }
+            let part = self.next();
+            span = span.union(part.span);
+            path.push(part.text);
+        }
+        if !self.try_consume(TokenKind::Assign) {
+            self.unexpected("\"=\"");
+            self.resynchronise();
+            return;
+        }
+        let Some(value) = self.parse_layout_value() else {
+            self.unexpected("a layout value");
+            self.resynchronise();
+            return;
+        };
+        span = span.union(self.current_span());
+        self.module_mut().layout.push(LayoutStatement {
+            path,
+            value,
+            comment,
+            span,
+        });
+        self.expect_statement_end();
+    }
+
+    fn parse_layout_value(&mut self) -> Option<LayoutValue> {
+        match self.kind(0) {
+            TokenKind::Number | TokenKind::Minus => {
+                self.parse_layout_number().map(LayoutValue::Number)
+            }
+            TokenKind::String => Some(LayoutValue::Text(self.next().text)),
+            TokenKind::Identifier => {
+                let mut words = vec![self.next().text];
+                while self.kind(0) == TokenKind::Identifier {
+                    words.push(self.next().text);
+                }
+                Some(LayoutValue::Word(words.join(" ")))
+            }
+            TokenKind::LBrace => {
+                self.next();
+                // Each item as written, and its value if it is a number.
+                let mut items: Vec<(String, Option<f64>)> = Vec::new();
+                loop {
+                    self.skip_newlines();
+                    match self.kind(0) {
+                        TokenKind::RBrace => {
+                            self.next();
+                            break;
+                        }
+                        TokenKind::Number | TokenKind::Minus => {
+                            let value = self.parse_layout_number()?;
+                            items.push((number::format(value), Some(value)));
+                        }
+                        TokenKind::Identifier | TokenKind::String => {
+                            items.push((self.next().text, None));
+                        }
+                        _ => return None,
+                    }
+                    self.skip_newlines();
+                    if !self.try_consume(TokenKind::Comma) && self.kind(0) != TokenKind::RBrace {
+                        return None;
+                    }
+                }
+                Some(match items.as_slice() {
+                    [(_, Some(x)), (_, Some(y))] => LayoutValue::Point(*x, *y),
+                    _ => LayoutValue::List(items.into_iter().map(|(text, _)| text).collect()),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// A number with an optional sign: `28`, `-3.5`.
+    fn parse_layout_number(&mut self) -> Option<f64> {
+        let negative = self.try_consume(TokenKind::Minus);
+        if self.kind(0) != TokenKind::Number {
+            return None;
+        }
+        let value = self.next().number;
+        Some(if negative { -value } else { value })
+    }
+
+    /// Line breaks inside a braced list.
+    fn skip_newlines(&mut self) {
+        while self.kind(0) == TokenKind::Newline {
+            self.next();
+        }
     }
 
     /// A deferred construct gets one diagnostic naming its milestone, never
@@ -1891,4 +2026,45 @@ impl<'a> Parser<'a> {
             self.resynchronise();
         }
     }
+}
+
+/// A part of a dotted name that only a layout statement uses: a position, a
+/// size, a line's ends and control points, a look, or `arcN`/`segN`. Read
+/// without regard to case: the reference writes `linecolor`, libAntimony's
+/// writer `lineColor`.
+fn is_layout_word(part: &str) -> bool {
+    let lower = part.to_ascii_lowercase();
+    let numbered = |prefix: &str| {
+        lower
+            .strip_prefix(prefix)
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    };
+    numbered("arc")
+        || numbered("seg")
+        || matches!(
+            lower.as_str(),
+            "pos"
+                | "position"
+                | "x"
+                | "y"
+                | "size"
+                | "width"
+                | "height"
+                | "species_end"
+                | "rxn_end"
+                | "b1"
+                | "b2"
+                | "color"
+                | "fillcolor"
+                | "linecolor"
+                | "strokecolor"
+                | "linewidth"
+                | "strokewidth"
+                | "fontcolor"
+                | "font"
+                | "fontsize"
+                | "fontstyle"
+                | "fontweight"
+                | "shape"
+        )
 }

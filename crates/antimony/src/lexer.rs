@@ -11,8 +11,12 @@
 //!   an assignment needs;
 //! - comments are kept as trivia on the next token, so the writer can put
 //!   them back;
-//! - `inf` and `nan` are numbers;
-//! - a whole `layout` section is one token (Delphi N1, §5.6).
+//! - `inf` and `nan` are numbers.
+//!
+//! `layout` is an ordinary word. The Delphi lexer read `layout … end` and
+//! `layout { … }` as one token (Delphi N1, §5.6), but Antimony has no such
+//! block: its layout is dotted statements (`model.layout = on`), which the
+//! parser reads (docs/antimony-layout-design.md).
 //!
 //! **There are no reserved words.** The lexer never makes a keyword token: it
 //! makes an identifier and notes the keyword it spells, and the parser decides
@@ -38,8 +42,6 @@ pub enum TokenKind {
     Identifier,
     Number,
     String,
-    /// A whole `layout` section, kept verbatim.
-    LayoutBlock,
 
     // Punctuation.
     Semicolon,
@@ -120,7 +122,7 @@ impl TokenKind {
     pub fn spelling(self) -> &'static str {
         use TokenKind::*;
         match self {
-            Eof | Newline | Identifier | Number | String | LayoutBlock | Unknown => "",
+            Eof | Newline | Identifier | Number | String | Unknown => "",
             Semicolon => ";",
             Comma => ",",
             Colon => ":",
@@ -356,7 +358,7 @@ impl Keyword {
 pub struct Token {
     pub kind: TokenKind,
     /// The identifier, the operator's spelling, a string's decoded contents,
-    /// a number as written, or a layout section verbatim.
+    /// or a number as written.
     pub text: String,
     /// The keyword an identifier spells, if any. Set on the `inf` and `nan`
     /// number tokens too.
@@ -391,7 +393,6 @@ impl Token {
             TokenKind::Identifier => format!("identifier \"{}\"", self.text),
             TokenKind::Number => format!("number {}", number::format(self.number)),
             TokenKind::String => format!("string \"{}\"", self.text),
-            TokenKind::LayoutBlock => "layout section".into(),
             TokenKind::Unknown => format!("character \"{}\"", self.text),
             _ => format!("\"{}\"", self.text),
         }
@@ -692,10 +693,6 @@ impl<'a> Lexer<'a> {
         self.produced += 1;
         let b = self.byte(0);
         if b.is_ascii_alphabetic() || b == b'_' {
-            if self.source[self.pos..].starts_with("layout") && !is_ident_char(self.byte(6) as char)
-            {
-                return self.scan_layout_block(start);
-            }
             return self.scan_word(start);
         }
         if b.is_ascii_digit() || (b == b'.' && self.byte(1).is_ascii_digit()) {
@@ -870,51 +867,6 @@ impl<'a> Lexer<'a> {
             );
         }
         token
-    }
-
-    /// A `layout` section, skipped as one token and kept verbatim so the
-    /// writer can put it back (Delphi N1, §5.6). Two forms occur: a body in
-    /// braces, and a body ended by `end` like other blocks.
-    fn scan_layout_block(&mut self, start: Pos) -> Token {
-        let from = self.pos;
-        self.pos += "layout".len();
-        while matches!(self.byte(0), b' ' | b'\t') {
-            self.pos += 1;
-        }
-        if self.byte(0) == b'{' {
-            let mut depth = 0usize;
-            while !self.at_end() {
-                match self.byte(0) {
-                    b'{' => depth += 1,
-                    b'}' => {
-                        depth = depth.saturating_sub(1);
-                        if depth == 0 {
-                            self.pos += 1;
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-                self.pos += 1;
-            }
-        } else {
-            while !self.at_end() {
-                let b = self.byte(0);
-                if b.is_ascii_alphabetic() || b == b'_' {
-                    let word = self.pos;
-                    while is_ident_char(self.byte(0) as char) {
-                        self.pos += 1;
-                    }
-                    if &self.source[word..self.pos] == "end" {
-                        break;
-                    }
-                } else {
-                    self.pos += 1;
-                }
-            }
-        }
-        let text = &self.source[from..self.pos];
-        self.make(TokenKind::LayoutBlock, text, start)
     }
 
     fn scan_operator(&mut self, start: Pos) -> Token {

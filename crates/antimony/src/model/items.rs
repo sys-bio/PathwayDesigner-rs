@@ -366,10 +366,37 @@ pub struct Objective {
 /// What a raw section is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RawKind {
-    /// A `layout` section (Delphi N1), skipped and kept.
-    Layout,
     /// An annotation in a vocabulary this library does not know.
     Annotation,
+}
+
+/// One of Antimony's layout statements (Antimony 3, the reference's "Layout
+/// and Render"): `model.layout = on`, `S1.pos = {28, 35}`,
+/// `J0.S1.arc2.b1 = {55, 31}`, `J0.--.position = {520, 483}`,
+/// `species.color = azure`. This library reads and keeps them; what they
+/// draw is for the caller to decide.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutStatement {
+    /// The dotted parts as written: `["J0", "S1", "arc2", "b1"]`; a null
+    /// node's part is `"--"`.
+    pub path: Vec<String>,
+    pub value: LayoutValue,
+    pub comment: Option<String>,
+    pub span: Span,
+}
+
+/// The right-hand side of a [`LayoutStatement`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum LayoutValue {
+    Number(f64),
+    /// `{x, y}`.
+    Point(f64, f64),
+    /// Any other braced list, such as `{S1, S2, S3}`, each item as written.
+    List(Vec<String>),
+    /// One or more words: `on`, `azure`, `bold_italic`, `blue ombre`.
+    Word(String),
+    /// A quoted string: `"#268F49CC"`.
+    Text(String),
 }
 
 /// Text kept verbatim so that a load and save loses nothing.
@@ -402,8 +429,10 @@ pub struct Module {
     pub algebraic_rules: Vec<AlgebraicRule>,
     pub constraints: Vec<Constraint>,
     pub sbo_term: Option<u32>,
-    /// Layout sections and unknown annotations, kept verbatim.
+    /// Unknown annotations, kept verbatim.
     pub unparsed_sections: Vec<RawSection>,
+    /// Layout statements, in the order read.
+    pub layout: Vec<LayoutStatement>,
     /// `model conversionFactor cf` (Delphi §5.8).
     pub conversion_factor: Option<String>,
     pub notes: Option<String>,

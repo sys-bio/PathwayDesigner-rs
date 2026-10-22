@@ -16,9 +16,10 @@
 
 use crate::expr::{Expr, ExprKind};
 use crate::model::{
-    Constness, ConstraintKind, CvTerm, Document, Metadata, Module, Participant, ReactionKind,
-    RuleKind, SymbolKind,
+    Constness, ConstraintKind, CvTerm, Document, LayoutValue, Metadata, Module, Participant,
+    ReactionKind, RuleKind, SymbolKind,
 };
+use crate::number;
 
 /// How the text is laid out. Every choice reads back to the same model.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -219,6 +220,7 @@ impl Writer<'_> {
         self.attachments(module);
         self.annotations(module);
         self.raw_sections(module);
+        self.layout(module);
 
         if let Some(name) = &module.name {
             self.indent.clear();
@@ -616,7 +618,25 @@ impl Writer<'_> {
         self.end_group(wrote);
     }
 
-    /// Layout sections and unknown annotations, verbatim.
+    /// Layout statements, in the order read: `S1.pos = {28, 35}`.
+    fn layout(&mut self, module: &Module) {
+        for statement in &module.layout {
+            self.comment(statement.comment.as_ref());
+            let value = match &statement.value {
+                LayoutValue::Number(n) => number::format(*n),
+                LayoutValue::Point(x, y) => {
+                    format!("{{{}, {}}}", number::format(*x), number::format(*y))
+                }
+                LayoutValue::List(items) => format!("{{{}}}", items.join(", ")),
+                LayoutValue::Word(word) => word.clone(),
+                LayoutValue::Text(text) => quoted(text),
+            };
+            self.line(&format!("{} = {value}", statement.path.join(".")));
+        }
+        self.end_group(!module.layout.is_empty());
+    }
+
+    /// Unknown annotations, verbatim.
     fn raw_sections(&mut self, module: &Module) {
         for section in &module.unparsed_sections {
             self.line(&section.text);
