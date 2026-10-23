@@ -167,6 +167,9 @@ pub fn apply(model: &mut Model, module: &Module, warnings: &mut Vec<Diagnostic>)
 /// A reaction with handles on any line is drawn curved (D3).
 fn place_lines(model: &mut Model, places: &Places, warnings: &mut Vec<Diagnostic>) {
     let mut bent = 0;
+    // Where each reactant's and product's line meets its reaction, for the
+    // stem (below).
+    let mut meets: HashMap<String, (Vec<Pt>, Vec<Pt>)> = HashMap::new();
     for ((reaction, species), segments) in &places.lines {
         let Some(r) = model.find_reaction(reaction) else {
             continue;
@@ -222,6 +225,17 @@ fn place_lines(model: &mut Model, places: &Places, warnings: &mut Vec<Diagnostic
             &segs[..segs.len() - 1]
         };
         bent += rest.iter().any(is_bent) as usize;
+        let reaction_end = if at_species_first {
+            pt(segs[segs.len() - 1].end().x, segs[segs.len() - 1].end().y)
+        } else {
+            pt(segs[0].start().x, segs[0].start().y)
+        };
+        let m = meets.entry(reaction.clone()).or_default();
+        match role {
+            Role::Reactant => m.0.push(reaction_end),
+            Role::Product => m.1.push(reaction_end),
+            Role::Modifier => {}
+        }
         let r = model.find_reaction_mut(reaction).expect("found above");
         let p = &mut r.participants_mut(role)[index];
         let curved = match (species, role) {
@@ -256,6 +270,7 @@ fn place_lines(model: &mut Model, places: &Places, warnings: &mut Vec<Diagnostic
             r.mode = ReactionMode::Bezier;
         }
     }
+    stems(model, &meets);
     if bent > 0 {
         let lines = if bent == 1 { "line was" } else { "lines were" };
         warnings.push(Diagnostic {
@@ -267,6 +282,41 @@ fn place_lines(model: &mut Model, places: &Places, warnings: &mut Vec<Diagnostic
                  piece at the species curved, and the rest straight"
             ),
         });
+    }
+}
+
+/// A stem (S §5.13), which Antimony has no statement for, from where the
+/// lines meet the reaction: when every reactant's line starts at one point
+/// and every product's at another, not both at the junction, those points
+/// are the stem's ends, as PathwayDesigner writes a reaction with a stem and
+/// as libAntimony draws such lines.
+fn stems(model: &mut Model, meets: &HashMap<String, (Vec<Pt>, Vec<Pt>)>) {
+    let one = |pts: &[Pt]| {
+        let first = *pts.first()?;
+        pts.iter()
+            .all(|p| p.distance(first) < 0.05)
+            .then_some(first)
+    };
+    for (id, (reactants, products)) in meets {
+        let Some(r) = model.find_reaction_mut(id) else {
+            continue;
+        };
+        if r.stem.is_some()
+            || reactants.len() != r.reactants.len()
+            || products.len() != r.products.len()
+        {
+            continue;
+        }
+        let (Some(a), Some(b)) = (one(reactants), one(products)) else {
+            continue;
+        };
+        let j = r.junction;
+        if a.distance(j) < 0.05 && b.distance(j) < 0.05 {
+            continue;
+        }
+        let stem = (a - j, b - j);
+        r.stem = Some(stem);
+        r.stem_straight = crate::model::stem_is_straight(stem);
     }
 }
 
@@ -337,7 +387,8 @@ fn curve(
             .filter(|(_, d)| d.abs() > 1e-12)
             .map(|(h, d)| h / d.abs())
             .fold(f64::INFINITY, f64::min);
-        if t.is_finite() && t < 1.0 {
+        // At most 1: `toward` may lie on the border itself.
+        if t.is_finite() && t <= 1.0 + 1e-9 {
             center + d * t
         } else {
             center
@@ -346,10 +397,11 @@ fn curve(
     // The missing end of a path whose other end is `given`: the junction, or
     // the species' border, whichever is farther from it.
     let missing = |given: Pt, next: Pt| {
-        if given.distance(junction) >= given.distance(center) {
+        let edge = border(next);
+        if given.distance(junction) >= given.distance(edge) {
             junction
         } else {
-            border(next)
+            edge
         }
     };
     match (ends[0].0, ends[len - 1].1) {
@@ -387,7 +439,16 @@ fn curve(
         // libAntimony writes a straight segment's missing base points as
         // (0, 0).
         let origin = Some(Pt::ZERO);
-        let straight = s.b1 == origin && s.b2 == origin;
+        // And so is a straight segment as PathwayDesigner writes one, with
+        // base points a third and two thirds along it (libAntimony bends a
+        // segment without base points towards the origin). Any other base
+        // points are a curve's, even on the line: a curved reaction's
+        // automatic handles often are.
+        let thirds = |b: Option<Pt>, f: f64| {
+            b.is_some_and(|b| b.distance(start + (end - start) * f) < ON_LINE)
+        };
+        let straight = (s.b1 == origin && s.b2 == origin)
+            || (thirds(s.b1, 1.0 / 3.0) && thirds(s.b2, 2.0 / 3.0));
         out.push(if (s.b1.is_some() || s.b2.is_some()) && !straight {
             sb::Segment::Bezier {
                 start: q(start),
@@ -404,6 +465,10 @@ fn curve(
     }
     Some(sb::Curve { segments: out })
 }
+
+/// How near a third and two thirds along a straight segment its base points
+/// lie, as PathwayDesigner writes one: two decimals.
+const ON_LINE: f64 = 0.02;
 
 /// A Bézier segment whose control points lie off the straight line between
 /// its ends: one PathwayDesigner draws straight when it isn't at the species.
@@ -1260,7 +1325,7 @@ S2.pos = {{100, 0}}
         // A straight curve from the junction to S2's border, as libAntimony
         // writes one: carried on, it passes through S2's centre.
         let i = load(&format!(
-            "{PLACED}J0.S2.species_end = {{300, 18}}\nJ0.S2.b1 = {{220, 18}}\nJ0.S2.b2 = {{260, 18}}\n"
+            "{PLACED}J0.S2.species_end = {{300, 18}}\nJ0.S2.b1 = {{230, 18}}\nJ0.S2.b2 = {{265, 18}}\n"
         ));
         let p = leg(&i.model, "J0", Role::Product, 0);
         assert!(p.ctrl_pts_set);
@@ -1431,6 +1496,45 @@ S2.pos = {{100, 0}}
     }
 
     #[test]
+    fn a_missing_end_beside_a_close_junction_is_the_junction() {
+        // As in the repressilator: the line's given end on S2's border,
+        // (300, 18), is nearer the junction (275, 18) than S2's centre
+        // (330, 18); the end left out is the junction, so the line is
+        // straight, its base points at thirds.
+        let i = load(concat!(
+            "J0: S1 -> S2; k1*S1\nk1 = 1\nS1.pos = {0, 0}\nS2.pos = {300, 0}\n",
+            "J0.pos = {265, 8}\nJ0.S2.species_end = {300, 18}\n",
+            "J0.S2.b1 = {283.33, 18}\nJ0.S2.b2 = {291.67, 18}\n",
+        ));
+        assert!(!leg(&i.model, "J0", Role::Product, 0).ctrl_pts_set);
+        assert_eq!(
+            i.model.find_reaction("J0").unwrap().mode,
+            ReactionMode::Straight
+        );
+    }
+
+    #[test]
+    fn base_points_at_thirds_mean_a_straight_segment_as_we_write_one() {
+        // From the junction (180, 18) to S2's border (300, 18).
+        let i = load(&format!(
+            "{PLACED}J0.S2.species_end = {{300, 18}}\nJ0.S2.b1 = {{220, 18}}\nJ0.S2.b2 = {{260, 18}}\n"
+        ));
+        assert!(!leg(&i.model, "J0", Role::Product, 0).ctrl_pts_set);
+        assert_eq!(
+            i.model.find_reaction("J0").unwrap().mode,
+            ReactionMode::Straight
+        );
+        // On the line but elsewhere: a curve's handles.
+        let i = load(&format!(
+            "{PLACED}J0.S2.species_end = {{300, 18}}\nJ0.S2.b1 = {{230, 18}}\nJ0.S2.b2 = {{265, 18}}\n"
+        ));
+        assert_eq!(
+            i.model.find_reaction("J0").unwrap().mode,
+            ReactionMode::Bezier
+        );
+    }
+
+    #[test]
     fn base_points_at_the_origin_mean_a_straight_segment() {
         let i = load(&format!(
             "{PLACED}J0.S1.b1 = {{0, 0}}\nJ0.S1.b2 = {{0, 0}}\n"
@@ -1447,7 +1551,7 @@ S2.pos = {{100, 0}}
         // A straight curve to S2's border, its numbers rounded as libAntimony
         // writes them: carried on, it misses the centre by about 0.003.
         let i = load(&format!(
-            "{PLACED}J0.S2.species_end = {{300, 18.003}}\nJ0.S2.b1 = {{220, 18}}\nJ0.S2.b2 = {{260.01, 18}}\n"
+            "{PLACED}J0.S2.species_end = {{300, 18.003}}\nJ0.S2.b1 = {{230, 18}}\nJ0.S2.b2 = {{265.01, 18}}\n"
         ));
         let p = leg(&i.model, "J0", Role::Product, 0);
         assert!(p.ctrl2.x > 270.0, "carried on: {:?}", p.ctrl2);

@@ -497,6 +497,15 @@ fn compare(a: &Value, b: &Value, path: &str, out: &mut BTreeMap<String, Tally>, 
         (Value::Array(x), Value::Array(y)) if x.iter().chain(y).all(|v| !v.is_object()) => {
             // A list of numbers (corner points): one field.
             let same = x.len() == y.len() && x.iter().zip(y).all(|(u, v)| same_leaf(u, v, path));
+            if !same
+                && standard == detail_standard()
+                && DETAIL.load(std::sync::atomic::Ordering::Relaxed)
+            {
+                eprintln!(
+                    "{path}: {a} -> {b}   @{}",
+                    AT.with(|t| t.borrow().join("/"))
+                );
+            }
             count(out, path, same);
         }
         (Value::Array(x), Value::Array(y)) => {

@@ -10,9 +10,14 @@
 
 use std::fmt::Write as _;
 
+use std::collections::HashSet;
+
+use sbml_io as sb;
+
 use crate::antimony_layout::{NULL_SIZE, REACTION_SIZE};
-use crate::geometry::Pt;
-use crate::model::{Model, SpeciesNode};
+use crate::geometry::{Pt, pt};
+use crate::model::{Model, Role, SpeciesNode};
+use crate::sbml::export::leg_segments;
 
 /// Raised so that libAntimony's automatic layout adds no drawings of its
 /// own to a layout that places every species (libAntimony finding 5).
@@ -63,13 +68,12 @@ pub(crate) fn statements(model: &Model) -> Vec<String> {
         }
         let key = format!("{}.{{}}.{}", s.primary_id(), reactions.join("."));
         out.push(format!("{} = {}", key.replace("{}", "position"), corner(s)));
-        if common != Some((s.width, s.height)) {
-            out.push(format!(
-                "{} = {}",
-                key.replace("{}", "size"),
-                pair(s.width, s.height)
-            ));
-        }
+        // Always: libAntimony 3.2.1 doesn't give an alias `species.size`.
+        out.push(format!(
+            "{} = {}",
+            key.replace("{}", "size"),
+            pair(s.width, s.height)
+        ));
     }
 
     for r in model.reactions() {
@@ -96,6 +100,10 @@ pub(crate) fn statements(model: &Model) -> Vec<String> {
         }
     }
 
+    for r in model.reactions() {
+        lines(model, r, &mut out);
+    }
+
     for c in &model.compartments {
         let Some(f) = c.drawn_frame() else {
             continue;
@@ -105,6 +113,90 @@ pub(crate) fn statements(model: &Model) -> Vec<String> {
         out.push(format!("{}.size = {}", c.id, pair(f.width, f.height)));
     }
     out
+}
+
+/// A reaction's lines (design §5): each as SBML export draws it, written from
+/// the reaction to the species, the way libAntimony's own layouts run, so
+/// the names mean what the reference says. Both ends are always written:
+/// libAntimony reads a line without `species_end` as ending at (0, 0), and in
+/// a large model (the Millard model) one without `rxn_end` as starting far
+/// from its reaction. A straight segment gets base points a third and two thirds along
+/// it: libAntimony bends one without them towards the origin. Several
+/// segments (corner points) are `seg1`, `seg2`, … from the reaction, each
+/// with both ends. Antimony names a line by its reaction and species, so a
+/// second line to one species (as a reactant and a modifier) can't be said.
+fn lines(model: &Model, r: &crate::model::Reaction, out: &mut Vec<String>) {
+    let mut named: HashSet<String> = HashSet::new();
+    for role in [Role::Reactant, Role::Product, Role::Modifier] {
+        for (index, p) in r.participants(role).iter().enumerate() {
+            let Some(node) = model.find_species(&p.species) else {
+                continue;
+            };
+            let key = if node.is_null_node {
+                format!("{}.--", r.id)
+            } else {
+                format!("{}.{}", r.id, node.primary_id())
+            };
+            if !named.insert(key.clone()) {
+                continue;
+            }
+            let Some(mut segments) = leg_segments(model, r, role, index) else {
+                continue;
+            };
+            if segments.is_empty() {
+                continue;
+            }
+            // From the reaction to the species: the path's far end from the
+            // node first.
+            let at = |q: sb::Point| pt(q.x, q.y);
+            let first = at(segments[0].start());
+            let last = at(segments[segments.len() - 1].end());
+            if first.distance(node.center) < last.distance(node.center) {
+                segments = segments.into_iter().rev().map(turned).collect();
+            }
+            let n = segments.len();
+            for (k, s) in segments.iter().enumerate() {
+                let prefix = if n == 1 {
+                    key.clone()
+                } else {
+                    format!("{key}.seg{}", k + 1)
+                };
+                let (start, end) = (at(s.start()), at(s.end()));
+                let (b1, b2) = match s {
+                    sb::Segment::Bezier { base1, base2, .. } => (at(*base1), at(*base2)),
+                    sb::Segment::Line { .. } => {
+                        let d = end - start;
+                        (start + d / 3.0, start + d * (2.0 / 3.0))
+                    }
+                };
+                out.push(format!("{prefix}.rxn_end = {}", pair(start.x, start.y)));
+                out.push(format!("{prefix}.species_end = {}", pair(end.x, end.y)));
+                out.push(format!("{prefix}.b1 = {}", pair(b1.x, b1.y)));
+                out.push(format!("{prefix}.b2 = {}", pair(b2.x, b2.y)));
+            }
+        }
+    }
+}
+
+/// A segment run the other way.
+fn turned(s: sb::Segment) -> sb::Segment {
+    match s {
+        sb::Segment::Line { start, end } => sb::Segment::Line {
+            start: end,
+            end: start,
+        },
+        sb::Segment::Bezier {
+            start,
+            end,
+            base1,
+            base2,
+        } => sb::Segment::Bezier {
+            start: end,
+            end: start,
+            base1: base2,
+            base2: base1,
+        },
+    }
 }
 
 /// The size most of these drawings have, if any; ties go to the first met.
@@ -166,8 +258,8 @@ pub(crate) fn num(x: f64) -> String {
 mod tests {
     use super::{num, statements};
     use crate::antimony::{ImportOptions, export, export_with_layout, import};
-    use crate::geometry::pt;
-    use crate::model::{Frame, Model};
+    use crate::geometry::{Pt, pt};
+    use crate::model::{Frame, Model, ReactionMode, Role};
 
     const OPTS: ImportOptions = ImportOptions {
         convert_catalytic: false,
@@ -238,6 +330,7 @@ mod tests {
             "S1.position = {60, 82}",
             "S2.position = {260, 82}",
             "S1.position.J2 = {60, 282}",
+            "S1.size.J2 = {80, 36}",
             "J1.position = {190, 90}",
             "J0.--.position = {16, 6}",
             "C.position = {0, 20}",
@@ -247,8 +340,9 @@ mod tests {
         }
         // libAntimony's null node is 30 x 30; ours is 28 x 28, so it is said.
         assert!(s.iter().any(|l| l == "J0.--.size = {28, 28}"), "{s:#?}");
-        // Every species is the common size: none has its own.
-        assert!(!s.iter().any(|l| l.starts_with("S1.size")), "{s:#?}");
+        // Every species is the common size: none has its own (an alias's is
+        // always written, for libAntimony).
+        assert!(!s.iter().any(|l| l.starts_with("S1.size =")), "{s:#?}");
     }
 
     #[test]
@@ -323,6 +417,133 @@ mod tests {
         assert_eq!((null.center, null.width), (pt(30.0, 20.0), 28.0));
         let c = b.compartments.iter().find(|c| c.id == "C").unwrap();
         assert_eq!(c.frame.unwrap().center, pt(200.0, 200.0));
+    }
+
+    // --- lines (step 2) -----------------------------------------------------------
+
+    fn back(m: &Model) -> Model {
+        let i = import(&export_with_layout(m), &OPTS).unwrap();
+        assert!(i.warnings.is_empty(), "{:?}", i.warnings);
+        i.model
+    }
+
+    fn near(a: Pt, b: Pt) -> bool {
+        a.distance(b) < 0.02
+    }
+
+    #[test]
+    fn a_straight_line_is_written_with_both_ends_and_base_points_at_thirds() {
+        let s = statements(&placed());
+        // J1's line to S1: from the junction (200, 100) to S1's border (140, 100).
+        for line in [
+            "J1.S1.rxn_end = {200, 100}",
+            "J1.S1.species_end = {140, 100}",
+            "J1.S1.b1 = {180, 100}",
+            "J1.S1.b2 = {160, 100}",
+        ] {
+            assert!(s.iter().any(|l| l == line), "{line} missing from {s:#?}");
+        }
+        // The null node's line too.
+        assert!(
+            s.iter().any(|l| l.starts_with("J0.--.species_end")),
+            "{s:#?}"
+        );
+    }
+
+    #[test]
+    fn a_straight_reaction_comes_back_straight() {
+        let b = back(&placed());
+        for r in b.reactions() {
+            assert_eq!(r.mode, ReactionMode::Straight, "{}", r.id);
+        }
+    }
+
+    #[test]
+    fn a_curve_comes_back_as_drawn() {
+        let mut m = placed();
+        let r = m.find_reaction_mut("J1").unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.reactants[0].ctrl1 = pt(130.0, 160.0);
+        r.reactants[0].ctrl2 = pt(170.0, 160.0);
+        r.reactants[0].ctrl_pts_set = true;
+        let b = back(&m);
+        let r1 = m.find_reaction("J1").unwrap();
+        let r2 = b.find_reaction("J1").unwrap();
+        assert_eq!(r2.mode, ReactionMode::Bezier);
+        let c = |m: &Model, r| crate::bezier::leg_curve(m, r, Role::Reactant, 0).unwrap();
+        let (u, v) = (c(&m, r1), c(&b, r2));
+        for (p, q) in [(u.p0, v.p0), (u.p1, v.p1), (u.p2, v.p2), (u.p3, v.p3)] {
+            assert!(p.distance(q) < 0.05, "{u:?} / {v:?}");
+        }
+    }
+
+    #[test]
+    fn corner_points_come_back_as_segments() {
+        let mut m = placed();
+        m.find_reaction_mut("J1").unwrap().products[0].points =
+            vec![pt(250.0, 180.0), pt(300.0, 180.0)];
+        let s = statements(&m);
+        assert!(
+            s.iter().any(|l| l == "J1.S2.seg1.rxn_end = {200, 100}"),
+            "{s:#?}"
+        );
+        assert!(
+            s.iter().any(|l| l.starts_with("J1.S2.seg3.species_end")),
+            "{s:#?}"
+        );
+        let b = back(&m);
+        let pts = &b.find_reaction("J1").unwrap().products[0].points;
+        assert_eq!(pts.len(), 2, "{pts:?}");
+        assert!(
+            near(pts[0], pt(250.0, 180.0)) && near(pts[1], pt(300.0, 180.0)),
+            "{pts:?}"
+        );
+    }
+
+    #[test]
+    fn a_modifiers_route_comes_back() {
+        let mut m = model("J1: S1 -> S2; k*S1*E\nspecies E\nk = 1; E = 1\n");
+        for (id, x, y) in [("S1", 0.0, 0.0), ("S2", 300.0, 0.0), ("E", 300.0, 300.0)] {
+            m.find_species_mut(id).unwrap().center = pt(x, y);
+        }
+        let r = m.find_reaction_mut("J1").unwrap();
+        r.junction = pt(150.0, 0.0);
+        r.modifiers[0].points = vec![pt(150.0, 300.0)];
+        let b = back(&m);
+        let e = &b.find_reaction("J1").unwrap().modifiers[0];
+        assert_eq!(e.points.len(), 1, "{:?}", e.points);
+        assert!(near(e.points[0], pt(150.0, 300.0)), "{:?}", e.points);
+    }
+
+    #[test]
+    fn a_stem_comes_back() {
+        let mut m = placed();
+        let r = m.find_reaction_mut("J1").unwrap();
+        r.stem = Some((pt(-20.0, 0.0), pt(20.0, 0.0)));
+        r.stem_straight = true;
+        let b = back(&m);
+        let stem = b.find_reaction("J1").unwrap().stem.expect("a stem");
+        assert!(
+            near(stem.0, pt(-20.0, 0.0)) && near(stem.1, pt(20.0, 0.0)),
+            "{stem:?}"
+        );
+    }
+
+    #[test]
+    fn a_second_line_to_one_species_is_not_written() {
+        // S1 is J1's reactant and, in the rate law, a modifier too: one name.
+        let mut m = model("J1: S1 -> S2; k*S1\nk = 1\n");
+        let r = m.find_reaction_mut("J1").unwrap();
+        let mut p = r.reactants[0].clone();
+        p.kind = crate::model::ModifierKind::Activator;
+        r.modifiers.push(p);
+        let s = statements(&m);
+        assert_eq!(
+            s.iter()
+                .filter(|l| l.starts_with("J1.S1.species_end"))
+                .count(),
+            1
+        );
     }
 
     #[test]

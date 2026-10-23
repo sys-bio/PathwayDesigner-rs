@@ -8,7 +8,7 @@
 //! `sbml-io` by changing only this module.
 
 mod appearance;
-mod export;
+pub(crate) mod export;
 pub(crate) mod import;
 pub mod math;
 pub(crate) mod render_in;

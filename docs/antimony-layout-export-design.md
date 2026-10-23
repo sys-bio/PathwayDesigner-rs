@@ -127,6 +127,42 @@ the way libAntimony's own layouts run, so the names mean what the reference says
 - **Smooth junctions** come back drawn the same (their handles are written), but
   not marked smooth.
 
+**As built (step 2, 2026-10-22).** Each line comes from SBML export's own
+curve (`sbml::export::leg_segments`, taken out of SBML export, whose output is
+byte for byte unchanged), turned to run from the reaction. Changes to the plan,
+from trying libAntimony:
+
+- **Both ends are always written.** In the Millard model libAntimony started a
+  line without `rxn_end` far from its reaction ((10342.65, 5015.28) for PGI's),
+  though smaller models read right.
+- **Base points are always written.** libAntimony draws a segment with ends but
+  no base points as a curve towards the origin, and without any line
+  statements draws its own slightly curved lines.
+- **An alias's size is always written:** libAntimony doesn't give an alias
+  `species.size`.
+
+And to reading:
+
+- a segment with base points at a third and two thirds is straight, so a
+  straight reaction comes back straight (any other base points are a curve's,
+  even on the line: a curved reaction's automatic handles often are);
+- a missing end is the junction or the species' border point, whichever is
+  farther from the given end (it was measured to the centre, which went wrong
+  when the junction is close), and a point on the border counts as on it;
+- **stems are read back**: when every reactant's line starts at one point and
+  every product's at another, those are the stem's ends.
+
+Result (`layout_report --antimony-layout`): positions, sizes, curves, corner
+points, modifier routes and stems come back over the Gallery, curves within 0.034
+(two decimals); lost are the smooth-junction flag (49 reactions; drawn the same),
+Linear (29; drawn as two straight lines meeting at the junction) and the losses
+of step 1. libAntimony 3.2.1 reads the exports and draws every line as
+PathwayDesigner's SBML does (MAPK cascade, upper glycolysis, the Millard model:
+same segment ends, to rounding), except a second line to one species (8 in the
+Millard model), which Antimony can't name. libAntimony's `loadAntimonyFile`
+fails on the Millard export (79 KB, "Failure reading input stream") that
+`loadAntimonyString` reads.
+
 ## 6. Looks
 
 **The look as drawn, not only what was changed.** libAntimony fills what a text

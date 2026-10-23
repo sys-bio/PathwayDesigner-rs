@@ -532,7 +532,6 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
 
     for r in model.reactions() {
         let j = effective_junction(model, r);
-        let bezier = effective_mode(r) == ReactionMode::Bezier;
         let mut g = sb::ReactionGlyph {
             id: ids.unique(format!("rg_{}", r.id)),
             reaction: Some(r.id.clone()),
@@ -571,81 +570,6 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
             let Some(node) = model.find_species(&p.species) else {
                 continue;
             };
-            // A leg meets the reaction at its end of the stem, if it has
-            // one (S §5.13).
-            let j = if crate::render::draw::stem_line(r).is_some() {
-                r.leg_anchor(leg.role)
-            } else {
-                j
-            };
-            // A line with corner points (S §5.6.5), unless the reaction is
-            // drawn Linear: its end piece runs to the first of them, then
-            // straight pieces run on to `j`.
-            let corners: &[Pt] =
-                if leg.role != Role::Modifier && effective_mode(r) != ReactionMode::Linear {
-                    &p.points
-                } else {
-                    &[]
-                };
-            let inner = corners.first().copied().unwrap_or(j);
-            let edge = border(node, inner);
-            let segment = match (
-                leg.role,
-                bezier
-                    .then(|| leg_curve(model, r, leg.role, leg.index))
-                    .flatten(),
-            ) {
-                // The part of the curve that is drawn: it runs to the node's
-                // centre and is cut where it crosses the node's border
-                // (S §5.6.3), so a reader draws the same curve and points an
-                // arrowhead along it. Its base points are the drawn part's;
-                // import carries it on to the centre again (S §11.5).
-                (role, Some(c)) => {
-                    let t = crate::geometry::bezier_crossing(&c, |p| {
-                        crate::node_shape::contains(node, p)
-                    });
-                    let (first, second) = c.split(t);
-                    let d = if role == Role::Reactant {
-                        second
-                    } else {
-                        first
-                    };
-                    sb::Segment::Bezier {
-                        start: point(d.p0),
-                        end: point(d.p3),
-                        base1: point(d.p1),
-                        base2: point(d.p2),
-                    }
-                }
-                (Role::Product, None) => sb::Segment::Line {
-                    start: point(inner),
-                    end: point(edge),
-                },
-                _ => sb::Segment::Line {
-                    start: point(edge),
-                    end: point(inner),
-                },
-            };
-            // The whole line in the direction of flow: a reactant's from the
-            // species through its corner points to `j`, a product's from `j`
-            // back through them to the species.
-            let run: Vec<sb::Segment> = {
-                let mut pts: Vec<Pt> = corners.to_vec();
-                pts.push(j);
-                if leg.role == Role::Product {
-                    pts.reverse();
-                }
-                pts.windows(2)
-                    .map(|w| sb::Segment::Line {
-                        start: point(w[0]),
-                        end: point(w[1]),
-                    })
-                    .collect()
-            };
-            let leg_segments: Vec<sb::Segment> = match leg.role {
-                Role::Reactant => std::iter::once(segment).chain(run).collect(),
-                _ => run.into_iter().chain(std::iter::once(segment)).collect(),
-            };
             let role = match leg.role {
                 Role::Reactant => sb::Role::Substrate,
                 Role::Product => sb::Role::Product,
@@ -670,17 +594,7 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                     ..Default::default()
                 },
                 curve: Some(sb::Curve {
-                    segments: match (leg.role, modifier_route(model, r, p)) {
-                        // A modifier's arc through its corner points (S §5.7.1).
-                        (Role::Modifier, Some(route)) => route
-                            .windows(2)
-                            .map(|w| sb::Segment::Line {
-                                start: point(w[0]),
-                                end: point(w[1]),
-                            })
-                            .collect(),
-                        _ => leg_segments,
-                    },
+                    segments: leg_segments(model, r, leg.role, leg.index).unwrap_or_default(),
                 }),
                 ..Default::default()
             });
@@ -704,6 +618,109 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
     // How it all looks (docs/render-design.md).
     l.render = Some(super::appearance::render_list(model, &glyphs));
     l
+}
+
+/// A participant's line as SBML curve segments, in the direction of flow: a
+/// reactant's and a modifier's from the species to the reaction, a product's
+/// from the reaction to the species (S §11.5). The drawn part only: the piece
+/// at the species is cut at its border. `None` if its node is missing.
+/// Antimony's layout statements are written from this too
+/// (`antimony_layout_out`), so both say the same drawing.
+pub(crate) fn leg_segments(
+    model: &Model,
+    r: &crate::model::Reaction,
+    role: Role,
+    index: usize,
+) -> Option<Vec<sb::Segment>> {
+    let p = &r.participants(role)[index];
+    let node = model.find_species(&p.species)?;
+    let j = effective_junction(model, r);
+    let bezier = effective_mode(r) == ReactionMode::Bezier;
+    // A modifier's arc through its corner points (S §5.7.1).
+    if role == Role::Modifier
+        && let Some(route) = modifier_route(model, r, p)
+    {
+        return Some(
+            route
+                .windows(2)
+                .map(|w| sb::Segment::Line {
+                    start: point(w[0]),
+                    end: point(w[1]),
+                })
+                .collect(),
+        );
+    }
+    // A leg meets the reaction at its end of the stem, if it has
+    // one (S §5.13).
+    let j = if crate::render::draw::stem_line(r).is_some() {
+        r.leg_anchor(role)
+    } else {
+        j
+    };
+    // A line with corner points (S §5.6.5), unless the reaction is
+    // drawn Linear: its end piece runs to the first of them, then
+    // straight pieces run on to `j`.
+    let corners: &[Pt] = if role != Role::Modifier && effective_mode(r) != ReactionMode::Linear {
+        &p.points
+    } else {
+        &[]
+    };
+    let inner = corners.first().copied().unwrap_or(j);
+    let edge = border(node, inner);
+    let segment = match (
+        role,
+        bezier.then(|| leg_curve(model, r, role, index)).flatten(),
+    ) {
+        // The part of the curve that is drawn: it runs to the node's
+        // centre and is cut where it crosses the node's border
+        // (S §5.6.3), so a reader draws the same curve and points an
+        // arrowhead along it. Its base points are the drawn part's;
+        // import carries it on to the centre again (S §11.5).
+        (role, Some(c)) => {
+            let t = crate::geometry::bezier_crossing(&c, |p| crate::node_shape::contains(node, p));
+            let (first, second) = c.split(t);
+            let d = if role == Role::Reactant {
+                second
+            } else {
+                first
+            };
+            sb::Segment::Bezier {
+                start: point(d.p0),
+                end: point(d.p3),
+                base1: point(d.p1),
+                base2: point(d.p2),
+            }
+        }
+        (Role::Product, None) => sb::Segment::Line {
+            start: point(inner),
+            end: point(edge),
+        },
+        _ => sb::Segment::Line {
+            start: point(edge),
+            end: point(inner),
+        },
+    };
+    // The whole line in the direction of flow: a reactant's from the
+    // species through its corner points to `j`, a product's from `j`
+    // back through them to the species.
+    let run: Vec<sb::Segment> = {
+        let mut pts: Vec<Pt> = corners.to_vec();
+        pts.push(j);
+        if role == Role::Product {
+            pts.reverse();
+        }
+        pts.windows(2)
+            .map(|w| sb::Segment::Line {
+                start: point(w[0]),
+                end: point(w[1]),
+            })
+            .collect()
+    };
+    let leg_segments: Vec<sb::Segment> = match role {
+        Role::Reactant => std::iter::once(segment).chain(run).collect(),
+        _ => run.into_iter().chain(std::iter::once(segment)).collect(),
+    };
+    Some(leg_segments)
 }
 
 #[cfg(test)]
