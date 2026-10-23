@@ -117,7 +117,8 @@ pub(crate) fn apply(model: &mut Model, module: &Module, warnings: &mut Vec<Diagn
         }
     }
     if let Some(c) = g.background {
-        model.background = c;
+        // The default kept as the default, as for every other look.
+        model.background = if c == BACKGROUND { Rgba::DEFAULT } else { c };
     }
 
     let mut other_shapes = Vec::new();
@@ -437,19 +438,24 @@ fn species(model: &mut Model, id: &str, looks: &Looks, other_shapes: &mut Vec<St
         s.style.no_border = false;
         set_colour(&mut s.style, |st| &mut st.border_color, c, border_default);
     }
-    if let Some(w) = looks.width {
-        // A boundary species' border is drawn thicker (S §5.3).
-        let w = if boundary {
-            w / BOUNDARY_BORDER_FACTOR
-        } else {
-            w
-        };
-        set_width(
-            &mut s.style,
-            |st| &mut st.border_width,
-            w,
-            DEFAULT_LINE_WIDTH,
-        );
+    match looks.width {
+        // No border at all (S §5.3), as PathwayDesigner writes one.
+        Some(0.0) => s.style.no_border = true,
+        Some(w) => {
+            // A boundary species' border is drawn thicker (S §5.3).
+            let w = if boundary {
+                w / BOUNDARY_BORDER_FACTOR
+            } else {
+                w
+            };
+            set_width(
+                &mut s.style,
+                |st| &mut st.border_width,
+                w,
+                DEFAULT_LINE_WIDTH,
+            );
+        }
+        None => {}
     }
     name(&mut s.style, looks);
     if let Some(shape) = &looks.shape {
@@ -479,9 +485,12 @@ fn reaction(model: &mut Model, id: &str, looks: &Looks) {
     if let Some(w) = looks.width {
         set_width(&mut r.style, |s| &mut s.line_width, w, DEFAULT_LINE_WIDTH);
     }
-    // The fill of the square at the reaction's centre: its junction.
-    if let Some(c) = looks.fill {
-        set_colour(&mut r.style, |s| &mut s.junction_color, c, JUNCTION_FILL);
+    // The fill of the square at the reaction's centre: its junction. A
+    // transparent one is a junction not drawn, as PathwayDesigner writes it.
+    match looks.fill {
+        Some(c) if c.0[3] == 0 => r.style.junction_visible = false,
+        Some(c) => set_colour(&mut r.style, |s| &mut s.junction_color, c, JUNCTION_FILL),
+        None => {}
     }
     name(&mut r.style, looks);
     r.style_name = None;
@@ -494,17 +503,28 @@ fn compartment(model: &mut Model, id: &str, looks: &Looks) {
     if let Some(f) = looks.fill {
         set_colour(&mut c.style, |s| &mut s.fill_color, f, COMPARTMENT_FILL);
     }
+    // The size of its name.
+    if let Some(size) = looks.font_size {
+        set_width(
+            &mut c.style,
+            |s| &mut s.font_size,
+            size,
+            COMPARTMENT_LABEL_SIZE,
+        );
+    }
     if let Some(l) = looks.line {
         c.style.no_border = false;
         set_colour(&mut c.style, |s| &mut s.border_color, l, COMPARTMENT_BORDER);
     }
-    if let Some(w) = looks.width {
-        set_width(
+    match looks.width {
+        Some(0.0) => c.style.no_border = true,
+        Some(w) => set_width(
             &mut c.style,
             |s| &mut s.border_width,
             w,
             COMPARTMENT_BORDER_WIDTH,
-        );
+        ),
+        None => {}
     }
     settle(&mut c.style);
     c.style_name = None;
@@ -551,7 +571,7 @@ fn modifier_line(model: &mut Model, rid: &str, species: &str, looks: &Looks) -> 
         p.look.colour = (c != MODIFIER).then_some(c);
     }
     if let Some(w) = looks.width {
-        p.look.width = Some(w);
+        p.look.width = (w != DEFAULT_LINE_WIDTH).then_some(w);
     }
     true
 }

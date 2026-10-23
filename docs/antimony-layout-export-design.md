@@ -195,6 +195,31 @@ every item is drawn with:
   modifier symbol sizes, free text, the theme (its look is written out instead),
   saved styles. One note lists what was left out, as SBML export's notes do.
 
+**As built (step 3, 2026-10-23).** Every look is the one the renderer draws
+(`draw::species_colours`, `draw::line_colour`, `draw::label_size` and the like,
+the functions SBML Render export uses). Changes to the plan:
+
+- **The rounded rectangle**, which libAntimony has no name for, is written as
+  nothing (not as `rectangle`, which reads back square-cornered); and a kind's
+  value is only written where every item can say its own (otherwise a rounded
+  rectangle among circles would inherit `species.shape = circle`).
+- **No border** is written `linewidth = 0`, and read so.
+- **A hidden junction** is written `color = transparent`, and read as hidden; a
+  Linear reaction comes back Straight with its junction hidden, drawn the same.
+- **A compartment's name size** is written (`fontsize`) and read.
+- **The default background and a modifier line's default width** come back as
+  the defaults.
+
+Result (`layout_report --antimony-layout`): every look field comes back as it
+does through SBML (values set by hand to their default come back as the default
+in both), apart from what Antimony can't say: dashes, names outside nodes,
+saved styles and an item's link to one, modifier symbols. libAntimony 3.2.1
+draws the looks written (MAPK cascade, TCA cycle, upper glycolysis in the Escher
+theme, repressilator), apart from: `reaction.fontsize` (by kind) not applied to
+reaction names, though `J1.fontsize` is; aliases' looks where its alias fault
+moves an alias's lines (finding 1); and hexagons, which PathwayDesigner's SBML
+import doesn't recognise as SBMLNetwork draws them.
+
 ## 7. In the app
 
 - **File ▸ Export Antimony** writes the layout section (D1).

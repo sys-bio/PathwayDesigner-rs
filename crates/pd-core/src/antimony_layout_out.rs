@@ -16,7 +16,9 @@ use sbml_io as sb;
 
 use crate::antimony_layout::{NULL_SIZE, REACTION_SIZE};
 use crate::geometry::{Pt, pt};
-use crate::model::{Model, Role, SpeciesNode};
+use crate::model::{Model, NodeShape, Rgba, Role, SpeciesNode, TextFont, VisualStyle};
+use crate::render::constants::*;
+use crate::render::draw;
 use crate::sbml::export::leg_segments;
 
 /// Raised so that libAntimony's automatic layout adds no drawings of its
@@ -112,7 +114,255 @@ pub(crate) fn statements(model: &Model) -> Vec<String> {
         out.push(format!("{}.position = {}", c.id, pair(min.x, min.y)));
         out.push(format!("{}.size = {}", c.id, pair(f.width, f.height)));
     }
+
+    looks(model, &mut out);
     out
+}
+
+/// One item's look as libAntimony settings, in the order written: each
+/// `(setting, value)`, a value of `None` left unsaid.
+type Looks = Vec<(&'static str, Option<String>)>;
+
+/// The looks (design §6): every item's as drawn, so that libAntimony, which
+/// fills what a text leaves out with SBMLNetwork's defaults, draws
+/// PathwayDesigner's. Most of a kind share a look, which is written once
+/// (`species.color = …`); then each item only where it differs, and an alias
+/// only where it differs from its species.
+fn looks(model: &Model, out: &mut Vec<String>) {
+    out.push(format!(
+        "model.layout.background = {}",
+        colour(draw::background_colour(model))
+    ));
+
+    let species: Vec<&SpeciesNode> = model.species().iter().filter(|s| !s.is_null_node).collect();
+    let species_look = |s: &SpeciesNode| -> Looks {
+        let (fill, border) = draw::species_colours(s, true);
+        let mut width = draw::species_border_width(s);
+        if draw::is_boundary(model, s) {
+            width *= BOUNDARY_BORDER_FACTOR;
+        }
+        let shape = match s.shape {
+            // The default: libAntimony has no rounded rectangle.
+            NodeShape::RoundedRect => None,
+            NodeShape::Rectangle => Some("rectangle"),
+            NodeShape::Ellipse => Some("ellipse"),
+            NodeShape::Circle => Some("circle"),
+            NodeShape::Hexagon => Some("hexagon"),
+        };
+        vec![
+            ("color", Some(colour(fill))),
+            ("linecolor", (width > 0.0).then(|| colour(border))),
+            ("linewidth", Some(num(width))),
+            ("fontcolor", Some(colour(label_colour(&s.style)))),
+            ("fontsize", Some(num(draw::label_size(s)))),
+            ("fontstyle", Some(font_style(draw::name_font(&s.style)))),
+            ("shape", shape.map(str::to_owned)),
+        ]
+    };
+    let primaries: Vec<&SpeciesNode> = species.iter().copied().filter(|s| !s.is_alias()).collect();
+    let kind = by_kind(
+        &primaries
+            .iter()
+            .map(|s| species_look(s))
+            .collect::<Vec<_>>(),
+    );
+    write_kind(out, "species", &kind);
+    for s in &primaries {
+        write_own(out, &s.id, &species_look(s), &kind);
+    }
+    for s in species.iter().filter(|s| s.is_alias()) {
+        let reactions = reactions_drawn_to(model, &s.id);
+        let Some(primary) = model.find_species(s.primary_id()) else {
+            continue;
+        };
+        if reactions.is_empty() {
+            continue;
+        }
+        // Against what its species is drawn with, which it inherits.
+        let base = species_look(primary);
+        for ((setting, value), (_, inherited)) in species_look(s).iter().zip(&base) {
+            if value != inherited
+                && let Some(v) = value
+            {
+                out.push(format!(
+                    "{}.{setting}.{} = {v}",
+                    s.primary_id(),
+                    reactions.join(".")
+                ));
+            }
+        }
+    }
+
+    let reaction_look = |r: &crate::model::Reaction| -> Looks {
+        // A junction not drawn is written transparent (no statement hides
+        // it), which reading takes for hidden.
+        let junction = if crate::sbml::appearance::junction_drawn(r) {
+            colour(
+                if custom(&r.style).is_some() && !r.style.junction_color.is_default() {
+                    r.style.junction_color
+                } else {
+                    JUNCTION_FILL
+                },
+            )
+        } else {
+            "transparent".to_owned()
+        };
+        vec![
+            ("linecolor", Some(colour(draw::line_colour(r)))),
+            ("linewidth", Some(num(draw::reaction_line_width(r)))),
+            ("color", Some(junction)),
+            ("fontcolor", Some(colour(draw::reaction_label_colour(r)))),
+            ("fontsize", Some(num(draw::reaction_label_size(r)))),
+            ("fontstyle", Some(font_style(draw::name_font(&r.style)))),
+        ]
+    };
+    let reactions: Vec<Looks> = model.reactions().iter().map(reaction_look).collect();
+    let kind = by_kind(&reactions);
+    write_kind(out, "reaction", &kind);
+    for (r, look) in model.reactions().iter().zip(&reactions) {
+        write_own(out, &r.id, look, &kind);
+    }
+
+    let compartment_look = |c: &crate::model::Compartment| -> Looks {
+        let (fill, border, width) = draw::compartment_colours(c);
+        vec![
+            ("color", Some(colour(fill))),
+            ("linecolor", (width > 0.0).then(|| colour(border))),
+            ("linewidth", Some(num(width))),
+            ("fontsize", Some(num(draw::compartment_label_size(c)))),
+        ]
+    };
+    let shown: Vec<&crate::model::Compartment> = model
+        .compartments
+        .iter()
+        .filter(|c| c.drawn_frame().is_some())
+        .collect();
+    let compartments: Vec<Looks> = shown.iter().map(|c| compartment_look(c)).collect();
+    let kind = by_kind(&compartments);
+    write_kind(out, "compartment", &kind);
+    for (c, look) in shown.iter().zip(&compartments) {
+        write_own(out, &c.id, look, &kind);
+    }
+
+    // Modifier lines: each its own colour and width, as drawn.
+    for r in model.reactions() {
+        let mut named: HashSet<String> = HashSet::new();
+        for p in r.reactants.iter().chain(&r.products) {
+            if let Some(n) = model.find_species(&p.species) {
+                named.insert(n.primary_id().to_owned());
+            }
+        }
+        for p in &r.modifiers {
+            let Some(n) = model.find_species(&p.species) else {
+                continue;
+            };
+            // A second line to one species can't be named (§5).
+            if !named.insert(n.primary_id().to_owned()) {
+                continue;
+            }
+            let key = format!("{}.{}", r.id, n.primary_id());
+            out.push(format!(
+                "{key}.linecolor = {}",
+                colour(p.look.colour.unwrap_or(MODIFIER))
+            ));
+            out.push(format!(
+                "{key}.linewidth = {}",
+                num(p.look.width.unwrap_or(DEFAULT_LINE_WIDTH))
+            ));
+        }
+    }
+}
+
+/// The value most items of a kind have, setting by setting (ties to the
+/// first met). `None` where any item says nothing (a rounded rectangle has
+/// no name in Antimony): saying nothing can't undo the kind's value, so
+/// those items' neighbours say theirs each.
+fn by_kind(looks: &[Looks]) -> Looks {
+    let Some(first) = looks.first() else {
+        return Vec::new();
+    };
+    first
+        .iter()
+        .enumerate()
+        .map(|(i, (setting, _))| {
+            let mut counts: Vec<(&Option<String>, usize)> = Vec::new();
+            for look in looks {
+                let v = &look[i].1;
+                match counts.iter_mut().find(|(k, _)| *k == v) {
+                    Some((_, n)) => *n += 1,
+                    None => counts.push((v, 1)),
+                }
+            }
+            if counts.iter().any(|(v, _)| v.is_none()) {
+                return (*setting, None);
+            }
+            let best = counts.iter().map(|(_, n)| *n).max().unwrap_or(0);
+            let value = counts
+                .into_iter()
+                .find(|(_, n)| *n == best)
+                .and_then(|(v, _)| v.clone());
+            (*setting, value)
+        })
+        .collect()
+}
+
+fn write_kind(out: &mut Vec<String>, kind: &str, look: &Looks) {
+    for (setting, value) in look {
+        if let Some(v) = value {
+            out.push(format!("{kind}.{setting} = {v}"));
+        }
+    }
+}
+
+/// An item's settings where they differ from its kind's.
+fn write_own(out: &mut Vec<String>, id: &str, look: &Looks, kind: &Looks) {
+    for ((setting, value), (_, shared)) in look.iter().zip(kind) {
+        if value != shared
+            && let Some(v) = value
+        {
+            out.push(format!("{id}.{setting} = {v}"));
+        }
+    }
+}
+
+/// A style's own look, if it has one (the default look otherwise).
+fn custom(style: &VisualStyle) -> Option<&VisualStyle> {
+    style.has_custom_style.then_some(style)
+}
+
+/// A species' name colour as drawn.
+fn label_colour(style: &VisualStyle) -> Rgba {
+    match custom(style) {
+        Some(s) if !s.label_color.is_default() => s.label_color,
+        _ => LABEL,
+    }
+}
+
+fn font_style(f: TextFont) -> String {
+    match (f.bold, f.italic) {
+        (false, false) => "normal",
+        (true, false) => "bold",
+        (false, true) => "italic",
+        (true, true) => "bold_italic",
+    }
+    .to_owned()
+}
+
+/// A colour as libAntimony writes one (D5): a name from its table when one
+/// is exactly this colour (never `orchid`, which libAntimony draws black),
+/// else `"#RRGGBB"`, or `"#RRGGBBAA"` when not opaque.
+fn colour(c: Rgba) -> String {
+    let [r, g, b, a] = c.0;
+    let hex = if a == 255 {
+        format!("#{r:02X}{g:02X}{b:02X}")
+    } else {
+        format!("#{r:02X}{g:02X}{b:02X}{a:02X}")
+    };
+    crate::antimony_colors::NAMED
+        .iter()
+        .find(|(name, value)| *value == hex && *name != "orchid")
+        .map(|(name, _)| (*name).to_owned())
+        .unwrap_or_else(|| format!("\"{hex}\""))
 }
 
 /// A reaction's lines (design §5): each as SBML export draws it, written from
@@ -259,7 +509,7 @@ mod tests {
     use super::{num, statements};
     use crate::antimony::{ImportOptions, export, export_with_layout, import};
     use crate::geometry::{Pt, pt};
-    use crate::model::{Frame, Model, ReactionMode, Role};
+    use crate::model::{Frame, Model, NodeShape, ReactionMode, Rgba, Role, VisualStyle};
 
     const OPTS: ImportOptions = ImportOptions {
         convert_catalytic: false,
@@ -417,6 +667,8 @@ mod tests {
         assert_eq!((null.center, null.width), (pt(30.0, 20.0), 28.0));
         let c = b.compartments.iter().find(|c| c.id == "C").unwrap();
         assert_eq!(c.frame.unwrap().center, pt(200.0, 200.0));
+        // The default background is written, and comes back as the default.
+        assert_eq!(b.background, Rgba::DEFAULT);
     }
 
     // --- lines (step 2) -----------------------------------------------------------
@@ -543,6 +795,156 @@ mod tests {
                 .filter(|l| l.starts_with("J1.S1.species_end"))
                 .count(),
             1
+        );
+    }
+
+    // --- looks (step 3) ------------------------------------------------------------
+
+    #[test]
+    fn colours_are_libantimonys_names_or_hex() {
+        use super::colour;
+        assert_eq!(colour(Rgba([0xF0, 0xFF, 0xFF, 255])), "azure");
+        assert_eq!(colour(Rgba([0xC7, 0x74, 0x34, 255])), "ochre");
+        assert_eq!(colour(Rgba([0x12, 0x34, 0x56, 255])), "\"#123456\"");
+        assert_eq!(colour(Rgba([0x12, 0x34, 0x56, 0x80])), "\"#12345680\"");
+        assert_eq!(colour(Rgba([255, 255, 255, 0])), "transparent");
+        // Never orchid: libAntimony draws it black.
+        assert_eq!(colour(Rgba([0xDA, 0x70, 0xD6, 255])), "\"#DA70D6\"");
+    }
+
+    #[test]
+    fn a_kinds_look_is_written_once_and_items_where_they_differ() {
+        let mut m = placed();
+        let s1 = m.find_species_mut("S1").unwrap();
+        s1.style.has_custom_style = true;
+        s1.style.fill_color = Rgba([255, 0, 0, 255]);
+        let s = statements(&m);
+        assert!(
+            s.iter().any(|l| l == "species.color = \"#EEF6FF\""),
+            "{s:#?}"
+        );
+        assert!(s.iter().any(|l| l == "S1.color = red"), "{s:#?}");
+        assert!(!s.iter().any(|l| l.starts_with("S2.color")), "{s:#?}");
+        assert!(
+            s.iter()
+                .any(|l| l.starts_with("model.layout.background = ")),
+            "{s:#?}"
+        );
+    }
+
+    fn style(m: &Model, id: &str) -> VisualStyle {
+        m.find_species(id).unwrap().style
+    }
+
+    #[test]
+    fn looks_come_back() {
+        let mut m = placed();
+        let s1 = m.find_species_mut("S1").unwrap();
+        s1.style.has_custom_style = true;
+        s1.style.fill_color = Rgba([255, 0, 0, 255]);
+        s1.style.border_width = 3.0;
+        s1.style.label_bold = true;
+        s1.style.font_size = 16.0;
+        s1.shape = NodeShape::Ellipse;
+        let s2 = m.find_species_mut("S2").unwrap();
+        s2.style.no_border = true;
+        s2.shape = NodeShape::Hexagon;
+        let j1 = m.find_reaction_mut("J1").unwrap();
+        j1.style.has_custom_style = true;
+        j1.style.line_color = Rgba([0, 0, 255, 255]);
+        j1.style.line_width = 4.0;
+        m.find_reaction_mut("J2").unwrap().style.junction_visible = false;
+        let c = m.compartments.iter_mut().find(|c| c.id == "C").unwrap();
+        c.style.has_custom_style = true;
+        c.style.fill_color = Rgba([0xF5, 0xF5, 0xDC, 255]);
+        c.style.font_size = 20.0;
+        m.background = Rgba([0xFF, 0xFF, 0xF0, 255]);
+        let b = back(&m);
+        for id in ["S1", "S2", "S3"] {
+            assert_eq!(style(&b, id).canonical(), style(&m, id).canonical(), "{id}");
+            assert_eq!(
+                b.find_species(id).unwrap().shape,
+                m.find_species(id).unwrap().shape,
+                "{id}"
+            );
+        }
+        for id in ["J0", "J1", "J2"] {
+            assert_eq!(
+                b.find_reaction(id).unwrap().style.canonical(),
+                m.find_reaction(id).unwrap().style.canonical(),
+                "{id}"
+            );
+        }
+        let cs = |m: &Model| {
+            m.compartments
+                .iter()
+                .find(|c| c.id == "C")
+                .unwrap()
+                .style
+                .canonical()
+        };
+        assert_eq!(cs(&b), cs(&m));
+        assert_eq!(b.background, m.background);
+    }
+
+    #[test]
+    fn a_rounded_rectangle_among_circles_stays_one() {
+        // It has no name in Antimony: the kind can't be `circle` then.
+        let mut m = placed();
+        m.find_species_mut("S2").unwrap().shape = NodeShape::Circle;
+        m.find_species_mut("S3").unwrap().shape = NodeShape::Circle;
+        let s = statements(&m);
+        assert!(!s.iter().any(|l| l.starts_with("species.shape")), "{s:#?}");
+        let b = back(&m);
+        assert_eq!(b.find_species("S1").unwrap().shape, NodeShape::RoundedRect);
+        assert_eq!(b.find_species("S2").unwrap().shape, NodeShape::Circle);
+    }
+
+    #[test]
+    fn an_aliass_own_look_and_a_boundary_border_come_back() {
+        let mut m = placed();
+        let alias = m
+            .species()
+            .iter()
+            .find(|s| s.is_alias())
+            .unwrap()
+            .id
+            .clone();
+        let a = m.find_species_mut(&alias).unwrap();
+        a.style.has_custom_style = true;
+        a.style.fill_color = Rgba([0, 128, 0, 255]);
+        m.find_species_mut("S3").unwrap().is_boundary = true;
+        let s3 = m.find_species_mut("S3").unwrap();
+        s3.style.has_custom_style = true;
+        s3.style.border_width = 2.0;
+        let s = statements(&m);
+        assert!(s.iter().any(|l| l == "S1.color.J2 = green"), "{s:#?}");
+        let b = back(&m);
+        let ba = b.species().iter().find(|s| s.is_alias()).unwrap();
+        assert_eq!(ba.style.fill_color, Rgba([0, 128, 0, 255]));
+        assert_eq!(style(&b, "S3").border_width, 2.0);
+    }
+
+    #[test]
+    fn a_modifier_lines_look_comes_back() {
+        let mut m = model("J1: S1 -> S2; k*S1*E\nspecies E\nk = 1; E = 1\n");
+        let e = &mut m.find_reaction_mut("J1").unwrap().modifiers[0];
+        e.look.colour = Some(Rgba([255, 0, 0, 255]));
+        e.look.width = Some(3.0);
+        let s = statements(&m);
+        assert!(s.iter().any(|l| l == "J1.E.linecolor = red"), "{s:#?}");
+        let b = back(&m);
+        let look = b.find_reaction("J1").unwrap().modifiers[0].look;
+        assert_eq!(
+            (look.colour, look.width),
+            (Some(Rgba([255, 0, 0, 255])), Some(3.0))
+        );
+        // The default width comes back as the default.
+        let m2 = model("J1: S1 -> S2; k*S1*E\nspecies E\nk = 1; E = 1\n");
+        let b2 = back(&m2);
+        assert_eq!(
+            b2.find_reaction("J1").unwrap().modifiers[0].look.width,
+            None
         );
     }
 

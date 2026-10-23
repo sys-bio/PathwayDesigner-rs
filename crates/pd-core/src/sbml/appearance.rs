@@ -518,7 +518,7 @@ fn fill_rules(g: &mut sr::Group) {
 }
 
 /// Whether a reaction's junction dot is drawn (S §5.8).
-pub(super) fn junction_drawn(r: &Reaction) -> bool {
+pub(crate) fn junction_drawn(r: &Reaction) -> bool {
     draw::effective_mode(r) != ReactionMode::Linear && r.style.junction_visible
 }
 
