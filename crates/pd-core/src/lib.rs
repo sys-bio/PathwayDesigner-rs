@@ -8,6 +8,7 @@
 pub mod antimony;
 pub(crate) mod antimony_colors;
 pub mod antimony_layout;
+pub(crate) mod antimony_layout_out;
 pub(crate) mod antimony_looks;
 pub mod bezier;
 pub mod compartments;

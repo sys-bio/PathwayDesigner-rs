@@ -133,7 +133,9 @@ pub fn apply(model: &mut Model, module: &Module, warnings: &mut Vec<Diagnostic>)
             warnings.push(Diagnostic::at(Severity::Warning, s.span, message));
         }
     }
-    if let Some(span) = places.autolayout {
+    // Only worth saying when the text places nothing: a text that places
+    // its species (as PathwayDesigner writes one) may still set them.
+    if let Some(span) = places.autolayout.filter(|_| places.species.is_empty()) {
         warnings.push(Diagnostic::at(
             Severity::Warning,
             span,
@@ -462,6 +464,23 @@ fn gather(model: &Model, s: &LayoutStatement, places: &mut Places) -> Result<(),
         ["model", "autolayout", ..] => {
             places.autolayout.get_or_insert(s.span);
             Ok(())
+        }
+        // An item whose id is a kind's name (the Millard model has a
+        // compartment called `compartment`): a position can only be an
+        // item's, since a kind has none, and so can a compartment's size,
+        // since compartments have no size by kind.
+        [first @ ("species" | "reaction" | "compartment"), setting]
+            if (matches!(*setting, "pos" | "position" | "x" | "y")
+                || (*first == "compartment" && is_place(setting)))
+                && find(model, path[0]).is_some_and(|(_, id)| id == path[0]) =>
+        {
+            let (item, id) = find(model, path[0]).expect("found above");
+            let map = match item {
+                Item::Species => &mut places.species,
+                Item::Reaction => &mut places.reactions,
+                Item::Compartment => &mut places.compartments,
+            };
+            set(map.entry(id).or_default(), setting, &s.value, &name)
         }
         [category @ ("species" | "reaction" | "compartment"), setting] => {
             if is_look(setting) {
@@ -1159,6 +1178,38 @@ defaultCompartment.pos = {0, 0}; defaultCompartment.size = {500, 400}
             .find(|c| c.is_default())
             .unwrap();
         assert_eq!(c.frame, None);
+    }
+
+    #[test]
+    fn an_item_named_like_a_kind_takes_its_place() {
+        // The Millard model has a compartment called `compartment`.
+        let i = load(
+            "compartment compartment = 1
+S1 in compartment
+J0: S1 -> S2; k*S1
+k = 1
+             compartment.position = {10, 10}
+compartment.size = {500, 400}
+",
+        );
+        let c = i
+            .model
+            .compartments
+            .iter()
+            .find(|c| c.id == "compartment")
+            .unwrap();
+        assert_eq!(c.frame.unwrap().center, pt(260.0, 210.0));
+    }
+
+    #[test]
+    fn autolayout_settings_beside_positions_are_no_news() {
+        let i = load(&format!(
+            "{TWO}model.autolayout.maxNumConnectedEdges = 1000
+S1.pos = {{0, 0}}
+S2.pos = {{100, 0}}
+"
+        ));
+        assert!(i.warnings.is_empty(), "{:?}", messages(&i));
     }
 
     #[test]

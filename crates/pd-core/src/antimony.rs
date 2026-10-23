@@ -208,7 +208,18 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
 /// species, reactions, parameters, initial values, then assignment rules.
 /// A reaction without a rate law is written with the rate `v`. A reversible
 /// reaction is written with `->`, an irreversible one with `=>` (S §11.3).
+/// The model alone: [`export_with_layout`] writes its drawing too.
 pub fn export(model: &Model) -> String {
+    write_model(model, Vec::new())
+}
+
+/// [`export`], with the drawing as Antimony's layout statements in a last
+/// section, `// Layout` (docs/antimony-layout-export-design.md).
+pub fn export_with_layout(model: &Model) -> String {
+    write_model(model, crate::antimony_layout_out::statements(model))
+}
+
+fn write_model(model: &Model, layout: Vec<String>) -> String {
     let name = Some(model.model_name.as_str())
         .filter(|n| is_identifier(n))
         .unwrap_or("anonymous");
@@ -324,6 +335,7 @@ pub fn export(model: &Model) -> String {
         ("Parameters", parameters),
         ("Initial values", initial),
         ("Assignment rules", rules),
+        ("Layout", layout),
     ] {
         if lines.is_empty() {
             continue;

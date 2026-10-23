@@ -78,6 +78,26 @@ sections name the same things.
 Known loss: an alias that serves several reactions is attached by libAntimony
 3.2.1 to the first one only (finding 1); PathwayDesigner reads it as written.
 
+**As built (step 1, 2026-10-22):** `pd-core/src/antimony_layout_out.rs`, and
+`antimony::export_with_layout` (the model, then a `// Layout` section);
+`antimony::export` still writes the model alone. Positions come from the model
+itself (the same boxes SBML export writes); the SBML layout is used from step 2,
+for the lines. `layout_report --antimony-layout` exports every Gallery model so
+and reads it back, beside the SBML round trip; what positions lose:
+
+- a hidden compartment's box (Antimony can't say hidden; SBML loses it too);
+- an alias no line goes to (Antimony names an alias by its reactions; three in
+  the Millard model);
+- a Linear reaction's stored junction: its drawn one is written, and comes back.
+
+Two fixes to reading came out of it: an item whose id is a kind's name (the
+Millard model's compartment `compartment`) takes `compartment.position` and
+`compartment.size`, which no kind has; and the automatic-layout warning is
+given only when the text places nothing, since our own export sets
+`maxNumConnectedEdges`. libAntimony 3.2.1 reads the exports of the MAPK cascade,
+the TCA cycle and the Millard model without error (the last in 6 s, where its
+own automatic layout took over two minutes).
+
 ## 5. Lines
 
 Every line is written, straight ones included, so that libAntimony draws ours
