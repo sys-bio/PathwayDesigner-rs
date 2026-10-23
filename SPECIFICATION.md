@@ -2285,12 +2285,20 @@ Aliases are never exported as species. Numbers MUST be formatted with a `.`
 decimal separator whatever the system locale is. A re-implementation SHOULD wrap
 the output in `model <name>` … `end`.
 
+*(Rust version.)* **Reserved words.** An id that libAntimony reserves (its
+keywords, constants and function names, such as `compartment`, `time`, `pi`,
+`model` or `max`; checked against libAntimony 3.2.1) is written with `_` added
+(more if that name is taken), everywhere it is used, as libAntimony's own SBML
+conversion does. The diagram itself keeps its ids. The renames are listed first
+in the notes after File ▸ Export Antimony. PathwayDesigner's Antimony reader
+takes these words as ids, so a model read from SBML can have them.
+
 **Round-trip.** Importing an exported file MUST give back the same biochemistry
 (species, reactions, stoichiometry, rate laws, parameters, initial values). Layout
 is not preserved, unless written (item 7). *(Rust version:)* nor are a modifier that its rate law doesn't
 name and isn't an activator or inhibitor (Antimony's `-(` is not used), the
-catalyst kind, an empty rate law (it comes back as `v`), or a model name that
-isn't an Antimony identifier.
+catalyst kind, an empty rate law (it comes back as `v`), a model name that
+isn't an Antimony identifier, or a reserved id (it comes back with `_` added).
 
 ### 11.4 Live Antimony panel
 

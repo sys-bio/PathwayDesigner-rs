@@ -1420,6 +1420,37 @@ impl Model {
         Ok(())
     }
 
+    /// Renames reaction `old` to `new`, and every whole-word use of it in an
+    /// expression (a rate law, a parameter's value, a rule).
+    pub fn rename_reaction(&mut self, old: &str, new: &str) -> Result<(), RenameError> {
+        if self.find_reaction(old).is_none() {
+            return Err(RenameError::NotFound);
+        }
+        if new == old {
+            return Ok(());
+        }
+        if !is_valid_sid(new) {
+            return Err(RenameError::InvalidId);
+        }
+        if self.is_id_used(new) {
+            return Err(RenameError::InUse);
+        }
+        for r in &mut self.reactions {
+            if r.id == old {
+                r.id = new.to_owned();
+            }
+            r.kinetic_law = replace_whole_word(&r.kinetic_law, old, new);
+        }
+        for p in &mut self.parameters {
+            p.expression = replace_whole_word(&p.expression, old, new);
+        }
+        for r in &mut self.assignment_rules {
+            r.expression = replace_whole_word(&r.expression, old, new);
+        }
+        self.rebuild_indexes();
+        Ok(())
+    }
+
     /// True if any species, reaction, text, parameter or compartment uses
     /// `id`. Species, reactions and texts match exactly; parameters and
     /// compartments ignore case, as the reference's lookups do.
@@ -1718,6 +1749,21 @@ mod tests {
         let r = m.find_reaction("R2").unwrap();
         assert_eq!(r.modifiers[0].species, "E");
         assert_eq!(r.kinetic_law, "k1*S1*E");
+    }
+
+    #[test]
+    fn a_reaction_is_renamed_everywhere() {
+        let mut m = small_model();
+        m.parameters.push(Parameter {
+            variable: "k".into(),
+            expression: "2*R2".into(),
+        });
+        assert_eq!(m.rename_reaction("R2", "J1"), Ok(()));
+        assert!(m.find_reaction("J1").is_some() && m.find_reaction("R2").is_none());
+        assert_eq!(m.parameters[0].expression, "2*J1");
+        assert_eq!(m.rename_reaction("J1", "S1"), Err(RenameError::InUse));
+        assert_eq!(m.rename_reaction("J1", "2x"), Err(RenameError::InvalidId));
+        assert_eq!(m.rename_reaction("R9", "Q"), Err(RenameError::NotFound));
     }
 
     #[test]

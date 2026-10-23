@@ -229,6 +229,18 @@ import doesn't recognise as SBMLNetwork draws them.
 - Text with a layout section loaded back in the panel draws as written, as it
   does today.
 
+**As built (step 4).** File ▸ Export Antimony writes the layout and then shows
+what the statements couldn't say, as notes; the panel has the *With layout*
+checkbox. The check script's third route reads the export with libAntimony
+(`loadAntimonyString`, since `loadAntimonyFile` fails on large files, finding
+16) and compares its SBML with ours at the level of the geometry. It found that
+libAntimony rejects ids it reserves (`model model`, `compartment compartment`
+in the yeast glycolysis model), which PathwayDesigner's reader accepts; the
+export now writes such ids with `_` added (SPECIFICATION §11.3), and all 16
+Gallery models agree, apart from the known findings and losses. libAntimony
+leaves a parse message in `getLastError()` for every hex colour though the
+load succeeds (finding 20); the script goes by the load's result.
+
 ## 8. Testing
 
 - **Round trip through PathwayDesigner:** every Gallery model exported as

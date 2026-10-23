@@ -857,6 +857,10 @@ which that reader accepted and Antimony does not.
   checks the round trip over the Gallery, and the check script's third route
   checks libAntimony's reading of it. Design:
   `docs/antimony-layout-export-design.md`.
+- **Reserved ids** (S §11.3): both exports write from a copy in which ids
+  libAntimony reserves (`antimony::RESERVED`) have `_` added
+  (`antimony::safe_ids`, using `Model::rename_species`, `rename_compartment` and
+  `rename_reaction`); `layout_notes` lists the renames first.
 - **What a diagram cannot hold** (units, events, rate rules, algebraic
   rules, constraints, objectives, other models in the file, names,
   notes and annotations, units on symbols) gives a **warning** saying it was skipped,

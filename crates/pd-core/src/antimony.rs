@@ -210,18 +210,254 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
 /// reaction is written with `->`, an irreversible one with `=>` (S §11.3).
 /// The model alone: [`export_with_layout`] writes its drawing too.
 pub fn export(model: &Model) -> String {
-    write_model(model, Vec::new())
+    write_model(&safe_ids(model).0, Vec::new())
 }
 
 /// [`export`], with the drawing as Antimony's layout statements in a last
 /// section, `// Layout` (docs/antimony-layout-export-design.md).
 pub fn export_with_layout(model: &Model) -> String {
-    write_model(model, crate::antimony_layout_out::statements(model))
+    let model = safe_ids(model).0;
+    write_model(&model, crate::antimony_layout_out::statements(&model))
 }
 
 /// What [`export_with_layout`] can't write, one line each.
 pub fn layout_notes(model: &Model) -> Vec<String> {
-    crate::antimony_layout_out::notes(model)
+    let (safe, renamed) = safe_ids(model);
+    let mut notes = crate::antimony_layout_out::notes(&safe);
+    if !renamed.is_empty() {
+        let list: Vec<String> = renamed.iter().map(|(a, b)| format!("{a} as {b}")).collect();
+        notes.insert(
+            0,
+            format!(
+                "Ids Antimony reserves were written with `_` added: {}",
+                list.join(", ")
+            ),
+        );
+    }
+    notes
+}
+
+/// Words libAntimony 3.2.1 won't take as an id, checked against it
+/// (2026-10-23): its keywords, constants and function names. Our own
+/// Antimony reader takes them all, so text it reads can still be rejected by
+/// libAntimony.
+const RESERVED: &[&str] = &[
+    "DNA",
+    "INF",
+    "NaN",
+    "abs",
+    "acos",
+    "after",
+    "and",
+    "arccos",
+    "arccosh",
+    "arccot",
+    "arccoth",
+    "arccsc",
+    "arccsch",
+    "arcsec",
+    "arcsech",
+    "arcsin",
+    "arcsinh",
+    "arctan",
+    "arctanh",
+    "asin",
+    "at",
+    "atan",
+    "avogadro",
+    "ceil",
+    "ceiling",
+    "compartment",
+    "const",
+    "constraint",
+    "cos",
+    "cosh",
+    "cot",
+    "coth",
+    "csc",
+    "csch",
+    "delay",
+    "delete",
+    "divide",
+    "end",
+    "eq",
+    "event",
+    "exp",
+    "exponentiale",
+    "ext",
+    "factorial",
+    "false",
+    "floor",
+    "formula",
+    "function",
+    "gene",
+    "geq",
+    "gt",
+    "has",
+    "implies",
+    "import",
+    "in",
+    "inf",
+    "infinity",
+    "is",
+    "leq",
+    "ln",
+    "log",
+    "log10",
+    "lt",
+    "max",
+    "maximize",
+    "min",
+    "minimize",
+    "minus",
+    "model",
+    "module",
+    "nan",
+    "neq",
+    "not",
+    "notanumber",
+    "operator",
+    "or",
+    "pi",
+    "piecewise",
+    "plus",
+    "pow",
+    "power",
+    "quotient",
+    "rateOf",
+    "reaction",
+    "rem",
+    "root",
+    "sec",
+    "sech",
+    "sin",
+    "sinh",
+    "species",
+    "sqrt",
+    "substanceOnly",
+    "tan",
+    "tanh",
+    "time",
+    "times",
+    "true",
+    "unit",
+    "var",
+    "xor",
+];
+
+/// The model with every id libAntimony reserves renamed by adding `_` (more
+/// if that is taken), as libAntimony's own SBML conversion does
+/// (`compartment` becomes `compartment_`), everywhere it is used; and what
+/// was renamed. The diagram itself is not changed: export works on a copy.
+fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)>) {
+    use crate::model::replace_whole_word;
+    let reserved = |id: &str| RESERVED.contains(&id);
+    let used = |m: &Model, id: &str| {
+        m.is_id_used(id) || m.assignment_rules.iter().any(|r| r.variable == id)
+    };
+    let any = model
+        .species()
+        .iter()
+        .any(|s| !s.is_null_node && reserved(&s.id))
+        || model.reactions().iter().any(|r| reserved(&r.id))
+        || model.compartments.iter().any(|c| reserved(&c.id))
+        || model.parameters.iter().any(|p| reserved(&p.variable))
+        || model.assignment_rules.iter().any(|r| reserved(&r.variable))
+        || reserved(&model.model_name);
+    if !any {
+        return (std::borrow::Cow::Borrowed(model), Vec::new());
+    }
+    let mut m = model.clone();
+    let mut renamed = Vec::new();
+    let fresh = |m: &Model, id: &str| {
+        let mut new = format!("{id}_");
+        while used(m, &new) {
+            new.push('_');
+        }
+        new
+    };
+    let ids: Vec<String> = m
+        .species()
+        .iter()
+        .filter(|s| !s.is_null_node && !s.is_alias() && reserved(&s.id))
+        .map(|s| s.id.clone())
+        .collect();
+    for old in ids {
+        let new = fresh(&m, &old);
+        if m.rename_species(&old, &new).is_ok() {
+            // Rate laws are done; values and rules too.
+            for p in &mut m.parameters {
+                p.expression = replace_whole_word(&p.expression, &old, &new);
+            }
+            for r in &mut m.assignment_rules {
+                r.expression = replace_whole_word(&r.expression, &old, &new);
+                if r.variable == old {
+                    r.variable = new.clone();
+                }
+            }
+            renamed.push((old, new));
+        }
+    }
+    let ids: Vec<String> = m
+        .compartments
+        .iter()
+        .filter(|c| reserved(&c.id))
+        .map(|c| c.id.clone())
+        .collect();
+    for old in ids {
+        let new = fresh(&m, &old);
+        if m.rename_compartment(&old, &new).is_ok() {
+            renamed.push((old, new));
+        }
+    }
+    let ids: Vec<String> = m
+        .reactions()
+        .iter()
+        .filter(|r| reserved(&r.id))
+        .map(|r| r.id.clone())
+        .collect();
+    for old in ids {
+        let new = fresh(&m, &old);
+        if m.rename_reaction(&old, &new).is_ok() {
+            renamed.push((old, new));
+        }
+    }
+    // Parameters, and rules that set a name nothing else uses.
+    let ids: Vec<String> = m
+        .parameters
+        .iter()
+        .map(|p| p.variable.clone())
+        .chain(m.assignment_rules.iter().map(|r| r.variable.clone()))
+        .filter(|id| reserved(id))
+        .collect();
+    for old in ids {
+        if renamed.iter().any(|(o, _)| *o == old) {
+            continue;
+        }
+        let new = fresh(&m, &old);
+        for p in &mut m.parameters {
+            if p.variable == old {
+                p.variable = new.clone();
+            }
+            p.expression = replace_whole_word(&p.expression, &old, &new);
+        }
+        for r in &mut m.assignment_rules {
+            if r.variable == old {
+                r.variable = new.clone();
+            }
+            r.expression = replace_whole_word(&r.expression, &old, &new);
+        }
+        for r in m.reactions_mut() {
+            r.kinetic_law = replace_whole_word(&r.kinetic_law, &old, &new);
+        }
+        renamed.push((old, new));
+    }
+    if reserved(&m.model_name) {
+        let new = format!("{}_", m.model_name);
+        renamed.push((m.model_name.clone(), new.clone()));
+        m.model_name = new;
+    }
+    (std::borrow::Cow::Owned(m), renamed)
 }
 
 fn write_model(model: &Model, layout: Vec<String>) -> String {
@@ -789,6 +1025,58 @@ fn ids(m: &Model) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ids libAntimony reserves: the model, a compartment, a species, a
+    /// reaction, a parameter and a rule's name.
+    const RESERVED_IDS: &str = "model model\n  compartment compartment = 1\n  \
+        species time in compartment, S2 in compartment\n  \
+        reaction: time -> S2; pi*time*compartment\n  pi = 3\n  max := 2*pi*time\nend\n";
+
+    #[test]
+    fn reserved_ids_are_written_with_an_underscore() {
+        let m = ok(RESERVED_IDS, &OFF);
+        let text = export(&m);
+        for line in [
+            "model model_",
+            "compartment compartment_ = 1;",
+            "species time_ in compartment_;",
+            "reaction_: time_ -> S2; pi_*time_*compartment_;",
+            "pi_ = 3;",
+            "max_ := 2*pi_*time_;",
+        ] {
+            assert!(text.contains(line), "{line} not in:\n{text}");
+        }
+        // The diagram itself keeps its ids.
+        assert!(m.find_species("time").is_some());
+        // Read back, the model is the same but for the names.
+        let back = ok(&text, &OFF);
+        assert_eq!(
+            back.find_reaction("reaction_").unwrap().kinetic_law,
+            "pi_*time_*compartment_"
+        );
+    }
+
+    #[test]
+    fn the_layout_uses_the_new_ids_and_the_notes_say_so() {
+        let m = ok(RESERVED_IDS, &OFF);
+        let text = export_with_layout(&m);
+        assert!(text.contains("time_.position = "), "{text}");
+        assert!(text.contains("reaction_.position = "), "{text}");
+        assert!(!text.contains("\n  time.position"), "{text}");
+        let notes = layout_notes(&m);
+        assert!(
+            notes[0].starts_with("Ids Antimony reserves were written with `_` added:")
+                && notes[0].contains("compartment as compartment_"),
+            "{notes:?}"
+        );
+    }
+
+    #[test]
+    fn a_taken_name_gets_another_underscore() {
+        let m = ok("J1: time -> time_; k*time\nk = 1\n", &OFF);
+        let text = export(&m);
+        assert!(text.contains("J1: time__ -> time_; k*time__;"), "{text}");
+    }
 
     const ON: ImportOptions = ImportOptions {
         convert_catalytic: true,
