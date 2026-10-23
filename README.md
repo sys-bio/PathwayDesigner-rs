@@ -114,8 +114,10 @@ Delphi version does, and some more (see [Status](#status)).
 - PathwayDesigner's own JSON format. It reads the Delphi version's files, and a
   model that uses nothing new is still saved in the Delphi version's format.
 - **Antimony**: import and export, with a live Antimony panel next to the drawing.
-  Import also reads a drawing given in the text with Antimony 3's layout
-  statements (positions, aliases, lines and looks), as libAntimony writes them.
+  The drawing goes with it, as Antimony 3's layout statements (positions,
+  aliases, lines and looks), which libAntimony reads: File ▸ Export Antimony
+  writes them, and the panel's Get Antimony does with *With layout* ticked.
+  Import reads them, from PathwayDesigner or from libAntimony.
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
   package, so positions, aliases, curves, reaction stems and reaction names survive
   the round trip, and the **Render** package, so colours, line widths, dashes,
@@ -374,7 +376,8 @@ python crates/pd-core/tests/scripts/check_sbml.py out
 with Layout and Render and read back, as written and with PathwayDesigner's own
 notes removed (what a program that reads only standard SBML sees), and compared
 with the original field by field. With `--antimony`, the model alone is compared
-after a trip through Antimony. Use it after changing an importer or exporter, to
+after a trip through Antimony; with `--antimony-layout`, the whole drawing after a
+trip through Antimony with its layout statements. Use it after changing an importer or exporter, to
 see at once what a change keeps and loses. It prints a Markdown report; with
 `DETAIL=<part of a model's title>` it also lists that model's every change (in
 the round trip without the notes with `DETAIL_STANDARD=1` too).
@@ -382,12 +385,15 @@ the round trip without the notes with `DETAIL_STANDARD=1` too).
 ```
 cargo run -p pd-core --release --example layout_report > sbml.md
 cargo run -p pd-core --release --example layout_report -- --antimony > antimony.md
+cargo run -p pd-core --release --example layout_report -- --antimony-layout > antimony-layout.md
 ```
 
-**`scripts/antimony_layout_check.py`**: compares PathwayDesigner's reading of
-Antimony's layout statements with libAntimony's, over the Gallery (it needs the
-`antimony` Python package, and uses the `drawing_report` example). Use it after
-changing how those statements are read.
+**`scripts/antimony_layout_check.py`**: compares PathwayDesigner's reading and
+writing of Antimony's layout statements with libAntimony's, over the Gallery (it
+needs the `antimony` Python package, and uses the `export_sbml` and
+`drawing_report` examples). Use it after changing how those statements are read
+or written. `layout_report --antimony-layout` checks that PathwayDesigner reads
+its own Antimony export back as the same drawing.
 
 ```
 python scripts/antimony_layout_check.py <work folder>

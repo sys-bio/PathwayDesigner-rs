@@ -257,7 +257,8 @@ impl PathwayApp {
 
     pub(crate) fn export_antimony(&mut self) {
         let name = with_extension(&self.doc.name, "ant");
-        let text = self.view.export_antimony();
+        let (text, notes) = self.antimony_export();
+        self.export_messages = notes;
         self.files.save(
             &self.ctx,
             Purpose::ExportAntimony,
@@ -266,6 +267,13 @@ impl PathwayApp {
             None,
             true,
         );
+    }
+
+    /// What File ▸ Export Antimony writes: the model and its drawing (D1 of
+    /// docs/antimony-layout-export-design.md), and the notes on what the
+    /// drawing loses.
+    pub(crate) fn antimony_export(&self) -> (String, Vec<String>) {
+        self.view.export_antimony_with_layout()
     }
 
     /// Replaces the diagram with the model in SBML `text`, as one undo step.
@@ -408,12 +416,16 @@ impl PathwayApp {
                 self.open_text(&name, &text, target);
             }
             FileEvent::Saved {
+                purpose: Purpose::ExportAntimony,
+                name,
+                ..
+            } => {
+                self.notice = Some(format!("Exported {name}"));
+                self.warnings = std::mem::take(&mut self.export_messages);
+            }
+            FileEvent::Saved {
                 purpose:
-                    Purpose::ExportAntimony
-                    | Purpose::ExportCsv
-                    | Purpose::ExportSvg
-                    | Purpose::ExportPng
-                    | Purpose::ExportPdf,
+                    Purpose::ExportCsv | Purpose::ExportSvg | Purpose::ExportPng | Purpose::ExportPdf,
                 name,
                 ..
             } => {

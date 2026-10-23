@@ -119,6 +119,98 @@ pub(crate) fn statements(model: &Model) -> Vec<String> {
     out
 }
 
+/// What the drawing has that the statements can't say (design §5–§6), one
+/// line each, for the user after an export, as SBML export's notes are.
+pub(crate) fn notes(model: &Model) -> Vec<String> {
+    use crate::model::{LinePattern, ReactionMode};
+    let mut out = Vec::new();
+    let mut note = |n: usize, what: &str| {
+        if n > 0 {
+            out.push(format!("{what} ({n})"));
+        }
+    };
+    let reactions = model.reactions();
+    note(
+        reactions
+            .iter()
+            .filter(|r| r.junction_smooth && draw::effective_mode(r) == ReactionMode::Bezier)
+            .count(),
+        "Smooth junctions are written as their curves, but come back not marked smooth",
+    );
+    note(
+        reactions
+            .iter()
+            .filter(|r| draw::effective_mode(r) == ReactionMode::Linear)
+            .count(),
+        "Reactions drawn as one straight line come back as two lines meeting at a hidden junction, drawn the same",
+    );
+    let species: Vec<&SpeciesNode> = model.species().iter().filter(|s| !s.is_null_node).collect();
+    note(
+        species.iter().filter(|s| s.label_offset.is_some()).count(),
+        "Names drawn outside their nodes come back inside",
+    );
+    note(
+        reactions
+            .iter()
+            .filter(|r| r.label_offset.is_some())
+            .count(),
+        "Reaction names shown on the diagram come back hidden",
+    );
+    note(
+        species
+            .iter()
+            .filter(|s| s.border_dash != crate::model::BorderDash::default())
+            .count(),
+        "Solid or dashed borders set by hand come back automatic",
+    );
+    note(
+        reactions
+            .iter()
+            .flat_map(|r| &r.modifiers)
+            .filter(|p| {
+                p.look.pattern != LinePattern::default()
+                    || p.look.symbol_size.is_some()
+                    || p.look.symbol_gap.is_some()
+            })
+            .count(),
+        "Modifier lines' patterns and symbol sizes come back as the defaults",
+    );
+    note(
+        species
+            .iter()
+            .filter(|s| s.is_alias() && reactions_drawn_to(model, &s.id).is_empty())
+            .count(),
+        "Aliases no line goes to aren't written: Antimony names an alias by its reactions",
+    );
+    note(
+        reactions
+            .iter()
+            .map(|r| {
+                let mut seen = HashSet::new();
+                r.reactants
+                    .iter()
+                    .chain(&r.products)
+                    .chain(&r.modifiers)
+                    .filter_map(|p| model.find_species(&p.species))
+                    .filter(|n| !n.is_null_node)
+                    .filter(|n| !seen.insert(n.primary_id().to_owned()))
+                    .count()
+            })
+            .sum(),
+        "Second lines between a reaction and one species aren't written: Antimony names a line by both",
+    );
+    note(
+        model.compartments.iter().filter(|c| c.hidden).count(),
+        "Hidden compartments' boxes aren't written",
+    );
+    note(model.texts().len(), "Free text isn't written");
+    note(
+        model.styles.len(),
+        "Saved styles aren't written (each item's look is)",
+    );
+    out
+}
+
 /// One item's look as libAntimony settings, in the order written: each
 /// `(setting, value)`, a value of `None` left unsaid.
 type Looks = Vec<(&'static str, Option<String>)>;
@@ -946,6 +1038,37 @@ mod tests {
             b2.find_reaction("J1").unwrap().modifiers[0].look.width,
             None
         );
+    }
+
+    #[test]
+    fn notes_say_what_isnt_written() {
+        use crate::antimony::layout_notes;
+        assert!(
+            layout_notes(&placed()).is_empty(),
+            "{:?}",
+            layout_notes(&placed())
+        );
+        let mut m = placed();
+        m.find_species_mut("S2").unwrap().label_offset = Some(pt(0.0, 30.0));
+        m.find_reaction_mut("J1").unwrap().mode = ReactionMode::Linear;
+        m.add_alias("S3", pt(500.0, 500.0)).unwrap();
+        m.compartments
+            .iter_mut()
+            .find(|c| c.id == "C")
+            .unwrap()
+            .hidden = true;
+        let notes = layout_notes(&m);
+        for what in [
+            "Names drawn outside their nodes come back inside (1)",
+            "Reactions drawn as one straight line come back as two lines",
+            "Aliases no line goes to aren't written",
+            "Hidden compartments' boxes aren't written (1)",
+        ] {
+            assert!(
+                notes.iter().any(|n| n.starts_with(what)),
+                "{what} not in {notes:#?}"
+            );
+        }
     }
 
     #[test]

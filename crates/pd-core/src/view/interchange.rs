@@ -31,6 +31,15 @@ impl DiagramView {
         antimony::export(&self.model)
     }
 
+    /// The diagram as Antimony with its drawing as layout statements
+    /// (docs/antimony-layout-export-design.md), and what those can't say.
+    pub fn export_antimony_with_layout(&self) -> (String, Vec<String>) {
+        (
+            antimony::export_with_layout(&self.model),
+            antimony::layout_notes(&self.model),
+        )
+    }
+
     /// Replaces the diagram with the model in SBML `xml`, as one undo step
     /// (SPEC-Rust §8.3). Returns what the import reports, or the errors, in
     /// which case the diagram is left exactly as it was.
@@ -93,6 +102,34 @@ mod tests {
         v.undo();
         assert_eq!(v.model().species().len(), 1);
         assert_eq!(v.model().species()[0].id, "S1");
+    }
+
+    #[test]
+    fn antimony_with_layout_carries_the_drawing() {
+        let mut v = DiagramView::default();
+        v.import_antimony(
+            "A -> B; k*A\nk = 0.1\nA.pos = {0, 0}\nB.pos = {200, 0}",
+            &OPTS,
+        )
+        .unwrap();
+        let (text, notes) = v.export_antimony_with_layout();
+        assert!(
+            text.contains("  // Layout\n  model.layout = on\n"),
+            "{text}"
+        );
+        assert!(text.contains("A.position = {0, 0}"), "{text}");
+        assert!(notes.is_empty(), "{notes:?}");
+        // The plain export is the model alone.
+        assert!(!v.export_antimony().contains("model.layout"));
+        // What the layout can't say comes with it.
+        let mut m = v.model().clone();
+        m.find_species_mut("A").unwrap().label_offset = Some(crate::geometry::pt(0.0, 30.0));
+        v.set_model(m);
+        let (_, notes) = v.export_antimony_with_layout();
+        assert!(
+            notes.iter().any(|n| n.starts_with("Names drawn outside")),
+            "{notes:?}"
+        );
     }
 
     #[test]

@@ -44,11 +44,19 @@ pub struct AntimonyPanel {
     last_import: Option<String>,
     /// Put the cursor at this (line, column) on the next frame.
     jump: Option<(usize, usize)>,
+    /// Get Antimony writes the drawing too, as layout statements.
+    with_layout: bool,
 }
 
 impl AntimonyPanel {
     pub fn last_import(&self) -> Option<&str> {
         self.last_import.as_deref()
+    }
+
+    /// The text in the panel.
+    #[cfg(test)]
+    pub fn text(&self) -> &str {
+        &self.text
     }
 
     /// Imports `text` into the view. On errors the diagram is unchanged and
@@ -120,11 +128,19 @@ impl AntimonyPanel {
                 .on_hover_text("Replace the text with the diagram, written as Antimony")
                 .clicked()
             {
-                self.text = view.export_antimony();
+                self.text = if self.with_layout {
+                    view.export_antimony_with_layout().0
+                } else {
+                    view.export_antimony()
+                };
                 self.errors.clear();
                 self.warnings.clear();
                 self.imported = None;
             }
+            ui.checkbox(&mut self.with_layout, "With layout")
+                .on_hover_text(
+                    "Get Antimony writes the drawing too, as Antimony's layout statements",
+                );
         });
 
         let id = ui.make_persistent_id("antimony-text");

@@ -848,6 +848,15 @@ which that reader accepted and Antimony does not.
   curves (`sbml::import::leg_from_curve`). Design and libAntimony's conventions:
   `docs/antimony-layout-design.md`; `scripts/antimony_layout_check.py` compares
   the reading with libAntimony's over the Gallery.
+- **Writing the layout** (S §11.3 item 7): `antimony::export_with_layout` adds the
+  drawing as layout statements (`pd-core::antimony_layout_out`), the lines taken
+  from SBML export's own curves (`sbml::export::leg_segments`) and the looks
+  from the renderer's; `antimony::layout_notes` lists what they can't say. The
+  app's File ▸ Export Antimony uses it and shows the notes; the panel's Get
+  Antimony does with *With layout* ticked. `layout_report --antimony-layout`
+  checks the round trip over the Gallery, and the check script's third route
+  checks libAntimony's reading of it. Design:
+  `docs/antimony-layout-export-design.md`.
 - **What a diagram cannot hold** (units, events, rate rules, algebraic
   rules, constraints, objectives, other models in the file, names,
   notes and annotations, units on symbols) gives a **warning** saying it was skipped,

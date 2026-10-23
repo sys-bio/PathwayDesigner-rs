@@ -1,15 +1,28 @@
-"""Checks PathwayDesigner's reading of Antimony's layout statements against
-libAntimony (docs/antimony-layout-design.md §8).
+"""Checks PathwayDesigner's reading and writing of Antimony's layout
+statements against libAntimony (docs/antimony-layout-design.md §8,
+docs/antimony-layout-export-design.md §8).
 
 libAntimony can write the same layout two ways: as SBML Layout, and as
 Antimony layout statements (`S1.position = {…}`). PathwayDesigner reads the
 first with its SBML import and the second with its Antimony import; the two
-drawings must agree. Two routes, over every Gallery model:
+drawings must agree. Three routes, over every Gallery model:
 
 1. libAntimony's own layout: the model as Antimony with `model.layout = on`,
    laid out by libAntimony (SBMLNetwork) and written as Antimony.
 2. PathwayDesigner's layout: its SBML export, written as Antimony by
    libAntimony.
+3. PathwayDesigner's Antimony export (with its layout), read by libAntimony
+   into SBML and compared with PathwayDesigner's own SBML export of the same
+   model, glyph by glyph in the SBML itself: every species glyph's box,
+   every reaction's centre, and the ends of every line's segments. (Read
+   with `loadAntimonyString`: libAntimony's `loadAntimonyFile` fails on a
+   large file it reads as a string.) Counted apart, as known: a second line
+   between one reaction and one species, which Antimony can't name; a
+   species drawing no line goes to (an alias is named by its reactions, so
+   none is written); and libAntimony's own ways: it draws one line per whole
+   unit of stoichiometry (an extra line beside the one written for 2, none
+   for 0.5), and attaches an alias to the first reaction its name lists only
+   (`S.position.J1.J2`: J2's line goes to S's main drawing).
 
 PathwayDesigner reads the Antimony text, and its drawing is compared with
 two references. Positions, sizes and which drawing each line goes to are
@@ -203,10 +216,140 @@ def compare(label, a, b, lines_ref, looks=False):
     return len(out)
 
 
+def geometry(path):
+    """An SBML layout's glyphs: species boxes by species, reaction centres,
+    and each line's segment ends (direction left out), keyed by reaction,
+    species ("null" for a null node) and whether it is a modifier's."""
+    import libsbml
+    doc = libsbml.readSBMLFromFile(path)
+    model = doc.getModel()
+    lay = model.getPlugin("layout").getLayout(0)
+    boxes, centres, lines = {}, {}, {}
+    # Stoichiometry by (reaction, species), for libAntimony's one line per unit.
+    stoich = {}
+    for r in model.getListOfReactions():
+        for ref in list(r.getListOfReactants()) + list(r.getListOfProducts()):
+            stoich[(r.getId(), ref.getSpecies())] = ref.getStoichiometry()
+    names = {}
+    for g in lay.getListOfSpeciesGlyphs():
+        sp = g.getSpeciesId() or "null"
+        names[g.getId()] = sp
+        b = g.getBoundingBox()
+        boxes.setdefault(sp, []).append((b.getX(), b.getY(), b.getWidth(), b.getHeight()))
+    for r in lay.getListOfReactionGlyphs():
+        b = r.getBoundingBox()
+        centres[r.getReactionId()] = (b.getX() + b.getWidth() / 2, b.getY() + b.getHeight() / 2)
+        for sr in r.getListOfSpeciesReferenceGlyphs():
+            role = "modifier" if sr.getRoleString() in (
+                "modifier", "activator", "inhibitor", "sidesubstrate", "sideproduct") else "leg"
+            ends = []
+            for seg in sr.getCurve().getListOfCurveSegments():
+                a, e = seg.getStart(), seg.getEnd()
+                # Rounded as written (two decimals), so the order of near-equal
+                # ends doesn't depend on the last digits.
+                r2 = lambda x: round(x, 2)
+                ends.append(sorted([(r2(a.getXOffset()), r2(a.getYOffset())),
+                                    (r2(e.getXOffset()), r2(e.getYOffset()))]))
+            key = (r.getReactionId(), names.get(sr.getSpeciesGlyphId()), role)
+            lines.setdefault(key, []).append(sorted(ends))
+    return boxes, centres, lines, stoich
+
+
+def compare_sbml(ours, theirs):
+    """Route 3: PathwayDesigner's SBML against libAntimony's reading of its
+    Antimony export, in the SBML itself."""
+    tol = 0.02  # two decimals
+    near = lambda p, q: abs(p[0] - q[0]) <= tol and abs(p[1] - q[1]) <= tol
+    ba, ca, la, stoich = geometry(ours)
+    bb, cb, lb, _ = geometry(theirs)
+    out, unnamed, unconnected, extra, fractional, alias_fault = [], 0, 0, 0, 0, 0
+    # Reactions listed after the first in an alias's name, by species.
+    later = set()
+    for line in open(ours[:-4] + ".ant", encoding="utf-8"):
+        parts = line.strip().split(" = ")[0].split(".")
+        if len(parts) >= 4 and parts[1] == "position":
+            for r in parts[3:]:
+                later.add((r, parts[0]))
+    below_one = lambda key: stoich.get(key[:2], 1.0) < 1.0
+    # Where our lines libAntimony can draw end, to tell a drawing no line
+    # goes to.
+    line_ends = [pt for key, curves in la.items() if not below_one(key)
+                 for c in curves for seg in c for pt in seg]
+
+    def connected(box):
+        x, y, w, h = box
+        return any(x - 1 <= px <= x + w + 1 and y - 1 <= py <= y + h + 1 for px, py in line_ends)
+
+    same_box = lambda p, q: all(abs(u - v) <= tol for u, v in zip(p, q))
+    for sp in sorted(set(ba) - {"null"}):
+        xb = list(bb.get(sp, []))
+        for box in sorted(ba[sp]):
+            match = next((q for q in xb if same_box(box, q)), None)
+            if match is not None:
+                xb.remove(match)
+            elif not connected(box):
+                unconnected += 1
+            else:
+                out.append(f"species {sp}: ours {box} not drawn by libAntimony")
+        for q in xb:
+            out.append(f"species {sp}: libAntimony draws {q}, which ours doesn't")
+    for rid, c in ca.items():
+        if rid not in cb or not near(c, cb[rid]):
+            out.append(f"reaction {rid} centre: ours {c} / libAntimony {cb.get(rid)}")
+    # Two lines of one reaction to one species: Antimony names only one.
+    pairs = {}
+    for (rid, sp, _), curves in la.items():
+        pairs[(rid, sp)] = pairs.get((rid, sp), 0) + len(curves)
+    for key, curves in la.items():
+        if pairs[key[:2]] > 1 and key[1] != "null":
+            unnamed += len(curves)
+            continue
+        theirs_curves = lb.get(key)
+        if theirs_curves is None:
+            if below_one(key):
+                fractional += len(curves)
+            else:
+                out.append(f"line {key}: not drawn by libAntimony")
+            continue
+        same = lambda u, v: len(u) == len(v) and all(
+            near(p[0], q[0]) and near(p[1], q[1]) for p, q in zip(u, v))
+        left = list(theirs_curves)
+        for u in curves:
+            match = next((v for v in left if same(u, v)), None)
+            if match is None:
+                if key[:2] in later:
+                    alias_fault += 1
+                else:
+                    out.append(f"line {key}: ours {u} / libAntimony {left}")
+            else:
+                left.remove(match)
+        extra += len(left)
+    known = [f"{n} {what}" for n, what in [
+        (unnamed, "second lines to one species, which Antimony can't name"),
+        (unconnected, "drawings no line goes to, not written"),
+        (extra, "extra lines libAntimony adds for stoichiometry above one"),
+        (fractional, "lines with stoichiometry below one, which libAntimony doesn't draw"),
+        (alias_fault, "lines libAntimony moves to the main drawing (its alias fault)"),
+    ] if n]
+    note = f" (known: {'; '.join(known)})" if known else ""
+    print(f"  PathwayDesigner's export: {'agree' if not out else str(len(out)) + ' differences'}{note}",
+          flush=True)
+    for line in out[:8]:
+        print("    " + line, flush=True)
+    return len(out)
+
+
 def one(ours, work):
     """libAntimony's part for one model: writes the route files."""
     import antimony
     stem = os.path.basename(ours)[:-4]
+    # Route 3 first: it needs no automatic layout, so it is quick.
+    antimony.clearPreviousLoads()
+    if antimony.loadAntimonyString(open(ours[:-4] + ".ant", encoding="utf-8").read()) < 0:
+        print("libAntimony can't read PathwayDesigner's Antimony:", antimony.getLastError()[:200])
+        return 1
+    with open(os.path.join(work, stem + ".route3.xml"), "w", encoding="utf-8") as fh:
+        fh.write(antimony.getSBMLString(antimony.getMainModuleName()))
     antimony.clearPreviousLoads()
     if antimony.loadSBMLFile(ours) < 0:
         print("libAntimony can't read it:", antimony.getLastError()[:200])
@@ -260,7 +403,7 @@ def main():
     work = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp(prefix="antlayout_")
     os.makedirs(work, exist_ok=True)
     sbml_dir = os.path.join(work, "gallery_sbml")
-    cargo_example("export_sbml", sbml_dir, "--gallery")
+    cargo_example("export_sbml", sbml_dir, "--gallery", "--antimony")
     failures = 0
     for f in sorted(os.listdir(sbml_dir)):
         if not f.endswith(".xml"):
@@ -268,11 +411,16 @@ def main():
         stem = f[:-4]
         ours = os.path.join(sbml_dir, f)
         print(stem, flush=True)
+        sb3 = os.path.join(work, stem + ".route3.xml")
+        if os.path.exists(sb3):
+            os.remove(sb3)
         try:
             child = subprocess.run([sys.executable, __file__, "--one", ours, work],
                                    capture_output=True, text=True, timeout=LIMIT)
         except subprocess.TimeoutExpired:
-            print(f"  skipped: libAntimony took more than {LIMIT} s", flush=True)
+            print(f"  routes 1 and 2 skipped: libAntimony took more than {LIMIT} s", flush=True)
+            if os.path.exists(sb3):
+                failures += compare_sbml(ours, sb3) > 0
             continue
         if child.returncode != 0:
             print("  " + (child.stdout + child.stderr).strip()[-300:], flush=True)
@@ -291,6 +439,7 @@ def main():
                   flush=True)
             failures += 1
             continue
+        failures += compare_sbml(ours, sb3) > 0
         failures += compare("libAntimony's layout", report(sb1), report(ant1), report(src1)) > 0
         failures += compare("PathwayDesigner's layout", report(sb2), report(ant2), report(ours),
                             looks=True) > 0

@@ -2982,4 +2982,63 @@ k = 0.1"
         });
         assert_eq!(h.app.right_tab, RightTab::Antimony);
     }
+
+    #[test]
+    fn get_antimony_writes_the_layout_when_asked() {
+        let mut h = Harness::new();
+        h.app
+            .view
+            .import_antimony(
+                "J1: S1 -> S2; k*S1\nk = 1\nS1.pos = {0, 0}\nS2.pos = {200, 0}",
+                &h.app.import_options(),
+            )
+            .unwrap();
+        h.click(h.widget("Antimony"));
+        h.run(vec![]);
+        h.click(h.widget("Get Antimony"));
+        h.run(vec![]);
+        assert!(!h.app.antimony.text().contains("model.layout"));
+        h.click(h.widget("With layout"));
+        h.run(vec![]);
+        h.click(h.widget("Get Antimony"));
+        h.run(vec![]);
+        assert!(h.app.antimony.text().contains("S1.position = {0, 0}"));
+    }
+
+    #[test]
+    fn exporting_antimony_says_what_the_layout_lost() {
+        let mut h = Harness::new();
+        h.app
+            .view
+            .import_antimony("J1: S1 -> S2; k*S1\nk = 1", &h.app.import_options())
+            .unwrap();
+        let mut m = h.app.view.model().clone();
+        m.find_species_mut("S1").unwrap().label_offset = Some(pd_core::geometry::pt(0.0, 30.0));
+        h.app.view.set_model(m);
+        let (text, notes) = h.app.antimony_export();
+        assert!(
+            text.contains(
+                "  // Layout
+"
+            ),
+            "{text}"
+        );
+        h.app.export_messages = notes;
+        h.app.file_event(crate::files::FileEvent::Saved {
+            purpose: crate::files::Purpose::ExportAntimony,
+            name: "model.ant".into(),
+            target: None,
+        });
+        assert_eq!(h.app.notice.as_deref(), Some("Exported model.ant"));
+        assert!(
+            h.app
+                .warnings
+                .iter()
+                .any(|w| w.starts_with("Names drawn outside")),
+            "{:?}",
+            h.app.warnings
+        );
+        // Exporting is not saving: the document keeps its own name.
+        assert_ne!(h.app.doc.name, "model.ant");
+    }
 }

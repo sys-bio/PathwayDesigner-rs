@@ -2187,7 +2187,7 @@ goes into the item's own style, an item's own setting before its kind's
 (`species.`) before the whole layout's (`model.layout.`); colour names are
 libAntimony's. What a diagram can't hold (a second line to one species,
 fonts, shapes it doesn't have, SBMLNetwork's automatic-layout settings) gives a
-warning. Export writes no layout statements.
+warning. Export writes them (§11.3).
 
 **Implicit declarations.**
 
@@ -2263,13 +2263,31 @@ Sections are separated by blank lines and introduced by `// Section` comments.
 5. `S = <initialValue>;` for each primary, non-null species.
 6. `x := <expression>;` for each assignment rule.
 
-Aliases are never exported. Numbers MUST be formatted with a `.` decimal separator
-whatever the system locale is. A re-implementation SHOULD wrap the output in
-`model <name>` … `end`.
+7. *(Rust version.)* **The drawing**, in a last `// Layout` section, as Antimony's
+   layout statements (§11.2), when the drawing is exported too: File ▸ Export
+   Antimony always, and the Antimony panel's Get Antimony when *With layout* is
+   ticked (§11.4). Every species, alias, null node, reaction junction and
+   compartment box is placed (`S.position`, `S.size`; an alias as
+   `S.position.R1.R2`, named by the reactions whose lines go to it); every line
+   is written from its reaction to its species, as SBML Layout draws it, with
+   both ends and its base points (`R.S.rxn_end`, `species_end`, `b1`, `b2`;
+   `seg1`, `seg2`, … for corner points); every item's look as drawn, once by
+   kind (`species.color = …`) and then where items differ. Numbers have two
+   decimals and colours are libAntimony's names where one is exact. What the
+   statements can't say (smooth junctions, Linear, names outside nodes, shown
+   reaction names, dashes, modifier symbols, free text, saved styles, hidden
+   compartments, an alias no line goes to, a second line between one reaction
+   and one species) is listed in notes after the export. Reading it back gives
+   the same drawing, stems included, apart from those. Design:
+   `docs/antimony-layout-export-design.md`.
+
+Aliases are never exported as species. Numbers MUST be formatted with a `.`
+decimal separator whatever the system locale is. A re-implementation SHOULD wrap
+the output in `model <name>` … `end`.
 
 **Round-trip.** Importing an exported file MUST give back the same biochemistry
 (species, reactions, stoichiometry, rate laws, parameters, initial values). Layout
-is not preserved. *(Rust version:)* nor are a modifier that its rate law doesn't
+is not preserved, unless written (item 7). *(Rust version:)* nor are a modifier that its rate law doesn't
 name and isn't an activator or inhibitor (Antimony's `-(` is not used), the
 catalyst kind, an empty rate law (it comes back as `v`), or a model name that
 isn't an Antimony identifier.

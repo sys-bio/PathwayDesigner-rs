@@ -1,10 +1,12 @@
 //! Writes every `Models/*.json` as SBML into a folder, for checking with
 //! python-libsbml (`tests/scripts/check_sbml.py`, SPEC-Rust §8.3). With
 //! `--gallery`, writes every model in `Gallery/index.json` instead, Escher
-//! maps included.
+//! maps included. With `--antimony`, also writes each as Antimony with its
+//! drawing as layout statements (`<name>.ant`), for
+//! `scripts/antimony_layout_check.py`.
 //!
 //! ```text
-//! cargo run -p pd-core --example export_sbml -- <out> [--gallery]
+//! cargo run -p pd-core --example export_sbml -- <out> [--gallery] [--antimony]
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -12,11 +14,14 @@ use std::path::{Path, PathBuf};
 fn main() {
     let mut args = std::env::args().skip(1);
     let out = args.next().expect("an output folder");
-    let gallery = match args.next().as_deref() {
-        None => false,
-        Some("--gallery") => true,
-        Some(other) => panic!("unknown option {other}"),
-    };
+    let (mut gallery, mut antimony) = (false, false);
+    for a in args {
+        match a.as_str() {
+            "--gallery" => gallery = true,
+            "--antimony" => antimony = true,
+            other => panic!("unknown option {other}"),
+        }
+    }
     std::fs::create_dir_all(&out).unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let paths = if gallery {
@@ -41,6 +46,10 @@ fn main() {
             failed = true;
         }
         std::fs::write(Path::new(&out).join(format!("{name}.xml")), exported.xml).unwrap();
+        if antimony {
+            let text = pd_core::antimony::export_with_layout(&model);
+            std::fs::write(Path::new(&out).join(format!("{name}.ant")), text).unwrap();
+        }
     }
     if failed {
         std::process::exit(1);

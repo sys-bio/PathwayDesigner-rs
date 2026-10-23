@@ -219,6 +219,11 @@ pub fn export_with_layout(model: &Model) -> String {
     write_model(model, crate::antimony_layout_out::statements(model))
 }
 
+/// What [`export_with_layout`] can't write, one line each.
+pub fn layout_notes(model: &Model) -> Vec<String> {
+    crate::antimony_layout_out::notes(model)
+}
+
 fn write_model(model: &Model, layout: Vec<String>) -> String {
     let name = Some(model.model_name.as_str())
         .filter(|n| is_identifier(n))
