@@ -414,7 +414,7 @@ diff -r native wasm
 
 ## Status
 
-Version 0.1.20. All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
+Version 0.1.21 (what changed: [RELEASE-NOTES.md](RELEASE-NOTES.md)). All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
 browser version (R0 to R12) and the desktop version (D1). The conformance checklist
 and its evidence are in [docs/release-checklist.md](docs/release-checklist.md).
 
@@ -427,8 +427,9 @@ PDF page, the model tree, animated auto-layout, keyboard nudging, aligning
 junctions, Arrange in Circle, more alias commands, drawn compartments, free text,
 species shapes and resizing, names outside the node, Copy and Paste Style, saved
 styles, the grid and Snap to grid, themes, reaction names and stems, reactions with
-any number of species, Escher maps, SBML Render, transparent fills, a background colour, offline
-use and autosave, and fixes the defects
+any number of species, corner points on reaction lines, Escher maps, SBML Render,
+Antimony layouts, the network's structure (conservation laws and flux null space)
+drawn on the network, transparent fills, a background colour, offline use and autosave, and fixes the defects
 listed in SPECIFICATION.md §15.
 
 ## Documents
