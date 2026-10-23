@@ -2172,6 +2172,23 @@ warning says how many functions were written in. A call with the wrong number of
 arguments is an error. Export therefore writes no functions, and an exported
 model calls none.
 
+**Layout statements.** *(Rust version.)* Antimony 3 can describe a drawing in the
+model text, as libAntimony reads and writes it: `model.layout = on`,
+`S1.position = {28, 35}`, `S1.size = {60, 36}`, aliases
+(`S1.position.J2 = {…}`), a reaction's null node (`J0.--.position`), lines
+(`J0.S1.b1 = {…}`, with `species_end`, `rxn_end`, `arc2` and `seg2`) and looks
+(`S1.color = azure`, `species.linewidth = 2`, `model.layout.style = escher`).
+Import reads them into the drawing as libAntimony means them; the details, and
+libAntimony's own conventions where its reference says nothing, are in
+`docs/antimony-layout-design.md`. In short: a position is the top-left corner of
+the item's box (a species 60 × 36 and a reaction 20 × 20 unless sized); a line
+becomes handles and corner points as an SBML Layout curve does (§11.5); a look
+goes into the item's own style, an item's own setting before its kind's
+(`species.`) before the whole layout's (`model.layout.`); colour names are
+libAntimony's. What a diagram can't hold (a second line to one species,
+fonts, shapes it doesn't have, SBMLNetwork's automatic-layout settings) gives a
+warning. Export writes no layout statements.
+
 **Implicit declarations.**
 
 - A species used in a reaction but never declared is created with initial value 0.
@@ -2185,7 +2202,9 @@ model calls none.
 3. Copy every assignment whose variable is not a species as a parameter.
 4. Copy the assignment rules.
 5. Create one node (80 × 36) for every species, at a random position in
-   [0, 600)². Ids keep their declared spelling. If a reaction refers to a species
+   [0, 600)². *(Rust version:)* where the text's layout statements place a
+   species, its node goes there instead, at the size they give (see Layout
+   statements above). Ids keep their declared spelling. If a reaction refers to a species
    with different letter case, it resolves to the declared spelling, matched
    case-insensitively (the reference does this). Copy `isBoundary`, `isConstant`,
    `compartment` and `initialValue`.

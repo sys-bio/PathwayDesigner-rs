@@ -35,8 +35,11 @@ pub struct AntimonyPanel {
     text: String,
     errors: Vec<Diagnostic>,
     warnings: Vec<Diagnostic>,
-    /// A line after a successful import, with the offer to lay it out.
+    /// A line after a successful import.
     imported: Option<String>,
+    /// Whether to offer to lay out the import: not when the text placed
+    /// every species itself (Antimony's layout statements).
+    offer_layout: bool,
     /// The text last imported, for re-importing.
     last_import: Option<String>,
     /// Put the cursor at this (line, column) on the next frame.
@@ -52,15 +55,21 @@ impl AntimonyPanel {
     /// they are listed.
     fn import(&mut self, text: &str, view: &mut DiagramView, opts: &ImportOptions) -> bool {
         match view.import_antimony(text, opts) {
-            Ok((_, warnings)) => {
+            Ok((_, warnings, needs_layout)) => {
                 self.errors.clear();
                 self.warnings = warnings;
                 let m = view.model();
                 let species = m.species().iter().filter(|s| !s.is_null_node).count();
+                let drawn = if needs_layout {
+                    ""
+                } else {
+                    ", drawn as the text lays them out"
+                };
                 self.imported = Some(format!(
-                    "Imported {species} species and {} reactions.",
+                    "Imported {species} species and {} reactions{drawn}.",
                     m.reactions().len()
                 ));
+                self.offer_layout = needs_layout;
                 self.last_import = Some(text.to_owned());
                 true
             }
@@ -181,10 +190,11 @@ impl AntimonyPanel {
         if let Some(msg) = &self.imported {
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(msg).small());
-                if ui
-                    .small_button("Auto-layout")
-                    .on_hover_text("Imported species are placed at random; lay them out")
-                    .clicked()
+                if self.offer_layout
+                    && ui
+                        .small_button("Auto-layout")
+                        .on_hover_text("Imported species are placed at random; lay them out")
+                        .clicked()
                 {
                     action = Some(PanelAction::LayOut);
                 }

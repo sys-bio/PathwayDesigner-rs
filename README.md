@@ -114,6 +114,8 @@ Delphi version does, and some more (see [Status](#status)).
 - PathwayDesigner's own JSON format. It reads the Delphi version's files, and a
   model that uses nothing new is still saved in the Delphi version's format.
 - **Antimony**: import and export, with a live Antimony panel next to the drawing.
+  Import also reads a drawing given in the text with Antimony 3's layout
+  statements (positions, aliases, lines and looks), as libAntimony writes them.
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
   package, so positions, aliases, curves, reaction stems and reaction names survive
   the round trip, and the **Render** package, so colours, line widths, dashes,
@@ -380,6 +382,15 @@ the round trip without the notes with `DETAIL_STANDARD=1` too).
 ```
 cargo run -p pd-core --release --example layout_report > sbml.md
 cargo run -p pd-core --release --example layout_report -- --antimony > antimony.md
+```
+
+**`scripts/antimony_layout_check.py`**: compares PathwayDesigner's reading of
+Antimony's layout statements with libAntimony's, over the Gallery (it needs the
+`antimony` Python package, and uses the `drawing_report` example). Use it after
+changing how those statements are read.
+
+```
+python scripts/antimony_layout_check.py <work folder>
 ```
 
 **`consistency_dump`**: everything the shared core makes from each model (the

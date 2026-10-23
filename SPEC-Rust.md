@@ -840,6 +840,14 @@ which that reader accepted and Antimony does not.
   current model MUST stay unchanged.
 - **Functions** are expanded: each call is replaced by the function's body
   (S §11.2), with one warning saying how many were written in.
+- **Layout statements** (`S1.position = {…}`, `J0.S1.b1 = {…}`, `S1.color = …`;
+  S §11.2) are read by the crate into `Module::layout` and turned into the
+  drawing by `pd-core::antimony_layout` (positions, sizes, aliases, null nodes,
+  compartment boxes and lines) and `pd-core::antimony_looks` (looks), as
+  libAntimony 3.2.1 reads them. Lines go through the same code as SBML Layout
+  curves (`sbml::import::leg_from_curve`). Design and libAntimony's conventions:
+  `docs/antimony-layout-design.md`; `scripts/antimony_layout_check.py` compares
+  the reading with libAntimony's over the Gallery.
 - **What a diagram cannot hold** (units, events, rate rules, algebraic
   rules, constraints, objectives, other models in the file, names,
   notes and annotations, units on symbols) gives a **warning** saying it was skipped,
@@ -856,8 +864,8 @@ which that reader accepted and Antimony does not.
 **Export.** S §11.3 exactly. Write only `->`, and wrap the output in `model <name>` …
 `end`. Numbers are formatted the same way on every platform (fixes D-14).
 
-After importing, SHOULD offer to run auto-layout. A preference can make it run
-automatically.
+After importing, SHOULD offer to run auto-layout, unless the text's layout
+statements placed every species. A preference can make it run automatically.
 
 ### 8.3 SBML (`sbml-io` and `pd-core::sbml`)
 

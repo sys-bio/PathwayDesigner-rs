@@ -7,20 +7,23 @@ use crate::view::ViewResponse;
 
 impl DiagramView {
     /// Replaces the diagram with the model in Antimony `text`, as one undo
-    /// step (S §11.4). Returns the warnings (statements skipped), or the
-    /// errors, in which case the diagram is left exactly as it was.
+    /// step (S §11.4). Returns the warnings (statements skipped) and whether
+    /// the diagram still needs laying out (the text placed none or not all of
+    /// its species with Antimony's layout statements), or the errors, in
+    /// which case the diagram is left exactly as it was.
     pub fn import_antimony(
         &mut self,
         text: &str,
         opts: &ImportOptions,
-    ) -> Result<(ViewResponse, Vec<Diagnostic>), Vec<Diagnostic>> {
+    ) -> Result<(ViewResponse, Vec<Diagnostic>, bool), Vec<Diagnostic>> {
         let imported = antimony::import(text, opts)?;
         self.cancel_layout();
         self.cancel_gesture();
         let before = std::mem::replace(&mut self.model, imported.model);
         let mut r = self.record("Import Antimony", before);
         r.selection_changed = true;
-        Ok((r, imported.warnings))
+        let needs_layout = !imported.had_layout || imported.unplaced > 0;
+        Ok((r, imported.warnings, needs_layout))
     }
 
     /// The diagram as Antimony text (S §11.3).
@@ -80,15 +83,32 @@ mod tests {
         m.add_species(pt(0.0, 0.0), 80.0, 36.0);
         m.find_species_mut("S1").unwrap().selected = true;
         v.set_model(m);
-        let (r, warnings) = v.import_antimony("A -> B; k*A\nk = 0.1", &OPTS).unwrap();
+        let (r, warnings, needs_layout) = v.import_antimony("A -> B; k*A\nk = 0.1", &OPTS).unwrap();
         assert!(r.model_changed && r.selection_changed);
         assert!(warnings.is_empty());
+        assert!(needs_layout);
         assert_eq!(v.model().reactions().len(), 1);
         assert!(!v.has_selection());
         assert_eq!(v.undo_description(), Some("Import Antimony"));
         v.undo();
         assert_eq!(v.model().species().len(), 1);
         assert_eq!(v.model().species()[0].id, "S1");
+    }
+
+    #[test]
+    fn a_text_that_places_its_species_needs_no_layout() {
+        let mut v = DiagramView::default();
+        let (_, _, needs_layout) = v
+            .import_antimony(
+                "A -> B; k*A\nk = 0.1\nA.pos = {0, 0}\nB.pos = {200, 0}",
+                &OPTS,
+            )
+            .unwrap();
+        assert!(!needs_layout, "the text placed every species");
+        let (_, _, needs_layout) = v
+            .import_antimony("A -> B; k*A\nk = 0.1\nA.pos = {0, 0}", &OPTS)
+            .unwrap();
+        assert!(needs_layout, "B was left at random");
     }
 
     #[test]
