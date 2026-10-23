@@ -34,6 +34,25 @@ pub(super) enum Item<'a> {
 /// The render information's id.
 pub(super) const ID: &str = "pd_render";
 
+/// The global render information's id.
+pub(super) const GLOBAL_ID: &str = "pd_global_render";
+
+/// A global render information holding only the background, which the local
+/// one refers to: SBMLNetwork takes the background from a global render
+/// information only.
+pub(super) fn global_render(model: &Model) -> sr::RenderList {
+    sr::RenderList {
+        items: vec![sr::RenderInformation {
+            id: GLOBAL_ID.into(),
+            program_name: Some("PathwayDesigner".into()),
+            program_version: Some(env!("CARGO_PKG_VERSION").into()),
+            background_color: Some(hex(draw::background_colour(model))),
+            ..Default::default()
+        }],
+        ..Default::default()
+    }
+}
+
 /// The render list for the glyphs of a layout, each named by its glyph id.
 pub(super) fn render_list(model: &Model, glyphs: &[(String, Item)]) -> sr::RenderList {
     let mut w = Writer {
@@ -70,6 +89,7 @@ pub(super) fn render_list(model: &Model, glyphs: &[(String, Item)]) -> sr::Rende
             id: ID.into(),
             program_name: Some("PathwayDesigner".into()),
             program_version: Some(env!("CARGO_PKG_VERSION").into()),
+            reference_render_information: Some(GLOBAL_ID.into()),
             background_color: Some(background),
             color_definitions: w
                 .colours

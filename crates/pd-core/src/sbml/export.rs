@@ -350,6 +350,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     }
 
     m.layouts.push(layout(model, &legs, &mut ids));
+    m.global_render = Some(super::appearance::global_render(model));
     let mut doc = sb::Document::new(LEVEL, VERSION);
     doc.model = Some(m);
     doc

@@ -926,7 +926,9 @@ replace `sbml-io` behind the same bridge.
   glyph holding its look as drawn (colours, widths, dashes, shapes, fonts, the
   junction dot, arrowheads and modifier symbols as line endings), glyphs that look
   the same sharing a style, and a saved style's name on the style of the items
-  that follow it. Written to the minimal profile and its writing rules in
+  that follow it. It refers to a global render information,
+  `pd_global_render`, which holds only the background (also on `pd_render`),
+  since SBMLNetwork reads the background from a global one only. Written to the minimal profile and its writing rules in
   `docs/render-design.md` (§3, §3.6): every attribute where it is used, fills and
   fill rules on shapes as well as groups, colours named in every line ending. The
   theme is not written.

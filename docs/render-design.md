@@ -42,7 +42,7 @@ write (Table N), reporting any it cannot show.* Not "supports Render" without th
 | Render feature | Written | Read |
 |---|---|---|
 | `renderInformation` in a layout (local) | one, `id="pd_render"` | yes; the first local one |
-| Global render information | no | yes, when no local one applies, or when the local one names it in `referenceRenderInformation` |
+| Global render information | one, `id="pd_global_render"`, holding only the background, which `pd_render` refers to (SBMLNetwork reads the background from a global one only; 2026-10-23) | yes, when no local one applies, or when the local one names it in `referenceRenderInformation` |
 | `backgroundColor` | the diagram's background | yes |
 | Colour definitions, `#RRGGBB`, `#RRGGBBAA`, `none` | yes (one definition per colour used) | yes |
 | Linear and radial gradients | no | as one colour (the stop at the middle, or the first) |

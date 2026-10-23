@@ -409,3 +409,31 @@ fn compartments_texts_and_the_background() {
     assert_eq!(value(&ri, &p.stroke), "#546E7A");
     assert_eq!(ri.background_color.as_deref(), Some("#FFFFFF"));
 }
+
+#[test]
+fn the_background_is_also_on_a_global_render_information() {
+    // SBMLNetwork reads the background from a global render information only.
+    let mut m = model();
+    m.background = Rgba::rgb(0xFF, 0x00, 0xFF);
+    let xml = pd_core::sbml::export(&m).xml;
+    let doc = sbml_io::read(&xml).unwrap().document;
+    let sm = doc.model.unwrap();
+    let global = &sm.global_render.as_ref().expect("global render").items;
+    assert_eq!(global.len(), 1);
+    assert_eq!(global[0].background_color.as_deref(), Some("#FF00FF"));
+    assert!(global[0].styles.is_empty());
+    let local = &sm.layouts[0].render.as_ref().unwrap().items[0];
+    assert_eq!(
+        local.reference_render_information.as_deref(),
+        Some(global[0].id.as_str())
+    );
+    // Read back with only the global one giving it, the background is kept.
+    let without = xml.replacen("render:backgroundColor=\"#FF00FF\"", "", 1);
+    assert!(without.contains("render:backgroundColor=\"#FF00FF\""));
+    let opts = pd_core::antimony::ImportOptions {
+        convert_catalytic: false,
+        seed: 1,
+    };
+    let back = pd_core::sbml::import(&without, &opts).unwrap().model;
+    assert_eq!(back.background, Rgba::rgb(0xFF, 0x00, 0xFF));
+}
