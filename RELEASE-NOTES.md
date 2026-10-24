@@ -4,6 +4,31 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.23 (2026-10-25)
+
+**New**
+
+- **A readable diagram format.** File ▸ Export Antimony now writes the drawing
+  after the model in a short, readable form meant to be read and edited by hand
+  (`docs/diagram-format.md`; described in the technical report, Zenodo DOI
+  10.5281/zenodo.23625331). It sits in a comment, `/* diagram … end */`, so
+  the file is still plain Antimony that tellurium and other Antimony tools
+  read. It has named styles, color names and constants, second drawings of a
+  species (`ATP#2`), curves and corner points, modifier lines with their kinds,
+  ids placed beside a node or at an offset, and the Escher theme. Opening such a
+  file draws it as written, and lays out automatically any species it leaves
+  out, keeping the others where they are. Every Gallery diagram comes back
+  exactly through it.
+- **Layout statements on request.** *Also write layout statements* in the File
+  menu adds Antimony 3's own layout statements to the export, for tellurium and
+  SBMLNetwork, which draw from those.
+
+**Changed**
+
+- The Antimony panel's *With layout* writes the diagram format.
+- A selected reaction with a very thick line widens by at most 2, so it no
+  longer outgrows its arrowheads.
+
 ## 0.1.22 (2026-10-24)
 
 **New**
