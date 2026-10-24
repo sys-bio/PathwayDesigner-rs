@@ -659,14 +659,17 @@ impl ArrowSize {
     };
 
     /// The arrowhead for a line `width` wide: the standard one up to the
-    /// default width; above it, every size times √(width / default), and the
-    /// line ending halfway along the arrowhead, so a thick line's end stays
-    /// inside it.
+    /// default width; above it, every size times √(width / default), but
+    /// never less than twice the line's width across (from about 16.7 wide),
+    /// and the line ending halfway along the arrowhead, so a thick line's end
+    /// stays inside it.
     pub fn for_width(width: f64) -> ArrowSize {
         if width.is_nan() || width <= DEFAULT_LINE_WIDTH {
             return ArrowSize::STANDARD;
         }
-        let k = (width / DEFAULT_LINE_WIDTH).sqrt();
+        let k = (width / DEFAULT_LINE_WIDTH)
+            .sqrt()
+            .max(width / ARROW_HALF_BASE);
         let (length, tip_inset) = (ARROW_LENGTH * k, ARROW_TIP_INSET * k);
         ArrowSize {
             length,
@@ -3177,6 +3180,21 @@ mod tests {
         );
         assert_eq!(big.line_gap, big.tip_inset + big.length / 2.0);
         assert_eq!(ArrowSize::STANDARD.line_gap, PRODUCT_LINE_GAP);
+        // Very thick lines: never less than twice the line's width across,
+        // in proportion; up to about 16.7 wide the square root still rules.
+        let k = (16.0 / DEFAULT_LINE_WIDTH).sqrt();
+        assert_eq!(ArrowSize::for_width(16.0).half_base, ARROW_HALF_BASE * k);
+        let huge = ArrowSize::for_width(32.0);
+        assert_eq!(huge.half_base, 32.0);
+        let k = 32.0 / ARROW_HALF_BASE;
+        assert_eq!(
+            (huge.length, huge.tip_inset, huge.line_gap),
+            (
+                ARROW_LENGTH * k,
+                ARROW_TIP_INSET * k,
+                ARROW_TIP_INSET * k + ARROW_LENGTH * k / 2.0
+            )
+        );
     }
 
     /// The arrowhead drawn for A → B, Straight or Linear, with lines `width`

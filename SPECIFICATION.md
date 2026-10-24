@@ -373,7 +373,9 @@ travel.
 **Thick lines** (added in the Rust version, for the Escher theme, §8.7): for a
 reaction whose line width `w` is above the default 1.5, the arrow length,
 half-base and inset are multiplied by `k = √(w / 1.5)`, so the arrowhead stays in
-proportion to the line without swamping the diagram, and the product line ends
+proportion to the line without swamping the diagram, but by at least `w / 5`, so
+the arrowhead is never less than twice the line's width across (this takes over
+from about 16.7 wide); and the product line ends
 halfway along the arrowhead (`3k + 6k` before the border) rather than 6 before it,
 so the thick line's end stays inside the arrowhead. `w` is the reaction's own
 width, not the wider one a selected reaction is drawn with, so selecting a
