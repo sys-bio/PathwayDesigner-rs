@@ -245,6 +245,27 @@ pub fn export_with_layout(model: &Model) -> String {
     write_model(&model, crate::antimony_layout_out::statements(&model))
 }
 
+/// [`export`], with the drawing as a diagram after the model, inside a block
+/// comment (docs/diagram-format.md), so any Antimony tool reads the model and
+/// PathwayDesigner reads the drawing too.
+pub fn export_with_diagram(model: &Model) -> String {
+    let model = safe_ids(model).0;
+    let mut text = write_model(&model, Vec::new());
+    text.push('\n');
+    text.push_str(&crate::diagram_format::write::write(
+        &model,
+        model_name(&model),
+    ));
+    text
+}
+
+/// The name a model is written under: its own, if it is an Antimony id.
+fn model_name(model: &Model) -> &str {
+    Some(model.model_name.as_str())
+        .filter(|n| is_identifier(n))
+        .unwrap_or("anonymous")
+}
+
 /// What [`export_with_layout`] can't write, one line each.
 pub fn layout_notes(model: &Model) -> Vec<String> {
     let (safe, renamed) = safe_ids(model);
@@ -486,9 +507,7 @@ fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)
 }
 
 fn write_model(model: &Model, layout: Vec<String>) -> String {
-    let name = Some(model.model_name.as_str())
-        .filter(|n| is_identifier(n))
-        .unwrap_or("anonymous");
+    let name = model_name(model);
     let compartments: Vec<String> = model
         .compartments
         .iter()

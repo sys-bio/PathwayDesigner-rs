@@ -1,12 +1,12 @@
 //! A diagram's statements applied to the model the Antimony text made
 //! (docs/diagram-format-implementation-design.md §3).
 //!
-//! Order matters: constants and styles first; the drawings of species
-//! (aliases) next, so the theme reaches them; then the theme; then the items,
-//! so their own settings come after the theme's; junctions and null nodes once
-//! the species are placed; legs and modifier lines; and ids last, since an id
-//! placed on the clearest side looks at every line. Nothing is fatal: a
-//! statement that doesn't fit the model is skipped with a warning (format §13).
+//! Order matters (see [`apply`]): constants, styles and the species' further
+//! drawings first; then everything is placed; then the theme, which works from
+//! where things are; then the looks; legs and modifier lines; ids last. An item
+//! given one style follows it when it looks exactly like it. Nothing is fatal:
+//! a statement that doesn't fit the model is skipped with a warning (format
+//! §13).
 
 use std::collections::HashMap;
 
@@ -31,6 +31,14 @@ pub struct Applied {
 }
 
 /// Applies `d` to `model`, adding to `warnings`.
+///
+/// In two passes round the theme. First everything is placed: species,
+/// junctions (between their species when not given), stems, empty sets,
+/// compartment boxes and texts. Then the theme, which works from where things
+/// are (Escher's curves and the names it shows). Then each item's look, shape
+/// and own settings, so they come after the theme's; then legs and modifier
+/// lines; and ids last, since one placed on the clearest side looks at every
+/// line.
 pub fn apply(model: &mut Model, d: &Diagram, warnings: &mut Vec<Diagnostic>) -> Applied {
     let mut r = Reader {
         warnings,
@@ -41,55 +49,28 @@ pub fn apply(model: &mut Model, d: &Diagram, warnings: &mut Vec<Diagnostic>) -> 
     r.header(model, d);
     r.diagram_level(model, d);
     r.drawings(model, d);
-    let theme = d.statements.iter().find_map(|s| match &s.kind {
-        StatementKind::Theme(t) => Some((s.pos, t.clone())),
-        _ => None,
-    });
-    if let Some((pos, key)) = theme {
-        match crate::themes::Theme::from_key(&key) {
-            Some(t) => crate::themes::apply(model, t),
-            None => r.warn(
-                pos,
-                format!("there is no theme '{key}'; the default look is used"),
-            ),
-        }
-    }
-    let mut pending = Vec::new();
     let mut placed = Vec::new();
     let mut with_junction = Vec::new();
     let mut nulls: Vec<(String, Pt)> = Vec::new();
     let mut links: Vec<(StyleKind, String, String)> = Vec::new();
+    let mut texts = Vec::new();
     for s in &d.statements {
         match &s.kind {
             StatementKind::Compartment { id, clauses, props } => {
-                r.compartment(model, s.pos, id, clauses, props, &mut links)
+                r.compartment(model, Pass::Place, s.pos, id, clauses, props, &mut links)
             }
-            StatementKind::Text {
-                text,
-                clauses,
-                props,
-            } => r.text(model, text, clauses, props, &mut links),
+            StatementKind::Text { text, clauses, .. } => {
+                texts.push(r.text_place(model, text, clauses))
+            }
             StatementKind::Item {
-                drawing,
-                clauses,
-                props,
+                drawing, clauses, ..
             } => {
                 if let Some(node) = r.node_of(model, drawing) {
-                    let at = r.species(model, &node, clauses, props, &mut pending, &mut links);
-                    if at {
+                    if r.species_place(model, &node, clauses) {
                         placed.push(node);
                     }
                 } else if drawing.copy == 1 && model.find_reaction(&drawing.id).is_some() {
-                    let at = r.reaction(
-                        model,
-                        &drawing.id,
-                        clauses,
-                        props,
-                        &mut pending,
-                        &mut nulls,
-                        &mut links,
-                    );
-                    if at {
+                    if r.reaction_place(model, &drawing.id, clauses, &mut nulls) {
                         with_junction.push(drawing.id.clone());
                     }
                 } else {
@@ -126,6 +107,58 @@ pub fn apply(model: &mut Model, d: &Diagram, warnings: &mut Vec<Diagnostic>) -> 
             }
         }
     }
+    let theme = d.statements.iter().find_map(|s| match &s.kind {
+        StatementKind::Theme(t) => Some((s.pos, t.clone())),
+        _ => None,
+    });
+    if let Some((pos, key)) = theme {
+        match crate::themes::Theme::from_key(&key) {
+            Some(t) => crate::themes::apply(model, t),
+            None => r.warn(
+                pos,
+                format!("there is no theme '{key}'; the default look is used"),
+            ),
+        }
+    }
+    // A style the file defines with the name of one of the theme's replaces
+    // it (format §6.4).
+    let replacing: Vec<(StyleKind, String)> = r
+        .styles
+        .keys()
+        .filter_map(|(kind, name)| Some((StyleKind::from_key(kind)?, name.clone())))
+        .filter(|(kind, name)| styles::find(model, *kind, name).is_some())
+        .collect();
+    let defs: Vec<(StyleKind, String, Look)> = replacing
+        .into_iter()
+        .filter_map(|(kind, name)| r.saved_look(kind, &name).map(|look| (kind, name, look)))
+        .collect();
+    replace_theme_styles(model, &defs);
+    let mut pending = Vec::new();
+    let mut texts = texts.into_iter();
+    for s in &d.statements {
+        match &s.kind {
+            StatementKind::Compartment { id, clauses, props } => {
+                r.compartment(model, Pass::Look, s.pos, id, clauses, props, &mut links)
+            }
+            StatementKind::Text { clauses, props, .. } => {
+                if let Some(id) = texts.next() {
+                    r.text_look(model, &id, clauses, props, &mut links);
+                }
+            }
+            StatementKind::Item {
+                drawing,
+                clauses,
+                props,
+            } => {
+                if let Some(node) = r.node_of(model, drawing) {
+                    r.species_look(model, &node, clauses, props, &mut pending, &mut links);
+                } else if drawing.copy == 1 && model.find_reaction(&drawing.id).is_some() {
+                    r.reaction_look(model, &drawing.id, clauses, props, &mut pending, &mut links);
+                }
+            }
+            _ => {}
+        }
+    }
     for s in &d.statements {
         match &s.kind {
             StatementKind::Leg {
@@ -154,6 +187,32 @@ pub fn apply(model: &mut Model, d: &Diagram, warnings: &mut Vec<Diagnostic>) -> 
         .map(|s| s.id.clone())
         .collect();
     Applied { unplaced }
+}
+
+/// The two passes round the theme.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Pass {
+    Place,
+    Look,
+}
+
+/// Puts a file's styles in place of the theme's of the same name (format
+/// §6.4): each such style of the model takes the file's look, and every item
+/// following it is given that look.
+pub(crate) fn replace_theme_styles(model: &mut Model, defs: &[(StyleKind, String, Look)]) {
+    for (kind, name, look) in defs {
+        let Some(s) = model
+            .styles
+            .iter_mut()
+            .find(|s| s.kind() == *kind && s.name == *name)
+        else {
+            continue;
+        };
+        s.look = *look;
+        for id in styles::users(model, *kind, name) {
+            styles::give_look(model, &id, look);
+        }
+    }
 }
 
 /// Where an id goes (format §6.2).
@@ -199,6 +258,8 @@ struct Edit {
     id: Option<IdPlace>,
     text: TextEdit,
     modifier: ModifierLook,
+    /// A reaction's empty sets' size.
+    empty_set: Option<f64>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -422,9 +483,12 @@ impl Reader<'_> {
         }
     }
 
+    /// A compartment: its box when placing, its look after the theme.
+    #[allow(clippy::too_many_arguments)]
     fn compartment(
         &mut self,
         model: &mut Model,
+        pass: Pass,
         pos: Pos,
         id: &str,
         clauses: &[Clause],
@@ -432,46 +496,43 @@ impl Reader<'_> {
         links: &mut Vec<(StyleKind, String, String)>,
     ) {
         let Some(c) = model.find_compartment(id) else {
-            self.warn(pos, format!("the model has no compartment '{id}'"));
+            if pass == Pass::Place {
+                self.warn(pos, format!("the model has no compartment '{id}'"));
+            }
             return;
         };
+        if pass == Pass::Place {
+            let (mut at, mut size, mut hidden) = (None, None, false);
+            for cl in clauses {
+                match cl.kind {
+                    ClauseKind::At(p) => at = Some(p),
+                    ClauseKind::Size(s) => size = Some(s),
+                    ClauseKind::Hidden => hidden = true,
+                    _ => {}
+                }
+            }
+            let c = model.find_compartment_mut(id).expect("found above");
+            c.hidden = hidden;
+            match (at, size) {
+                (Some(a), Some(s)) => c.frame = Some(Frame::from_corners(a, a + pt(s.w, s.h))),
+                (None, None) => {}
+                _ => self.warn(pos, "a compartment's box needs both 'at' and 'size'"),
+            }
+            return;
+        }
         self.check_clauses("a compartment", clauses, &["at", "size", "hidden", "style"]);
         let start = Edit::of_style(c.style);
         let names = self.named_styles("compartment", clauses);
         let e = self.edit("compartment", start, &names, props);
-        let (mut at, mut size, mut hidden) = (None, None, false);
-        for cl in clauses {
-            match cl.kind {
-                ClauseKind::At(p) => at = Some(p),
-                ClauseKind::Size(s) => size = Some(s),
-                ClauseKind::Hidden => hidden = true,
-                _ => {}
-            }
-        }
-        let c = model.find_compartment_mut(id).expect("found above");
-        c.style = e.style;
-        c.hidden = hidden;
-        match (at, size) {
-            (Some(a), Some(s)) => c.frame = Some(Frame::from_corners(a, a + pt(s.w, s.h))),
-            (None, None) => {}
-            _ => self.warn(pos, "a compartment's box needs both 'at' and 'size'"),
-        }
-        if let [one] = names.as_slice()
-            && props.is_empty()
-        {
+        model.find_compartment_mut(id).expect("found above").style = e.style;
+        if let [one] = names.as_slice() {
             links.push((StyleKind::Compartment, id.to_owned(), one.clone()));
         }
     }
 
-    fn text(
-        &mut self,
-        model: &mut Model,
-        text: &str,
-        clauses: &[Clause],
-        props: &[Property],
-        links: &mut Vec<(StyleKind, String, String)>,
-    ) {
-        self.check_clauses("a text", clauses, &["at", "style"]);
+    /// A text: made, at its place, before the theme (which gives texts its
+    /// typeface and color); its look after.
+    fn text_place(&mut self, model: &mut Model, text: &str, clauses: &[Clause]) -> String {
         let at = clauses
             .iter()
             .find_map(|c| match c.kind {
@@ -479,7 +540,18 @@ impl Reader<'_> {
                 _ => None,
             })
             .unwrap_or_default();
-        let id = model.add_text(at, text);
+        model.add_text(at, text)
+    }
+
+    fn text_look(
+        &mut self,
+        model: &mut Model,
+        id: &str,
+        clauses: &[Clause],
+        props: &[Property],
+        links: &mut Vec<(StyleKind, String, String)>,
+    ) {
+        self.check_clauses("a text", clauses, &["at", "style"]);
         let names = self.named_styles("text", clauses);
         let e = self.edit(
             "text",
@@ -487,7 +559,9 @@ impl Reader<'_> {
             &names,
             props,
         );
-        let t = model.find_text_mut(&id).expect("just added");
+        let Some(t) = model.find_text_mut(id) else {
+            return;
+        };
         let te = e.text;
         t.size = te.size.unwrap_or(t.size);
         t.font.typeface = te.typeface.unwrap_or(t.font.typeface);
@@ -496,32 +570,13 @@ impl Reader<'_> {
         t.align = te.align.unwrap_or(t.align);
         t.color = te.color.unwrap_or(t.color);
         t.wrap_width = te.wrap.unwrap_or(t.wrap_width);
-        if let [one] = names.as_slice()
-            && props.is_empty()
-        {
-            links.push((StyleKind::Text, id, one.clone()));
+        if let [one] = names.as_slice() {
+            links.push((StyleKind::Text, id.to_owned(), one.clone()));
         }
     }
 
-    /// A species drawing; true if the statement placed it.
-    fn species(
-        &mut self,
-        model: &mut Model,
-        node: &str,
-        clauses: &[Clause],
-        props: &[Property],
-        pending: &mut Vec<Pending>,
-        links: &mut Vec<(StyleKind, String, String)>,
-    ) -> bool {
-        self.check_clauses("a species", clauses, &["at", "locked", "style"]);
-        let s = model.find_species(node).expect("a node");
-        let start = Edit {
-            shape: s.shape,
-            border_dash: s.border_dash,
-            ..Edit::of_style(s.style)
-        };
-        let names = self.named_styles("species", clauses);
-        let e = self.edit("species", start, &names, props);
+    /// A species drawing's place; true if the statement gives one.
+    fn species_place(&mut self, model: &mut Model, node: &str, clauses: &[Clause]) -> bool {
         let s = model.find_species_mut(node).expect("a node");
         let mut placed = false;
         for c in clauses {
@@ -534,6 +589,29 @@ impl Reader<'_> {
                 _ => {}
             }
         }
+        placed
+    }
+
+    /// A species drawing's look, size and id, after the theme.
+    fn species_look(
+        &mut self,
+        model: &mut Model,
+        node: &str,
+        clauses: &[Clause],
+        props: &[Property],
+        pending: &mut Vec<Pending>,
+        links: &mut Vec<(StyleKind, String, String)>,
+    ) {
+        self.check_clauses("a species", clauses, &["at", "locked", "style"]);
+        let s = model.find_species(node).expect("a node");
+        let start = Edit {
+            shape: s.shape,
+            border_dash: s.border_dash,
+            ..Edit::of_style(s.style)
+        };
+        let names = self.named_styles("species", clauses);
+        let e = self.edit("species", start, &names, props);
+        let s = model.find_species_mut(node).expect("a node");
         s.style = VisualStyle {
             junction_visible: s.style.junction_visible,
             ..e.style
@@ -550,26 +628,61 @@ impl Reader<'_> {
         if let Some(place) = e.id {
             pending.push(Pending::Species(node.to_owned(), place));
         }
-        if let [one] = names.as_slice()
-            && props.is_empty()
-        {
+        if let [one] = names.as_slice() {
             links.push((StyleKind::Species, node.to_owned(), one.clone()));
+        }
+    }
+
+    /// A reaction's junction, the drawings its lines go to, its stem and its
+    /// empty sets; true if the statement places the junction.
+    fn reaction_place(
+        &mut self,
+        model: &mut Model,
+        id: &str,
+        clauses: &[Clause],
+        nulls: &mut Vec<(String, Pt)>,
+    ) -> bool {
+        let mut placed = false;
+        let free = clauses.iter().any(|c| c.kind == ClauseKind::Free);
+        for c in clauses {
+            match &c.kind {
+                ClauseKind::Uses(list) => {
+                    for dr in list {
+                        self.use_drawing(model, c.pos, id, dr);
+                    }
+                }
+                ClauseKind::Source(p) => self.null_at(model, c.pos, id, "_source_", *p, nulls),
+                ClauseKind::Sink(p) => self.null_at(model, c.pos, id, "_sink_", *p, nulls),
+                _ => {}
+            }
+        }
+        let r = model.find_reaction_mut(id).expect("a reaction");
+        for c in clauses {
+            match c.kind {
+                ClauseKind::At(p) => {
+                    r.junction = p;
+                    placed = true;
+                }
+                ClauseKind::Stem(a, b) => {
+                    r.stem = Some((a, b));
+                    r.stem_straight = !free;
+                }
+                _ => {}
+            }
         }
         placed
     }
 
-    /// A reaction; true if the statement placed its junction.
-    #[allow(clippy::too_many_arguments)]
-    fn reaction(
+    /// A reaction's shape, look and id, after the theme.
+    fn reaction_look(
         &mut self,
         model: &mut Model,
         id: &str,
         clauses: &[Clause],
         props: &[Property],
         pending: &mut Vec<Pending>,
-        nulls: &mut Vec<(String, Pt)>,
         links: &mut Vec<(StyleKind, String, String)>,
-    ) -> bool {
+    ) {
         self.check_clauses(
             "a reaction",
             clauses,
@@ -582,36 +695,13 @@ impl Reader<'_> {
         let start = Edit::of_style(r.style);
         let names = self.named_styles("reaction", clauses);
         let e = self.edit("reaction", start, &names, props);
-        let mut placed = false;
-        let mut free = false;
-        for c in clauses {
-            match &c.kind {
-                ClauseKind::Uses(list) => {
-                    for dr in list {
-                        self.use_drawing(model, c.pos, id, dr);
-                    }
-                }
-                ClauseKind::Source(p) => self.null_at(model, c.pos, id, "_source_", *p, nulls),
-                ClauseKind::Sink(p) => self.null_at(model, c.pos, id, "_sink_", *p, nulls),
-                ClauseKind::Free => free = true,
-                _ => {}
-            }
-        }
         let r = model.find_reaction_mut(id).expect("a reaction");
         for c in clauses {
             match c.kind {
-                ClauseKind::At(p) => {
-                    r.junction = p;
-                    placed = true;
-                }
                 ClauseKind::Shape(Shape::Straight) => r.mode = ReactionMode::Straight,
                 ClauseKind::Shape(Shape::Linear) => r.mode = ReactionMode::Linear,
                 ClauseKind::Shape(Shape::Curved) => r.mode = ReactionMode::Bezier,
-                ClauseKind::Smooth => r.junction_smooth = true,
-                ClauseKind::Stem(a, b) => {
-                    r.stem = Some((a, b));
-                    r.stem_straight = !free;
-                }
+                ClauseKind::Smooth(on) => r.junction_smooth = on,
                 _ => {}
             }
         }
@@ -619,15 +709,19 @@ impl Reader<'_> {
             junction_visible: e.style.junction_visible,
             ..e.style
         };
+        if let Some(d) = e.empty_set {
+            for null in [format!("_source_{id}"), format!("_sink_{id}")] {
+                if let Some(n) = model.find_species_mut(&null) {
+                    (n.width, n.height) = (d, d);
+                }
+            }
+        }
         if let Some(place) = e.id {
             pending.push(Pending::Reaction(id.to_owned(), place));
         }
-        if let [one] = names.as_slice()
-            && props.is_empty()
-        {
+        if let [one] = names.as_slice() {
             links.push((StyleKind::Reaction, id.to_owned(), one.clone()));
         }
-        placed
     }
 
     /// `uses ATP#2`: the reaction's line to ATP goes to that drawing.
@@ -843,6 +937,9 @@ impl Reader<'_> {
                 }
                 e.style.has_custom_style = true;
             }),
+            ("reaction", "emptySetSize") => number(v)
+                .filter(|n| *n > 0.0)
+                .map(|n| e.empty_set = Some(n)),
             ("reaction", "junction") => match word(v) {
                 Some(w @ ("hidden" | "shown")) => {
                     e.style.junction_visible = w == "shown";
@@ -1065,6 +1162,7 @@ impl Edit {
             id: None,
             text: TextEdit::default(),
             modifier: ModifierLook::default(),
+            empty_set: None,
         }
     }
 }
@@ -1112,7 +1210,7 @@ fn clause_name(c: &ClauseKind) -> &'static str {
         ClauseKind::Shape(Shape::Straight) => "straight",
         ClauseKind::Shape(Shape::Linear) => "linear",
         ClauseKind::Shape(Shape::Curved) => "curved",
-        ClauseKind::Smooth => "smooth",
+        ClauseKind::Smooth(_) => "smooth",
         ClauseKind::Stem(..) => "stem",
         ClauseKind::Free => "free",
         ClauseKind::Uses(_) => "uses",
@@ -1141,8 +1239,14 @@ fn number(v: &[Value]) -> Option<f64> {
 }
 
 /// A flag: the word alone is on.
+/// A flag: the word alone, or with `on`, is on; with `off`, off.
 fn flag(v: &[Value]) -> Option<bool> {
-    v.is_empty().then_some(true)
+    match v {
+        [] => Some(true),
+        [Value::Word(w)] if w == "on" => Some(true),
+        [Value::Word(w)] if w == "off" => Some(false),
+        _ => None,
+    }
 }
 
 /// `80 x 36` or one number.
@@ -1475,13 +1579,26 @@ out { junction red }",
         assert!(!m.find_reaction("hk").unwrap().style.junction_visible);
         let out = m.find_reaction("out").unwrap();
         assert!(out.style.junction_visible && out.style.junction_color == Rgba::rgb(255, 0, 0));
-        // An item with settings of its own follows no style, even settings
-        // its style has too (design D6).
+        // An item follows its style while it looks exactly like it: settings
+        // of its own that the style has too, or that aren't part of a look
+        // (a size, an id's place), keep the link (design D6, as revised).
         let m = clean(
             "style metabolite { shape circle }
-Glc style metabolite { shape circle }",
+style cofactor { shape circle; size 16; id right }
+Glc style metabolite { shape circle; size 40 }
+G6P style metabolite { fill red }
+ATP style cofactor { id offset (30, -5) }
+ADP style cofactor { id inside }",
         );
-        assert_eq!(m.find_species("Glc").unwrap().style_name, None);
+        let glc = m.find_species("Glc").unwrap();
+        assert_eq!(glc.style_name.as_deref(), Some("metabolite"));
+        assert_eq!(glc.width, 40.0);
+        assert_eq!(m.find_species("G6P").unwrap().style_name, None);
+        let atp = m.find_species("ATP").unwrap();
+        assert_eq!(atp.style_name.as_deref(), Some("cofactor"));
+        assert_eq!(atp.label_offset, Some(pt(30.0, -5.0)));
+        // Whether the id is outside is part of the look.
+        assert_eq!(m.find_species("ADP").unwrap().style_name, None);
     }
 
     #[test]
@@ -1490,6 +1607,34 @@ Glc style metabolite { shape circle }",
         assert_eq!(m.theme, Some(crate::themes::Theme::Escher));
         assert_eq!(m.background, Rgba::rgb(0, 0, 128));
         assert!(m.hide_modifier_lines);
+        // The theme works from where the diagram puts things: Escher's smooth
+        // handles and the names it shows are those of the final positions,
+        // not of the import's random ones.
+        let m = clean(
+            "theme escher\nGlc at (0, 0)\nATP at (0, 100)\nG6P at (200, 0)\nADP at (200, 100)\nhk at (100, 50)",
+        );
+        let mut again = m.clone();
+        crate::bezier::apply_smooth_handles(&mut again, "hk");
+        let (a, b) = (
+            m.find_reaction("hk").unwrap(),
+            again.find_reaction("hk").unwrap(),
+        );
+        assert!(a.mode == ReactionMode::Bezier && a.junction_smooth);
+        for (p, q) in a
+            .reactants
+            .iter()
+            .chain(&a.products)
+            .zip(b.reactants.iter().chain(&b.products))
+        {
+            assert!(
+                p.ctrl_pts_set && (p.ctrl1, p.ctrl2) == (q.ctrl1, q.ctrl2),
+                "{p:?} {q:?}"
+            );
+        }
+        assert_eq!(
+            a.label_offset,
+            Some(crate::render::draw::clear_reaction_label_offset(&m, a))
+        );
         // The theme's look reaches the items, and an item's own settings come
         // after it.
         let m = clean("theme escher\nGlc { fill red }");

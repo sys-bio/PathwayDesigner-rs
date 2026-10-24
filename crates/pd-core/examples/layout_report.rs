@@ -16,6 +16,10 @@
 //! matched by its species and the reactions drawn to it, which is all
 //! Antimony names it by.
 //!
+//! With `--diagram`, the model is exported as Antimony with its drawing as a
+//! diagram comment (docs/diagram-format.md) and read back, beside the full
+//! SBML round trip for comparison; numbers must come back exactly.
+//!
 //! With `--antimony` (evaluation E5), the model alone is compared instead,
 //! after a trip through Antimony, and, for comparison, through SBML without its
 //! layout: species (by their primary ids), compartments, reactions with their
@@ -28,7 +32,7 @@
 //! through standard Layout and Render only.
 //!
 //! ```text
-//! cargo run -p pd-core --release --example layout_report [-- --antimony | --antimony-layout] > report.md
+//! cargo run -p pd-core --release --example layout_report [-- --antimony | --antimony-layout | --diagram] > report.md
 //! ```
 
 use std::collections::BTreeMap;
@@ -76,8 +80,11 @@ fn main() {
             .unwrap();
     let antimony = std::env::args().any(|a| a == "--antimony");
     let antimony_layout = std::env::args().any(|a| a == "--antimony-layout");
+    let diagram = std::env::args().any(|a| a == "--diagram");
     ROUNDED.store(antimony_layout, std::sync::atomic::Ordering::Relaxed);
-    let (first, second) = if antimony_layout {
+    let (first, second) = if diagram {
+        ("Antimony with diagram", "SBML")
+    } else if antimony_layout {
         ("Antimony with layout", "SBML")
     } else if antimony {
         ("Antimony", "SBML without layout")
@@ -104,7 +111,28 @@ fn main() {
         );
         let mut fields: BTreeMap<String, Tally> = BTreeMap::new();
         let xml = pd_core::sbml::export(&model).xml;
-        let warnings: Vec<String> = if antimony_layout {
+        let warnings: Vec<String> = if diagram {
+            let named = |m: &pd_core::model::Model| {
+                let mut v = as_value(m);
+                name_aliases(&mut v);
+                v
+            };
+            let original = named(&model);
+            let text = pd_core::antimony::export_with_diagram(&model);
+            if let Ok(dir) = std::env::var("DIAGRAM_OUT") {
+                let name = Path::new(file)
+                    .file_stem()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                std::fs::write(Path::new(&dir).join(format!("{name}.ant")), &text).unwrap();
+            }
+            let back = pd_core::antimony::import(&text, &OPTS).unwrap();
+            let full = pd_core::sbml::import(&xml, &OPTS).unwrap();
+            compare(&original, &named(&back.model), "", &mut fields, false);
+            compare(&original, &named(&full.model), "", &mut fields, true);
+            back.warnings.iter().map(|d| d.to_string()).collect()
+        } else if antimony_layout {
             let named = |m: &pd_core::model::Model| {
                 let mut v = as_value(m);
                 name_aliases(&mut v);

@@ -1,7 +1,7 @@
 # A readable diagram format for Antimony models — draft specification
 
-**Status: draft for discussion, version 0.8, 2026-10-24. Nothing here is
-implemented.** Version 0.7 is published as a technical report (Zenodo, DOI
+**Status: draft for discussion, version 0.9, 2026-10-24. Read and written by
+PathwayDesigner (docs/diagram-format-implementation-design.md).** Version 0.7 is published as a technical report (Zenodo, DOI
 10.5281/zenodo.23608982). 0.2: the file type and COMBINE archives settled (§3). 0.3: made
 consistent with the app and with the minimal Render profile
 (`docs/render-design.md` §11): bold and italic names added; the reaction line
@@ -23,6 +23,13 @@ a look for each line of a reaction and a curved `linear` reaction (§15).
 comment, `/* diagram … end */`, so the file is plain Antimony with the
 extension `.ant`, which every Antimony tool reads (§3, §4); `modifierLines
 hidden` hides every modifier line in the diagram (§6.4).
+0.9 (settled with the author while writing the format): a flag can be switched
+off, `idBold off`, `smooth off`, which a writer needs where a theme turns it on
+(§5); a style's name that isn't a word is quoted, `style "Escher metabolite"`,
+so the theme's styles, and the app's styles with spaces in their names, can be
+named (§4, §6.1); a reaction's empty sets have a size, `emptySetSize` (§6.2);
+texts are written in the order they are drawn, not reading order, since a
+later one covers an earlier (§8, §12).
 Working name: *Antimony diagram*.
 
 ## Contents
@@ -144,7 +151,8 @@ end */
   last on the line before any `{ … }`: `style cofactor`. An item may have
   several, separated by commas: `style cofactor, highlight` (later ones win,
   §6.3). Because the name follows `style`, a style may have any name, even
-  one of the format's own words (`style curved`).
+  one of the format's own words (`style curved`). A name that isn't a word,
+  one with a space in it say, is written in quotes: `style "Escher metabolite"`.
 
 ## 5. Values
 
@@ -157,7 +165,7 @@ end */
 | Color | a basic name, a constant, `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `none` | §5.1. `none` = transparent (no fill). |
 | Border | `<color> <width>` | `#8D6E00 1.5`; `none` for no border. |
 | Line | `<color> <width> [dashed\|dotted\|solid]` | The pattern only for modifier lines (§6.2). |
-| Flag | the word alone | `bold`, `locked`, `straight`. |
+| Flag | the word alone, which switches it on; `off` after it switches it off | `bold`, `idBold off`, `locked`. A writer uses `off` only where the theme, or the item's style, has the flag on. |
 
 Coordinates are absolute. Relative placement ("`G6P below Glc by 120`") is
 tempting for hand-writing but makes round trips fragile; it is an open question
@@ -206,7 +214,8 @@ style metabolite { shape circle; size 24; fill #FFD54F; border #8D6E00 1.5; id r
 style flux reaction { line #37474F 2.5 }
 ```
 
-`style <name> [<kind>] { <property> <value>; … }`. The kind is `species`
+`style <name> [<kind>] { <property> <value>; … }`, the name quoted if it isn't
+a word (`style "My enzymes" { … }`). The kind is `species`
 (the default), `reaction`, `compartment`, `text` or `modifier`. A style
 gives only the properties it names.
 
@@ -253,7 +262,8 @@ when the id is exactly there, and the offset otherwise (§12).
 | Property | Values | Default |
 |---|---|---|
 | `line` | color and width | `#444444 1.5` |
-| `junction` | color, `hidden` | `#FF8800` |
+| `junction` | color, `hidden`, `shown` | `#FF8800` |
+| `emptySetSize` | number: the size of its empty sets (sources and sinks) | 28 |
 | `id` | `hidden`, `shown`, `above`, `below`, `left`, `right`, `offset (dx, dy)` | `hidden` |
 | `idColor`, `idSize` | color, number | `#1A1A1A`, 12 |
 | `idBold`, `idItalic` | flags | off |
@@ -373,7 +383,8 @@ text "After Kholodenko (2000)." at (60, 74) { size 13; italic; color #546E7A; wr
   the model but draws no box. The word is the same as Antimony's, which is no
   clash: the diagram is a separate section.
 - `text <string> at <point> [style <name>, …] [{ … }]`: `at` is the top-left corner of
-  the text. A text has no id in the file; a writer gives them in reading order.
+  the text. A text has no id in the file; texts are drawn in the order the file
+  gives them, a later one over an earlier one.
 
 ## 9. Reactions
 
@@ -395,7 +406,8 @@ src_R1     at (100, 0) source (40, 0)
   - `curved`: each line is a Bézier curve, which bends gently and meets the
     junction smoothly. `curved smooth` also keeps the curves on either side of
     the junction in line with each other, so the reaction passes through it
-    without a kink.
+    without a kink; `smooth off` undoes it where the theme makes reactions
+    smooth (Escher does).
   - `linear`: a reaction with one reactant and one product drawn as a single
     straight line from one to the other, the junction on it.
 - **Curve handles.** Each curved line has two handles, the points that pull the
@@ -472,7 +484,7 @@ write the same text:
 2. Color constants, in the order they were defined.
 3. Styles: species, reaction, compartment, text, modifier; each kind by name.
 4. Compartments, in the model's compartment order.
-5. Texts, in reading order (top to bottom, then left to right).
+5. Texts, in the order they are drawn: a later text is drawn over an earlier one.
 6. Species drawings, in the model's species order, each species' drawings
    together (`ATP`, `ATP#2`, …).
 7. Reactions, in the model's order; their `leg` lines just after each.
@@ -485,6 +497,13 @@ name if one matches exactly, else in hex. A species' id outside its node, or a
 reaction's shown id, is written by its side (`id above`) when it is exactly
 there, and by its offset otherwise; never as `id outside` or `id shown` alone. A tool that doesn't keep the file's
 constants (or its comments) writes the values they stand for.
+
+Under a theme, an item names a style only where it follows one other than the
+theme gives it, and its settings are those that differ from the theme's look.
+Where the diagram's own copy of one of the theme's styles differs from the
+built-in one (an Escher map's, at the map's sizes; one saved with an older
+version of the theme), the writer defines it under the theme's name, and it
+replaces the theme's (§6.4).
 
 ## 13. Errors
 
@@ -584,17 +603,17 @@ theme       = "theme" id ;
 background  = "background" color ;
 mlines      = "modifierLines" ( "shown" | "hidden" ) ;
 colordef    = "color" id "=" color ;
-style       = "style" id [ kind ] block ;
+style       = "style" name [ kind ] block ;
 kind        = "species" | "reaction" | "compartment" | "text" | "modifier" ;
 block       = "{" [ property { ";" property } [ ";" ] ] "}" ;
-property    = id value { value } | id ;              (* `bold` alone is a flag *)
+property    = id value { value } | id [ "on" | "off" ] ;   (* `bold` alone is a flag *)
 
 compartment = "compartment" id [ "at" point "size" size ] [ "hidden" ] [ styles ] [ block ] ;
 text        = "text" string "at" point [ styles ] [ block ] ;
 species     = drawing [ "at" point ] [ "locked" ] [ styles ] [ block ] ;
-reaction    = id [ "at" point ] [ rshape ] [ stem ] [ uses ] [ ends ]
+reaction    = id [ "at" point ] { rshape } [ stem ] [ uses ] [ ends ]
               [ styles ] [ block ] ;
-rshape      = "straight" | "linear" | "curved" [ "smooth" ] ;
+rshape      = "straight" | "linear" | "curved" | "smooth" [ "off" ] ;
 stem        = "stem" offset offset [ "free" ] ;
 uses        = "uses" drawing { "," drawing } ;
 ends        = [ "source" point ] [ "sink" point ] ;
@@ -604,7 +623,8 @@ mline       = "line" drawing "to" id [ "via" point { point } ]
               [ "kind" id ] [ styles ] [ block ] ;
 
 drawing     = id [ "#" number ] ;
-styles      = "style" id { "," id } ;
+styles      = "style" name { "," name } ;
+name        = id | string ;
 point       = "(" number "," number ")" ;
 offset      = point ;
 size        = number [ "x" number ] ;

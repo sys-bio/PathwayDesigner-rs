@@ -11,6 +11,7 @@ pub mod colors;
 mod lex;
 mod parse;
 pub(crate) mod read;
+pub(crate) mod write;
 
 use crate::antimony::{Diagnostic, Severity};
 use ast::{Diagram, Pos};

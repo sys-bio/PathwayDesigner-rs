@@ -161,6 +161,21 @@ Everything else the app draws has a place in the format.
   its border is dashed by default and so it doesn't look exactly like the style
   (the app's own rule); the report's redox example puts NAD's id where its routed
   line arrives (fix in the report's next version: `NAD … { id above }`).
+- *Step 3:* `diagram_format/write.rs` and `antimony::export_with_diagram`: the
+  model as Antimony (the reserved-id-safe copy, so both parts use the same ids)
+  and its diagram after it. The writer compares each item with a *reference*: the
+  same diagram with every look, shape, handle and name as the import leaves them
+  and the theme applied, which is where a reader stands before an item's own
+  settings; it writes what differs. `layout_report --diagram` round-trips the
+  Gallery: every model's drawing comes back exactly (what changes is the model
+  part's known Antimony losses, E5). On the way: the reader applies the theme
+  after placing everything, since Escher's curves and shown names depend on
+  positions (it had been applied to the import's random ones); D6 revised (an
+  item follows its style while it looks like it); texts in drawing order; and
+  three additions to the format, 0.9, settled with the author: `off` after a
+  flag (`idBold off`, `smooth off`), quoted style names (`style "Escher
+  metabolite"`, so a diagram's own copy of a theme style, an Escher map's say,
+  can be written and replaces the theme's), and `emptySetSize`.
 
 ## 9. Decisions
 
@@ -190,5 +205,10 @@ D2 (a); D3 yes; D4 (a); D5 (a); D6 and D7 as written.
   Auto-layout offer, as for Antimony text now.
 - **D6. Styles on reading.** As §3: an item with one style and no settings of its
   own follows it; otherwise it gets the combined look and follows none.
+  *Revised in step 3 (2026-10-24):* an item given one style follows it whenever
+  it looks exactly like it, settings of its own or not, which is the app's own
+  rule for links. A writer has to give a size or an id's place beside the
+  style (neither is part of a style's look while the id is inside), and under
+  the first rule such an item would have lost its link on every round trip.
 - **D7. Color constants and comments** are not kept by the app, so writing back
   gives the values and drops the comments.

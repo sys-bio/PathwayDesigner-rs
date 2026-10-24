@@ -209,6 +209,18 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// A style's name: a word, or a string for one with spaces
+    /// (`"Escher metabolite"`).
+    fn name(&mut self) -> Option<String> {
+        match self.peek() {
+            Some(Tok::Word(w)) | Some(Tok::Str(w)) => {
+                self.i += 1;
+                Some(w.clone())
+            }
+            _ => None,
+        }
+    }
+
     /// `(x, y)`
     fn point(&mut self) -> Option<Pt> {
         let start = self.i;
@@ -317,13 +329,13 @@ fn statement(line: &[Token], problems: &mut Vec<Problem>) -> Option<Statement> {
                 return None;
             }
             Some("style")
-                if word_at(line, 1).is_some()
+                if name_at(line, 1)
                     && (tok_at(line, 2) == Some(&Tok::LBrace)
                         || (word_at(line, 2).is_some()
                             && tok_at(line, 3) == Some(&Tok::LBrace))) =>
             {
                 c.i = 1;
-                let name = c.word()?.to_owned();
+                let name = c.name()?;
                 let kind = c.word().map(str::to_owned);
                 let props = block(&mut c, problems);
                 trailing(&c, problems);
@@ -400,6 +412,11 @@ fn word_at(line: &[Token], i: usize) -> Option<&str> {
     line.get(i).and_then(word)
 }
 
+/// A style's name, a word or a string, at `i`.
+fn name_at(line: &[Token], i: usize) -> bool {
+    matches!(tok_at(line, i), Some(Tok::Word(_)) | Some(Tok::Str(_)))
+}
+
 fn tok_at(line: &[Token], i: usize) -> Option<&Tok> {
     line.get(i).map(|t| &t.tok)
 }
@@ -469,7 +486,13 @@ fn clause(c: &mut Cursor) -> Result<ClauseKind, String> {
         "straight" => ClauseKind::Shape(Shape::Straight),
         "linear" => ClauseKind::Shape(Shape::Linear),
         "curved" => ClauseKind::Shape(Shape::Curved),
-        "smooth" => ClauseKind::Smooth,
+        "smooth" => {
+            let off = matches!(c.peek(), Some(Tok::Word(w)) if w == "off");
+            if off {
+                c.i += 1;
+            }
+            ClauseKind::Smooth(!off)
+        }
         "free" => ClauseKind::Free,
         "stem" => {
             let a = point(c)?;
@@ -499,13 +522,9 @@ fn clause(c: &mut Cursor) -> Result<ClauseKind, String> {
             ClauseKind::Uses(list)
         }
         "style" => {
-            let mut list = vec![c.word().ok_or("'style' needs a style's name")?.to_owned()];
+            let mut list = vec![c.name().ok_or("'style' needs a style's name")?];
             while c.eat(&Tok::Comma) {
-                list.push(
-                    c.word()
-                        .ok_or("'style' needs a name after the comma")?
-                        .to_owned(),
-                );
+                list.push(c.name().ok_or("'style' needs a name after the comma")?);
             }
             ClauseKind::Styles(list)
         }
@@ -813,7 +832,7 @@ mod tests {
             [
                 ClauseKind::At(pt(200.0, 420.0)),
                 ClauseKind::Shape(Shape::Curved),
-                ClauseKind::Smooth,
+                ClauseKind::Smooth(true),
                 ClauseKind::Stem(pt(-40.0, 0.0), pt(40.0, 0.0)),
                 ClauseKind::Free,
                 ClauseKind::Uses(vec![

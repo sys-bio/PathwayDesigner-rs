@@ -133,7 +133,8 @@ pub enum ClauseKind {
     Hidden,
     Locked,
     Shape(Shape),
-    Smooth,
+    /// `smooth`, or `smooth off`.
+    Smooth(bool),
     /// The reactants' end and the products' end, from the junction.
     Stem(Pt, Pt),
     Free,

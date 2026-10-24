@@ -377,7 +377,9 @@ with Layout and Render and read back, as written and with PathwayDesigner's own
 notes removed (what a program that reads only standard SBML sees), and compared
 with the original field by field. With `--antimony`, the model alone is compared
 after a trip through Antimony; with `--antimony-layout`, the whole drawing after a
-trip through Antimony with its layout statements. Use it after changing an importer or exporter, to
+trip through Antimony with its layout statements; with `--diagram`, after a trip
+through Antimony with the drawing as a diagram comment (`docs/diagram-format.md`,
+being implemented). Use it after changing an importer or exporter, to
 see at once what a change keeps and loses. It prints a Markdown report; with
 `DETAIL=<part of a model's title>` it also lists that model's every change (in
 the round trip without the notes with `DETAIL_STANDARD=1` too).
@@ -386,6 +388,7 @@ the round trip without the notes with `DETAIL_STANDARD=1` too).
 cargo run -p pd-core --release --example layout_report > sbml.md
 cargo run -p pd-core --release --example layout_report -- --antimony > antimony.md
 cargo run -p pd-core --release --example layout_report -- --antimony-layout > antimony-layout.md
+cargo run -p pd-core --release --example layout_report -- --diagram > diagram.md
 ```
 
 **`scripts/antimony_layout_check.py`**: compares PathwayDesigner's reading and
