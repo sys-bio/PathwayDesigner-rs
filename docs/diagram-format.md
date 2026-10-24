@@ -1,7 +1,8 @@
 # A readable diagram format for Antimony models — draft specification
 
-**Status: draft for discussion, version 0.7, 2026-10-24. Nothing here is
-implemented.** 0.2: the file type and COMBINE archives settled (§3). 0.3: made
+**Status: draft for discussion, version 0.8, 2026-10-24. Nothing here is
+implemented.** Version 0.7 is published as a technical report (Zenodo, DOI
+10.5281/zenodo.23608982). 0.2: the file type and COMBINE archives settled (§3). 0.3: made
 consistent with the app and with the minimal Render profile
 (`docs/render-design.md` §11): bold and italic names added; the reaction line
 pattern and the compartment name color removed; the §14 mapping corrected. 0.4:
@@ -18,7 +19,11 @@ same property, `id`, placed by side (`id above`) or by offset
 `straight`, `curved` and `linear` mean and how curve handles are given (§9);
 a reaction's id can be placed by side too (`id below`); two extensions foreseen,
 a look for each line of a reaction and a curved `linear` reaction (§15).
-Working name: *Antimony diagram* (file extension `.antd`, open question §15).
+0.8 (settled with the author): the diagram is written inside an Antimony block
+comment, `/* diagram … end */`, so the file is plain Antimony with the
+extension `.ant`, which every Antimony tool reads (§3, §4); `modifierLines
+hidden` hides every modifier line in the diagram (§6.4).
+Working name: *Antimony diagram*.
 
 ## Contents
 
@@ -93,25 +98,28 @@ diagrams of one model (open question §15).
 ## 3. File structure
 
 ```
-<Antimony model>          // model … end, as today
-diagram <model name> v1   // the drawing of that model
+<Antimony model>             // model … end, as today
+/* diagram <model name> v1   // the drawing of that model
   <statements>
-end
+end */
 ```
 
 - The `diagram` section follows the model it draws and names it. A file holds
   one model and at most one diagram (§15).
 - `v1` is the format version. A reader that meets a newer version reads what it
   understands and warns (§13).
-- **Its own file type** (decided). A file of this format holds the Antimony
-  model followed by its diagram section, and has its own extension (§15), not
-  `.ant`: Antimony tools aren't expected to read it whole. A reader takes
-  everything before `diagram` as Antimony, so the model part can always be
-  handed to any Antimony tool on its own.
+- **Inside a comment, in a `.ant` file** (decided, 0.8). The diagram section is
+  written inside an Antimony block comment, from `/* diagram` to `end */`. To
+  every Antimony tool the file is then plain Antimony, with the usual extension
+  `.ant`: libAntimony 3.2.1, for example, reads the model and skips the
+  drawing. A reader of this format looks for the block comment whose first word
+  is `diagram`; other comments are ignored. A tool that rewrites the Antimony
+  without knowing the format drops comments, and so the drawing; reading is
+  safe everywhere, rewriting only in tools that know the format.
 - **One file is the normal form.** The model and its drawing travel together.
 - **Split, in a COMBINE archive.** The two parts may also be stored as two files:
-  the model as plain Antimony (`.ant`) and the diagram section alone in a file of
-  this type, which then starts with `diagram <model name> v1`. In a COMBINE
+  the model as plain Antimony (`.ant`) and the diagram section alone, still
+  inside its comment, in a second `.ant` file. In a COMBINE
   archive (OMEX), the manifest lists both, and the diagram file names the model
   it draws by that model's name. A reader given a diagram file alone looks for
   the model in the same archive. Joining the two gives the one-file form, and
@@ -119,8 +127,11 @@ end
 
 ## 4. Lexical rules
 
-- As Antimony: `//` and `/* … */` comments, double-quoted strings, numbers as in
-  Antimony (`1`, `0.5`, `1e-3`, `-20`), identifiers as Antimony ids.
+- As Antimony: `//` comments, double-quoted strings, numbers as in Antimony
+  (`1`, `0.5`, `1e-3`, `-20`), identifiers as Antimony ids.
+- **Inside the comment.** Since the whole section is one block comment, and
+  block comments don't nest, the section can't hold `/* … */` comments, and no
+  string or comment in it may contain `*/`, which would end the section early.
 - **One statement per line.** A statement may continue onto further lines only
   inside `{ … }` or after a trailing comma. A `;` may end a statement but is
   never needed.
@@ -312,11 +323,15 @@ given by name, a theme is §6.4, and an item's own look is its `{ … }`.
 ```
 theme escher
 background white
+modifierLines hidden
 ```
 
 `theme` names a built-in set of style definitions (`classic`, `escher`); a
 style the file defines with the same name replaces the theme's. Only the first
 `theme` statement counts.
+`modifierLines hidden` draws no modifier lines anywhere in the diagram (they stay
+in the file, with their routes and looks, and show again without it); the
+default is `modifierLines shown`.
 
 ## 7. Species drawings
 
@@ -453,7 +468,7 @@ line E#2 to R5 kind catalyst
 A writer produces one canonical form, so that two tools writing the same diagram
 write the same text:
 
-1. `theme`, then `background`.
+1. `theme`, then `background`, then `modifierLines hidden` if so.
 2. Color constants, in the order they were defined.
 3. Styles: species, reaction, compartment, text, modifier; each kind by name.
 4. Compartments, in the model's compartment order.
@@ -523,11 +538,12 @@ compartments, text wrapping) go in PathwayDesigner's existing SBML notes, as now
 
 ## 15. Open questions
 
-1. *Settled:* its own file type, model and diagram in one file normally, split
-   in a COMBINE archive (§3). Still open: the archive details (the manifest's
+1. *Settled:* a `.ant` file with the diagram in a block comment, model and
+   diagram in one file normally, split in a COMBINE archive (§3). Still open: the archive details (the manifest's
    format identifier for this type, and how the diagram file points at its
    model when the model's name isn't unique in the archive).
-2. **The name and extension.** *Antimony diagram* and `.antd` are placeholders.
+2. **The name.** *Antimony diagram* is a placeholder. (The extension is settled:
+   `.ant`, §3.)
 3. **Relative placement on input** (`below Glc by 120`, `right of`, aligned
    rows): convenient by hand, but must be written back as absolute points.
 4. **Several diagrams of one model** (`diagram main`, `diagram overview`).
@@ -559,13 +575,14 @@ compartments, text wrapping) go in PathwayDesigner's existing SBML notes, as now
 EBNF over tokens (§4). `NL` is a line break.
 
 ```
-file        = model-section { NL } [ diagram ] ;
+file        = model-section { NL } [ "/*" diagram "*/" ] ;
 diagram     = "diagram" id "v" number NL { statement NL } "end" ;
-statement   = theme | background | colordef | style | compartment | text
+statement   = theme | background | mlines | colordef | style | compartment | text
             | species | reaction | leg | mline | (* empty *) ;
 
 theme       = "theme" id ;
 background  = "background" color ;
+mlines      = "modifierLines" ( "shown" | "hidden" ) ;
 colordef    = "color" id "=" color ;
 style       = "style" id [ kind ] block ;
 kind        = "species" | "reaction" | "compartment" | "text" | "modifier" ;
@@ -620,7 +637,7 @@ model upper_glycolysis
   k1 = 0.1; k2 = 0.1; k3 = 0.1; k4 = 0.1
 end
 
-diagram upper_glycolysis v1
+/* diagram upper_glycolysis v1
   color metab      = #FFD54F
   color metabEdge  = #8D6E00
   color enzymeBlue = #1565C0
@@ -653,7 +670,7 @@ diagram upper_glycolysis v1
   isomerase           at (200, 300) curved style flux
   phosphofructokinase at (200, 420) curved smooth uses ATP#2, ADP#2 style flux
   aldolase            at (200, 540) curved style flux { id shown }
-end
+end */
 ```
 
 About 35 lines of diagram, against 665 lines of JSON for the same drawing.
@@ -666,7 +683,7 @@ model mapk_cascade
   // appears in J1's rate law, which is where the feedback is …
 end
 
-diagram mapk_cascade v1
+/* diagram mapk_cascade v1
   style inactive { fill #ECEFF1; border #607D8B 1.5; size 92 x 36 }
   style active   { fill #FFCCBC; border #D84315 2; size 92 x 36 }
   style phosphorylation reaction   { line #D84315 2.5; id shown; idColor #BF360C }
@@ -681,5 +698,5 @@ diagram mapk_cascade v1
   // … the other reactions …
 
   line MAPK_PP to J1 via (1160, 650) (1160, 112) (360, 116) kind inhibitor { line red 3 solid; symbol 30 }
-end
+end */
 ```
