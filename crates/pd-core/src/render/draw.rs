@@ -638,6 +638,12 @@ pub fn reaction_line_width(r: &Reaction) -> f64 {
     pick_width(custom(&r.style).map(|s| s.line_width), DEFAULT_LINE_WIDTH)
 }
 
+/// How wide a selected reaction's line `width` wide is drawn (S §5.5):
+/// 1.5 times, but at most 2 wider.
+pub fn selected_line_width(width: f64) -> f64 {
+    width + (width * (SELECTED_LINE_FACTOR - 1.0)).min(SELECTED_LINE_EXTRA_MAX)
+}
+
 /// A product leg's arrowhead and where the line ends under it (S §5.5).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ArrowSize {
@@ -673,14 +679,23 @@ impl ArrowSize {
             .max(width / ARROW_HALF_BASE);
         let (length, half_base, tip_inset) =
             (ARROW_LENGTH * k, ARROW_HALF_BASE * k, ARROW_TIP_INSET * k);
-        // A round end, radius width / 2, fits between the arrowhead's sides
-        // this far from its tip.
-        let cap_inside = width / 2.0 * half_base.hypot(length) / half_base;
         ArrowSize {
             length,
             half_base,
             tip_inset,
-            line_gap: tip_inset + (length / 2.0).max(cap_inside),
+            line_gap: tip_inset + length / 2.0,
+        }
+        .under(width)
+    }
+
+    /// The same arrowhead over a line `width` wide: the line ends far enough
+    /// back that its round end, radius width / 2, stays between the
+    /// arrowhead's sides.
+    pub fn under(self, width: f64) -> ArrowSize {
+        let cap_inside = width / 2.0 * self.half_base.hypot(self.length) / self.half_base;
+        ArrowSize {
+            line_gap: self.line_gap.max(self.tip_inset + cap_inside),
+            ..self
         }
     }
 
@@ -688,6 +703,18 @@ impl ArrowSize {
     /// wider one it is drawn with while selected, so they don't jump).
     pub fn of(r: &Reaction) -> ArrowSize {
         ArrowSize::for_width(reaction_line_width(r))
+    }
+
+    /// The arrowheads of reaction `r` as drawn, `selected` or not: the same
+    /// size, over the line drawn.
+    pub fn drawn(r: &Reaction, selected: bool) -> ArrowSize {
+        let width = reaction_line_width(r);
+        let size = ArrowSize::of(r);
+        if selected {
+            size.under(selected_line_width(width))
+        } else {
+            size
+        }
     }
 }
 
@@ -897,7 +924,7 @@ impl Drawer<'_> {
         let mut color = line_colour(r);
         let mut width = reaction_line_width(r);
         if self.selected(r.selected) {
-            width *= SELECTED_LINE_FACTOR;
+            width = selected_line_width(width);
             color = self.opts.selected_reaction;
         }
         Stroke {
@@ -917,7 +944,7 @@ impl Drawer<'_> {
             ) else {
                 return;
             };
-            let size = ArrowSize::of(r);
+            let size = ArrowSize::drawn(r, self.selected(r.selected));
             let start = if self.both_ends(r) {
                 let (start, tip) = leg_end_sized(a, b.center, &size);
                 self.arrowhead(tip, a.center - b.center, stroke.color, &size, out);
@@ -947,7 +974,7 @@ impl Drawer<'_> {
                     let Some(curve) = leg_curve(self.model, r, role, index) else {
                         continue;
                     };
-                    let size = ArrowSize::of(r);
+                    let size = ArrowSize::drawn(r, self.selected(r.selected));
                     // A reversible reaction's reactant leg ends in an
                     // arrowhead too: cut it as a product's, run backwards.
                     let leg = if role == Role::Reactant && self.both_ends(r) {
@@ -975,7 +1002,7 @@ impl Drawer<'_> {
             return;
         }
 
-        let size = ArrowSize::of(r);
+        let size = ArrowSize::drawn(r, self.selected(r.selected));
         for p in &r.reactants {
             if let Some(node) = self.visible(&p.species) {
                 let j = leg_inner_end(r, Role::Reactant, p);
@@ -1733,6 +1760,7 @@ mod tests {
         RoundRect(SRect, Option<Rgba>, Option<Stroke>),
         Circle(SPt, f32, Option<Rgba>, Option<Stroke>),
         Polyline(Vec<SPt>, Stroke),
+        Cubic([SPt; 4], Stroke),
         Polygon(Vec<SPt>, Rgba),
         Text(SPt, String, f32, Rgba),
         TextIn(SPt, String, f32, TextFont, Rgba),
@@ -1755,7 +1783,9 @@ mod tests {
         fn polyline(&mut self, pts: &[SPt], stroke: Stroke) {
             self.calls.push(Call::Polyline(pts.to_vec(), stroke));
         }
-        fn cubic(&mut self, _: SPt, _: SPt, _: SPt, _: SPt, _: Stroke) {}
+        fn cubic(&mut self, p0: SPt, c1: SPt, c2: SPt, p3: SPt, stroke: Stroke) {
+            self.calls.push(Call::Cubic([p0, c1, c2, p3], stroke));
+        }
         fn polygon(&mut self, pts: &[SPt], fill: Rgba) {
             self.calls.push(Call::Polygon(pts.to_vec(), fill));
         }
@@ -2184,7 +2214,7 @@ mod tests {
                 Call::RoundRect(_, Some(f), _) if *f == HANDLE_FILL => "handle",
                 Call::RoundRect(_, None, _) => "halo",
                 Call::RoundRect(..) => "node",
-                Call::Polyline(..) | Call::Polygon(..) => "leg",
+                Call::Polyline(..) | Call::Polygon(..) | Call::Cubic(..) => "leg",
                 Call::Text(..) => "label",
                 Call::TextIn(..) => "text",
                 Call::Circle(..) => "junction",
@@ -3238,10 +3268,10 @@ mod tests {
         let (end, w) = calls
             .iter()
             .filter_map(|c| match c {
-                Call::Polyline(p, s) if p.len() == 2 && p[1].x > 300.0 => Some((p[1], s.width)),
+                Call::Polyline(p, s) if p.len() == 2 => Some((p[1], s.width)),
                 _ => None,
             })
-            .next()
+            .max_by(|a, b| a.0.x.total_cmp(&b.0.x))
             .unwrap();
         (tri, end, w)
     }
@@ -3275,6 +3305,66 @@ mod tests {
         // Selected, the line is drawn wider but the arrowhead stays the same.
         let (sel, ..) = drawn_arrow(6.0, true, mode);
         assert_eq!(sel, tri);
+    }
+
+    #[test]
+    fn a_selected_very_thick_line_is_only_a_little_wider() {
+        assert_eq!(selected_line_width(1.5), 2.25);
+        assert_eq!(selected_line_width(4.0), 6.0);
+        assert_eq!(selected_line_width(32.0), 34.0);
+        for mode in [ReactionMode::Straight, ReactionMode::Linear] {
+            let (tri, ..) = drawn_arrow(32.0, false, mode);
+            let (sel, end, width) = drawn_arrow(32.0, true, mode);
+            assert_eq!(width, 34.0, "{mode:?}");
+            assert_eq!(sel, tri, "{mode:?}: the arrowhead stays the same");
+            // The wider line's round end is still between the arrowhead's
+            // sides.
+            let len = sel[0].x - (sel[1].x + sel[2].x) / 2.0;
+            let half = (sel[1].y - sel[2].y).abs() / 2.0;
+            let sin = half / half.hypot(len);
+            let from_tip = sel[0].x - end.x;
+            assert!(from_tip * sin >= width / 2.0 - 1e-3, "{mode:?}");
+            assert!(from_tip < len, "{mode:?}: the end is before the base");
+        }
+        // Curved: the product curve's end, as wide, is as far from the tip.
+        let curved_end = |selected: bool| {
+            let mut m = uni_uni();
+            let r = m.reactions_mut().next().unwrap();
+            r.mode = ReactionMode::Bezier;
+            r.style.has_custom_style = true;
+            r.style.line_width = 32.0;
+            r.selected = selected;
+            draw(&m, &DrawOptions::default())
+                .iter()
+                .filter_map(|c| match c {
+                    Call::Cubic(p, s) => Some((p[3], s.width)),
+                    _ => None,
+                })
+                .max_by(|a, b| a.0.x.total_cmp(&b.0.x))
+                .unwrap()
+        };
+        let (end, width) = curved_end(true);
+        let (straight_tri, straight_end, _) = drawn_arrow(32.0, true, ReactionMode::Straight);
+        assert_eq!(width, 34.0);
+        assert!(
+            (end.x - straight_end.x).abs() < 1e-3,
+            "{end:?} {straight_end:?}"
+        );
+        assert!(
+            curved_end(false).0.x > end.x,
+            "selected, it ends further back"
+        );
+        assert_eq!(
+            straight_tri,
+            drawn_arrow(32.0, false, ReactionMode::Straight).0
+        );
+        // At the default width, selecting changes nothing about the arrowhead.
+        let mut m = uni_uni();
+        let r = m.reactions_mut().next().unwrap();
+        assert_eq!(ArrowSize::drawn(r, true), ArrowSize::STANDARD);
+        r.style.has_custom_style = true;
+        r.style.line_width = 32.0;
+        assert_eq!(ArrowSize::drawn(r, false), ArrowSize::of(r));
     }
 
     #[test]

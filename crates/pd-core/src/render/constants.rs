@@ -33,6 +33,9 @@ pub const GRID_MIN_GAP_PX: f64 = 8.0;
 pub const DEFAULT_LINE_WIDTH: f64 = 1.5;
 pub const BOUNDARY_BORDER_FACTOR: f64 = 2.4;
 pub const SELECTED_LINE_FACTOR: f64 = 1.5;
+/// The most a selected reaction's line is widened by, in world units, so a
+/// very thick line doesn't outgrow its arrowheads (S §5.5).
+pub const SELECTED_LINE_EXTRA_MAX: f64 = 2.0;
 pub const JUNCTION_RADIUS: f64 = 4.0;
 pub const JUNCTION_RADIUS_SELECTED: f64 = 6.4;
 pub const JUNCTION_BORDER_WIDTH: f64 = 1.0;

@@ -351,7 +351,9 @@ reaction drawn as Straight.
 
 **Line style:** colour `#444444` and width 1.5 by default, with round caps. A custom
 `lineColor` or `lineWidth` overrides these. A **selected** reaction is drawn with
-**1.5 × its line width**, in the **selected reaction colour**: `#1144CC` by default,
+**1.5 × its line width**, but at most 2 wider *(Rust version, so a very thick
+line doesn't outgrow its arrowheads, which keep their size)*, in the **selected
+reaction colour**: `#1144CC` by default,
 set in Preferences (§12). Its arrowheads and modifier arcs take the same colour.
 (The reference keeps the line's own colour, which makes a selected reaction hard
 to see; changed at the user's request.)
