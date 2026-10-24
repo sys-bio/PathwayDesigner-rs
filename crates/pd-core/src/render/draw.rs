@@ -662,7 +662,8 @@ impl ArrowSize {
     /// default width; above it, every size times √(width / default), but
     /// never less than twice the line's width across (from about 16.7 wide),
     /// and the line ending halfway along the arrowhead, so a thick line's end
-    /// stays inside it.
+    /// stays inside it; or further back if its round end would show past the
+    /// arrowhead's sides there (from about 14 wide).
     pub fn for_width(width: f64) -> ArrowSize {
         if width.is_nan() || width <= DEFAULT_LINE_WIDTH {
             return ArrowSize::STANDARD;
@@ -670,12 +671,16 @@ impl ArrowSize {
         let k = (width / DEFAULT_LINE_WIDTH)
             .sqrt()
             .max(width / ARROW_HALF_BASE);
-        let (length, tip_inset) = (ARROW_LENGTH * k, ARROW_TIP_INSET * k);
+        let (length, half_base, tip_inset) =
+            (ARROW_LENGTH * k, ARROW_HALF_BASE * k, ARROW_TIP_INSET * k);
+        // A round end, radius width / 2, fits between the arrowhead's sides
+        // this far from its tip.
+        let cap_inside = width / 2.0 * half_base.hypot(length) / half_base;
         ArrowSize {
             length,
-            half_base: ARROW_HALF_BASE * k,
+            half_base,
             tip_inset,
-            line_gap: tip_inset + length / 2.0,
+            line_gap: tip_inset + (length / 2.0).max(cap_inside),
         }
     }
 
@@ -3188,13 +3193,24 @@ mod tests {
         assert_eq!(huge.half_base, 32.0);
         let k = 32.0 / ARROW_HALF_BASE;
         assert_eq!(
-            (huge.length, huge.tip_inset, huge.line_gap),
-            (
-                ARROW_LENGTH * k,
-                ARROW_TIP_INSET * k,
-                ARROW_TIP_INSET * k + ARROW_LENGTH * k / 2.0
-            )
+            (huge.length, huge.tip_inset),
+            (ARROW_LENGTH * k, ARROW_TIP_INSET * k)
         );
+        // Its line ends further back than halfway, so its round end stays
+        // inside the arrowhead.
+        assert!(huge.line_gap > huge.tip_inset + huge.length / 2.0);
+        for w in [2.0, 6.0, 10.0, 14.0, 16.0, 20.0, 32.0, 100.0] {
+            let a = ArrowSize::for_width(w);
+            // From the tip, the end's centre is `d` along; the arrowhead's
+            // sides are d·sinθ from it.
+            let d = a.line_gap - a.tip_inset;
+            let sin = a.half_base / a.half_base.hypot(a.length);
+            assert!(d * sin >= w / 2.0 - 1e-9, "width {w}: the end shows");
+            assert!(d < a.length, "width {w}: the end is past the base");
+            // Halfway, unless that is too far forward.
+            assert!(d >= a.length / 2.0);
+        }
+        assert_eq!(big.line_gap, big.tip_inset + big.length / 2.0);
     }
 
     /// The arrowhead drawn for A → B, Straight or Linear, with lines `width`

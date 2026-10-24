@@ -28,6 +28,17 @@ impl<'a> EguiRenderer<'a> {
         Self { painter }
     }
 
+    /// egui strokes have square ends; a dot at each end of a line that asks
+    /// for round ends rounds them, so thick lines meeting at a junction join
+    /// without a notch.
+    fn round_ends(&self, a: Pos2, b: Pos2, stroke: Stroke) {
+        if stroke.round_cap && stroke.width >= MIN_CAP_WIDTH {
+            let r = stroke.width / 2.0;
+            self.painter.circle_filled(a, r, color(stroke.color));
+            self.painter.circle_filled(b, r, color(stroke.color));
+        }
+    }
+
     fn dashed(&self, pts: &[Pos2], stroke: egui::Stroke, (on, off): (f32, f32)) {
         self.painter.extend(Shape::dashed_line(
             pts,
@@ -102,12 +113,8 @@ impl Renderer for EguiRenderer<'_> {
         match stroke.dash {
             Some(dash) => self.dashed(&points, s, dash),
             None => {
-                // egui strokes have square ends; a dot at each end rounds them.
-                if stroke.round_cap && stroke.width >= MIN_CAP_WIDTH && points.len() >= 2 {
-                    let r = stroke.width / 2.0;
-                    self.painter.circle_filled(points[0], r, s.color);
-                    self.painter
-                        .circle_filled(points[points.len() - 1], r, s.color);
+                if points.len() >= 2 {
+                    self.round_ends(points[0], points[points.len() - 1], stroke);
                 }
                 self.painter.line(points, s);
             }
@@ -115,6 +122,9 @@ impl Renderer for EguiRenderer<'_> {
     }
 
     fn cubic(&mut self, p0: SPt, c1: SPt, c2: SPt, p3: SPt, stroke: Stroke) {
+        if stroke.dash.is_none() {
+            self.round_ends(pos(p0), pos(p3), stroke);
+        }
         self.painter.add(CubicBezierShape::from_points_stroke(
             [pos(p0), pos(c1), pos(c2), pos(p3)],
             false,
@@ -146,5 +156,64 @@ impl Renderer for EguiRenderer<'_> {
             center.y + cap / 2.0 - baseline_in_galley,
         );
         self.painter.galley(top_left, galley, color(c));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pd_core::render::spt;
+
+    /// The shapes drawn by `draw`, in a frame with no window.
+    fn shapes(draw: impl Fn(&mut EguiRenderer)) -> Vec<Shape> {
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(Default::default(), |ui| {
+            let painter = ui.ctx().layer_painter(egui::LayerId::background());
+            draw(&mut EguiRenderer::new(&painter));
+        });
+        // The fonts' texture, never uploaded here.
+        out.textures_delta.clear();
+        out.shapes.into_iter().map(|c| c.shape).collect()
+    }
+
+    /// The centres and radii of the filled circles drawn.
+    fn dots(shapes: &[Shape]) -> Vec<(Pos2, f32)> {
+        shapes
+            .iter()
+            .filter_map(|s| match s {
+                Shape::Circle(c) if c.fill != Color32::TRANSPARENT => Some((c.center, c.radius)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn stroke(width: f32, round_cap: bool) -> Stroke {
+        Stroke {
+            round_cap,
+            ..Stroke::solid(width, Rgba::rgb(0x44, 0x44, 0x44))
+        }
+    }
+
+    #[test]
+    fn thick_curves_and_polylines_get_round_ends() {
+        let (a, b) = (spt(0.0, 0.0), spt(100.0, 40.0));
+        let ends = vec![(Pos2::new(0.0, 0.0), 16.0), (Pos2::new(100.0, 40.0), 16.0)];
+        let curve = shapes(|r| r.cubic(a, spt(30.0, 0.0), spt(70.0, 40.0), b, stroke(32.0, true)));
+        assert_eq!(dots(&curve), ends);
+        let line = shapes(|r| r.polyline(&[a, spt(50.0, 0.0), b], stroke(32.0, true)));
+        assert_eq!(dots(&line), ends);
+    }
+
+    #[test]
+    fn thin_square_and_dashed_lines_get_none() {
+        let (a, b) = (spt(0.0, 0.0), spt(100.0, 40.0));
+        let (c1, c2) = (spt(30.0, 0.0), spt(70.0, 40.0));
+        assert!(dots(&shapes(|r| r.cubic(a, c1, c2, b, stroke(1.5, true)))).is_empty());
+        assert!(dots(&shapes(|r| r.cubic(a, c1, c2, b, stroke(32.0, false)))).is_empty());
+        let dashed = Stroke {
+            dash: Some((4.0, 4.0)),
+            ..stroke(32.0, true)
+        };
+        assert!(dots(&shapes(|r| r.cubic(a, c1, c2, b, dashed))).is_empty());
     }
 }
