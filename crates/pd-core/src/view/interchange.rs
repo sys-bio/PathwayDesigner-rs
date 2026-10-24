@@ -40,6 +40,18 @@ impl DiagramView {
         )
     }
 
+    /// The diagram as Antimony with its drawing as a diagram comment
+    /// (docs/diagram-format.md), and with `layout`, Antimony's layout
+    /// statements too; and what the export can't keep.
+    pub fn export_antimony_with_diagram(&self, layout: bool) -> (String, Vec<String>) {
+        let text = if layout {
+            antimony::export_with_diagram_and_layout(&self.model)
+        } else {
+            antimony::export_with_diagram(&self.model)
+        };
+        (text, antimony::diagram_notes(&self.model, layout))
+    }
+
     /// Replaces the diagram with the model in SBML `xml`, as one undo step
     /// (SPEC-Rust §8.3). Returns what the import reports, or the errors, in
     /// which case the diagram is left exactly as it was.

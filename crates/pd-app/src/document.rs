@@ -269,11 +269,13 @@ impl PathwayApp {
         );
     }
 
-    /// What File ▸ Export Antimony writes: the model and its drawing (D1 of
-    /// docs/antimony-layout-export-design.md), and the notes on what the
-    /// drawing loses.
+    /// What File ▸ Export Antimony writes: the model and its drawing as a
+    /// diagram comment, with Antimony's layout statements too if asked (D4 of
+    /// docs/diagram-format-implementation-design.md), and the notes on what
+    /// the export loses.
     pub(crate) fn antimony_export(&self) -> (String, Vec<String>) {
-        self.view.export_antimony_with_layout()
+        self.view
+            .export_antimony_with_diagram(self.antimony_layout_statements)
     }
 
     /// Replaces the diagram with the model in SBML `text`, as one undo step.

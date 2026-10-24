@@ -186,6 +186,10 @@ pub struct PathwayApp {
     pub(crate) warnings: Vec<String>,
     /// Problems and notes about an SBML file being saved, shown once it is.
     pub(crate) export_messages: Vec<String>,
+    /// File ▸ Export Antimony also writes Antimony's layout statements, for
+    /// tools that draw from those (docs/diagram-format-implementation-design.md
+    /// D4). For this session only.
+    pub(crate) antimony_layout_statements: bool,
     /// The graphics output options last used.
     pub(crate) export_settings: crate::export::ExportSettings,
     /// Recently used files (desktop).
@@ -265,6 +269,7 @@ impl PathwayApp {
             last_title: String::new(),
             warnings: Vec::new(),
             export_messages: Vec::new(),
+            antimony_layout_statements: false,
             export_settings: crate::export::ExportSettings::default(),
             #[cfg(not(target_arch = "wasm32"))]
             recent: crate::recent::Recent::load(cc.storage),
@@ -714,6 +719,15 @@ impl PathwayApp {
                     self.export_antimony();
                     ui.close();
                 }
+                ui.checkbox(
+                    &mut self.antimony_layout_statements,
+                    "Also write layout statements",
+                )
+                .on_hover_text(
+                    "Export Antimony writes the drawing as a diagram comment, which \
+                     PathwayDesigner reads; this adds Antimony's layout statements, \
+                     for tellurium and SBMLNetwork",
+                );
                 ui.separator();
                 if item(ui, "Import SBML…", None) {
                     self.files
@@ -2984,7 +2998,7 @@ k = 0.1"
     }
 
     #[test]
-    fn get_antimony_writes_the_layout_when_asked() {
+    fn get_antimony_writes_the_diagram_when_asked() {
         let mut h = Harness::new();
         h.app
             .view
@@ -2997,16 +3011,21 @@ k = 0.1"
         h.run(vec![]);
         h.click(h.widget("Get Antimony"));
         h.run(vec![]);
-        assert!(!h.app.antimony.text().contains("model.layout"));
+        assert!(!h.app.antimony.text().contains("/* diagram"));
         h.click(h.widget("With layout"));
         h.run(vec![]);
         h.click(h.widget("Get Antimony"));
         h.run(vec![]);
-        assert!(h.app.antimony.text().contains("S1.position = {0, 0}"));
+        let text = h.app.antimony.text();
+        assert!(
+            text.contains("/* diagram") && text.contains("\n  S1 at ("),
+            "{text}"
+        );
+        assert!(!text.contains("model.layout"), "{text}");
     }
 
     #[test]
-    fn exporting_antimony_says_what_the_layout_lost() {
+    fn exporting_antimony_writes_the_diagram_and_says_what_it_lost() {
         let mut h = Harness::new();
         h.app
             .view
@@ -3014,13 +3033,24 @@ k = 0.1"
             .unwrap();
         let mut m = h.app.view.model().clone();
         m.find_species_mut("S1").unwrap().label_offset = Some(pd_core::geometry::pt(0.0, 30.0));
+        m.add_text(pd_core::geometry::pt(0.0, 0.0), "two\nlines");
         h.app.view.set_model(m);
+        // The drawing as a diagram comment, which keeps the name outside.
         let (text, notes) = h.app.antimony_export();
         assert!(
-            text.contains(
-                "  // Layout
-"
-            ),
+            text.contains("/* diagram") && text.contains("id offset (0, 30)"),
+            "{text}"
+        );
+        assert!(!text.contains("  // Layout\n"), "{text}");
+        assert!(
+            notes.iter().any(|n| n.contains("written on one line")),
+            "{notes:?}"
+        );
+        // Asked for, Antimony's layout statements too, with what they lose.
+        h.app.antimony_layout_statements = true;
+        let (text, notes) = h.app.antimony_export();
+        assert!(
+            text.contains("  // Layout\n") && text.contains("/* diagram"),
             "{text}"
         );
         h.app.export_messages = notes;

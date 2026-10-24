@@ -18,7 +18,8 @@
 //!
 //! With `--diagram`, the model is exported as Antimony with its drawing as a
 //! diagram comment (docs/diagram-format.md) and read back, beside the full
-//! SBML round trip for comparison; numbers must come back exactly.
+//! SBML round trip for comparison; numbers must come back to a thousandth of
+//! a unit, as they are written.
 //!
 //! With `--antimony` (evaluation E5), the model alone is compared instead,
 //! after a trip through Antimony, and, for comparison, through SBML without its
@@ -50,7 +51,10 @@ const OPTS: ImportOptions = ImportOptions {
 const TOLERANCE: f64 = 1e-6;
 /// With `--antimony-layout`: numbers are written with two decimals.
 const ROUNDED_TOLERANCE: f64 = 0.01;
-static ROUNDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// With `--diagram`: numbers are written to a thousandth of a unit.
+const DIAGRAM_TOLERANCE: f64 = 0.001;
+/// The tolerance in use, as `f64` bits.
+static TOLERANCE_IN_USE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Whether DETAIL lists the round trip without PathwayDesigner's notes.
 fn detail_standard() -> bool {
@@ -81,7 +85,14 @@ fn main() {
     let antimony = std::env::args().any(|a| a == "--antimony");
     let antimony_layout = std::env::args().any(|a| a == "--antimony-layout");
     let diagram = std::env::args().any(|a| a == "--diagram");
-    ROUNDED.store(antimony_layout, std::sync::atomic::Ordering::Relaxed);
+    let tolerance = if antimony_layout {
+        ROUNDED_TOLERANCE
+    } else if diagram {
+        DIAGRAM_TOLERANCE
+    } else {
+        TOLERANCE
+    };
+    TOLERANCE_IN_USE.store(tolerance.to_bits(), std::sync::atomic::Ordering::Relaxed);
     let (first, second) = if diagram {
         ("Antimony with diagram", "SBML")
     } else if antimony_layout {
@@ -608,11 +619,7 @@ fn same_leaf(a: &Value, b: &Value, path: &str) -> bool {
     match (a, b) {
         (Value::Number(x), Value::Number(y)) => {
             (x.as_f64().unwrap() - y.as_f64().unwrap()).abs()
-                < if ROUNDED.load(std::sync::atomic::Ordering::Relaxed) {
-                    ROUNDED_TOLERANCE
-                } else {
-                    TOLERANCE
-                }
+                < f64::from_bits(TOLERANCE_IN_USE.load(std::sync::atomic::Ordering::Relaxed))
         }
         (Value::String(x), Value::String(y))
             if path.ends_with("kineticLaw") || path.ends_with("expression") =>

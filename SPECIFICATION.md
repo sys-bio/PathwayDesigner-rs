@@ -2193,7 +2193,22 @@ goes into the item's own style, an item's own setting before its kind's
 (`species.`) before the whole layout's (`model.layout.`); colour names are
 libAntimony's. What a diagram can't hold (a second line to one species,
 fonts, shapes it doesn't have, SBMLNetwork's automatic-layout settings) gives a
-warning. Export writes them (§11.3).
+warning. Export writes them, if asked (§11.3).
+
+**A diagram comment.** *(Rust version.)* After the model, a block comment that
+starts with the word `diagram` holds the drawing in PathwayDesigner's readable
+diagram format (`docs/diagram-format.md`): `/* diagram <model> v1 … end */`.
+Antimony tools take it as a comment, so the file stays plain Antimony; import
+reads it and draws the diagram as it says: positions, sizes, further drawings
+of a species (`ATP#2`), lines with their handles and corner points, modifier
+lines with their kinds and looks, styles, colors, the theme, compartment boxes,
+free text, and ids placed by side or offset. A text with both a diagram comment
+and layout statements is drawn from the comment, which says more. Species the
+diagram doesn't place are laid out automatically (§10.1) as the file is read,
+with those it places held where they are, and its junctions and handles kept.
+Nothing in it is fatal: a statement that doesn't fit the model, or a value that
+doesn't read, is skipped with a warning giving its line and column. How the
+format maps onto the diagram: `docs/diagram-format-implementation-design.md`.
 
 **Implicit declarations.**
 
@@ -2269,10 +2284,20 @@ Sections are separated by blank lines and introduced by `// Section` comments.
 5. `S = <initialValue>;` for each primary, non-null species.
 6. `x := <expression>;` for each assignment rule.
 
-7. *(Rust version.)* **The drawing**, in a last `// Layout` section, as Antimony's
-   layout statements (§11.2), when the drawing is exported too: File ▸ Export
-   Antimony always, and the Antimony panel's Get Antimony when *With layout* is
-   ticked (§11.4). Every species, alias, null node, reaction junction and
+7. *(Rust version.)* **The drawing**, when the drawing is exported too: File ▸
+   Export Antimony always, and the Antimony panel's Get Antimony when *With
+   layout* is ticked (§11.4). It is written as a diagram comment after the model
+   (§11.2, `docs/diagram-format.md`), in the format's canonical form: only what
+   differs from what a reader would draw anyway (the defaults, or the theme), so
+   that reading it back gives the same drawing. Ids Antimony reserves are written
+   renamed there too, and a text's line breaks and double quotes, which the
+   format's strings can't hold, are written as spaces and `'`, with a note.
+
+   With *Also write layout statements* ticked in the File menu, File ▸ Export
+   Antimony also writes the drawing as Antimony's layout statements, in a
+   `// Layout` section before the end of the model, for tools that draw from
+   those (tellurium, SBMLNetwork); PathwayDesigner reads the diagram comment.
+   Every species, alias, null node, reaction junction and
    compartment box is placed (`S.position`, `S.size`; an alias as
    `S.position.R1.R2`, named by the reactions whose lines go to it); every line
    is written from its reaction to its species, as SBML Layout draws it, with
@@ -2313,7 +2338,8 @@ A multi-line text editor beside the canvas, with two buttons:
 - **Load Antimony** imports the panel's text (§11.2) and redraws. The import is one
   undo step. Parse errors are reported.
 - **Get Antimony** replaces the panel's text with the export of the current model
-  (§11.3).
+  (§11.3): the model alone, or with *With layout* ticked *(Rust version)*, the
+  model and its diagram comment.
 
 The application remembers the last imported Antimony text, so it can re-import it
 when the catalytic-conversion preference changes (§12).

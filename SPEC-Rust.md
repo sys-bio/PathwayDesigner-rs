@@ -852,11 +852,23 @@ which that reader accepted and Antimony does not.
   drawing as layout statements (`pd-core::antimony_layout_out`), the lines taken
   from SBML export's own curves (`sbml::export::leg_segments`) and the looks
   from the renderer's; `antimony::layout_notes` lists what they can't say. The
-  app's File ▸ Export Antimony uses it and shows the notes; the panel's Get
-  Antimony does with *With layout* ticked. `layout_report --antimony-layout`
-  checks the round trip over the Gallery, and the check script's third route
-  checks libAntimony's reading of it. Design:
-  `docs/antimony-layout-export-design.md`.
+  app's File ▸ Export Antimony adds them, with
+  `antimony::export_with_diagram_and_layout`, when *Also write layout
+  statements* is ticked. `layout_report --antimony-layout` checks the round trip
+  over the Gallery, and the check script's third route checks libAntimony's
+  reading of it. Design: `docs/antimony-layout-export-design.md`.
+- **The diagram format** (S §11.2, §11.3 item 7; `docs/diagram-format.md`):
+  `pd-core::diagram_format` finds the diagram comment (`find`), splits it into
+  statements (`lex`, `parse`, `ast`) and applies them to the model the
+  Antimony import made (`read::apply`, called from `antimony::import`, which
+  lays out what the diagram leaves out with `layout::LayoutRun`, the placed
+  species locked for it); `write::write` writes a model's diagram in the
+  canonical form, against a reference made as a reader would start (import
+  defaults, then the theme). `antimony::export_with_diagram` is the model and
+  its diagram; `antimony::diagram_notes` lists what it can't keep. File ▸
+  Export Antimony and the panel's Get Antimony (*With layout*) use it.
+  `layout_report --diagram` checks the round trip over the Gallery. Design:
+  `docs/diagram-format-implementation-design.md`.
 - **Reserved ids** (S §11.3): both exports write from a copy in which ids
   libAntimony reserves (`antimony::RESERVED`) have `_` added
   (`antimony::safe_ids`, using `Model::rename_species`, `rename_compartment` and

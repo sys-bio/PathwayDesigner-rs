@@ -131,18 +131,12 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
             warnings: found,
         }) => {
             warnings.extend(found);
-            if !module.layout.is_empty() {
-                warnings.push(Diagnostic {
-                    severity: Severity::Warning,
-                    line: d.pos.line,
-                    column: d.pos.column,
-                    message: "the text also has Antimony layout statements; the drawing is \
-                              taken from the diagram, and they are not used"
-                        .into(),
-                });
-            }
-            let applied = crate::diagram_format::read::apply(&mut model, &d, &mut warnings);
-            (true, applied.unplaced.len())
+            // Antimony's layout statements, if the text has them too (as
+            // PathwayDesigner writes for tellurium), give way to the diagram.
+            // What the diagram leaves out is laid out as it is read, so
+            // nothing is left for the app to place.
+            crate::diagram_format::read::apply(&mut model, &d, opts.seed, &mut warnings);
+            (true, 0)
         }
         parsed => {
             warnings.extend(parsed.map(|p| p.warnings).unwrap_or_default());
@@ -249,8 +243,24 @@ pub fn export_with_layout(model: &Model) -> String {
 /// comment (docs/diagram-format.md), so any Antimony tool reads the model and
 /// PathwayDesigner reads the drawing too.
 pub fn export_with_diagram(model: &Model) -> String {
+    diagram_export(model, false)
+}
+
+/// [`export_with_diagram`], with Antimony's layout statements as well, for
+/// tools that draw from those (tellurium, SBMLNetwork); PathwayDesigner reads
+/// the diagram.
+pub fn export_with_diagram_and_layout(model: &Model) -> String {
+    diagram_export(model, true)
+}
+
+fn diagram_export(model: &Model, layout: bool) -> String {
     let model = safe_ids(model).0;
-    let mut text = write_model(&model, Vec::new());
+    let statements = if layout {
+        crate::antimony_layout_out::statements(&model)
+    } else {
+        Vec::new()
+    };
+    let mut text = write_model(&model, statements);
     text.push('\n');
     text.push_str(&crate::diagram_format::write::write(
         &model,
@@ -270,6 +280,38 @@ fn model_name(model: &Model) -> &str {
 pub fn layout_notes(model: &Model) -> Vec<String> {
     let (safe, renamed) = safe_ids(model);
     let mut notes = crate::antimony_layout_out::notes(&safe);
+    renames_note(&mut notes, &renamed);
+    notes
+}
+
+/// What [`export_with_diagram`] can't keep, for the user: ids written with
+/// `_` added (Antimony reserves them), and texts whose line breaks and double
+/// quotes a diagram's strings can't hold. With `layout`, what the layout
+/// statements can't say too.
+pub fn diagram_notes(model: &Model, layout: bool) -> Vec<String> {
+    let (safe, renamed) = safe_ids(model);
+    let mut notes = if layout {
+        crate::antimony_layout_out::notes(&safe)
+    } else {
+        Vec::new()
+    };
+    let texts = model
+        .texts()
+        .iter()
+        .filter(|t| t.text.contains(['\n', '\r', '"']) || t.text.contains("*/"))
+        .count();
+    if texts > 0 {
+        notes.push(format!(
+            "{texts} text{} written on one line, with ' for \" (a diagram's strings can't hold line breaks or double quotes)",
+            if texts == 1 { " is" } else { "s are" }
+        ));
+    }
+    renames_note(&mut notes, &renamed);
+    notes
+}
+
+/// Puts first the note on ids written with `_` added, if any were.
+fn renames_note(notes: &mut Vec<String>, renamed: &[(String, String)]) {
     if !renamed.is_empty() {
         let list: Vec<String> = renamed.iter().map(|(a, b)| format!("{a} as {b}")).collect();
         notes.insert(
@@ -280,7 +322,6 @@ pub fn layout_notes(model: &Model) -> Vec<String> {
             ),
         );
     }
-    notes
 }
 
 /// Words libAntimony 3.2.1 won't take as an id, checked against it

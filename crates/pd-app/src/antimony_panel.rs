@@ -129,7 +129,7 @@ impl AntimonyPanel {
                 .clicked()
             {
                 self.text = if self.with_layout {
-                    view.export_antimony_with_layout().0
+                    view.export_antimony_with_diagram(false).0
                 } else {
                     view.export_antimony()
                 };
@@ -139,7 +139,7 @@ impl AntimonyPanel {
             }
             ui.checkbox(&mut self.with_layout, "With layout")
                 .on_hover_text(
-                    "Get Antimony writes the drawing too, as Antimony's layout statements",
+                    "Get Antimony writes the drawing too, as a diagram comment after the model",
                 );
         });
 

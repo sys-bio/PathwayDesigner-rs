@@ -176,6 +176,26 @@ Everything else the app draws has a place in the format.
   flag (`idBold off`, `smooth off`), quoted style names (`style "Escher
   metabolite"`, so a diagram's own copy of a theme style, an Escher map's say,
   can be written and replaces the theme's), and `emptySetSize`.
+- *Step 4:* the app. File ▸ Export Antimony writes the model and its diagram
+  comment, and the notes on what it can't keep (a text's line breaks and double
+  quotes); *Also write layout statements*, a checkbox under it in the File menu
+  (for the session), adds Antimony's layout statements for tellurium and
+  SBMLNetwork (`antimony::export_with_diagram_and_layout`; libAntimony 3.2.1 reads
+  both forms). The panel's *With layout* writes the diagram comment too. A text
+  with both is drawn from the diagram, quietly (the format says so, §3). D5:
+  species a diagram leaves out are laid out as it is read, inside
+  `read::apply`, between placing and the theme: the placed ones are locked for the
+  run and unlocked after, given junctions are put back, and the legs' handles,
+  applied later, survive the layout's reset of them. Nothing is left for the app
+  to place, so it offers no Auto-layout for such a file. Like the import's random
+  placement, the layout uses the import's seed, which the app draws anew each
+  time.
+  Numbers are written to three decimal places (author's choice, 2026-10-24), so
+  a position from automatic layout reads `81.031`, not `81.03144262477514`;
+  `layout_report --diagram` compares to a thousandth, and the Gallery comes back
+  within it. The one trace of the rounding: a stem whose ends were exactly in
+  line (the Escher map's FRUpts2) is a hair out of line after it, so the JSON no
+  longer records it as straight; drawn, the two are the same.
 
 ## 9. Decisions
 

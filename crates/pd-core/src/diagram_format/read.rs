@@ -25,9 +25,9 @@ use crate::styles;
 /// What applying a diagram did.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Applied {
-    /// Species drawings the diagram gave no position: left where the import
-    /// put them, for automatic layout.
-    pub unplaced: Vec<String>,
+    /// Species drawings the diagram gave no position, which were laid out
+    /// automatically.
+    pub laid_out: Vec<String>,
 }
 
 /// Applies `d` to `model`, adding to `warnings`.
@@ -39,7 +39,7 @@ pub struct Applied {
 /// and own settings, so they come after the theme's; then legs and modifier
 /// lines; and ids last, since one placed on the clearest side looks at every
 /// line.
-pub fn apply(model: &mut Model, d: &Diagram, warnings: &mut Vec<Diagnostic>) -> Applied {
+pub fn apply(model: &mut Model, d: &Diagram, seed: u64, warnings: &mut Vec<Diagnostic>) -> Applied {
     let mut r = Reader {
         warnings,
         constants: Constants::default(),
@@ -83,29 +83,45 @@ pub fn apply(model: &mut Model, d: &Diagram, warnings: &mut Vec<Diagnostic>) -> 
             _ => {}
         }
     }
-    // Junctions not given go between their species; null nodes not given go
-    // beside their junction, as the import puts them.
-    let ids: Vec<String> = model.reactions().iter().map(|x| x.id.clone()).collect();
-    for id in &ids {
-        if !with_junction.contains(id) {
-            let j = crate::antimony_layout::default_junction(model, id);
-            if let Some(x) = model.find_reaction_mut(id) {
+    place_junctions_and_empty_sets(model, &with_junction, &nulls);
+    // Species the diagram leaves out are laid out automatically, those it
+    // places held where they are (design D5). Before the theme, which works
+    // from where things are, and before the legs, whose handles the layout
+    // would otherwise reset.
+    let left: Vec<String> = model
+        .species()
+        .iter()
+        .filter(|s| !s.is_null_node && !placed.contains(&s.id))
+        .map(|s| s.id.clone())
+        .collect();
+    if !left.is_empty() {
+        let given: Vec<(String, Pt)> = with_junction
+            .iter()
+            .filter_map(|id| model.find_reaction(id).map(|x| (id.clone(), x.junction)))
+            .collect();
+        let locks: Vec<(String, bool)> = model
+            .species()
+            .iter()
+            .map(|s| (s.id.clone(), s.locked))
+            .collect();
+        for s in model.species_mut() {
+            if placed.contains(&s.id) {
+                s.locked = true;
+            }
+        }
+        crate::layout::LayoutRun::new(model, crate::layout::LayoutParams::default(), seed)
+            .finish(model);
+        for (id, locked) in locks {
+            if let Some(s) = model.find_species_mut(&id) {
+                s.locked = locked;
+            }
+        }
+        for (id, j) in given {
+            if let Some(x) = model.find_reaction_mut(&id) {
                 x.junction = j;
             }
         }
-        let j = model
-            .find_reaction(id)
-            .map(|x| x.junction)
-            .unwrap_or_default();
-        for (null, dx) in [
-            (format!("_source_{id}"), -NULL_OFFSET),
-            (format!("_sink_{id}"), NULL_OFFSET),
-        ] {
-            let at = nulls.iter().find(|(n, _)| *n == null).map(|(_, p)| *p);
-            if let Some(n) = model.find_species_mut(&null) {
-                n.center = at.unwrap_or(j + pt(dx, 0.0));
-            }
-        }
+        place_junctions_and_empty_sets(model, &with_junction, &nulls);
     }
     let theme = d.statements.iter().find_map(|s| match &s.kind {
         StatementKind::Theme(t) => Some((s.pos, t.clone())),
@@ -180,13 +196,38 @@ pub fn apply(model: &mut Model, d: &Diagram, warnings: &mut Vec<Diagnostic>) -> 
         r.place_id(model, p);
     }
     r.link(model, &links);
-    let unplaced = model
-        .species()
-        .iter()
-        .filter(|s| !s.is_null_node && !placed.contains(&s.id))
-        .map(|s| s.id.clone())
-        .collect();
-    Applied { unplaced }
+    Applied { laid_out: left }
+}
+
+/// Junctions the diagram doesn't place go between their species; empty sets
+/// it doesn't place go beside their junction, as the import puts them.
+fn place_junctions_and_empty_sets(
+    model: &mut Model,
+    with_junction: &[String],
+    nulls: &[(String, Pt)],
+) {
+    let ids: Vec<String> = model.reactions().iter().map(|x| x.id.clone()).collect();
+    for id in &ids {
+        if !with_junction.contains(id) {
+            let j = crate::antimony_layout::default_junction(model, id);
+            if let Some(x) = model.find_reaction_mut(id) {
+                x.junction = j;
+            }
+        }
+        let j = model
+            .find_reaction(id)
+            .map(|x| x.junction)
+            .unwrap_or_default();
+        for (null, dx) in [
+            (format!("_source_{id}"), -NULL_OFFSET),
+            (format!("_sink_{id}"), NULL_OFFSET),
+        ] {
+            let at = nulls.iter().find(|(n, _)| *n == null).map(|(_, p)| *p);
+            if let Some(n) = model.find_species_mut(&null) {
+                n.center = at.unwrap_or(j + pt(dx, 0.0));
+            }
+        }
+    }
 }
 
 /// The two passes round the theme.
@@ -1349,8 +1390,37 @@ mod tests {
             (g.center, g.width, g.height, g.shape, g.locked),
             (pt(100.0, 250.0), 24.0, 24.0, NodeShape::Circle, true)
         );
-        // ATP, ADP, E and I have no place: left for automatic layout.
-        assert_eq!(i.unplaced, 4);
+        // ATP, ADP, E and I have no place: they are laid out as the diagram
+        // is read, with Glc and G6P held where it puts them (design D5).
+        assert_eq!(i.unplaced, 0);
+        assert_eq!(m.find_species("Glc").unwrap().center, pt(100.0, 50.0));
+        // They were held for the layout, and are locked only if it says so.
+        assert!(!m.find_species("Glc").unwrap().locked && m.find_species("G6P").unwrap().locked);
+        let random = import(
+            &format!(
+                "{MODEL}end
+"
+            ),
+            &OPTS,
+        )
+        .unwrap()
+        .model;
+        for id in ["ATP", "ADP", "E", "I"] {
+            let (laid, at_random) = (
+                m.find_species(id).unwrap().center,
+                random.find_species(id).unwrap().center,
+            );
+            assert_ne!(laid, at_random, "{id}");
+        }
+        // A junction the diagram places stays where it says.
+        let i = read(
+            "Glc at (100, 50)
+hk at (300, 300)",
+        );
+        assert_eq!(
+            i.model.find_reaction("hk").unwrap().junction,
+            pt(300.0, 300.0)
+        );
         // The junction goes between its species, the sink beside it.
         let hk = m.find_reaction("hk").unwrap();
         assert_eq!(
@@ -1368,17 +1438,18 @@ mod tests {
     fn a_text_without_a_diagram_is_read_as_before() {
         let i = import(&format!("{MODEL}end\n"), &OPTS).unwrap();
         assert!(!i.had_layout);
-        // A diagram replaces Antimony's layout statements, with a note.
+        // A diagram, which says more, replaces Antimony's layout statements;
+        // a text with both is what PathwayDesigner writes for tellurium.
         let text = format!(
-            "{MODEL}  Glc.position = {{0, 0}}\nend\n/* diagram m v1\nGlc at (100, 50)\nend */"
+            "{MODEL}  Glc.position = {{0, 0}}
+end
+/* diagram m v1
+Glc at (100, 50)
+end */"
         );
         let i = import(&text, &OPTS).unwrap();
         assert_eq!(i.model.find_species("Glc").unwrap().center, pt(100.0, 50.0));
-        assert!(
-            messages(&i).iter().any(|m| m.contains("layout statements")),
-            "{:?}",
-            i.warnings
-        );
+        assert!(i.warnings.is_empty(), "{:?}", i.warnings);
     }
 
     #[test]
@@ -1566,11 +1637,10 @@ hk { idBold; idItalic; id shown }",
         assert!(crate::styles::find(m, crate::model::StyleKind::Species, "metabolite").is_none());
         let hk = m.find_reaction("hk").unwrap();
         assert!(hk.style.label_bold && hk.style.label_italic && hk.label_offset.is_some());
-        // Placed: Glc, G6P and ATP's second drawing.
-        assert_eq!(
-            i.unplaced,
-            m.species().iter().filter(|s| !s.is_null_node).count() - 3
-        );
+        // Glc, G6P and ATP's second drawing stay where the diagram puts them.
+        assert_eq!(i.unplaced, 0);
+        assert_eq!(m.find_species("G6P").unwrap().center, pt(0.0, 0.0));
+        assert_eq!(m.aliases_of("ATP").next().unwrap().center, pt(0.0, 0.0));
         // A hidden junction (the Escher theme hides them anyway).
         let m = clean(
             "hk { junction hidden }

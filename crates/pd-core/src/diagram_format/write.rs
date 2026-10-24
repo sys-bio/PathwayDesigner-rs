@@ -945,7 +945,10 @@ fn block(props: &[String]) -> String {
 }
 
 /// The shortest form that reads back the same.
+/// Rounded to a thousandth of a unit, far below anything drawn, and written
+/// in the shortest form that reads back as that (format §12).
 fn num(v: f64) -> String {
+    let v = (v * 1000.0).round() / 1000.0;
     let v = if v == 0.0 { 0.0 } else { v };
     format!("{v}")
 }
@@ -1309,9 +1312,61 @@ end */";
     }
 
     #[test]
+    fn with_antimonys_layout_statements_too() {
+        let (m, _) = rewritten(
+            "Glc at (0, 0)
+G6P at (200, 0)
+ATP at (0, 100)
+ADP at (200, 100)
+E at (100, 200)",
+        );
+        let text = crate::antimony::export_with_diagram_and_layout(&m);
+        assert!(
+            text.contains("model.layout = on") && text.contains("/* diagram m v1"),
+            "{text}"
+        );
+        // The model and its diagram come before and after the statements as
+        // in the plain export, and reading it back takes the diagram, quietly.
+        let back = import(&text, &OPTS).unwrap();
+        assert!(back.warnings.is_empty(), "{:?}", back.warnings);
+        for s in m.species() {
+            assert_eq!(
+                back.model.find_species(&s.id).unwrap().center,
+                s.center,
+                "{}",
+                s.id
+            );
+        }
+        // What the export can't keep, for the user: a text's line breaks,
+        // and with the statements, what they can't say.
+        let mut m2 = m.clone();
+        m2.add_text(
+            pt(0.0, 0.0),
+            "two
+lines",
+        );
+        m2.find_species_mut("Glc").unwrap().label_offset = Some(pt(0.0, 30.0));
+        let notes = crate::antimony::diagram_notes(&m2, false);
+        assert!(
+            notes.len() == 1 && notes[0].starts_with("1 text is written on one line"),
+            "{notes:?}"
+        );
+        let notes = crate::antimony::diagram_notes(&m2, true);
+        assert!(
+            notes.iter().any(|n| n.starts_with("Names drawn outside")),
+            "{notes:?}"
+        );
+        assert!(crate::antimony::diagram_notes(&m, false).is_empty());
+    }
+
+    #[test]
     fn numbers_in_their_shortest_form() {
         assert_eq!(super::num(100.0), "100");
-        assert_eq!(super::num(0.1 + 0.2), "0.30000000000000004");
+        assert_eq!(super::num(0.1 + 0.2), "0.3");
+        assert_eq!(super::num(81.03144262477514), "81.031");
+        assert_eq!(super::num(56.65628709580387), "56.656");
+        assert_eq!(super::num(-0.0004), "0");
+        assert_eq!(super::num(2.0006), "2.001");
         assert_eq!(super::num(-0.0), "0");
         assert_eq!(super::point(pt(1.5, -2.0)), "(1.5, -2)");
         assert_eq!(super::size_text(24.0, 24.0), "24");

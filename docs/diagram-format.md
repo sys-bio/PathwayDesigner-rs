@@ -29,7 +29,8 @@ off, `idBold off`, `smooth off`, which a writer needs where a theme turns it on
 so the theme's styles, and the app's styles with spaces in their names, can be
 named (§4, §6.1); a reaction's empty sets have a size, `emptySetSize` (§6.2);
 texts are written in the order they are drawn, not reading order, since a
-later one covers an earlier (§8, §12).
+later one covers an earlier (§8, §12); numbers are written to three decimal
+places, so a position from automatic layout reads `81.031` (§12).
 Working name: *Antimony diagram*.
 
 ## Contents
@@ -120,7 +121,9 @@ end */
   every Antimony tool the file is then plain Antimony, with the usual extension
   `.ant`: libAntimony 3.2.1, for example, reads the model and skips the
   drawing. A reader of this format looks for the block comment whose first word
-  is `diagram`; other comments are ignored. A tool that rewrites the Antimony
+  is `diagram`; other comments are ignored. If the model also has Antimony's
+  own layout statements (a writer may add them for tools that draw from them),
+  the diagram, which says more, is used and they are not. A tool that rewrites the Antimony
   without knowing the format drops comments, and so the drawing; reading is
   safe everywhere, rewriting only in tools that know the format.
 - **One file is the normal form.** The model and its drawing travel together.
@@ -490,8 +493,10 @@ write the same text:
 7. Reactions, in the model's order; their `leg` lines just after each.
 8. Modifier lines, by reaction, then by modifier.
 
-Numbers are written in the shortest form that reads back the same, always with
-`.` as the decimal point. Nothing equal to its inherited value is written. A
+Numbers are rounded to three decimal places, a thousandth of a unit, far below
+anything drawn, and written in the shortest form that reads back as that
+(`81.031`, `24`, never `81.03144262477514`), always with `.` as the decimal
+point. Nothing equal to its inherited value is written. A
 color is written as the file's constant for it if it has one, else as a basic
 name if one matches exactly, else in hex. A species' id outside its node, or a
 reaction's shown id, is written by its side (`id above`) when it is exactly
