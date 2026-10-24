@@ -15,7 +15,9 @@ the author): `color`, not `colour`; 17 basic color names and color constants
 defined in the file (§5.1); the id shown on a species or a reaction is set by the
 same property, `id`, placed by side (`id above`) or by offset
 (`id offset (dx, dy)`) (§6.2); `compartment` instead of `box` (§8); what
-`straight`, `curved` and `linear` mean and how curve handles are given (§9).
+`straight`, `curved` and `linear` mean and how curve handles are given (§9);
+a reaction's id can be placed by side too (`id below`); two extensions foreseen,
+a look for each line of a reaction and a curved `linear` reaction (§15).
 Working name: *Antimony diagram* (file extension `.antd`, open question §15).
 
 ## Contents
@@ -241,13 +243,15 @@ when the id is exactly there, and the offset otherwise (§12).
 |---|---|---|
 | `line` | color and width | `#444444 1.5` |
 | `junction` | color, `hidden` | `#FF8800` |
-| `id` | `hidden`, `shown`, `offset (dx, dy)` | `hidden` |
+| `id` | `hidden`, `shown`, `above`, `below`, `left`, `right`, `offset (dx, dy)` | `hidden` |
 | `idColor`, `idSize` | color, number | `#1A1A1A`, 12 |
 | `idBold`, `idItalic` | flags | off |
 
 A reaction's id is hidden by default. `id shown` shows it beside the junction,
-placed clear of the reaction's lines (SPECIFICATION.md §5.12); `id offset
-(dx, dy)` shows it with its centre at that offset from the junction.
+placed clear of the reaction's lines (SPECIFICATION.md §5.12); `id above`,
+`id below`, `id left` or `id right` shows it on that side of the junction,
+centred on it, with its box 8 from the junction; `id offset (dx, dy)` shows it
+with its centre at that offset from the junction.
 
 **Compartments**
 
@@ -391,7 +395,8 @@ src_R1     at (100, 0) source (40, 0)
 - **`uses`** lists drawings other than a species' first: here pfk's ATP line goes
   to `ATP#2`. A species not listed is drawn to its first drawing.
 - **The id** is hidden unless the `id` property shows it (§6.2): `id shown`
-  beside the junction, `id offset (dx, dy)` at that offset from it.
+  beside the junction clear of its lines, `id below` (or `above`, `left`,
+  `right`) on that side of it, `id offset (dx, dy)` at that offset from it.
 - **Legs with set handles or corner points** get a line of their own:
 
   ```
@@ -461,9 +466,9 @@ write the same text:
 Numbers are written in the shortest form that reads back the same, always with
 `.` as the decimal point. Nothing equal to its inherited value is written. A
 color is written as the file's constant for it if it has one, else as a basic
-name if one matches exactly, else in hex. A species' id outside its node is
-written by its side (`id above`) when it is exactly there, and by its offset
-otherwise; never as `id outside` alone. A tool that doesn't keep the file's
+name if one matches exactly, else in hex. A species' id outside its node, or a
+reaction's shown id, is written by its side (`id above`) when it is exactly
+there, and by its offset otherwise; never as `id outside` or `id shown` alone. A tool that doesn't keep the file's
 constants (or its comments) writes the values they stand for.
 
 ## 13. Errors
@@ -475,6 +480,11 @@ warning with a line and column.
 - An id the model doesn't have: the statement is skipped.
 - A property not known for its kind: skipped, but **kept** and written back, so a
   newer file passes through an older tool unharmed.
+- A word, point or block the reader does not understand in a statement it
+  otherwise understands (such as `curve` after `linear`, or a block on a `leg`):
+  that part is skipped, but kept and written back, and the rest of the statement
+  is used. So a later version can extend a statement, not only add properties
+  (§15, item 9).
 - A value that doesn't read, including a color name that is neither basic nor
   defined: that property is skipped.
 - A color constant defined twice: the first definition is used.
@@ -528,6 +538,21 @@ compartments, text wrapping) go in PathwayDesigner's existing SBML notes, as now
 7. **Ids for texts**, so a tool can refer to one.
 8. **A display name.** `name` is kept free for a name shown in place of the id
    (SBML's `name`), if one is added later.
+9. **Foreseen extensions** (§13 lets them be added without breaking older
+   readers; none is drawn by PathwayDesigner yet):
+   - **A look for each line of a reaction**, as a block on its `leg`:
+     `leg B -> J2 curve (279, 341) (301, 355) { line green }`.
+   - **A curved `linear` reaction**: one line from reactant to product with no
+     junction, bent by two handles: `J4 linear curve (368, 363) (423, 344)`.
+   - **The junction's shape and size**, reaction properties beside `junction`
+     (its color, or `hidden`): `junctionShape` (`circle`, the default, or
+     `rectangle`) and `junctionSize`.
+   - **Arrowheads**, reaction properties: `arrow` (`shown`, the default, or
+     `hidden`), `arrowSize` and `arrowColor`.
+
+   For example, `J1 at (230, 195) curved { junctionShape rectangle;
+   junctionSize 12; arrow hidden }`. Like every property, these work in styles
+   too.
 
 ## 16. Grammar
 
