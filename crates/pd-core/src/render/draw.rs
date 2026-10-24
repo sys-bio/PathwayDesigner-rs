@@ -512,6 +512,31 @@ pub fn reaction_label_box(model: &Model, r: &Reaction) -> Option<(Pt, Pt)> {
     Some((c - half, c + half))
 }
 
+/// The offset that puts `s`'s name beside its node on side `d` (a unit
+/// axis: above, below, left or right), [`LABEL_GAP`] from the node's box and
+/// centred on it, as the diagram format's `id above` and the others place it
+/// (docs/diagram-format.md §6.2).
+pub fn label_offset_on_side(s: &SpeciesNode, d: Pt) -> Pt {
+    label_offset_towards(s, d)
+}
+
+/// The offset that puts `r`'s name beside its junction on side `d`, clear of
+/// the junction's dot and the lines' width as [`clear_reaction_label_offset`]
+/// keeps it.
+pub fn reaction_label_offset_on_side(r: &Reaction, d: Pt) -> Pt {
+    beside(
+        reaction_label_clearance(r),
+        name_half(&r.id, reaction_label_size(r), name_font(&r.style)),
+        d,
+    )
+}
+
+/// How far a reaction's name keeps from its junction, each way.
+fn reaction_label_clearance(r: &Reaction) -> Pt {
+    let clear = JUNCTION_RADIUS + reaction_line_width(r) / 2.0;
+    pt(clear, clear)
+}
+
 /// Where a reaction's name starts when it is shown (S §5.12): beside its
 /// junction on the side clearest of its lines, as for a species' name
 /// (S §5.11). A line leaves the junction towards its handle on a Bézier
@@ -560,9 +585,8 @@ pub fn clear_reaction_label_offset(model: &Model, r: &Reaction) -> Pt {
             (len > 1e-9).then(|| pt(d.x / len, d.y / len))
         })
         .collect();
-    let clear = JUNCTION_RADIUS + reaction_line_width(r) / 2.0;
     beside(
-        pt(clear, clear),
+        reaction_label_clearance(r),
         name_half(&r.id, reaction_label_size(r), name_font(&r.style)),
         clearest_direction(&lines),
     )

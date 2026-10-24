@@ -144,6 +144,24 @@ Everything else the app draws has a place in the format.
 4. The app: open, write, drop; README, SPECIFICATION (a new §11.x), SPEC-Rust.
 5. (If D2 says so) unknown properties and parts kept and written back.
 
+**As built.**
+
+- *Step 1:* `diagram_format/{mod,lex,parse,ast,colors}.rs`. The parser takes any
+  clause on any line and leaves to the reader which make sense where; unknown
+  parts are kept as written (`ClauseKind::Unknown`). A test reads every example
+  in `docs/diagram-format.md`, which must give no warning.
+- *Step 2:* `diagram_format/read.rs`, called from `antimony::import`: a diagram
+  comment is used when there is one, and Antimony's layout statements are then
+  ignored with a note. `Imported.had_layout` is true and `unplaced` counts the
+  species drawings the diagram didn't place (left at random for now: the
+  automatic layout of D5 comes with the app, step 4). New in the drawing code:
+  `draw::label_offset_on_side` and `reaction_label_offset_on_side`, the sides of
+  `id above` and the others, from the same helper the app's own placement uses.
+  Found on the way: a second drawing doesn't follow its species' style, since
+  its border is dashed by default and so it doesn't look exactly like the style
+  (the app's own rule); the report's redox example puts NAD's id where its routed
+  line arrives (fix in the report's next version: `NAD … { id above }`).
+
 ## 9. Decisions
 
 - **D1. File extension.** *Decided (2026-10-24):* `.ant`, the diagram inside an

@@ -123,15 +123,40 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
     };
     let mut model = b.build(opts);
     warnings.append(&mut b.warnings);
-    // Antimony's layout statements, if any (docs/antimony-layout-design.md).
-    let applied = crate::antimony_layout::apply(&mut model, module, &mut warnings);
+    // The drawing: a diagram comment (docs/diagram-format.md), which says
+    // more, else Antimony's layout statements (docs/antimony-layout-design.md).
+    let (had_layout, unplaced) = match crate::diagram_format::parse(src) {
+        Some(crate::diagram_format::Parsed {
+            diagram: Some(d),
+            warnings: found,
+        }) => {
+            warnings.extend(found);
+            if !module.layout.is_empty() {
+                warnings.push(Diagnostic {
+                    severity: Severity::Warning,
+                    line: d.pos.line,
+                    column: d.pos.column,
+                    message: "the text also has Antimony layout statements; the drawing is \
+                              taken from the diagram, and they are not used"
+                        .into(),
+                });
+            }
+            let applied = crate::diagram_format::read::apply(&mut model, &d, &mut warnings);
+            (true, applied.unplaced.len())
+        }
+        parsed => {
+            warnings.extend(parsed.map(|p| p.warnings).unwrap_or_default());
+            let applied = crate::antimony_layout::apply(&mut model, module, &mut warnings);
+            (applied.had_layout, applied.unplaced)
+        }
+    };
     warnings.sort_by_key(|d| (d.line, d.column));
     if b.errors.is_empty() {
         Ok(Imported {
             model,
             warnings,
-            had_layout: applied.had_layout,
-            unplaced: applied.unplaced,
+            had_layout,
+            unplaced,
         })
     } else {
         Err(b.errors)

@@ -989,7 +989,7 @@ fn place_reactions(model: &mut Model, places: &Places) {
 
 /// Between the reactants' centre and the products' centre, as the import
 /// places a reaction (null nodes left out: they are placed from it).
-fn default_junction(model: &Model, id: &str) -> Pt {
+pub(crate) fn default_junction(model: &Model, id: &str) -> Pt {
     let Some(r) = model.find_reaction(id) else {
         return Pt::ZERO;
     };

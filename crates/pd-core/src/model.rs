@@ -414,9 +414,10 @@ pub struct Participant {
     pub ctrl_pts_set: bool,
     /// What a modifier does (S §5.7.1). Only used in a modifier list.
     pub kind: ModifierKind,
-    /// A modifier's corner points (S §5.7.1): its arc runs from the node
-    /// through them, in order, to the junction. World coordinates. Only used
-    /// in a modifier list.
+    /// Corner points, in world coordinates: a modifier's arc runs from the
+    /// node through them, in order, to the junction (S §5.7.1); a reactant's
+    /// or product's line runs through them in order from the species
+    /// (S §5.6.5).
     pub points: Vec<Pt>,
     /// A modifier line's own look (S §5.7.2). Only used in a modifier list.
     pub look: ModifierLook,
