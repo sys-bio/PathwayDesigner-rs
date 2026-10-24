@@ -4,6 +4,34 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.22 (2026-10-24)
+
+**New**
+
+- **Antimony export with the drawing.** File ▸ Export Antimony writes the
+  diagram's drawing as Antimony 3's layout statements: every species, alias,
+  reaction junction and compartment box placed; every line with its ends and
+  curve points; every look, by kind and then where items differ. libAntimony
+  and PathwayDesigner read it back as drawn. What the statements can't say
+  (smooth junctions, names outside nodes, dashes, saved styles and a few
+  more) is listed after the export. The Antimony panel's Get Antimony writes
+  the drawing too when *With layout* is ticked.
+
+**Changed**
+
+- Arrowheads on very thick reaction lines are at least twice the line's width
+  across, so they stay visible.
+- SBML export also writes the background on a global render information, so
+  SBMLNetwork draws it.
+
+**Fixed**
+
+- Antimony export writes ids that libAntimony reserves (`compartment`, `time`,
+  `pi`, `model`, …) with `_` added, so libAntimony and tellurium read the text.
+  The diagram keeps its ids, and the export's notes list the renames.
+- Thick curved reaction lines have round ends in the app, so they meet at the
+  junction without a notch.
+
 ## 0.1.21 (2026-10-22)
 
 **New**
