@@ -10,6 +10,7 @@ desktop. Build-time dependencies are left out: nothing of them ends up in the
 app. Licence texts are the LICENSE, COPYING and NOTICE files each crate ships;
 identical texts are listed once.
 """
+import difflib
 import hashlib
 import html
 import json
@@ -226,6 +227,25 @@ def main():
         current = open(OUT, encoding="utf-8").read() if os.path.exists(OUT) else ""
         if current != page:
             print("THIRD-PARTY.html is out of date: run python scripts/third_party.py")
+            # What differs, as error notes on GitHub, which show them without
+            # a log-in: for each changed line, the text where it first differs.
+            old, new = current.splitlines(), page.splitlines()
+            notes = []
+            sm = difflib.SequenceMatcher(None, old, new, autojunk=False)
+            for tag, i1, i2, j1, j2 in sm.get_opcodes():
+                if tag == "equal":
+                    continue
+                for k in range(max(i2 - i1, j2 - j1)):
+                    a = old[i1 + k] if i1 + k < i2 else ""
+                    b = new[j1 + k] if j1 + k < j2 else ""
+                    at = next((n for n, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+                    start = max(0, at - 60)
+                    notes.append(f"line {i1 + k + 1}, column {at + 1}: committed "
+                                 f"{a[start:at + 120]!r} generated {b[start:at + 120]!r}")
+            for note in notes[:20]:
+                print(note)
+                if os.environ.get("GITHUB_ACTIONS"):
+                    print(f"::error file=THIRD-PARTY.html::{note}")
             sys.exit(1)
         print("THIRD-PARTY.html is up to date")
         return
