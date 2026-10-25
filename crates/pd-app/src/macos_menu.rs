@@ -20,6 +20,8 @@ pub enum MenuCommand {
     About,
     Preferences,
     Quit,
+    /// Help ▸ PathwayDesigner Help.
+    Help,
     /// Help ▸ Mouse and Keyboard.
     KeysHelp,
 }
@@ -31,6 +33,7 @@ pub struct MacMenu {
     about: MenuId,
     preferences: MenuId,
     quit: MenuId,
+    help_pages: MenuId,
     keys_help: MenuId,
 }
 
@@ -66,9 +69,10 @@ impl MacMenu {
                 &PredefinedMenuItem::fullscreen(None),
             ])
             .ok()?;
+        let help_pages = MenuItem::new("PathwayDesigner Help", true, None);
         let keys_help = MenuItem::new("Mouse and Keyboard", true, None);
         let help = Submenu::new("Help", true);
-        help.append_items(&[&keys_help]).ok()?;
+        help.append_items(&[&help_pages, &keys_help]).ok()?;
         let bar = Menu::new();
         bar.append_items(&[&app, &window, &help]).ok()?;
         bar.init_for_nsapp();
@@ -91,6 +95,7 @@ impl MacMenu {
             about: about.id().clone(),
             preferences: preferences.id().clone(),
             quit: quit.id().clone(),
+            help_pages: help_pages.id().clone(),
             keys_help: keys_help.id().clone(),
         })
     }
@@ -107,6 +112,9 @@ impl MacMenu {
             }
             if *id == self.quit {
                 return Some(MenuCommand::Quit);
+            }
+            if *id == self.help_pages {
+                return Some(MenuCommand::Help);
             }
             if *id == self.keys_help {
                 return Some(MenuCommand::KeysHelp);

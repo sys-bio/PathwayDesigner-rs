@@ -173,6 +173,8 @@ pub struct PathwayApp {
     /// Help ▸ Mouse and Keyboard is open. Not modal: it can stay open while
     /// drawing.
     pub(crate) keys_help: bool,
+    /// Help ▸ PathwayDesigner Help, a panel at the right.
+    pub(crate) help: crate::help::Help,
     /// File ▸ Open from Gallery… (S §11.8).
     pub(crate) gallery: crate::gallery::Gallery,
     pub(crate) files: Files,
@@ -257,6 +259,7 @@ impl PathwayApp {
             prefs: Preferences::load(cc.storage),
             dialog: None,
             keys_help: false,
+            help: Default::default(),
             gallery: Default::default(),
             files: Files::default(),
             doc: Document::default(),
@@ -382,6 +385,7 @@ impl PathwayApp {
         };
         match command {
             MenuCommand::About => self.dialog = Some(Dialog::About),
+            MenuCommand::Help => self.help.open = true,
             MenuCommand::KeysHelp => self.keys_help = true,
             MenuCommand::Preferences => self.dialog = Some(Dialog::Preferences(self.prefs)),
             // Asks about unsaved changes first, as closing the window does.
@@ -939,6 +943,10 @@ impl PathwayApp {
             // On macOS, About is in the application menu (macos_menu.rs).
             #[cfg(not(target_os = "macos"))]
             ui.menu_button("Help", |ui| {
+                if ui.button("PathwayDesigner Help").clicked() {
+                    self.help.open = true;
+                    ui.close();
+                }
                 if ui.button("Mouse and Keyboard").clicked() {
                     self.keys_help = true;
                     ui.close();
@@ -1591,6 +1599,13 @@ impl eframe::App for PathwayApp {
         let mut antimony_action = None;
         let mut styles_action = None;
         let mut structure_export = None;
+        // Outside the inspector, at the window's right edge.
+        if self.help.open {
+            egui::Panel::right("help")
+                .resizable(true)
+                .default_size(340.0)
+                .show(ui, |ui| self.help.show(ui));
+        }
         egui::Panel::right("inspector")
             .resizable(true)
             .default_size(280.0)
@@ -1846,6 +1861,31 @@ mod tests {
         h.click(h.widget("Close window"));
         h.run(vec![]);
         assert!(!h.app.keys_help);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn help_opens_a_panel_with_pages() {
+        let mut h = Harness::new();
+        assert!(!h.app.help.open);
+        h.click(h.widget("Help"));
+        h.run(vec![]);
+        h.click(h.widget("PathwayDesigner Help"));
+        assert!(h.app.help.open);
+        h.run(vec![]);
+        assert_eq!(h.app.help.title(), "Contents");
+        // A link opens its page, and Back returns.
+        h.click(h.widget("Getting started"));
+        h.run(vec![]);
+        assert_eq!(h.app.help.title(), "Getting started");
+        h.text("Write a model in Antimony");
+        h.click(h.widget("Back"));
+        h.run(vec![]);
+        assert_eq!(h.app.help.title(), "Contents");
+        // The close button shuts the panel.
+        h.click(h.widget("✖"));
+        h.run(vec![]);
+        assert!(!h.app.help.open);
     }
 
     /// The Gallery fetched from this checkout instead of GitHub.

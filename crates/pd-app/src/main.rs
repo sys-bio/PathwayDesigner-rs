@@ -10,6 +10,7 @@ mod export;
 mod files;
 mod fonts;
 mod gallery;
+mod help;
 mod inspector;
 mod keys_help;
 #[cfg(target_os = "macos")]
