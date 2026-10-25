@@ -289,7 +289,7 @@ impl<'m> Writer<'m> {
                 } else {
                     (dw, dh)
                 };
-                if let Some((w, h)) = size.filter(|&s| s != implied) {
+                if let Some((w, h)) = size.filter(|&s| !label_outside || s != implied) {
                     p.push(format!("size {}", size_text(w, h)));
                 }
                 p.extend(species_style_props(
@@ -1251,6 +1251,44 @@ ATP at (200, 100) { fill navy }",
             "{d}"
         );
         assert!(d.contains("ATP at (200, 100) { fill navy }"), "{d}");
+        round_trip(&m);
+    }
+
+    #[test]
+    fn a_style_keeps_its_size_with_the_id_inside() {
+        let (m, d) = rewritten(
+            "style cofactor { size 18 }
+ATP at (200, 100) style cofactor
+ADP at (200, 200) style cofactor
+E at (300, 150) style cofactor { size 30 }",
+        );
+        assert!(d.contains("style cofactor { size 18 }"), "{d}");
+        assert!(
+            d.contains(
+                "  ATP at (200, 100) style cofactor
+"
+            ),
+            "{d}"
+        );
+        assert!(
+            d.contains(
+                "  ADP at (200, 200) style cofactor
+"
+            ),
+            "{d}"
+        );
+        // At another size it doesn't follow the style.
+        assert!(
+            d.contains(
+                "  E at (300, 150) { size 30 }
+"
+            ),
+            "{d}"
+        );
+        assert_eq!(
+            m.find_species("ATP").map(|s| (s.width, s.height)),
+            Some((18.0, 18.0))
+        );
         round_trip(&m);
     }
 

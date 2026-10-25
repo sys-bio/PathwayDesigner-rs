@@ -104,6 +104,33 @@ pub fn same_look(a: Look, b: Look) -> bool {
     resolved(a) == resolved(b)
 }
 
+/// True if item `id` of `kind` follows a style with look `style`
+/// ([`follows`]). A species style that gives a size with the name inside, as
+/// a diagram's `style cofactor { size 18 }` does (docs/diagram-format.md
+/// §6.2), is followed only at that size; one from Copy Style never has one
+/// (S §8.5).
+pub fn item_follows(model: &Model, kind: StyleKind, id: &str, style: Look) -> bool {
+    let Some(item) = look_of(model, kind, id) else {
+        return false;
+    };
+    if let Look::Species {
+        label_outside: false,
+        size: Some(size),
+        ..
+    } = style
+    {
+        let sized = model
+            .find_species(id)
+            .is_some_and(|s| (s.width, s.height) == size);
+        let mut rest = style;
+        if let Look::Species { size, .. } = &mut rest {
+            *size = None;
+        }
+        return sized && follows(item, rest);
+    }
+    follows(item, style)
+}
+
 /// True if an item with look `item` follows a style with look `style`: it
 /// draws the same. An alias also follows a style when it draws as the style
 /// does on an alias, with an alias's defaults where the style gives none
@@ -282,8 +309,8 @@ pub fn drop_stale_links(model: &mut Model) -> bool {
             let Some(name) = link(model, kind, &id) else {
                 continue;
             };
-            let holds = find(model, kind, &name)
-                .is_some_and(|st| look_of(model, kind, &id).is_some_and(|l| follows(l, st.look)));
+            let holds =
+                find(model, kind, &name).is_some_and(|st| item_follows(model, kind, &id, st.look));
             if !holds {
                 stale.push((kind, id));
             }

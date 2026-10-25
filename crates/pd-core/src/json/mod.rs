@@ -21,7 +21,8 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought the diagram's named colors (docs/diagram-format.md §5.1).
+/// one that brought the diagram's named colors (docs/diagram-format.md §5.1)
+/// and species styles with a size and the name inside (§6.2).
 pub const FORMAT_VERSION: u32 = 16;
 
 /// The version that brought corner points on reactant and product lines
@@ -68,7 +69,8 @@ pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
 /// (SPEC-Rust §4.2): 16 if the diagram names colors (from a diagram's
-/// `color gold = #FFD54F`), 15 if a reactant's or product's line has corner points
+/// `color gold = #FFD54F`) or a species style has a size with the name
+/// inside (`style cofactor { size 18 }`), 15 if a reactant's or product's line has corner points
 /// (S §5.6.5), 14 if a name is bold or italic (S §5.11.1), 13 if its
 /// modifier lines are hidden (S §7.6), 12 if a
 /// modifier line has its own look (S §5.7.2),
@@ -106,7 +108,18 @@ pub fn needed_version(model: &Model) -> u32 {
             .chain(&r.products)
             .any(|p| !p.points.is_empty())
     });
-    if !model.color_names.is_empty() {
+    // A species style with a size and the name inside, as a diagram gives one.
+    let sized_inside = model.styles.iter().any(|st| {
+        matches!(
+            st.look,
+            Look::Species {
+                label_outside: false,
+                size: Some(_),
+                ..
+            }
+        )
+    });
+    if !model.color_names.is_empty() || sized_inside {
         FORMAT_VERSION
     } else if leg_corners {
         LEG_CORNERS_VERSION
@@ -932,12 +945,14 @@ fn styles_from_file(list: Vec<FileSavedStyle>, warnings: &mut Vec<String>) -> Ve
         let look = match kind {
             StyleKind::Species => {
                 let size = match (f.label_outside, f.w, f.h) {
-                    (false, _, _) => None,
-                    (true, Some(w), Some(h))
+                    // Version 16: a size with the name inside, as a diagram's
+                    // style gives one.
+                    (_, Some(w), Some(h))
                         if w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0 =>
                     {
                         Some((w, h))
                     }
+                    (false, _, _) => None,
                     _ => {
                         warnings.push(format!(
                             "The species style `{name}` puts the name outside but has no size; \
@@ -1442,6 +1457,34 @@ fn style_to_file(s: &VisualStyle) -> FileStyle {
 mod tests {
     use super::*;
     use crate::geometry::Pt;
+
+    #[test]
+    fn a_species_style_sized_with_the_name_inside_is_kept_in_version_16() {
+        let mut m = Model::default();
+        m.styles.push(SavedStyle {
+            name: "cofactor".into(),
+            look: Look::Species {
+                style: VisualStyle::default(),
+                shape: NodeShape::default(),
+                border_dash: BorderDash::default(),
+                label_outside: false,
+                size: Some((18.0, 18.0)),
+                alias: false,
+            },
+        });
+        let id = m.add_species(Pt::ZERO, 18.0, 18.0);
+        crate::styles::set_link(&mut m, StyleKind::Species, &id, Some("cofactor".into()));
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let back = from_json(&to_json(&m)).unwrap().model;
+        assert!(crate::styles::same_look(
+            back.styles[0].look,
+            m.styles[0].look
+        ));
+        assert_eq!(
+            back.find_species(&id).unwrap().style_name.as_deref(),
+            Some("cofactor")
+        );
+    }
 
     #[test]
     fn named_colors_are_kept_in_version_16() {

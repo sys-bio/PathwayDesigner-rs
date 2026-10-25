@@ -1338,10 +1338,7 @@ impl Reader<'_> {
             let Some(look) = self.saved_look(*kind, name) else {
                 continue;
             };
-            let Some(item_look) = styles::look_of(model, *kind, item) else {
-                continue;
-            };
-            if !styles::follows(item_look, look) {
+            if !styles::item_follows(model, *kind, item, look) {
                 continue;
             }
             if styles::find(model, *kind, name).is_none() {
@@ -1350,8 +1347,8 @@ impl Reader<'_> {
                     look,
                 });
             }
-            if styles::find(model, *kind, name).is_some_and(|s| styles::follows(item_look, s.look))
-            {
+            let saved = styles::find(model, *kind, name).map(|s| s.look);
+            if saved.is_some_and(|l| styles::item_follows(model, *kind, item, l)) {
                 styles::set_link(model, *kind, item, Some(name.clone()));
             }
         }
@@ -1382,23 +1379,29 @@ impl Reader<'_> {
             StyleKind::Species => {
                 let outside = !matches!(e.id, None | Some(IdPlace::Inside) | Some(IdPlace::Hidden));
                 // A species' look with its id outside includes its size, so a
-                // style without one has the size its species are drawn at.
-                let size = e.size.unwrap_or((
-                    crate::model::DEFAULT_SPECIES_WIDTH,
-                    crate::model::DEFAULT_SPECIES_HEIGHT,
-                ));
-                let size = if e.shape == NodeShape::Circle {
-                    let d = size.0.max(size.1);
-                    (d, d)
-                } else {
-                    size
+                // style without one has the size its species are drawn at. With
+                // the id inside, only a size the style gives.
+                let size = match (outside, e.size) {
+                    (_, Some(size)) => Some(size),
+                    (true, None) => Some((
+                        crate::model::DEFAULT_SPECIES_WIDTH,
+                        crate::model::DEFAULT_SPECIES_HEIGHT,
+                    )),
+                    (false, None) => None,
                 };
+                let size = size.map(|(w, h)| {
+                    if e.shape == NodeShape::Circle {
+                        (w.max(h), w.max(h))
+                    } else {
+                        (w, h)
+                    }
+                });
                 Look::Species {
                     style: e.style,
                     shape: e.shape,
                     border_dash: e.border_dash,
                     label_outside: outside,
-                    size: outside.then_some(size),
+                    size,
                     alias: false,
                 }
             }

@@ -348,11 +348,15 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
-**Version 16: named colors (docs/diagram-format.md §5.1).** A top-level
+**Version 16: named colors (docs/diagram-format.md §5.1), and sized species styles (§6.2).** A top-level
 `"colorNames"`, after `modifierLines`: a list of `{"name": "gold", "value":
 "#FFD54F"}`, the colors a diagram read from Antimony named with `color gold =
 #FFD54F`, in the order they were defined, so the diagram written back uses the
-names. Left out when there are none. A document with named colors is version 16.
+names. Left out when there are none. A saved species style may also have `w`
+and `h` with `labelOutside` false: a size a diagram's style gives
+(`style cofactor { size 18 }`), which species following it must have; Copy
+Style never makes one (S §8.5). A document with named colors or such a style is
+version 16.
 
 **Version 15: corner points on reactant and product lines (S §5.6.5).** A
 reactant or product object may have `"points"`: `[x1, y1, x2, y2, …]`, the line's
