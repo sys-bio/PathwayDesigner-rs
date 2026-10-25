@@ -61,8 +61,9 @@ impl Default for Help {
 }
 
 impl Help {
-    /// The title of the page shown.
-    #[cfg(test)]
+    /// The title of the page shown (for a test of the in-window Help menu,
+    /// which macOS doesn't have).
+    #[cfg(all(test, not(target_os = "macos")))]
     pub fn title(&self) -> &'static str {
         PAGES[self.page].title
     }
