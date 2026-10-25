@@ -89,7 +89,9 @@ def metadata(target):
     out = subprocess.run(
         ["cargo", "metadata", "--format-version", "1", "--locked",
          "--filter-platform", target],
-        cwd=ROOT, capture_output=True, text=True, check=True).stdout
+        # Cargo writes UTF-8; Windows would otherwise read it in its own
+        # code page and garble names such as Rössler.
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True).stdout
     return json.loads(out)
 
 
