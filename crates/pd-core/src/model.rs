@@ -950,6 +950,10 @@ pub struct Model {
     /// View ▸ Modifier lines turned off for this diagram (S §7.6): its
     /// modifier arcs aren't drawn, on screen or in output. Saved with it.
     pub hide_modifier_lines: bool,
+    /// The diagram's named colors, `color gold = #FFD54F`
+    /// (docs/diagram-format.md §5.1), in the order they were defined, so the
+    /// names are written back where the colors are used.
+    pub color_names: Vec<(String, Rgba)>,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -971,6 +975,7 @@ impl Default for Model {
             theme: None,
             background: Rgba::DEFAULT,
             hide_modifier_lines: false,
+            color_names: Vec::new(),
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),

@@ -360,7 +360,9 @@ impl Reader<'_> {
                     };
                     match v {
                         Some(v) => {
-                            if !self.constants.define(name, v) {
+                            if self.constants.define(name, v) {
+                                model.color_names.push((name.clone(), v));
+                            } else {
                                 self.warn(
                                     s.pos,
                                     format!(
@@ -1339,7 +1341,7 @@ impl Reader<'_> {
             let Some(item_look) = styles::look_of(model, *kind, item) else {
                 continue;
             };
-            if !styles::same_look(item_look, look) {
+            if !styles::follows(item_look, look) {
                 continue;
             }
             if styles::find(model, *kind, name).is_none() {
@@ -1348,8 +1350,7 @@ impl Reader<'_> {
                     look,
                 });
             }
-            if styles::find(model, *kind, name)
-                .is_some_and(|s| styles::same_look(s.look, item_look))
+            if styles::find(model, *kind, name).is_some_and(|s| styles::follows(item_look, s.look))
             {
                 styles::set_link(model, *kind, item, Some(name.clone()));
             }
@@ -1380,12 +1381,24 @@ impl Reader<'_> {
         Some(match kind {
             StyleKind::Species => {
                 let outside = !matches!(e.id, None | Some(IdPlace::Inside) | Some(IdPlace::Hidden));
+                // A species' look with its id outside includes its size, so a
+                // style without one has the size its species are drawn at.
+                let size = e.size.unwrap_or((
+                    crate::model::DEFAULT_SPECIES_WIDTH,
+                    crate::model::DEFAULT_SPECIES_HEIGHT,
+                ));
+                let size = if e.shape == NodeShape::Circle {
+                    let d = size.0.max(size.1);
+                    (d, d)
+                } else {
+                    size
+                };
                 Look::Species {
                     style: e.style,
                     shape: e.shape,
                     border_dash: e.border_dash,
                     label_outside: outside,
-                    size: if outside { e.size } else { None },
+                    size: outside.then_some(size),
                     alias: false,
                 }
             }

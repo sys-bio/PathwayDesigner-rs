@@ -104,6 +104,27 @@ pub fn same_look(a: Look, b: Look) -> bool {
     resolved(a) == resolved(b)
 }
 
+/// True if an item with look `item` follows a style with look `style`: it
+/// draws the same. An alias also follows a style when it draws as the style
+/// does on an alias, with an alias's defaults where the style gives none
+/// (a diagram's `ATP#2 style cofactor`, docs/diagram-format.md §6.2), as
+/// well as when it took the style's look as a primary has it (S §8.5).
+pub fn follows(item: Look, style: Look) -> bool {
+    if same_look(item, style) {
+        return true;
+    }
+    match (item, style) {
+        (Look::Species { alias: true, .. }, Look::Species { .. }) => {
+            let mut on_alias = style;
+            if let Look::Species { alias, .. } = &mut on_alias {
+                *alias = true;
+            }
+            same_look(item, on_alias)
+        }
+        _ => false,
+    }
+}
+
 /// Gives `look` to the item `id`, if it is of the look's kind (Paste Style,
 /// S §8.5). A species keeps its own size unless the look has one (its name
 /// outside), and one made a circle takes its larger side both ways; a name
@@ -262,7 +283,7 @@ pub fn drop_stale_links(model: &mut Model) -> bool {
                 continue;
             };
             let holds = find(model, kind, &name)
-                .is_some_and(|st| look_of(model, kind, &id).is_some_and(|l| same_look(l, st.look)));
+                .is_some_and(|st| look_of(model, kind, &id).is_some_and(|l| follows(l, st.look)));
             if !holds {
                 stale.push((kind, id));
             }

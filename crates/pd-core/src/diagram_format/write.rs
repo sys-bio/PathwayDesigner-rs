@@ -41,7 +41,7 @@ pub fn write(model: &Model, name: &str) -> String {
     // how it looks whatever a reader's own defaults are (format §6.5).
     line(format!(
         "background {}",
-        color(draw::background_colour(model))
+        color(&model.color_names, draw::background_colour(model))
     ));
     if model.hide_modifier_lines {
         line("modifierLines hidden".into());
@@ -49,21 +49,25 @@ pub fn write(model: &Model, name: &str) -> String {
     for d in DEFAULTS {
         line(d.into());
     }
-    // 2. Styles some written item follows, by kind and name.
+    // 2. Named colors, in the order they were defined.
+    for (name, c) in &model.color_names {
+        line(format!("color {name} = {}", color_value(*c)));
+    }
+    // 3. Styles some written item follows, by kind and name.
     for (kind, s) in &w.used_styles {
         line(w.style_def(*kind, s));
     }
-    // 3. Compartments.
+    // 4. Compartments.
     for c in &model.compartments {
         if let Some(s) = w.compartment(c) {
             line(s);
         }
     }
-    // 4. Texts, in the order they are drawn (a later one covers an earlier).
+    // 5. Texts, in the order they are drawn (a later one covers an earlier).
     for t in model.texts() {
         line(w.text(t));
     }
-    // 5. Species drawings, each species' together.
+    // 6. Species drawings, each species' together.
     for s in model
         .species()
         .iter()
@@ -74,7 +78,7 @@ pub fn write(model: &Model, name: &str) -> String {
             line(w.species(a));
         }
     }
-    // 6. Reactions, each with its legs.
+    // 7. Reactions, each with its legs.
     for r in model.reactions() {
         if let Some(s) = w.reaction(r) {
             line(s);
@@ -83,7 +87,7 @@ pub fn write(model: &Model, name: &str) -> String {
             line(s);
         }
     }
-    // 7. Modifier lines, by reaction.
+    // 8. Modifier lines, by reaction.
     for r in model.reactions() {
         for s in w.modifier_lines(r) {
             line(s);
@@ -110,6 +114,45 @@ struct Writer<'m> {
     /// copies of the theme's styles where they differ from the built-in ones
     /// (they replace the theme's, format §6.4). By kind, then name.
     used_styles: Vec<(StyleKind, SavedStyle)>,
+    /// Where each species style with its id outside puts it: on the side
+    /// most of its species have it, or on each one's clearest side.
+    id_sides: Vec<(String, IdSide)>,
+}
+
+/// Where a species style puts the id, when outside the node.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum IdSide {
+    /// `id outside`: each species' clearest side.
+    Clear,
+    /// `id above`, `id right` and so on.
+    Side(&'static str, Pt),
+}
+
+impl IdSide {
+    /// In order of preference: a side someone would write, before leaving
+    /// it to each species.
+    const ALL: [IdSide; 5] = [
+        IdSide::Side("right", Pt { x: 1.0, y: 0.0 }),
+        IdSide::Side("left", Pt { x: -1.0, y: 0.0 }),
+        IdSide::Side("above", Pt { x: 0.0, y: -1.0 }),
+        IdSide::Side("below", Pt { x: 0.0, y: 1.0 }),
+        IdSide::Clear,
+    ];
+
+    fn word(self) -> &'static str {
+        match self {
+            IdSide::Clear => "outside",
+            IdSide::Side(w, _) => w,
+        }
+    }
+
+    /// The offset of `s`'s id placed this way.
+    fn offset(self, model: &Model, s: &SpeciesNode) -> Pt {
+        match self {
+            IdSide::Clear => draw::clear_label_offset(model, s),
+            IdSide::Side(_, d) => draw::label_offset_on_side(s, d),
+        }
+    }
 }
 
 impl<'m> Writer<'m> {
@@ -134,6 +177,7 @@ impl<'m> Writer<'m> {
             model,
             reference: reference(model, &defs),
             used_styles: Vec::new(),
+            id_sides: Vec::new(),
         };
         let mut used = replacing;
         for kind in StyleKind::ALL {
@@ -147,7 +191,55 @@ impl<'m> Writer<'m> {
         }
         used.sort_by(|a, b| (kind_order(a.0), &a.1.name).cmp(&(kind_order(b.0), &b.1.name)));
         w.used_styles = used;
+        // A style's side is the one that fits most of the species following
+        // it (a named side on a tie), so `id right` comes back as it was
+        // written, and the rest of them write their own. A style no species
+        // follows here (a theme's) leaves it to each species.
+        let mut id_sides = Vec::new();
+        for (kind, st) in &w.used_styles {
+            if *kind != StyleKind::Species
+                || !matches!(
+                    st.look,
+                    Look::Species {
+                        label_outside: true,
+                        ..
+                    }
+                )
+            {
+                continue;
+            }
+            let followers: Vec<&SpeciesNode> = styles::users(model, StyleKind::Species, &st.name)
+                .iter()
+                .filter(|id| w.named_style(StyleKind::Species, id).is_some())
+                .filter_map(|id| model.find_species(id))
+                .collect();
+            let fits = |side: IdSide| {
+                followers
+                    .iter()
+                    .filter(|s| s.label_offset == Some(side.offset(model, s)))
+                    .count()
+            };
+            let mut best = IdSide::Clear;
+            if !followers.is_empty() {
+                best = IdSide::ALL[0];
+                for side in IdSide::ALL {
+                    if fits(side) > fits(best) {
+                        best = side;
+                    }
+                }
+            }
+            id_sides.push((st.name.clone(), best));
+        }
+        w.id_sides = id_sides;
         w
+    }
+
+    /// Where species style `name` puts the id outside.
+    fn id_side(&self, name: &str) -> IdSide {
+        self.id_sides
+            .iter()
+            .find(|(n, _)| n == name)
+            .map_or(IdSide::Clear, |(_, side)| *side)
     }
 
     /// The style item `id` names in the file, if any: the one it follows,
@@ -187,26 +279,44 @@ impl<'m> Writer<'m> {
                 if shape != NodeShape::default() {
                     p.push(format!("shape {}", shape.key()));
                 }
-                if let Some((w, h)) = size {
+                // Not the size a reader gives a style without one.
+                let (dw, dh) = (
+                    crate::model::DEFAULT_SPECIES_WIDTH,
+                    crate::model::DEFAULT_SPECIES_HEIGHT,
+                );
+                let implied = if shape == NodeShape::Circle {
+                    (dw.max(dh), dw.max(dh))
+                } else {
+                    (dw, dh)
+                };
+                if let Some((w, h)) = size.filter(|&s| s != implied) {
                     p.push(format!("size {}", size_text(w, h)));
                 }
-                p.extend(species_style_props(style, VisualStyle::default(), None));
+                p.extend(species_style_props(
+                    &self.model.color_names,
+                    style,
+                    VisualStyle::default(),
+                    None,
+                ));
                 if border_dash != BorderDash::default() {
                     p.push(format!("borderStyle {}", border_dash.key()));
                 }
                 if label_outside {
-                    p.push("id outside".into());
+                    p.push(format!("id {}", self.id_side(&s.name).word()));
                 }
                 p
             }
             Look::Reaction { style } => {
-                let mut p = reaction_style_props(style, VisualStyle::default());
+                let mut p =
+                    reaction_style_props(&self.model.color_names, style, VisualStyle::default());
                 if !style.junction_visible {
                     p.push("junction hidden".into());
                 }
                 p
             }
-            Look::Compartment { style } => compartment_style_props(style, VisualStyle::default()),
+            Look::Compartment { style } => {
+                compartment_style_props(&self.model.color_names, style, VisualStyle::default())
+            }
             Look::Text {
                 font,
                 align,
@@ -216,7 +326,7 @@ impl<'m> Writer<'m> {
                 let base = TextItem::new("", Pt::ZERO, "");
                 let mut t = base.clone();
                 (t.font, t.align, t.size, t.color) = (font, align, size, c);
-                text_props(&t, &base)
+                text_props(&self.model.color_names, &t, &base)
             }
         };
         format!("style {}{kind_word} {}", style_ref(&s.name), block(&props))
@@ -246,7 +356,7 @@ impl<'m> Writer<'m> {
         if let Some(s) = style {
             clauses.push(self.style_clause(s));
         }
-        let props = compartment_style_props(c.style, base_style);
+        let props = compartment_style_props(&self.model.color_names, c.style, base_style);
         (!clauses.is_empty() || !props.is_empty())
             .then(|| statement(format!("compartment {}", c.id), clauses, props))
     }
@@ -272,7 +382,7 @@ impl<'m> Writer<'m> {
             }
             clauses.push(self.style_clause(s));
         }
-        let mut props = text_props(t, &base_t);
+        let mut props = text_props(&self.model.color_names, t, &base_t);
         if t.wrap_width != base_t.wrap_width {
             props.push(format!("wrap {}", num(t.wrap_width)));
         }
@@ -329,7 +439,7 @@ impl<'m> Writer<'m> {
                     (b.width, b.height) = (w, h);
                 }
                 if label_outside {
-                    base_label = Some(draw::clear_label_offset(self.model, s));
+                    base_label = Some(self.id_side(&st.name).offset(self.model, s));
                 }
             }
             clauses.push(self.style_clause(st));
@@ -346,7 +456,12 @@ impl<'m> Writer<'m> {
             props.push(format!("size {}", size_text(s.width, s.height)));
         }
         let defaults = species_defaults(s);
-        props.extend(species_style_props(s.style, b.style, Some(defaults)));
+        props.extend(species_style_props(
+            &self.model.color_names,
+            s.style,
+            b.style,
+            Some(defaults),
+        ));
         if s.border_dash != b.border_dash {
             props.push(format!("borderStyle {}", s.border_dash.key()));
         }
@@ -426,7 +541,7 @@ impl<'m> Writer<'m> {
         if let Some(s) = style {
             clauses.push(self.style_clause(s));
         }
-        let mut props = reaction_style_props(r.style, base_style);
+        let mut props = reaction_style_props(&self.model.color_names, r.style, base_style);
         let empty = |m: &Model| {
             let r = m.find_reaction(&r.id)?;
             [Role::Reactant, Role::Product]
@@ -546,7 +661,7 @@ impl<'m> Writer<'m> {
             out.push(statement(
                 format!("line {} to {}", self.drawing(&m.species), r.id),
                 clauses,
-                modifier_props(&m.look),
+                modifier_props(&self.model.color_names, &m.look),
             ));
         }
         out
@@ -688,7 +803,12 @@ fn shown(actual: Rgba, default: Rgba) -> Rgba {
     if actual.is_default() { default } else { actual }
 }
 
-fn species_style_props(a: VisualStyle, b: VisualStyle, d: Option<SpeciesDefaults>) -> Vec<String> {
+fn species_style_props(
+    n: Names,
+    a: VisualStyle,
+    b: VisualStyle,
+    d: Option<SpeciesDefaults>,
+) -> Vec<String> {
     let d = d.unwrap_or(SpeciesDefaults {
         fill: SPECIES_FILL,
         border: SPECIES_BORDER,
@@ -700,7 +820,7 @@ fn species_style_props(a: VisualStyle, b: VisualStyle, d: Option<SpeciesDefaults
         eff(&b, b.fill_color, Rgba::DEFAULT),
     );
     if fa != fb {
-        p.push(format!("fill {}", color(shown(fa, d.fill))));
+        p.push(format!("fill {}", color(n, shown(fa, d.fill))));
     }
     if a.no_border && !b.no_border {
         p.push("border none".into());
@@ -713,7 +833,7 @@ fn species_style_props(a: VisualStyle, b: VisualStyle, d: Option<SpeciesDefaults
         let back = !a.no_border && b.no_border;
         let mut parts = Vec::new();
         if ca != cb || back {
-            parts.push(color(shown(ca, d.border)));
+            parts.push(color(n, shown(ca, d.border)));
         }
         if wa != wb || back {
             parts.push(num(if wa == 0.0 { d.border_width } else { wa }));
@@ -722,19 +842,19 @@ fn species_style_props(a: VisualStyle, b: VisualStyle, d: Option<SpeciesDefaults
             p.push(format!("border {}", parts.join(" ")));
         }
     }
-    p.extend(id_look_props(a, b));
+    p.extend(id_look_props(n, a, b));
     p
 }
 
 /// `idColor`, `idSize`, `idBold`, `idItalic`.
-fn id_look_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
+fn id_look_props(n: Names, a: VisualStyle, b: VisualStyle) -> Vec<String> {
     let mut p = Vec::new();
     let (la, lb) = (
         eff(&a, a.label_color, Rgba::DEFAULT),
         eff(&b, b.label_color, Rgba::DEFAULT),
     );
     if la != lb {
-        p.push(format!("idColor {}", color(shown(la, LABEL))));
+        p.push(format!("idColor {}", color(n, shown(la, LABEL))));
     }
     let (sa, sb) = (eff(&a, a.font_size, 0.0), eff(&b, b.font_size, 0.0));
     if sa != sb {
@@ -766,7 +886,7 @@ fn id_look_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
     p
 }
 
-fn reaction_style_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
+fn reaction_style_props(n: Names, a: VisualStyle, b: VisualStyle) -> Vec<String> {
     let mut p = Vec::new();
     let (ca, cb) = (
         eff(&a, a.line_color, Rgba::DEFAULT),
@@ -775,7 +895,7 @@ fn reaction_style_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
     let (wa, wb) = (eff(&a, a.line_width, 0.0), eff(&b, b.line_width, 0.0));
     let mut parts = Vec::new();
     if ca != cb {
-        parts.push(color(shown(ca, REACTION_LINE)));
+        parts.push(color(n, shown(ca, REACTION_LINE)));
     }
     if wa != wb {
         parts.push(num(if wa == 0.0 { DEFAULT_LINE_WIDTH } else { wa }));
@@ -788,20 +908,20 @@ fn reaction_style_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
         eff(&b, b.junction_color, Rgba::DEFAULT),
     );
     if a.junction_visible && ja != jb {
-        p.push(format!("junction {}", color(shown(ja, JUNCTION_FILL))));
+        p.push(format!("junction {}", color(n, shown(ja, JUNCTION_FILL))));
     }
-    p.extend(id_look_props(a, b));
+    p.extend(id_look_props(n, a, b));
     p
 }
 
-fn compartment_style_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
+fn compartment_style_props(n: Names, a: VisualStyle, b: VisualStyle) -> Vec<String> {
     let mut p = Vec::new();
     let (fa, fb) = (
         eff(&a, a.fill_color, Rgba::DEFAULT),
         eff(&b, b.fill_color, Rgba::DEFAULT),
     );
     if fa != fb {
-        p.push(format!("fill {}", color(shown(fa, COMPARTMENT_FILL))));
+        p.push(format!("fill {}", color(n, shown(fa, COMPARTMENT_FILL))));
     }
     if a.no_border && !b.no_border {
         p.push("border none".into());
@@ -814,7 +934,7 @@ fn compartment_style_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
         let back = !a.no_border && b.no_border;
         let mut parts = Vec::new();
         if ca != cb || back {
-            parts.push(color(shown(ca, COMPARTMENT_BORDER)));
+            parts.push(color(n, shown(ca, COMPARTMENT_BORDER)));
         }
         if wa != wb || back {
             parts.push(num(if wa == 0.0 {
@@ -841,7 +961,7 @@ fn compartment_style_props(a: VisualStyle, b: VisualStyle) -> Vec<String> {
     p
 }
 
-fn text_props(t: &TextItem, b: &TextItem) -> Vec<String> {
+fn text_props(n: Names, t: &TextItem, b: &TextItem) -> Vec<String> {
     let mut p = Vec::new();
     if t.size != b.size {
         p.push(format!("size {}", num(t.size)));
@@ -878,16 +998,16 @@ fn text_props(t: &TextItem, b: &TextItem) -> Vec<String> {
         );
     }
     if t.color != b.color {
-        p.push(format!("color {}", color(shown(t.color, LABEL))));
+        p.push(format!("color {}", color(n, shown(t.color, LABEL))));
     }
     p
 }
 
-fn modifier_props(l: &ModifierLook) -> Vec<String> {
+fn modifier_props(n: Names, l: &ModifierLook) -> Vec<String> {
     let mut p = Vec::new();
     let mut parts = Vec::new();
     if let Some(c) = l.colour {
-        parts.push(color(c));
+        parts.push(color(n, c));
     }
     if let Some(w) = l.width {
         parts.push(num(w));
@@ -984,11 +1104,27 @@ fn size_text(w: f64, h: f64) -> String {
     }
 }
 
-fn color(c: Rgba) -> String {
+/// The diagram's named colors (format §5.1), in the order they were defined.
+type Names<'a> = &'a [(String, Rgba)];
+
+/// A color as the file writes it: by a name the diagram defines for it, else
+/// by its basic name (unless the diagram gives that name another value), else
+/// in hex.
+fn color(n: Names, c: Rgba) -> String {
     if c.is_transparent() {
         return "none".into();
     }
-    colors::basic_name(c).map_or_else(|| colors::to_hex(c), str::to_owned)
+    if let Some((name, _)) = n.iter().find(|(_, v)| *v == c) {
+        return name.clone();
+    }
+    colors::basic_name(c)
+        .filter(|b| !n.iter().any(|(name, _)| name == b))
+        .map_or_else(|| colors::to_hex(c), str::to_owned)
+}
+
+/// A named color's value: never by another name (format §5.1).
+fn color_value(c: Rgba) -> String {
+    color(&[], c)
 }
 
 /// A string the format can hold: one line, no `"`, and no `*/`, which would
@@ -1062,8 +1198,8 @@ leg Glc -> hk curve (100, 80) (100, 120)
 leg hk -> ADP via (150, 200)
 out at (100, 300) sink (200, 300) { emptySetSize 18 }",
         );
-        // The style puts ids on the clearest side: G6P's is its right, so
-        // only Glc, whose clearest side is above, says where its id goes.
+        // The style's ids go on the right, as written, though Glc's clearest
+        // side is above: the side is the one its species have.
         assert_eq!(
             d,
             "/* diagram m v1
@@ -1073,9 +1209,9 @@ out at (100, 300) sink (200, 300) { emptySetSize 18 }",
   defaults compartment { fill #F0F6EA; border #7FA36B 2; idSize 12 }
   defaults text { size 14; font sans; color #1A1A1A }
   defaults modifier { line #007777 1.5 dashed }
-  style metabolite { shape circle; size 24; fill #FFD54F; id outside }
+  style metabolite { shape circle; size 24; fill #FFD54F; id right }
   style flux reaction { line navy 2.5 }
-  Glc at (100, 50) style metabolite { id right }
+  Glc at (100, 50) style metabolite
   G6P at (100, 250) style metabolite
   ATP at (200, 100)
   ATP#2 at (220, 120)
@@ -1088,6 +1224,109 @@ out at (100, 300) sink (200, 300) { emptySetSize 18 }",
 end */
 "
         );
+    }
+
+    #[test]
+    fn named_colors_are_written_back_by_name() {
+        let (m, d) = rewritten(
+            "color gold = #FFD54F
+color blue = #1565C0
+style metabolite { fill gold }
+Glc at (100, 50) style metabolite
+G6P at (100, 250) { fill blue; border #0000FF 2 }
+ATP at (200, 100) { fill navy }",
+        );
+        assert!(
+            d.contains(
+                "  color gold = #FFD54F
+  color blue = #1565C0
+"
+            ),
+            "{d}"
+        );
+        assert!(d.contains("style metabolite { fill gold }"), "{d}");
+        // `blue` is the file's own blue; the basic one is written in hex.
+        assert!(
+            d.contains("G6P at (100, 250) { fill blue; border #0000FF 2 }"),
+            "{d}"
+        );
+        assert!(d.contains("ATP at (200, 100) { fill navy }"), "{d}");
+        round_trip(&m);
+    }
+
+    #[test]
+    fn a_second_drawing_keeps_its_style() {
+        let (m, d) = rewritten(
+            "style cofactor { shape circle; fill silver }
+ATP at (200, 100) style cofactor
+ATP#2 at (220, 120) style cofactor",
+        );
+        assert!(
+            d.contains(
+                "  ATP#2 at (220, 120) style cofactor
+"
+            ),
+            "{d}"
+        );
+        // Drawn as a second drawing: dashed, with the alias border.
+        let alias = m.aliases_of("ATP").next().unwrap();
+        assert_eq!(alias.style_name.as_deref(), Some("cofactor"));
+        assert_eq!(
+            crate::render::draw::species_colours(alias, true).1,
+            crate::render::constants::ALIAS_BORDER
+        );
+        round_trip(&m);
+    }
+
+    #[test]
+    fn a_styles_id_side_is_the_one_its_species_have() {
+        // Most on the left: the style says left, the odd one out its own.
+        let (m, d) = rewritten(
+            "style s { id left }
+Glc at (100, 50) style s
+G6P at (100, 250) style s
+ATP at (200, 100) style s { id below }",
+        );
+        assert!(d.contains("style s { id left }"), "{d}");
+        assert!(
+            d.contains(
+                "  Glc at (100, 50) style s
+"
+            ),
+            "{d}"
+        );
+        assert!(
+            d.contains("  ATP at (200, 100) style s { id below }"),
+            "{d}"
+        );
+        round_trip(&m);
+        // Each on its clearest side: the style says outside.
+        let (m, d) = rewritten(
+            "style s { id outside }
+Glc at (100, 50) style s
+G6P at (100, 250) style s",
+        );
+        assert!(d.contains("style s { id outside }"), "{d}");
+        assert!(
+            d.contains(
+                "  Glc at (100, 50) style s
+"
+            ),
+            "{d}"
+        );
+        round_trip(&m);
+        // The right is also X's clearest side, having no lines: a tie, which
+        // the side that was written wins.
+        let text = "model n
+  species X
+end
+/* diagram n v1
+style s { id right }
+X at (0, 0) style s
+end */
+";
+        let out = export_with_diagram(&import(text, &OPTS).unwrap().model);
+        assert!(out.contains("style s { id right }"), "{out}");
     }
 
     #[test]
@@ -1398,9 +1637,15 @@ lines",
         assert_eq!(super::point(pt(1.5, -2.0)), "(1.5, -2)");
         assert_eq!(super::size_text(24.0, 24.0), "24");
         assert_eq!(super::size_text(80.0, 36.0), "80 x 36");
-        assert_eq!(super::color(crate::model::Rgba::rgb(0, 0, 128)), "navy");
-        assert_eq!(super::color(crate::model::Rgba::rgb(1, 2, 3)), "#010203");
-        assert_eq!(super::color(crate::model::Rgba::TRANSPARENT), "none");
+        assert_eq!(
+            super::color(&[], crate::model::Rgba::rgb(0, 0, 128)),
+            "navy"
+        );
+        assert_eq!(
+            super::color(&[], crate::model::Rgba::rgb(1, 2, 3)),
+            "#010203"
+        );
+        assert_eq!(super::color(&[], crate::model::Rgba::TRANSPARENT), "none");
     }
 
     /// Every Gallery model's diagram reads back without a warning about the

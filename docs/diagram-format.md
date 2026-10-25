@@ -493,7 +493,7 @@ line E#2 to R5 kind catalyst
 - `via` lists the line's corner points in order from the modifier.
 - The look is the modifier properties of §6.2, from a `modifier` style or the
   line's own `{ … }`.
-- A modifier the model has (from its rate law or an interaction) but the diagram
+- A modifier the model has (from its rate law) but the diagram
   doesn't mention is drawn as a plain straight line from its first drawing.
 
 ## 11. What may be left out

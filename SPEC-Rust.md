@@ -348,6 +348,12 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 16: named colors (docs/diagram-format.md §5.1).** A top-level
+`"colorNames"`, after `modifierLines`: a list of `{"name": "gold", "value":
+"#FFD54F"}`, the colors a diagram read from Antimony named with `color gold =
+#FFD54F`, in the order they were defined, so the diagram written back uses the
+names. Left out when there are none. A document with named colors is version 16.
+
 **Version 15: corner points on reactant and product lines (S §5.6.5).** A
 reactant or product object may have `"points"`: `[x1, y1, x2, y2, …]`, the line's
 corner points in order from the species, as a modifier object has (version 11);

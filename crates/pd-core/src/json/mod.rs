@@ -21,8 +21,12 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought corner points on reactant and product lines (S §5.6.5).
-pub const FORMAT_VERSION: u32 = 15;
+/// one that brought the diagram's named colors (docs/diagram-format.md §5.1).
+pub const FORMAT_VERSION: u32 = 16;
+
+/// The version that brought corner points on reactant and product lines
+/// (S §5.6.5).
+pub const LEG_CORNERS_VERSION: u32 = 15;
 
 /// The version that brought bold and italic names (S §5.11.1).
 pub const NAME_FONT_VERSION: u32 = 14;
@@ -63,7 +67,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 15 if a reactant's or product's line has corner points
+/// (SPEC-Rust §4.2): 16 if the diagram names colors (from a diagram's
+/// `color gold = #FFD54F`), 15 if a reactant's or product's line has corner points
 /// (S §5.6.5), 14 if a name is bold or italic (S §5.11.1), 13 if its
 /// modifier lines are hidden (S §7.6), 12 if a
 /// modifier line has its own look (S §5.7.2),
@@ -101,8 +106,10 @@ pub fn needed_version(model: &Model) -> u32 {
             .chain(&r.products)
             .any(|p| !p.points.is_empty())
     });
-    if leg_corners {
+    if !model.color_names.is_empty() {
         FORMAT_VERSION
+    } else if leg_corners {
+        LEG_CORNERS_VERSION
     } else if name_fonts {
         NAME_FONT_VERSION
     } else if model.hide_modifier_lines {
@@ -279,6 +286,18 @@ struct FileModel {
     /// (S §7.6). Left out when they are shown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     modifier_lines: Option<bool>,
+    /// Version 16: the diagram's named colors, in the order they were
+    /// defined (docs/diagram-format.md §5.1). Left out when there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    color_names: Vec<FileColorName>,
+}
+
+/// A named color (version 16).
+#[derive(Serialize, Deserialize)]
+struct FileColorName {
+    name: String,
+    #[serde(with = "colour")]
+    value: Rgba,
 }
 
 /// A list of saved styles on its own.
@@ -871,6 +890,11 @@ impl FileModel {
         link_styles(&mut model, &mut warnings);
         model.background = self.background;
         model.hide_modifier_lines = self.modifier_lines == Some(false);
+        model.color_names = self
+            .color_names
+            .into_iter()
+            .map(|c| (c.name, c.value))
+            .collect();
 
         model.recompute_id_counter();
         Loaded {
@@ -1232,6 +1256,14 @@ impl FileModel {
             theme: m.theme.map(|t| t.key().to_owned()),
             background: m.background,
             modifier_lines: m.hide_modifier_lines.then_some(false),
+            color_names: m
+                .color_names
+                .iter()
+                .map(|(name, value)| FileColorName {
+                    name: name.clone(),
+                    value: *value,
+                })
+                .collect(),
         }
     }
 }
@@ -1410,6 +1442,21 @@ fn style_to_file(s: &VisualStyle) -> FileStyle {
 mod tests {
     use super::*;
     use crate::geometry::Pt;
+
+    #[test]
+    fn named_colors_are_kept_in_version_16() {
+        let mut m = Model::default();
+        assert!(needed_version(&m) < FORMAT_VERSION);
+        assert!(!to_json(&m).contains("colorNames"));
+        m.color_names = vec![
+            ("gold".into(), Rgba::rgb(0xFF, 0xD5, 0x4F)),
+            ("blue".into(), Rgba::rgb(0x15, 0x65, 0xC0)),
+        ];
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let text = to_json(&m);
+        assert!(text.contains("\"colorNames\""), "{text}");
+        assert_eq!(from_json(&text).unwrap().model.color_names, m.color_names);
+    }
 
     #[test]
     fn version_1_participants_are_bare_ids() {
