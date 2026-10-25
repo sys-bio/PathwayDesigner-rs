@@ -8,10 +8,10 @@ Either way, the drawing can be saved with the model, as Antimony or as SBML.
 
 - [Getting started](getting-started.md)
 - [Antimony](antimony.md): writing a model in the Antimony tab
+- [The diagram language](diagram-language.md): how the drawing is written down
 
 Still to come:
 
-- The diagram language: how the drawing is written down
 - Drawing species and reactions
 - Selecting, moving and arranging
 - Styles and themes

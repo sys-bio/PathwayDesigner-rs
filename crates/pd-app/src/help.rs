@@ -30,6 +30,11 @@ const PAGES: &[Page] = &[
         title: "Antimony",
         text: include_str!("../../../help/antimony.md"),
     },
+    Page {
+        file: "diagram-language.md",
+        title: "The diagram language",
+        text: include_str!("../../../help/diagram-language.md"),
+    },
 ];
 
 pub struct Help {
@@ -118,14 +123,15 @@ impl Help {
 mod tests {
     use super::*;
 
-    /// Every link to a `.md` file in a page names a page that exists.
+    /// Every link to a `.md` file in a page names a page that exists (web
+    /// addresses aside).
     #[test]
     fn links_name_pages() {
         for page in PAGES {
             for (n, _) in page.text.match_indices("](") {
                 let rest = &page.text[n + 2..];
                 let target = &rest[..rest.find(')').unwrap()];
-                if target.ends_with(".md") {
+                if target.ends_with(".md") && !target.contains("://") {
                     assert!(
                         PAGES.iter().any(|p| p.file == target),
                         "{} links to {target}",
