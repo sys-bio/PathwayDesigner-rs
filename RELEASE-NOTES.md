@@ -4,6 +4,25 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.24 (2026-10-25)
+
+**New**
+
+- **Defaults in the diagram format.** A diagram can state its defaults, kind by
+  kind (`defaults species { fill #EEF6FF; … }`), and PathwayDesigner always
+  writes them, so a file that gives little more than positions looks the same
+  in any program that reads the format. A file's own defaults reach every item
+  of their kind that doesn't say otherwise.
+- **The Antimony panel** has *Diagram* and *Layout statements* beside *Load* and
+  *Get*: Get Antimony writes the model with the drawing as a diagram, as
+  Antimony's layout statements, both or neither.
+
+**Changed**
+
+- File ▸ Export Antimony with Layout Statements is a menu item of its own, in
+  place of the checkbox in the File menu.
+- Antimony export declares species four to a line.
+
 ## 0.1.23 (2026-10-25)
 
 **New**
