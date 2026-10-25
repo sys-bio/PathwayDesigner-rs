@@ -58,7 +58,7 @@ Delphi version does, and some more (see [Status](#status)).
 - **Modifiers** (drawn as dashed arcs, found from the rate law), and **null
   nodes** for sources and sinks. A modifier can be an **activator** (open
   arrowhead), **inhibitor** (blunt bar) or **catalyst** (open circle), carried to
-  and from SBML and Antimony (`-o`, `-|`). Modifier lines, and reactants' and
+  and from SBML (as SBO terms) and Antimony (in the diagram comment). Modifier lines, and reactants' and
   products' lines, can be routed round the diagram through **corner points**,
   carried in SBML Layout as curves of several segments.
 - **Compartments**, drawn as boxes you can move and resize; species move with

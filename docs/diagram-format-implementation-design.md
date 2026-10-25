@@ -101,8 +101,8 @@ The canonical form of format §12, from the model:
 - **Aliases** numbered `#2`, `#3`, … in the order of `aliases_of`.
 - **Legs:** only for participants with hand-set handles (`ctrl_pts_set`) or corner
   points.
-- **Modifier lines:** each written with its kind (unless the model's interactions
-  state it), its corner points and its look where it isn't the default.
+- **Modifier lines:** each written with its kind, its corner points and its look
+  where it isn't the default. Antimony's interaction lines are never written.
 
 ## 5. Gaps found between the format and the app
 

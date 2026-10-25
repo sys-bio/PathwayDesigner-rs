@@ -625,24 +625,9 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
             )
         })
         .collect();
-    // Activators and inhibitors (S §5.7.1), through aliases to the species.
-    let mut interactions: Vec<String> = Vec::new();
-    for r in model.reactions() {
-        for m in &r.modifiers {
-            let arrow = match m.kind {
-                ModifierKind::Activator => "-o",
-                ModifierKind::Inhibitor => "-|",
-                ModifierKind::Modifier | ModifierKind::Catalyst => continue,
-            };
-            let Some(node) = model.find_species(&m.species) else {
-                continue;
-            };
-            let line = format!("{} {arrow} {};", node.primary_id(), r.id);
-            if !interactions.contains(&line) {
-                interactions.push(line);
-            }
-        }
-    }
+    // Activators and inhibitors are not written as Antimony's interactions
+    // (`X -| J1`): people don't write them and libAntimony is fussy about
+    // them. Their kind goes in the diagram comment instead (`kind inhibitor`).
     let parameters: Vec<String> = model
         .parameters
         .iter()
@@ -664,7 +649,6 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         ("Compartments", compartments),
         ("Species", species),
         ("Reactions", reactions),
-        ("Interactions", interactions),
         ("Parameters", parameters),
         ("Initial values", initial),
         ("Assignment rules", rules),
@@ -1261,28 +1245,23 @@ mod tests {
             !w.iter()
                 .any(|w| w.contains("Interactions aren't supported"))
         );
-        // Written back, and read back the same.
+        // Not written back as interactions: X's kind goes in the diagram,
+        // and comes back from it. Y, named in no rate law, has no place in
+        // the Antimony text.
         let text = export(m);
+        assert!(!text.contains("-|") && !text.contains("-o"), "{text}");
+        assert!(!text.contains("Interactions"), "{text}");
+        let with_diagram = export_with_diagram(m);
         assert!(
-            text.contains("  // Interactions\n  X -| J1;\n  Y -o J2;\n"),
-            "{text}"
+            with_diagram.contains("line X to J1 kind inhibitor"),
+            "{with_diagram}"
         );
-        // A species and its alias inhibiting the same reaction: one line.
-        let mut m2 = m.clone();
-        let x2 = m2.add_alias("X", pt(0.0, 50.0)).unwrap();
-        let mut p = Participant::new(&x2, 1.0);
-        p.kind = K::Inhibitor;
-        m2.find_reaction_mut("J1").unwrap().modifiers.push(p);
-        assert_eq!(export(&m2).matches("X -| J1;").count(), 1);
-        let again = import(&text, &OFF).unwrap().model;
+        let again = import(&with_diagram, &OFF).unwrap().model;
         assert_eq!(
             again.find_reaction("J1").unwrap().modifiers[0].kind,
             K::Inhibitor
         );
-        assert_eq!(
-            again.find_reaction("J2").unwrap().modifiers[0].kind,
-            K::Activator
-        );
+        assert!(again.find_reaction("J2").unwrap().modifiers.is_empty());
     }
 
     #[test]

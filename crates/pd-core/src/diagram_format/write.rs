@@ -506,11 +506,10 @@ impl<'m> Writer<'m> {
         out
     }
 
-    /// A `line` for each modifier whose line isn't plain: a kind the model
-    /// doesn't state, a second drawing, corner points or a look of its own.
-    /// Only modifiers the Antimony text keeps: named in the rate law (and not
-    /// also a reactant or product, which the import never makes a modifier),
-    /// or an activator or inhibitor (written as interactions).
+    /// A `line` for each modifier whose line isn't plain: a kind other than
+    /// a plain modifier, a second drawing, corner points or a look of its own.
+    /// Only modifiers the Antimony text keeps: named in the rate law, and not
+    /// also a reactant or product (which the import never makes a modifier).
     fn modifier_lines(&self, r: &Reaction) -> Vec<String> {
         let names = law_names(&r.kinetic_law);
         let mut out = Vec::new();
@@ -519,16 +518,20 @@ impl<'m> Writer<'m> {
                 continue;
             };
             let primary = node.primary_id();
-            let stated = matches!(m.kind, ModifierKind::Activator | ModifierKind::Inhibitor);
             let participant = r.reactants.iter().chain(&r.products).any(|p| {
                 self.model
                     .find_species(&p.species)
                     .is_some_and(|s| s.primary_id() == primary)
             });
-            if !stated && (participant || !names.iter().any(|n| n == primary)) {
+            if participant || !names.iter().any(|n| n == primary) {
                 continue;
             }
-            let kind = (m.kind == ModifierKind::Catalyst).then_some("catalyst");
+            let kind = match m.kind {
+                ModifierKind::Modifier => None,
+                ModifierKind::Activator => Some("activator"),
+                ModifierKind::Inhibitor => Some("inhibitor"),
+                ModifierKind::Catalyst => Some("catalyst"),
+            };
             if kind.is_none() && !node.is_alias() && m.points.is_empty() && m.look.is_default() {
                 continue;
             }
@@ -1294,7 +1297,7 @@ out at (100, 300)",
     fn modifier_lines_only_where_they_say_something_the_text_keeps() {
         let text = "model m
   species $Glc, G6P, $E, $C, $A
-  hk: Glc -> G6P; E*C*k*Glc
+  hk: Glc -> G6P; E*C*A*k*Glc
   A -o hk
   k = 1
 end
@@ -1306,8 +1309,10 @@ end */";
         let out = export_with_diagram(&m);
         assert!(out.contains("line E to hk via (1, 2)"), "{out}");
         assert!(out.contains("line C to hk kind catalyst"), "{out}");
-        // The activator's kind is in the model (`A -o hk`), so no line.
-        assert!(!out.contains("line A"), "{out}");
+        // The model's own interaction is read, but the kind is written in
+        // the diagram, not as an interaction.
+        assert!(out.contains("line A to hk kind activator"), "{out}");
+        assert!(!out.contains("-o"), "{out}");
         // A modifier that is also a reactant can't come back through
         // Antimony, so its line isn't written.
         let hk = m.find_reaction_mut("hk").unwrap();

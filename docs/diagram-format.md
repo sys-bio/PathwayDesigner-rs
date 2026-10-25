@@ -486,11 +486,10 @@ line E#2 to R5 kind catalyst
 `line <drawing> to <reaction> [via <point> …] [kind <kind>] [style <name>, …] [{ … }]`.
 
 - **The kind** is `modifier` (the default), `activator`, `inhibitor` or
-  `catalyst`. Most models name a modifier only in the rate law, so the diagram
-  is where its kind is said. A model may instead use Antimony's interactions,
-  `X -o J1` (activator) and `X -| J1` (inhibitor); then the line needs no
-  `kind`, and if it gives one that disagrees, the model's wins, with a warning
-  (§13). A writer gives the kind here unless the model already states it.
+  `catalyst`. Models name a modifier only in the rate law, so the diagram is
+  where its kind is said, and a writer always gives it here. (If a model being
+  read states a kind itself, as some converters from SBML do, that kind is used,
+  with a warning if the line disagrees, §13.)
 - `via` lists the line's corner points in order from the modifier.
 - The look is the modifier properties of §6.2, from a `modifier` style or the
   line's own `{ … }`.
@@ -560,8 +559,8 @@ warning with a line and column.
   defined: that property is skipped.
 - A color constant defined twice: the first definition is used.
 - A newer `v` number: read as far as understood, with one warning.
-- A modifier line whose `kind` disagrees with the model's interaction
-  (`X -o J1`, `X -| J1`): the model's kind is used.
+- A modifier line whose `kind` disagrees with a kind the model itself states:
+  the model's kind is used.
 
 ## 14. Mapping to the app and to SBML Layout and Render
 

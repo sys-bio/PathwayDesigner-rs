@@ -526,9 +526,9 @@ symbol at the junction end:
 | Kind | Symbol at the end | SBML layout role | SBO term | Antimony |
 |---|---|---|---|---|
 | Modifier (default) | filled dot, radius 4 (as above) | `modifier` | none written; SBO:0000019 read | (none) |
-| Activator | open arrowhead (12 long, 10 wide), tip 8 from the junction | `activator` | SBO:0000459 (stimulator) | `X -o J` |
-| Inhibitor | blunt bar across the line, 16 long, width 2.5, 8 from the junction | `inhibitor` | SBO:0000020 (inhibitor) | `X -| J` |
-| Catalyst | open circle, radius 5, centred 10 from the junction | `modifier` | SBO:0000013 (catalyst) | (none) |
+| Activator | open arrowhead (12 long, 10 wide), tip 8 from the junction | `activator` | SBO:0000459 (stimulator) | `kind activator` (diagram comment) |
+| Inhibitor | blunt bar across the line, 16 long, width 2.5, 8 from the junction | `inhibitor` | SBO:0000020 (inhibitor) | `kind inhibitor` (diagram comment) |
+| Catalyst | open circle, radius 5, centred 10 from the junction | `modifier` | SBO:0000013 (catalyst) | `kind catalyst` (diagram comment) |
 
 Each symbol lies on the arc's last piece and is turned to its direction; the
 dashed line stops at the symbol (the dot's or circle's centre side, the arrow's
@@ -600,9 +600,13 @@ coordinates on the modifier's participant, in order from the modifier.
   term, else Modifier; the curve's inner segment ends become the corner points
   (a curve of one segment has none; `CubicBezier` segments are read as straight
   pieces between their ends).
-- Antimony: `X -| J1` makes `X` an inhibitor of `J1`, `X -o J1` an activator
-  (adding `X` as a modifier if it isn't one). Export writes those lines for
-  inhibitors and activators.
+- Antimony: the kind is written in the diagram comment (`line X to J1 kind
+  inhibitor`, docs/diagram-format.md §10), never as an Antimony interaction
+  line, which people don't write and libAntimony reads only with a trailing
+  `;`. Import still reads interaction lines (libAntimony writes them when
+  converting SBML whose modifiers carry these SBO terms): `X -| J1` makes `X`
+  an inhibitor of `J1`, `X -o J1` an activator, adding `X` as a modifier if it
+  isn't one.
 
 **Steps (all done).** 1: kinds (model, drawing, JSON, the reaction's right-click
 menu, Reaction group). 2: kinds in SBML and Antimony. 3: corner points (drawing,
@@ -2278,10 +2282,8 @@ Sections are separated by blank lines and introduced by `// Section` comments.
    - An empty rate law is written as `v`.
    - The arrow is `->` for a reversible reaction and `=>` for an irreversible one
      *(Rust version; the reference always wrote `->`)*.
-3a. *(Rust version.)* `X -| <rid>;` for each inhibitor and `X -o <rid>;` for each
-   activator (§5.7.1), `X` the modifier's primary, in an `// Interactions`
-   section; one line for a species that modifies a reaction through several
-   aliases.
+3a. *(Rust version.)* No interaction lines: activators' and inhibitors' kinds
+   go in the diagram comment (§5.7.1).
 4. `k = <expression>;` for each parameter.
 5. `S = <initialValue>;` for each primary, non-null species.
 6. `x := <expression>;` for each assignment rule.
