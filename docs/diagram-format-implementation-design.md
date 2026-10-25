@@ -178,10 +178,13 @@ Everything else the app draws has a place in the format.
   can be written and replaces the theme's), and `emptySetSize`.
 - *Step 4:* the app. File ▸ Export Antimony writes the model and its diagram
   comment, and the notes on what it can't keep (a text's line breaks and double
-  quotes); *Also write layout statements*, a checkbox under it in the File menu
-  (for the session), adds Antimony's layout statements for tellurium and
+  quotes); File ▸ Export Antimony with Layout Statements (first a checkbox in
+  the File menu, replaced by a menu item at the author's request) adds Antimony's
+  layout statements for tellurium and
   SBMLNetwork (`antimony::export_with_diagram_and_layout`; libAntimony 3.2.1 reads
-  both forms). The panel's *With layout* writes the diagram comment too. A text
+  both forms). The panel's *Diagram* (first *With layout*) writes the diagram
+  comment, and *Layout statements* beside it, asked for by the author, adds the
+  statements. A text
   with both is drawn from the diagram, quietly (the format says so, §3). D5:
   species a diagram leaves out are laid out as it is read, inside
   `read::apply`, between placing and the theme: the placed ones are locked for the

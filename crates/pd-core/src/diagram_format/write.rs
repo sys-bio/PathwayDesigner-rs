@@ -37,11 +37,17 @@ pub fn write(model: &Model, name: &str) -> String {
     if model.theme == Some(crate::themes::Theme::Escher) {
         line("theme escher".into());
     }
-    if !model.background.is_default() {
-        line(format!("background {}", color(model.background)));
-    }
+    // The background and the defaults are always written, so the file says
+    // how it looks whatever a reader's own defaults are (format §6.5).
+    line(format!(
+        "background {}",
+        color(draw::background_colour(model))
+    ));
     if model.hide_modifier_lines {
         line("modifierLines hidden".into());
+    }
+    for d in DEFAULTS {
+        line(d.into());
     }
     // 2. Styles some written item follows, by kind and name.
     for (kind, s) in &w.used_styles {
@@ -86,6 +92,16 @@ pub fn write(model: &Model, name: &str) -> String {
     out.push_str("end */\n");
     out
 }
+
+/// The format's built-in defaults (format §6.5), which are also
+/// PathwayDesigner's, written at the top of every diagram.
+pub const DEFAULTS: [&str; 5] = [
+    "defaults species { shape roundedRect; size 80 x 36; fill #EEF6FF; border #4A7FCB 1.5; idColor #1A1A1A; idSize 12 }",
+    "defaults reaction { line #444444 1.5; junction #FF8800; idColor #1A1A1A; idSize 12 }",
+    "defaults compartment { fill #F0F6EA; border #7FA36B 2; idSize 12 }",
+    "defaults text { size 14; font sans; color #1A1A1A }",
+    "defaults modifier { line #007777 1.5 dashed }",
+];
 
 struct Writer<'m> {
     model: &'m Model,
@@ -605,7 +621,7 @@ fn reference(model: &Model, replacing: &[(StyleKind, String, Look)]) -> Model {
 }
 
 /// `base` with the fields `style` gives (those not "use the default").
-fn overlay(base: VisualStyle, style: VisualStyle) -> VisualStyle {
+pub(super) fn overlay(base: VisualStyle, style: VisualStyle) -> VisualStyle {
     if !style.has_custom_style {
         return VisualStyle {
             junction_visible: if style.junction_visible {
@@ -1048,6 +1064,12 @@ out at (100, 300) sink (200, 300) { emptySetSize 18 }",
         assert_eq!(
             d,
             "/* diagram m v1
+  background #F8F9FA
+  defaults species { shape roundedRect; size 80 x 36; fill #EEF6FF; border #4A7FCB 1.5; idColor #1A1A1A; idSize 12 }
+  defaults reaction { line #444444 1.5; junction #FF8800; idColor #1A1A1A; idSize 12 }
+  defaults compartment { fill #F0F6EA; border #7FA36B 2; idSize 12 }
+  defaults text { size 14; font sans; color #1A1A1A }
+  defaults modifier { line #007777 1.5 dashed }
   style metabolite { shape circle; size 24; fill #FFD54F; id outside }
   style flux reaction { line navy 2.5 }
   Glc at (100, 50) style metabolite { id right }

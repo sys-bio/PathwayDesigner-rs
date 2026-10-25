@@ -45,6 +45,7 @@ pub fn apply(model: &mut Model, d: &Diagram, seed: u64, warnings: &mut Vec<Diagn
         constants: Constants::default(),
         styles: HashMap::new(),
         drawings: HashMap::new(),
+        defaults: HashMap::new(),
     };
     r.header(model, d);
     r.diagram_level(model, d);
@@ -123,6 +124,8 @@ pub fn apply(model: &mut Model, d: &Diagram, seed: u64, warnings: &mut Vec<Diagn
         }
         place_junctions_and_empty_sets(model, &with_junction, &nulls);
     }
+    let mut pending = Vec::new();
+    r.defaults(model, d, &mut pending);
     let theme = d.statements.iter().find_map(|s| match &s.kind {
         StatementKind::Theme(t) => Some((s.pos, t.clone())),
         _ => None,
@@ -149,7 +152,6 @@ pub fn apply(model: &mut Model, d: &Diagram, seed: u64, warnings: &mut Vec<Diagn
         .filter_map(|(kind, name)| r.saved_look(kind, &name).map(|look| (kind, name, look)))
         .collect();
     replace_theme_styles(model, &defs);
-    let mut pending = Vec::new();
     let mut texts = texts.into_iter();
     for s in &d.statements {
         match &s.kind {
@@ -286,6 +288,9 @@ struct Reader<'w> {
     styles: HashMap<(String, String), StyleDef>,
     /// `(species, copy)` to its node's id, for copies 2 and up.
     drawings: HashMap<(String, u32), String>,
+    /// The file's defaults by kind, where they differ from the format's: what
+    /// a style's look starts from.
+    defaults: HashMap<String, Edit>,
 }
 
 /// The settings an item's styles and its own braces give, before they are
@@ -403,6 +408,10 @@ impl Reader<'_> {
         for s in &d.statements {
             match &s.kind {
                 StatementKind::Background(c) => match self.color(c) {
+                    // The format's default background is the app's default.
+                    Some(c) if c == crate::render::constants::BACKGROUND => {
+                        model.background = Rgba::DEFAULT
+                    }
                     Some(c) => model.background = c,
                     None => self.warn(s.pos, "the background isn't a color"),
                 },
@@ -465,6 +474,200 @@ impl Reader<'_> {
             let n = model.aliases_of(&dr.id).count() as f64 + 1.0;
             if let Some(id) = model.add_alias(&dr.id, center + ALIAS_OFFSET * n) {
                 self.drawings.insert((dr.id.clone(), dr.copy), id);
+            }
+        }
+    }
+
+    /// A file's defaults (format §6.5): what a property is, for every item of
+    /// a kind, where nothing else gives it. Values the same as the format's
+    /// built-in ones change nothing; others are put on every item of the
+    /// kind, before the theme, its styles and its own settings.
+    fn defaults(&mut self, model: &mut Model, d: &Diagram, pending: &mut Vec<Pending>) {
+        use crate::render::constants::*;
+        for s in &d.statements {
+            let StatementKind::Defaults { kind, props } = &s.kind else {
+                continue;
+            };
+            let kind = kind.as_str();
+            if !["species", "reaction", "compartment", "text", "modifier"].contains(&kind) {
+                self.warn(
+                    s.pos,
+                    format!("'{kind}' isn't a kind of item; the defaults are skipped"),
+                );
+                continue;
+            }
+            let mut e = self.edit(kind, Edit::of_style(VisualStyle::default()), &[], props);
+            let st = &mut e.style;
+            let same = |v: Rgba, built_in: Rgba| v == built_in;
+            match kind {
+                "species" => {
+                    if same(st.fill_color, SPECIES_FILL) {
+                        st.fill_color = Rgba::DEFAULT;
+                    }
+                    if same(st.border_color, SPECIES_BORDER) {
+                        st.border_color = Rgba::DEFAULT;
+                    }
+                    if st.border_width == DEFAULT_LINE_WIDTH {
+                        st.border_width = 0.0;
+                    }
+                }
+                "reaction" => {
+                    if same(st.line_color, REACTION_LINE) {
+                        st.line_color = Rgba::DEFAULT;
+                    }
+                    if st.line_width == DEFAULT_LINE_WIDTH {
+                        st.line_width = 0.0;
+                    }
+                    if same(st.junction_color, JUNCTION_FILL) {
+                        st.junction_color = Rgba::DEFAULT;
+                    }
+                }
+                "compartment" => {
+                    if same(st.fill_color, COMPARTMENT_FILL) {
+                        st.fill_color = Rgba::DEFAULT;
+                    }
+                    if same(st.border_color, COMPARTMENT_BORDER) {
+                        st.border_color = Rgba::DEFAULT;
+                    }
+                    if st.border_width == COMPARTMENT_BORDER_WIDTH {
+                        st.border_width = 0.0;
+                    }
+                    if st.font_size == COMPARTMENT_LABEL_SIZE {
+                        st.font_size = 0.0;
+                    }
+                }
+                _ => {}
+            }
+            if same(st.label_color, LABEL) {
+                st.label_color = Rgba::DEFAULT;
+            }
+            if kind != "compartment" && st.font_size == LABEL_FONT_SIZE {
+                st.font_size = 0.0;
+            }
+            st.has_custom_style = st.canonical()
+                != VisualStyle {
+                    junction_visible: st.junction_visible,
+                    no_border: st.no_border,
+                    ..VisualStyle::default()
+                }
+                .canonical();
+            if e.size
+                == Some((
+                    crate::model::DEFAULT_SPECIES_WIDTH,
+                    crate::model::DEFAULT_SPECIES_HEIGHT,
+                ))
+            {
+                e.size = None;
+            }
+            let t = &mut e.text;
+            if t.size == Some(crate::model::DEFAULT_TEXT_SIZE) {
+                t.size = None;
+            }
+            if t.color == Some(LABEL) {
+                t.color = None;
+            }
+            let m = &mut e.modifier;
+            if m.colour == Some(MODIFIER) {
+                m.colour = None;
+            }
+            if m.width == Some(DEFAULT_LINE_WIDTH) {
+                m.width = None;
+            }
+            let e = e;
+            self.defaults.insert(kind.to_owned(), e);
+            match kind {
+                "species" => {
+                    let ids: Vec<String> = model
+                        .species()
+                        .iter()
+                        .filter(|s| !s.is_null_node)
+                        .map(|s| s.id.clone())
+                        .collect();
+                    for id in ids {
+                        let s = model.find_species_mut(&id).expect("listed");
+                        s.style = super::write::overlay(s.style, e.style);
+                        if e.shape != NodeShape::default() {
+                            s.shape = e.shape;
+                        }
+                        if e.border_dash != BorderDash::default() {
+                            s.border_dash = e.border_dash;
+                        }
+                        if let Some((w, h)) = e.size {
+                            (s.width, s.height) = (w, h);
+                        }
+                        if s.shape == NodeShape::Circle && s.width != s.height {
+                            let d = s.width.max(s.height);
+                            (s.width, s.height) = (d, d);
+                        }
+                        if let Some(place) = e.id.filter(|p| *p != IdPlace::Inside) {
+                            pending.push(Pending::Species(id, place));
+                        }
+                    }
+                }
+                "reaction" => {
+                    let ids: Vec<String> = model.reactions().iter().map(|r| r.id.clone()).collect();
+                    for id in ids {
+                        let r = model.find_reaction_mut(&id).expect("listed");
+                        r.style = super::write::overlay(r.style, e.style);
+                        if let Some(place) = e.id.filter(|p| *p != IdPlace::Hidden) {
+                            pending.push(Pending::Reaction(id.clone(), place));
+                        }
+                        if let Some(size) =
+                            e.empty_set.filter(|d| *d != crate::model::NULL_NODE_SIZE)
+                        {
+                            for role in [Role::Reactant, Role::Product] {
+                                let nulls: Vec<String> = model
+                                    .find_reaction(&id)
+                                    .map(|r| {
+                                        r.participants(role)
+                                            .iter()
+                                            .map(|p| p.species.clone())
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+                                for n in nulls {
+                                    if let Some(n) =
+                                        model.find_species_mut(&n).filter(|n| n.is_null_node)
+                                    {
+                                        (n.width, n.height) = (size, size);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                "compartment" => {
+                    for c in &mut model.compartments {
+                        c.style = super::write::overlay(c.style, e.style);
+                    }
+                }
+                "text" => {
+                    let ids: Vec<String> = model.texts().iter().map(|t| t.id.clone()).collect();
+                    for id in ids {
+                        let t = model.find_text_mut(&id).expect("listed");
+                        let te = e.text;
+                        t.size = te.size.unwrap_or(t.size);
+                        t.font.typeface = te.typeface.unwrap_or(t.font.typeface);
+                        t.font.bold = te.bold.unwrap_or(t.font.bold);
+                        t.font.italic = te.italic.unwrap_or(t.font.italic);
+                        t.align = te.align.unwrap_or(t.align);
+                        t.color = te.color.unwrap_or(t.color);
+                        t.wrap_width = te.wrap.unwrap_or(t.wrap_width);
+                    }
+                }
+                _ => {
+                    for r in model.reactions_mut() {
+                        for p in &mut r.modifiers {
+                            p.look.colour = e.modifier.colour.or(p.look.colour);
+                            p.look.width = e.modifier.width.or(p.look.width);
+                            if e.modifier.pattern != LinePattern::default() {
+                                p.look.pattern = e.modifier.pattern;
+                            }
+                            p.look.symbol_size = e.modifier.symbol_size.or(p.look.symbol_size);
+                            p.look.symbol_gap = e.modifier.symbol_gap.or(p.look.symbol_gap);
+                        }
+                    }
+                }
             }
         }
     }
@@ -895,8 +1098,14 @@ impl Reader<'_> {
         }
         self.check_clauses("a modifier's line", clauses, &["via", "kind", "style"]);
         let names = self.named_styles("modifier", clauses);
+        // From the line's look so far: the file's modifier defaults.
+        let current = model
+            .find_reaction(reaction)
+            .and_then(|r| r.modifiers.iter().find(|p| p.species == node))
+            .map(|p| p.look)
+            .unwrap_or_default();
         let start = Edit {
-            modifier: ModifierLook::default(),
+            modifier: current,
             ..Edit::of_style(VisualStyle::default())
         };
         let e = self.edit("modifier", start, &names, props);
@@ -1154,7 +1363,14 @@ impl Reader<'_> {
         let key = (kind.key().to_owned(), name.to_owned());
         let def = self.styles.get(&key)?;
         let (k, props) = (def.kind.clone(), def.props.clone());
-        let mut e = Edit::of_style(VisualStyle::default());
+        // Over the file's defaults: `style big { size 60 }` under
+        // `defaults species { fill red }` is red and big.
+        let mut e = self
+            .defaults
+            .get(&k)
+            .copied()
+            .unwrap_or_else(|| Edit::of_style(VisualStyle::default()));
+        e.id = None;
         let warnings = std::mem::take(self.warnings);
         for p in &props {
             self.property(&k, &mut e, p);
@@ -1669,6 +1885,91 @@ ADP style cofactor { id inside }",
         assert_eq!(atp.label_offset, Some(pt(30.0, -5.0)));
         // Whether the id is outside is part of the look.
         assert_eq!(m.find_species("ADP").unwrap().style_name, None);
+    }
+
+    #[test]
+    fn defaults_reach_every_item_of_their_kind_and_give_way_to_the_rest() {
+        let m = clean(
+            "defaults species { fill red; size 30 x 20; idColor navy }
+defaults reaction { line green 3; junction hidden }
+defaults compartment { fill none }
+defaults text { size 20; italic }
+defaults modifier { line purple 2 solid }
+style big { size 60 x 40 }
+text \"Note\" at (0, 0)
+Glc at (0, 0) style big
+G6P at (100, 0) { fill blue }
+line E to hk via (1, 2)",
+        );
+        let atp = m.find_species("ATP").unwrap();
+        assert_eq!(
+            (atp.style.fill_color, atp.width, atp.height),
+            (Rgba::rgb(255, 0, 0), 30.0, 20.0)
+        );
+        assert_eq!(atp.style.label_color, Rgba::rgb(0, 0, 128));
+        // A style, or an item's own setting, comes before the defaults.
+        let glc = m.find_species("Glc").unwrap();
+        assert_eq!(
+            (glc.width, glc.style.fill_color),
+            (60.0, Rgba::rgb(255, 0, 0))
+        );
+        assert_eq!(glc.style_name.as_deref(), Some("big"));
+        assert_eq!(
+            m.find_species("G6P").unwrap().style.fill_color,
+            Rgba::rgb(0, 0, 255)
+        );
+        let hk = m.find_reaction("hk").unwrap();
+        assert_eq!(
+            (hk.style.line_color, hk.style.line_width),
+            (Rgba::rgb(0, 128, 0), 3.0)
+        );
+        assert!(!hk.style.junction_visible);
+        assert!(
+            m.find_compartment("cell")
+                .unwrap()
+                .style
+                .fill_color
+                .is_transparent()
+        );
+        let t = &m.texts()[0];
+        assert!(t.size == 20.0 && t.font.italic);
+        let e = hk.modifiers.iter().find(|p| p.species == "E").unwrap();
+        assert_eq!(
+            (e.look.colour, e.look.width),
+            (Some(Rgba::rgb(128, 0, 128)), Some(2.0))
+        );
+        assert_eq!(e.look.pattern, crate::model::LinePattern::Solid);
+        // Ids too: every species' below its node.
+        let m = clean(
+            "defaults species { id below }
+Glc at (0, 0)",
+        );
+        let glc = m.find_species("Glc").unwrap();
+        assert_eq!(
+            glc.label_offset,
+            Some(crate::render::draw::label_offset_on_side(glc, pt(0.0, 1.0)))
+        );
+        // The format's own defaults change nothing: the diagram is as without
+        // them.
+        let plain = clean("Glc at (0, 0)");
+        let with = clean(&format!(
+            "{}\nbackground #F8F9FA\nGlc at (0, 0)",
+            crate::diagram_format::write::DEFAULTS.join("\n")
+        ));
+        assert_eq!(crate::json::to_json(&plain), crate::json::to_json(&with));
+        // A theme comes before the defaults too.
+        let m = clean("theme escher\ndefaults species { fill red }");
+        assert_ne!(
+            m.find_species("Glc").unwrap().style.fill_color,
+            Rgba::rgb(255, 0, 0)
+        );
+        // A kind the format doesn't have.
+        let i = read("defaults planet { fill red }");
+        assert!(
+            messages(&i)[0].contains("'planet' isn't a kind"),
+            "{:?}",
+            i.warnings
+        );
     }
 
     #[test]

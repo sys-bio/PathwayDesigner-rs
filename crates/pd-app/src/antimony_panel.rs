@@ -44,8 +44,10 @@ pub struct AntimonyPanel {
     last_import: Option<String>,
     /// Put the cursor at this (line, column) on the next frame.
     jump: Option<(usize, usize)>,
-    /// Get Antimony writes the drawing too, as layout statements.
+    /// Get Antimony writes the drawing too, as a diagram comment.
     with_layout: bool,
+    /// Get Antimony writes the drawing as Antimony's layout statements too.
+    with_statements: bool,
 }
 
 impl AntimonyPanel {
@@ -128,18 +130,22 @@ impl AntimonyPanel {
                 .on_hover_text("Replace the text with the diagram, written as Antimony")
                 .clicked()
             {
-                self.text = if self.with_layout {
-                    view.export_antimony_with_diagram(false).0
-                } else {
-                    view.export_antimony()
+                self.text = match (self.with_layout, self.with_statements) {
+                    (true, statements) => view.export_antimony_with_diagram(statements).0,
+                    (false, true) => view.export_antimony_with_layout().0,
+                    (false, false) => view.export_antimony(),
                 };
                 self.errors.clear();
                 self.warnings.clear();
                 self.imported = None;
             }
-            ui.checkbox(&mut self.with_layout, "With layout")
+            ui.checkbox(&mut self.with_layout, "Diagram").on_hover_text(
+                "Get Antimony writes the drawing too, as a diagram comment after the model",
+            );
+            ui.checkbox(&mut self.with_statements, "Layout statements")
                 .on_hover_text(
-                    "Get Antimony writes the drawing too, as a diagram comment after the model",
+                    "Get Antimony writes the drawing as Antimony's own layout statements too, \
+                     for tellurium and SBMLNetwork",
                 );
         });
 

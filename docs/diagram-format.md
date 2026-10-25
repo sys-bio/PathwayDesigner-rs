@@ -30,7 +30,10 @@ so the theme's styles, and the app's styles with spaces in their names, can be
 named (§4, §6.1); a reaction's empty sets have a size, `emptySetSize` (§6.2);
 texts are written in the order they are drawn, not reading order, since a
 later one covers an earlier (§8, §12); numbers are written to three decimal
-places, so a position from automatic layout reads `81.031` (§12).
+places, so a position from automatic layout reads `81.031` (§12); the defaults
+are the format's, not any one tool's, and a file can state them, `defaults
+species { … }`, which a writer always does, so it looks the same in every reader
+(§6.5).
 Working name: *Antimony diagram*.
 
 ## Contents
@@ -307,8 +310,10 @@ otherwise in `#3D5C2B`; it has no color of its own.
 | `symbol` | size | the kind's (dot 8, circle 10, arrow 12, bar 16) |
 | `distance` | number | the kind's (6, 5, 8, 8) |
 
-The defaults are the app's (SPECIFICATION.md §5, §8). A property not listed is
-an error in a style, but kept (§13).
+These defaults are the format's own: a reader draws a property a file doesn't
+give with the value in these tables, whatever its own defaults are. (They are
+also PathwayDesigner's, SPECIFICATION.md §5, §8.) A file can state them itself
+(§6.5). A property not listed is an error in a style, but kept (§13).
 
 **How each look is drawn.** The format names looks; it doesn't draw them. What
 a reader must draw for each is defined in SPECIFICATION.md, so that two
@@ -326,7 +331,8 @@ For each property, the first of these that gives it wins:
 1. the item's own `{ … }` settings;
 2. its styles, the last one first;
 3. the diagram's `theme` (§6.4);
-4. the built-in defaults.
+4. the file's `defaults` (§6.5);
+5. the format's defaults, in the tables of §6.2.
 
 This is the app's current behaviour, written down: a saved style is a style
 given by name, a theme is §6.4, and an item's own look is its `{ … }`.
@@ -345,6 +351,31 @@ style the file defines with the same name replaces the theme's. Only the first
 `modifierLines hidden` draws no modifier lines anywhere in the diagram (they stay
 in the file, with their routes and looks, and show again without it); the
 default is `modifierLines shown`.
+
+### 6.5 Defaults
+
+```
+defaults species { shape roundedRect; size 80 x 36; fill #EEF6FF; border #4A7FCB 1.5; idColor #1A1A1A; idSize 12 }
+defaults reaction { line #444444 1.5; junction #FF8800; idColor #1A1A1A; idSize 12 }
+defaults compartment { fill #F0F6EA; border #7FA36B 2; idSize 12 }
+defaults text { size 14; font sans; color #1A1A1A }
+defaults modifier { line #007777 1.5 dashed }
+```
+
+`defaults <kind> { <property> <value>; … }` gives, for every item of that kind,
+what a property is where nothing else gives it: the item's own settings, its
+styles and the theme all come first (§6.3). It takes the properties of a style
+of that kind (§6.2). A file need not say anything here; a reader then uses the
+format's defaults of §6.2.
+
+Its purpose is that a file says how it looks without relying on any reader's
+own defaults: a writer always writes the five statements above, with the
+background, at the top of the diagram, so a file that gives only positions is
+drawn the same everywhere. They are the format's defaults, so reading them back
+changes nothing. A file may also set its own, which then reach every item of the
+kind: `defaults species { fill gold }` makes every species gold that doesn't
+say otherwise, and a style's look starts from the file's defaults, so
+`style big { size 60 }` under it is gold and big.
 
 ## 7. Species drawings
 
@@ -483,7 +514,8 @@ line E#2 to R5 kind catalyst
 A writer produces one canonical form, so that two tools writing the same diagram
 write the same text:
 
-1. `theme`, then `background`, then `modifierLines hidden` if so.
+1. `theme`, then `background` (always, as drawn), then `modifierLines hidden`
+   if so, then the five `defaults` statements (always).
 2. Color constants, in the order they were defined.
 3. Styles: species, reaction, compartment, text, modifier; each kind by name.
 4. Compartments, in the model's compartment order.
@@ -601,12 +633,13 @@ EBNF over tokens (§4). `NL` is a line break.
 ```
 file        = model-section { NL } [ "/*" diagram "*/" ] ;
 diagram     = "diagram" id "v" number NL { statement NL } "end" ;
-statement   = theme | background | mlines | colordef | style | compartment | text
+statement   = theme | background | mlines | defaults | colordef | style | compartment | text
             | species | reaction | leg | mline | (* empty *) ;
 
 theme       = "theme" id ;
 background  = "background" color ;
 mlines      = "modifierLines" ( "shown" | "hidden" ) ;
+defaults    = "defaults" kind block ;
 colordef    = "color" id "=" color ;
 style       = "style" name [ kind ] block ;
 kind        = "species" | "reaction" | "compartment" | "text" | "modifier" ;

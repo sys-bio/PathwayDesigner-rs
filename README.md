@@ -117,9 +117,9 @@ Delphi version does, and some more (see [Status](#status)).
   The drawing goes with it, in a readable diagram format written as a comment
   after the model ([docs/diagram-format.md](docs/diagram-format.md)), so any
   Antimony tool still reads the file: File ▸ Export Antimony writes it, and the
-  panel's Get Antimony does with *With layout* ticked. Ticking *Also write layout
-  statements* in the File menu adds Antimony 3's own layout statements, for
-  tellurium and SBMLNetwork. Import reads either, from PathwayDesigner or from
+  panel's Get Antimony does with *Diagram* ticked. File ▸ Export Antimony with
+  Layout Statements, or *Layout statements* in the panel, adds Antimony 3's own
+  layout statements, for tellurium and SBMLNetwork. Import reads either, from PathwayDesigner or from
   libAntimony, and lays out what a diagram leaves out.
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
   package, so positions, aliases, curves, reaction stems and reaction names survive

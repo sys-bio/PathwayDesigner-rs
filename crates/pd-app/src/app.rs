@@ -186,10 +186,6 @@ pub struct PathwayApp {
     pub(crate) warnings: Vec<String>,
     /// Problems and notes about an SBML file being saved, shown once it is.
     pub(crate) export_messages: Vec<String>,
-    /// File ▸ Export Antimony also writes Antimony's layout statements, for
-    /// tools that draw from those (docs/diagram-format-implementation-design.md
-    /// D4). For this session only.
-    pub(crate) antimony_layout_statements: bool,
     /// The graphics output options last used.
     pub(crate) export_settings: crate::export::ExportSettings,
     /// Recently used files (desktop).
@@ -269,7 +265,6 @@ impl PathwayApp {
             last_title: String::new(),
             warnings: Vec::new(),
             export_messages: Vec::new(),
-            antimony_layout_statements: false,
             export_settings: crate::export::ExportSettings::default(),
             #[cfg(not(target_arch = "wasm32"))]
             recent: crate::recent::Recent::load(cc.storage),
@@ -716,18 +711,20 @@ impl PathwayApp {
                     ui.close();
                 }
                 if item(ui, "Export Antimony…", None) {
-                    self.export_antimony();
+                    self.export_antimony(false);
                     ui.close();
                 }
-                ui.checkbox(
-                    &mut self.antimony_layout_statements,
-                    "Also write layout statements",
-                )
-                .on_hover_text(
-                    "Export Antimony writes the drawing as a diagram comment, which \
-                     PathwayDesigner reads; this adds Antimony's layout statements, \
-                     for tellurium and SBMLNetwork",
-                );
+                if ui
+                    .button("Export Antimony with Layout Statements…")
+                    .on_hover_text(
+                        "The drawing as a diagram comment, which PathwayDesigner reads, \
+                         and as Antimony's layout statements, for tellurium and SBMLNetwork",
+                    )
+                    .clicked()
+                {
+                    self.export_antimony(true);
+                    ui.close();
+                }
                 ui.separator();
                 if item(ui, "Import SBML…", None) {
                     self.files
@@ -3012,7 +3009,7 @@ k = 0.1"
         h.click(h.widget("Get Antimony"));
         h.run(vec![]);
         assert!(!h.app.antimony.text().contains("/* diagram"));
-        h.click(h.widget("With layout"));
+        h.click(h.widget("Diagram"));
         h.run(vec![]);
         h.click(h.widget("Get Antimony"));
         h.run(vec![]);
@@ -3022,6 +3019,25 @@ k = 0.1"
             "{text}"
         );
         assert!(!text.contains("model.layout"), "{text}");
+        // Antimony's own layout statements, alone or with the diagram.
+        h.click(h.widget("Layout statements"));
+        h.run(vec![]);
+        h.click(h.widget("Get Antimony"));
+        h.run(vec![]);
+        let text = h.app.antimony.text();
+        assert!(
+            text.contains("model.layout") && text.contains("/* diagram"),
+            "{text}"
+        );
+        h.click(h.widget("Diagram"));
+        h.run(vec![]);
+        h.click(h.widget("Get Antimony"));
+        h.run(vec![]);
+        let text = h.app.antimony.text();
+        assert!(
+            text.contains("model.layout") && !text.contains("/* diagram"),
+            "{text}"
+        );
     }
 
     #[test]
@@ -3036,7 +3052,7 @@ k = 0.1"
         m.add_text(pd_core::geometry::pt(0.0, 0.0), "two\nlines");
         h.app.view.set_model(m);
         // The drawing as a diagram comment, which keeps the name outside.
-        let (text, notes) = h.app.antimony_export();
+        let (text, notes) = h.app.antimony_export(false);
         assert!(
             text.contains("/* diagram") && text.contains("id offset (0, 30)"),
             "{text}"
@@ -3047,8 +3063,7 @@ k = 0.1"
             "{notes:?}"
         );
         // Asked for, Antimony's layout statements too, with what they lose.
-        h.app.antimony_layout_statements = true;
-        let (text, notes) = h.app.antimony_export();
+        let (text, notes) = h.app.antimony_export(true);
         assert!(
             text.contains("  // Layout\n") && text.contains("/* diagram"),
             "{text}"

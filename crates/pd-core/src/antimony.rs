@@ -547,6 +547,9 @@ fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)
     (std::borrow::Cow::Owned(m), renamed)
 }
 
+/// How many species an export declares on one line.
+const SPECIES_PER_LINE: usize = 4;
+
 fn write_model(model: &Model, layout: Vec<String>) -> String {
     let name = model_name(model);
     let compartments: Vec<String> = model
@@ -560,26 +563,30 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         .iter()
         .filter(|s| !s.is_alias() && !s.is_null_node)
         .collect();
-    let species: Vec<String> = primaries
+    // Four to a line (`species $Glc in cell, G6P in cell, …;`), in the
+    // model's order. `const` makes a species constant, and a boundary species
+    // with it, so only a constant boundary species is written so (S §11.3);
+    // since it is said once for a line, those go on lines of their own.
+    let declared: Vec<(bool, String)> = primaries
         .iter()
         .map(|s| {
-            // `const` makes a species constant, and a boundary species with it,
-            // so only a constant boundary species is written so (S §11.3).
-            let constant = if s.is_constant && s.is_boundary {
-                "const "
-            } else {
-                ""
-            };
             let boundary = if s.is_boundary { "$" } else { "" };
-            let mut line = format!("{constant}species {boundary}{}", s.id);
+            let mut one = format!("{boundary}{}", s.id);
             if !s.compartment.is_empty() && !s.compartment.eq_ignore_ascii_case(DEFAULT_COMPARTMENT)
             {
-                let _ = write!(line, " in {}", s.compartment);
+                let _ = write!(one, " in {}", s.compartment);
             }
-            line.push(';');
-            line
+            (s.is_constant && s.is_boundary, one)
         })
         .collect();
+    let mut species: Vec<String> = Vec::new();
+    for run in declared.chunk_by(|a, b| a.0 == b.0) {
+        let constant = if run[0].0 { "const " } else { "" };
+        for four in run.chunks(SPECIES_PER_LINE) {
+            let names: Vec<&str> = four.iter().map(|(_, n)| n.as_str()).collect();
+            species.push(format!("{constant}species {};", names.join(", ")));
+        }
+    }
     // `[n ]A + [n ]B`, through aliases to the species, null nodes left out.
     let side = |list: &[Participant]| {
         list.iter()
@@ -1124,7 +1131,7 @@ mod tests {
         for line in [
             "model model_",
             "compartment compartment_ = 1;",
-            "species time_ in compartment_;",
+            "species time_ in compartment_, S2 in compartment_;",
             "reaction_: time_ -> S2; pi_*time_*compartment_;",
             "pi_ = 3;",
             "max_ := 2*pi_*time_;",
@@ -1443,6 +1450,38 @@ mod tests {
     }
 
     #[test]
+    fn species_are_declared_four_to_a_line() {
+        let m = ok(
+            "species A, B, $C, D, E, F
+const species $K, $L
+species G
+J1: A + B + C + D + E + F + G + K + L -> ; v",
+            &OFF,
+        );
+        let text = export(&m);
+        assert!(
+            text.contains(
+                "  species A, B, $C, D;
+  species E, F;
+"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "  const species $K, $L;
+  species G;
+"
+            ),
+            "{text}"
+        );
+        // libAntimony's form, and ours: reading it back gives them all.
+        let back = ok(&text, &OFF);
+        assert_eq!(back.species().iter().filter(|s| !s.is_null_node).count(), 9);
+        assert!(back.find_species("K").unwrap().is_constant);
+    }
+
+    #[test]
     fn constant_species_go_through_const() {
         // `const` makes a species constant and boundary, as in libantimony; a
         // plain `$` only boundary.
@@ -1466,9 +1505,10 @@ A = 1",
             ),
             "{text}"
         );
+        // The others on a line of their own, `const` being said once a line.
         assert!(
             text.contains(
-                "  species $A;
+                "  species $A, B;
 "
             ),
             "{text}"
@@ -1486,10 +1526,8 @@ A = 1",
         // `const` would make it one.
         let mut m = back;
         m.find_species_mut("B").unwrap().is_constant = true;
-        assert!(export(&m).contains(
-            "  species B;
-"
-        ));
+        let text = export(&m);
+        assert!(text.contains("  species $A, B;\n"), "{text}");
     }
 
     #[test]
@@ -1605,8 +1643,7 @@ model demo
   compartment cell = 2;
 
   // Species
-  species $A in cell;
-  species B;
+  species $A in cell, B;
 
   // Reactions
   R1: 2 $A -> B; k1*A;

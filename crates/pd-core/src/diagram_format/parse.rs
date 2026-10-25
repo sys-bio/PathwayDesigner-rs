@@ -341,6 +341,15 @@ fn statement(line: &[Token], problems: &mut Vec<Problem>) -> Option<Statement> {
                 trailing(&c, problems);
                 return shaped(StatementKind::Style { name, kind, props });
             }
+            Some("defaults")
+                if word_at(line, 1).is_some() && tok_at(line, 2) == Some(&Tok::LBrace) =>
+            {
+                c.i = 1;
+                let kind = c.word()?.to_owned();
+                let props = block(&mut c, problems);
+                trailing(&c, problems);
+                return shaped(StatementKind::Defaults { kind, props });
+            }
             Some("compartment")
                 if word_at(line, 1).is_some() && tok_at(line, 2) != Some(&Tok::LParen) =>
             {
@@ -695,7 +704,8 @@ mod tests {
             | StatementKind::Text { props, .. }
             | StatementKind::Leg { props, .. }
             | StatementKind::Line { props, .. }
-            | StatementKind::Style { props, .. } => props
+            | StatementKind::Style { props, .. }
+            | StatementKind::Defaults { props, .. } => props
                 .iter()
                 .map(|p| (p.name.clone(), p.values.clone()))
                 .collect(),
@@ -785,6 +795,18 @@ mod tests {
             panic!()
         };
         assert_eq!(kind.as_deref(), Some("reaction"));
+    }
+
+    #[test]
+    fn defaults_by_kind() {
+        let s = one("defaults species { fill #EEF6FF; size 80 x 36 }");
+        assert!(matches!(&s, StatementKind::Defaults { kind, .. } if kind == "species"));
+        assert_eq!(props(&s).len(), 2);
+        // A species may still be called `defaults`.
+        assert!(matches!(
+            one("defaults at (1, 2)"),
+            StatementKind::Item { .. }
+        ));
     }
 
     #[test]

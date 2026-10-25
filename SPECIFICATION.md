@@ -2264,10 +2264,12 @@ Sections are separated by blank lines and introduced by `// Section` comments.
 
 1. `compartment C = <size>;` for each compartment other than `defaultCompartment`.
 2. `species [$]S [in C];` for each **primary, non-null** species. *(Rust version:)*
-   a species that is constant and a boundary species is written
+   four to a line, in the model's order: `species $A in C, B in C, $D, E;`.
+   A species that is constant and a boundary species is written
    `const species $S [in C];`, and `const` on a species is read as constant (and,
    as in libantimony, boundary). A constant species that isn't a boundary species
-   is written without `const`, which would make it one.
+   is written without `const`, which would make it one. Since `const` is said
+   once for a line, constant species are declared on lines of their own.
 3. `<rid>: [n ]A + [n ]B -> [n ]C; <law>;` for each reaction:
    - Null-node participants are left out, so a reaction with a null source is
      written `R1:  -> B; k*A;`.
@@ -2285,16 +2287,16 @@ Sections are separated by blank lines and introduced by `// Section` comments.
 6. `x := <expression>;` for each assignment rule.
 
 7. *(Rust version.)* **The drawing**, when the drawing is exported too: File ▸
-   Export Antimony always, and the Antimony panel's Get Antimony when *With
-   layout* is ticked (§11.4). It is written as a diagram comment after the model
+   Export Antimony always, and the Antimony panel's Get Antimony when *Diagram*
+   is ticked (§11.4). It is written as a diagram comment after the model
    (§11.2, `docs/diagram-format.md`), in the format's canonical form: only what
    differs from what a reader would draw anyway (the defaults, or the theme), so
    that reading it back gives the same drawing. Ids Antimony reserves are written
    renamed there too, and a text's line breaks and double quotes, which the
    format's strings can't hold, are written as spaces and `'`, with a note.
 
-   With *Also write layout statements* ticked in the File menu, File ▸ Export
-   Antimony also writes the drawing as Antimony's layout statements, in a
+   File ▸ Export Antimony with Layout Statements, and Get Antimony with *Layout
+   statements* ticked, also write the drawing as Antimony's layout statements, in a
    `// Layout` section before the end of the model, for tools that draw from
    those (tellurium, SBMLNetwork); PathwayDesigner reads the diagram comment.
    Every species, alias, null node, reaction junction and
@@ -2338,8 +2340,9 @@ A multi-line text editor beside the canvas, with two buttons:
 - **Load Antimony** imports the panel's text (§11.2) and redraws. The import is one
   undo step. Parse errors are reported.
 - **Get Antimony** replaces the panel's text with the export of the current model
-  (§11.3): the model alone, or with *With layout* ticked *(Rust version)*, the
-  model and its diagram comment.
+  (§11.3): the model alone, or *(Rust version)* with *Diagram* ticked, the
+  model and its diagram comment, and with *Layout statements* ticked, the model
+  and Antimony's layout statements (both, with both ticked).
 
 The application remembers the last imported Antimony text, so it can re-import it
 when the catalytic-conversion preference changes (§12).

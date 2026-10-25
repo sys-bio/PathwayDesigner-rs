@@ -38,6 +38,9 @@ pub enum StatementKind {
     ModifierLinesHidden(bool),
     /// `color metab = #FFD54F`
     ColorDef { name: String, value: Color },
+    /// `defaults species { … }`: what a property is, for items of that kind,
+    /// where nothing else gives it (format §6.5).
+    Defaults { kind: String, props: Vec<Property> },
     /// `style metabolite [species] { … }`
     Style {
         name: String,

@@ -255,9 +255,11 @@ impl PathwayApp {
         );
     }
 
-    pub(crate) fn export_antimony(&mut self) {
+    /// File ▸ Export Antimony, and with `layout` the same with Antimony's
+    /// layout statements too.
+    pub(crate) fn export_antimony(&mut self, layout: bool) {
         let name = with_extension(&self.doc.name, "ant");
-        let (text, notes) = self.antimony_export();
+        let (text, notes) = self.antimony_export(layout);
         self.export_messages = notes;
         self.files.save(
             &self.ctx,
@@ -273,9 +275,8 @@ impl PathwayApp {
     /// diagram comment, with Antimony's layout statements too if asked (D4 of
     /// docs/diagram-format-implementation-design.md), and the notes on what
     /// the export loses.
-    pub(crate) fn antimony_export(&self) -> (String, Vec<String>) {
-        self.view
-            .export_antimony_with_diagram(self.antimony_layout_statements)
+    pub(crate) fn antimony_export(&self, layout: bool) -> (String, Vec<String>) {
+        self.view.export_antimony_with_diagram(layout)
     }
 
     /// Replaces the diagram with the model in SBML `text`, as one undo step.

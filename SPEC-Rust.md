@@ -852,10 +852,10 @@ which that reader accepted and Antimony does not.
   drawing as layout statements (`pd-core::antimony_layout_out`), the lines taken
   from SBML export's own curves (`sbml::export::leg_segments`) and the looks
   from the renderer's; `antimony::layout_notes` lists what they can't say. The
-  app's File ▸ Export Antimony adds them, with
-  `antimony::export_with_diagram_and_layout`, when *Also write layout
-  statements* is ticked. `layout_report --antimony-layout` checks the round trip
-  over the Gallery, and the check script's third route checks libAntimony's
+  app's File ▸ Export Antimony with Layout Statements, and the panel's *Layout
+  statements*, write them beside the diagram comment
+  (`antimony::export_with_diagram_and_layout`). `layout_report --antimony-layout`
+  checks the round trip over the Gallery, and the check script's third route checks libAntimony's
   reading of it. Design: `docs/antimony-layout-export-design.md`.
 - **The diagram format** (S §11.2, §11.3 item 7; `docs/diagram-format.md`):
   `pd-core::diagram_format` finds the diagram comment (`find`), splits it into
@@ -866,7 +866,7 @@ which that reader accepted and Antimony does not.
   canonical form, against a reference made as a reader would start (import
   defaults, then the theme). `antimony::export_with_diagram` is the model and
   its diagram; `antimony::diagram_notes` lists what it can't keep. File ▸
-  Export Antimony and the panel's Get Antimony (*With layout*) use it.
+  Export Antimony and the panel's Get Antimony (*Diagram*) use it.
   `layout_report --diagram` checks the round trip over the Gallery. Design:
   `docs/diagram-format-implementation-design.md`.
 - **Reserved ids** (S §11.3): both exports write from a copy in which ids
