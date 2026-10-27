@@ -2582,6 +2582,77 @@ into the app (**Open sample**) stay, for when there is no network.
   needs the `version` its entry says; groups and titles are not empty, and no two
   entries share a file. So a broken index fails CI on the push that breaks it.
 
+### 11.9 KEGG maps (import)
+
+*Added in the Rust version* (docs/kegg-import-design.md). **File ▸ Open** (and
+dropping a file on the window) opens a KEGG pathway map, a KGML file: `.kgml`, or
+`.xml` or no extension when the root element is `<pathway>` (any other `.xml` is
+SBML, §11.5). It becomes a new, unsaved document called `<code> (from KEGG).json`
+(`eco00010 (from KEGG).json`), so Save never writes over the map; opening it is not
+an edit, and the status bar says *Opened the KEGG map <title> (<code>)*.
+
+- **Which maps.** Metabolic maps, which list `reaction`s. A map with none (the
+  signalling maps, whose arrows are relations between proteins) is refused with
+  *This KEGG map has no reactions (signalling maps aren't supported yet).* A global
+  or overview map (numbers from `01`) is refused too: it draws its enzymes as lines.
+  The diagram is unchanged.
+- **Compounds.** Each `compound` entry is a species at its centre, named by its KEGG
+  number (`C00031`); a compound drawn again is an alias (§7.3). They are white
+  circles 12 across (KEGG's 8 is too small to click), black border 1, name size 10,
+  the name outside on the clearest side (§5.11).
+- **Enzymes.** Each box (`gene`, `ortholog` or `enzyme` entry) that carries a
+  reaction is a species: a rectangle at KEGG's place, size and fill (green when the
+  organism has the gene), black border 1, the name inside. Its name is the box's
+  label without KEGG's trailing dots or anything after a comma (`pykF...` → `pykF`),
+  else the entry's first id. Boxes of the same enzyme (same entry name) are one
+  species and its aliases. A box that carries no reaction (the white ortholog boxes)
+  isn't drawn.
+- **Reactions.** Each `reaction` is a reaction named by its KEGG number (`R00200`,
+  `R00200_2` for a second drawing of it), reversible as KEGG says, its substrates and
+  products the compound drawings it names, each with stoichiometry 1, with no rate
+  law. Its enzyme box is a catalyst (§5.7.1), drawn solid in the line colour, with a
+  circle 5 across 1 from the junction, so it isn't taken for a compound. A reaction
+  naming something that isn't a compound on the map is left out, with a warning.
+- **Junctions.** KEGG puts a reaction's box beside its line. The junction is where
+  the box projects onto the line from the middle of the substrates to the middle of
+  the products (kept a tenth of the way in from either end), so isozymes between the
+  same compounds stay apart, in KEGG's order.
+- **Lines.** KGML gives no routes. A reaction whose species all lie within 4 of one
+  of its junction's two axes is straight. Any other is Bézier (§5.6): each leg leaves
+  its species across the reaction's main direction (from the middle of the
+  substrates to the middle of the products) and meets the junction along it, its
+  handles 0.55 of the way to the corner, about a quarter circle; KEGG draws such
+  reactions as rounded right angles. Line colour `#333333`, width 1, junction
+  hidden.
+- **Texts.** A `map` entry linking to another map is a free text (§7.8) at its box's
+  top-left corner, grey `#808080`, size 10, wrapping at the box's width. The map's own
+  title box (`TITLE:`) is the title, `<title> (KEGG <code>)`, bold, size 16.
+- **Names.** After opening, the compounds are looked up in PubChem, which web pages
+  may read and to which KEGG deposits its compounds under their numbers, a batch of
+  40 at a time: the KEGG substances' synonyms (which include the number), their
+  compounds, then the compounds' titles. A batch PubChem refuses (it refuses one
+  with any unknown number) is asked again one number at a time. Each compound is
+  renamed (§7.1) to its compound's title, else its substance's first synonym that
+  isn't a number (not the KEGG or CAS number), made an id: what isn't a letter or
+  digit becomes `_`, runs of `_` one, `_` before a leading digit (`D-Glucose` →
+  `D_Glucose`), `_2` after an id in use. Its name is placed again (§5.11). This is
+  one undo step, *Name compounds*; the status bar says how many were named. If
+  PubChem can't be reached, the KEGG numbers stay and the status bar says so.
+  Opening another file stops a lookup under way.
+- **File ▸ Open from KEGG…** asks for a map code: two to four letters then five
+  digits, made lower case (`ECO00010` → `eco00010`). KEGG has no KGML for a `map`
+  code, so the dialog names the `ko` map instead. On the desktop the map is fetched
+  from `https://rest.kegg.jp/get/<code>/kgml` (after asking about unsaved changes,
+  §13.1) and opened as above; a map that can't be fetched leaves the diagram, with
+  *<code> couldn't be fetched from KEGG (<why>).* KEGG doesn't let web pages read its
+  files, so in the browser the address opens in a new tab and the status bar says to
+  save it there and open it with File ▸ Open.
+- **Licence.** KEGG's data are free for academic use; passing them on needs a
+  licence. PathwayDesigner reads the map a user fetches and keeps no copy; no KEGG
+  map is in the Gallery or the repository.
+- Left out: relations, groups, ortholog boxes with no reaction, KEGG's colours for
+  lines.
+
 ## 12. Preferences
 
 Preferences are kept in a small JSON file in the user's settings folder:

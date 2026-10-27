@@ -135,6 +135,17 @@ Delphi version does, and some more (see [Status](#status)).
   metabolite as an alias, in the Escher theme, each at the size the map gives it.
   Maps whose lines are routed through chains of markers (such as the BiGG maps
   drawn by MetaCarto) keep their routes as corner points.
+- **KEGG maps**: *File ▸ Open* reads a [KEGG](https://www.kegg.jp) metabolic
+  pathway map (a KGML file, `.xml`) at KEGG's positions: compounds as circles,
+  enzymes as boxes catalysing their reactions, links to other maps as grey text.
+  Compounds are named from [PubChem](https://pubchem.ncbi.nlm.nih.gov)
+  (`D_Glucose`, not `C00031`). On the desktop, *File ▸ Open from KEGG…* fetches a
+  map by its code (`eco00010`); KEGG doesn't let web pages fetch its files, so in
+  the browser the map's file opens in a new tab, to be saved and opened. KGML
+  gives no line routes, so reactions whose compounds don't line up are drawn as
+  rounded elbows. Signalling and global maps aren't read yet. KEGG's data are
+  free for academic use under [KEGG's terms](https://www.kegg.jp/kegg/legal.html)
+  ([docs/kegg-import-design.md](docs/kegg-import-design.md)).
 - **Network structure** (the *Structure* tab): the stoichiometry matrix (in a
   panel under the diagram), the flux null space and the conservation laws, computed
   as COPASI does (QR with column pivoting) and checked against libRoadRunner, with

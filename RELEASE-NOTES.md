@@ -4,6 +4,33 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## Next version (not yet released)
+
+**New**
+
+- **KEGG maps.** File ▸ Open reads a KEGG metabolic pathway map (KGML) at KEGG's
+  positions: compounds as circles, enzymes as boxes catalysing their reactions,
+  links to other maps as grey text, the map's title. Compounds are named from
+  PubChem (`D_Glucose`, not `C00031`). Reactions whose compounds don't line up
+  are drawn as rounded elbows, as KEGG draws them (KGML has no line routes).
+  On the desktop, File ▸ Open from KEGG… fetches a map by its code
+  (`eco00010`); in the browser it opens the map's file in a new tab to be saved
+  and opened, since KEGG doesn't let web pages fetch its files. Signalling and
+  global maps aren't read yet.
+- **Help.** Help ▸ PathwayDesigner Help opens a panel beside the diagram, with
+  pages on getting started, Antimony in PathwayDesigner and the diagram language.
+- **A fixed-width font** (Hack) for the Antimony text and the help's examples.
+
+**Changed**
+
+- Antimony export no longer writes Antimony's interaction lines (`X -| J1`); an
+  activator's or inhibitor's kind goes in the diagram comment
+  (`line X to J1 kind inhibitor`). Interaction lines are still read.
+- The diagram format comes back as written: named colors (`color gold =
+  #FFD54F`) are kept, a style's id side (`id right`) is kept, a second drawing
+  (`ATP#2`) keeps its style, and a style keeps a size it gives. Named colors and
+  sized styles are saved in PathwayDesigner's files as version 16.
+
 ## 0.1.24 (2026-10-25)
 
 **New**
