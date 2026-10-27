@@ -20,26 +20,35 @@ pub enum FileKind {
     Json,
     /// An Escher map (S §11.7): JSON, but an array.
     Escher,
+    /// A KEGG map, KGML (docs/kegg-import-design.md): XML whose root is
+    /// `<pathway>`.
+    Kegg,
     Antimony,
     Sbml,
 }
 
 impl FileKind {
     /// By extension, and if that doesn't decide it, by content: `{` means
-    /// JSON, `<sbml` (after any XML declaration) means SBML, anything else
-    /// Antimony (SPEC-Rust §10.1).
+    /// JSON, `<pathway` (after any XML declaration) a KEGG map, other XML
+    /// SBML, anything else Antimony (SPEC-Rust §10.1). An `.xml` file is SBML
+    /// unless it is a KEGG map.
     pub fn of(name: &str, text: &str) -> FileKind {
         let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
         let escher = pd_core::escher::looks_like_escher(text);
+        let kegg = pd_core::kegg::looks_like_kgml(text);
         match ext.as_deref() {
             Some("json") if escher => FileKind::Escher,
             Some("json") => FileKind::Json,
             Some("ant" | "txt" | "antimony") => FileKind::Antimony,
+            Some("kgml") => FileKind::Kegg,
+            Some("xml") if kegg => FileKind::Kegg,
             Some("xml" | "sbml") => FileKind::Sbml,
             _ => {
                 let t = text.trim_start_matches('\u{FEFF}').trim_start();
                 if escher {
                     FileKind::Escher
+                } else if kegg {
+                    FileKind::Kegg
                 } else if t.starts_with('{') {
                     FileKind::Json
                 } else if t.starts_with("<?xml") || t.starts_with("<sbml") {
@@ -74,11 +83,12 @@ impl Filter {
             Filter::Any => &[
                 (
                     "Diagrams and models",
-                    &["json", "ant", "txt", "xml", "sbml"],
+                    &["json", "ant", "txt", "xml", "sbml", "kgml"],
                 ),
                 ("PathwayDesigner diagram", &["json"]),
                 ("Antimony", &["ant", "txt"]),
                 ("SBML", &["xml", "sbml"]),
+                ("KEGG map", &["xml", "kgml"]),
             ],
             Filter::Json => &[("PathwayDesigner diagram", &["json"])],
             Filter::Antimony => &[("Antimony", &["ant", "txt"])],
@@ -468,6 +478,13 @@ mod tests {
             FileKind::Sbml
         );
         assert_eq!(FileKind::of("noext", "<sbml>"), FileKind::Sbml);
+        // A KEGG map is XML too, with <pathway> at the root.
+        let kgml = "<?xml version=\"1.0\"?>
+<!DOCTYPE pathway SYSTEM \"KGML.dtd\">
+<pathway name=\"path:eco00010\">";
+        assert_eq!(FileKind::of("eco00010.xml", kgml), FileKind::Kegg);
+        assert_eq!(FileKind::of("eco00010.kgml", ""), FileKind::Kegg);
+        assert_eq!(FileKind::of("eco00010", kgml), FileKind::Kegg);
         assert_eq!(FileKind::of("noext", "A -> B"), FileKind::Antimony);
     }
 }

@@ -81,6 +81,19 @@ impl DiagramView {
         Ok(imported.warnings)
     }
 
+    /// Replaces the diagram with a KEGG map (KGML), as one undo step
+    /// (docs/kegg-import-design.md). Returns what the map said besides its
+    /// drawing: warnings, its code and title, and its compounds' KEGG numbers.
+    /// An error leaves the diagram as it was.
+    pub fn import_kegg(&mut self, text: &str) -> Result<crate::kegg::Map, String> {
+        let imported = crate::kegg::import(text)?;
+        self.cancel_layout();
+        self.cancel_gesture();
+        let before = std::mem::replace(&mut self.model, imported.model);
+        self.record("Import KEGG map", before);
+        Ok(imported.map)
+    }
+
     /// The diagram as SBML with its layout (S §11.5).
     pub fn export_sbml(&self) -> sbml::Exported {
         sbml::export(&self.model)

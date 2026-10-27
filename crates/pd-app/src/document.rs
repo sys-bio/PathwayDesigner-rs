@@ -196,6 +196,27 @@ impl PathwayApp {
                     false
                 }
             },
+            FileKind::Kegg => match self.view.import_kegg(text) {
+                Ok(map) => {
+                    // Opening starts a new document: no undo back into the old one.
+                    let model = self.view.model().clone();
+                    self.view.set_model(model);
+                    self.view.mark_unsaved();
+                    // Saved as a PathwayDesigner file, never over the map.
+                    self.doc = Document {
+                        name: format!("{} (from KEGG).json", map.code),
+                        ..Document::default()
+                    };
+                    self.warnings = map.warnings.clone();
+                    self.notice = Some(format!("Opened the KEGG map {} ({})", map.title, map.code));
+                    self.fit_pending = true;
+                    true
+                }
+                Err(e) => {
+                    self.warnings = vec![format!("{name}: {e} The diagram wasn't changed.")];
+                    false
+                }
+            },
             FileKind::Sbml => {
                 if let Some(had_layout) = self.import_sbml(name, text) {
                     // Opening starts a new document: no undo back into the old one.

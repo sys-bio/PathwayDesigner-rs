@@ -18,6 +18,7 @@ pub mod expr;
 pub mod generate;
 pub mod geometry;
 pub mod json;
+pub mod kegg;
 pub mod layout;
 pub mod model;
 pub mod node_shape;

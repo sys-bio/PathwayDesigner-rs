@@ -2233,6 +2233,63 @@ mod tests {
     }
 
     #[test]
+    fn opening_a_kegg_map() {
+        let map = r##"<?xml version="1.0"?>
+<!DOCTYPE pathway SYSTEM "https://www.kegg.jp/kegg/xml/KGML_v0.7.2_.dtd">
+<pathway name="path:eco00010" org="eco" number="00010" title="Glycolysis">
+  <entry id="1" name="cpd:C00031" type="compound">
+    <graphics name="C00031" type="circle" x="100" y="100" width="8" height="8"/>
+  </entry>
+  <entry id="2" name="cpd:C00103" type="compound">
+    <graphics name="C00103" type="circle" x="300" y="100" width="8" height="8"/>
+  </entry>
+  <entry id="3" name="eco:b0001" type="gene" reaction="rn:R00001">
+    <graphics name="glk" bgcolor="#BFFFBF" type="rectangle" x="200" y="90" width="46" height="17"/>
+  </entry>
+  <reaction id="3" name="rn:R00001" type="irreversible">
+    <substrate id="1" name="cpd:C00031"/>
+    <product id="2" name="cpd:C00103"/>
+  </reaction>
+</pathway>
+"##;
+        let mut h = Harness::new();
+        h.app.perform(Action::OpenText {
+            name: "eco00010.xml".into(),
+            text: map.into(),
+            target: None,
+        });
+        h.run(vec![]);
+        h.run(vec![]);
+        // A new document, never saved over the map, named by the map's code.
+        assert_eq!(h.app.doc.name, "eco00010 (from KEGG).json");
+        assert!(h.app.doc.target.is_none());
+        assert!(h.app.view.is_modified());
+        assert!(!h.app.view.can_undo());
+        let m = h.app.view.model();
+        assert_eq!(m.reactions().len(), 1);
+        assert!(m.find_species("glk").is_some(), "the enzyme");
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("Opened the KEGG map Glycolysis (eco00010)")
+        );
+        // A map it can't draw: the diagram stays, and a warning says why.
+        h.app.perform(Action::OpenText {
+            name: "hsa04010.xml".into(),
+            text: map
+                .replace("<reaction ", "<x ")
+                .replace("</reaction>", "</x>"),
+            target: None,
+        });
+        h.run(vec![]);
+        assert_eq!(h.app.view.model().reactions().len(), 1);
+        assert!(
+            h.app.warnings[0].starts_with("hsa04010.xml: This KEGG map has no reactions"),
+            "{:?}",
+            h.app.warnings
+        );
+    }
+
+    #[test]
     fn a_file_read_is_opened_a_frame_later_under_the_busy_cursor() {
         let mut h = Harness::new();
         let before = h.app.view.model().clone();
