@@ -29,6 +29,8 @@ mod leg_corner_tests;
 #[cfg(test)]
 mod modifier_line_tests;
 mod modifier_lines;
+mod modifier_place;
+pub use modifier_place::{MODIFIER_FAR, Placed};
 #[cfg(test)]
 mod name_face_tests;
 #[cfg(test)]

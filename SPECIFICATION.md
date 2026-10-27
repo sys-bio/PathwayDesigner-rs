@@ -1122,6 +1122,24 @@ single item.
   primary it merges only the selected aliases. The primary itself is never merged
   away. Select with click and Shift-click, then right-click the one to keep.
   Otherwise the item is shown disabled. One undo step.
+- **Place Modifiers by Their Reactions** (Arrange menu; added in the Rust version):
+  for a model whose effectors sit far from the reactions they act on, as models
+  imported from other tools often have them in a column at the edge. It works on
+  the selected reactions, or on all of them when none is selected. Every modifier
+  line whose drawing is more than 150 from its reaction's junction is given a drawing
+  beside the reaction; a self modifier (one that is also a reactant or product of
+  the reaction) is left alone. A drawing whose every line is moved goes itself,
+  beside the first of its reactions; every other line gets a new alias, with the
+  look (style, border, shape, size, name placement and saved style) of the drawing
+  it came from. A moved line's corner points are dropped. The place is found around
+  the junction on rings of 70, 100, … 340: on the nearest ring with a free place
+  (overlapping no other node, with 8 to spare), of 16 directions, the one furthest
+  from the reaction's lines (each measured a fifth of the way along it) and its near
+  modifiers; if none is free, the clearest direction on the outer ring. Then every
+  alias that draws no line is removed; a species' first drawing is never removed.
+  The drawings placed are selected; the status bar says how many lines were placed
+  and drawings removed. Shown disabled when there is no such line. One undo step;
+  the biochemistry does not change.
 
 ### 7.4 Reaction shape commands
 

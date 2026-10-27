@@ -873,6 +873,21 @@ impl PathwayApp {
                     }
                 }
                 ui.separator();
+                if ui
+                    .add_enabled(
+                        self.view.can_place_modifiers(),
+                        egui::Button::new("Place Modifiers by Their Reactions"),
+                    )
+                    .on_hover_text(
+                        "Gives each modifier line from far off its own drawing beside its                          reaction (the selected reactions, or all), and removes drawings                          left joined to nothing",
+                    )
+                    .clicked()
+                {
+                    let (_, placed) = self.view.place_modifiers();
+                    self.notice = Some(placed_notice(placed));
+                    ui.close();
+                }
+                ui.separator();
                 let has_species = self.view.model().selected_species().next().is_some();
                 let lock = if self.view.lock_would_lock() {
                     "Lock"
@@ -1793,6 +1808,21 @@ impl eframe::App for PathwayApp {
     }
 }
 
+/// What the status bar says after Place Modifiers by Their Reactions.
+fn placed_notice(placed: pd_core::view::Placed) -> String {
+    let lines = match placed.lines {
+        1 => "1 modifier line".to_owned(),
+        n => format!("{n} modifier lines"),
+    };
+    match placed.removed {
+        0 => format!("Placed {lines} beside their reactions"),
+        1 => format!("Placed {lines} beside their reactions; removed 1 drawing joined to nothing"),
+        n => {
+            format!("Placed {lines} beside their reactions; removed {n} drawings joined to nothing")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! The whole app driven through egui with made-up input: the wiring
@@ -2318,6 +2348,48 @@ mod tests {
         h.run(vec![]);
         assert_eq!(h.app.view.model().reactions().len(), 1);
         assert!(h.app.warnings[0].contains("couldn't be read as an Escher map"));
+    }
+
+    #[test]
+    fn arrange_places_modifiers_by_their_reactions() {
+        let mut h = Harness::new();
+        let opts = pd_core::antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        let text = "species E; E = 1
+J1: A -> B; k*A*E
+J2: C -> D; k*C*E
+k = 1
+/* diagram m v1
+                    A at (0, 0)
+B at (400, 0)
+C at (0, 400)
+D at (400, 400)
+E at (2000, 0)
+                    J1 at (200, 0)
+J2 at (200, 400)
+end */
+";
+        h.app.view.import_antimony(text, &opts).unwrap();
+        h.run(vec![]);
+        h.click(h.widget("Arrange"));
+        h.run(vec![]);
+        h.click(h.widget("Place Modifiers by Their Reactions"));
+        h.run(vec![]);
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("Placed 2 modifier lines beside their reactions")
+        );
+        let m = h.app.view.model();
+        assert!(
+            m.find_species("E")
+                .unwrap()
+                .center
+                .distance(pd_core::geometry::pt(200.0, 0.0))
+                < 150.0
+        );
+        assert_eq!(m.aliases_of("E").count(), 1);
     }
 
     #[test]
