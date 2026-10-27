@@ -127,7 +127,8 @@ impl PathwayApp {
     pub(crate) fn open_text(&mut self, name: &str, text: &str, target: Option<SaveTarget>) -> bool {
         #[cfg(not(target_arch = "wasm32"))]
         let path = target.as_ref().map(|SaveTarget::Path(p)| p.clone());
-        let opened = match FileKind::of(name, text) {
+        let kind = FileKind::of(name, text);
+        let opened = match kind {
             FileKind::Json => match from_json(text) {
                 Ok(loaded) => {
                     let newer = loaded.is_newer_than_supported();
@@ -208,7 +209,11 @@ impl PathwayApp {
                         ..Document::default()
                     };
                     self.warnings = map.warnings.clone();
-                    self.notice = Some(format!("Opened the KEGG map {} ({})", map.title, map.code));
+                    self.naming = crate::kegg_names::Naming::new(&map);
+                    self.notice = Some(format!(
+                        "Opened the KEGG map {} ({}); looking up the compounds' names in PubChem…",
+                        map.title, map.code
+                    ));
                     self.fit_pending = true;
                     true
                 }
@@ -238,6 +243,10 @@ impl PathwayApp {
                 }
             }
         };
+        // Another file opened: a KEGG map's names no longer belong to it.
+        if opened && kind != FileKind::Kegg {
+            self.naming = None;
+        }
         // What a file needs when opened is no news (an imported one is
         // marked unsaved, but it wasn't edited).
         if opened {
@@ -248,6 +257,36 @@ impl PathwayApp {
             self.recent.add(&p);
         }
         opened
+    }
+
+    /// Takes the lookup of a KEGG map's compound names a step further, and
+    /// names the compounds when it is over (docs/kegg-import-design.md, K2).
+    pub(crate) fn poll_naming(&mut self, ctx: &egui::Context) {
+        use crate::kegg_names::Done;
+        let Some(mut naming) = self.naming.take() else {
+            return;
+        };
+        let Some(done) = naming.poll(ctx, self.gallery.fetch) else {
+            self.naming = Some(naming);
+            return;
+        };
+        let total = naming.compounds().len();
+        self.notice = Some(match done {
+            Done::Found(names) => {
+                let n = self.view.name_kegg_compounds(naming.compounds(), &names);
+                if n == total {
+                    format!("Named the {n} compounds from PubChem")
+                } else {
+                    format!(
+                        "Named {n} of the {total} compounds from PubChem; the rest keep their KEGG numbers"
+                    )
+                }
+            }
+            Done::Unreachable => {
+                "PubChem couldn't be reached, so the compounds keep their KEGG numbers".to_owned()
+            }
+        });
+        ctx.request_repaint();
     }
 
     /// Save, or Save As with `ask` (or always for a file from a newer version).

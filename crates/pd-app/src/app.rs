@@ -177,6 +177,8 @@ pub struct PathwayApp {
     pub(crate) help: crate::help::Help,
     /// File ▸ Open from Gallery… (S §11.8).
     pub(crate) gallery: crate::gallery::Gallery,
+    /// A KEGG map's compound names being looked up in PubChem.
+    pub(crate) naming: Option<crate::kegg_names::Naming>,
     pub(crate) files: Files,
     pub(crate) doc: Document,
     /// What to do once a Save requested by the unsaved-changes prompt is done.
@@ -261,6 +263,7 @@ impl PathwayApp {
             keys_help: false,
             help: Default::default(),
             gallery: Default::default(),
+            naming: None,
             files: Files::default(),
             doc: Document::default(),
             after_save: None,
@@ -1566,6 +1569,7 @@ impl eframe::App for PathwayApp {
         #[cfg(target_os = "macos")]
         self.mac_menu_commands();
         self.handle_files();
+        self.poll_naming(&ctx);
         self.check_close();
         self.update_title();
         self.shortcuts(&ctx);
@@ -1901,6 +1905,23 @@ mod tests {
 
     fn offline(_: &egui::Context, _: String) -> crate::gallery::Pending {
         std::sync::Arc::new(std::sync::Mutex::new(Some(Err("no network".into()))))
+    }
+
+    /// PubChem, for the two compounds of the KEGG map in the tests.
+    fn pubchem(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        let text = if url.contains("/synonyms/") {
+            r#"{"InformationList": {"Information": [
+                {"SID": 3333, "Synonym": ["D-glucose", "C00031"]},
+                {"SID": 3403, "Synonym": ["cori ester", "C00103"]}]}}"#
+        } else if url.contains("/cids/") {
+            r#"{"InformationList": {"Information": [
+                {"SID": 3333, "CID": [5793]}, {"SID": 3403, "CID": [65533]}]}}"#
+        } else {
+            r#"{"PropertyTable": {"Properties": [
+                {"CID": 5793, "Title": "D-Glucose"},
+                {"CID": 65533, "Title": "alpha-D-glucose 1-phosphate"}]}}"#
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(Ok(text.into()))))
     }
 
     fn garbage(_: &egui::Context, _: String) -> crate::gallery::Pending {
@@ -2253,6 +2274,7 @@ mod tests {
 </pathway>
 "##;
         let mut h = Harness::new();
+        h.app.gallery.fetch = pubchem;
         h.app.perform(Action::OpenText {
             name: "eco00010.xml".into(),
             text: map.into(),
@@ -2265,13 +2287,26 @@ mod tests {
         assert!(h.app.doc.target.is_none());
         assert!(h.app.view.is_modified());
         assert!(!h.app.view.can_undo());
+        assert_eq!(h.app.view.model().reactions().len(), 1);
+        assert!(
+            h.app.view.model().find_species("glk").is_some(),
+            "the enzyme"
+        );
+        // The compounds take their names from PubChem, a request a frame.
+        for _ in 0..6 {
+            h.run(vec![]);
+        }
         let m = h.app.view.model();
-        assert_eq!(m.reactions().len(), 1);
-        assert!(m.find_species("glk").is_some(), "the enzyme");
+        assert!(m.find_species("D_Glucose").is_some(), "named");
+        assert!(m.find_species("alpha_D_glucose_1_phosphate").is_some());
+        assert!(m.find_species("C00031").is_none());
+        assert!(h.app.naming.is_none(), "the lookup is over");
         assert_eq!(
             h.app.notice.as_deref(),
-            Some("Opened the KEGG map Glycolysis (eco00010)")
+            Some("Named the 2 compounds from PubChem")
         );
+        // Undo puts the numbers back.
+        assert!(h.app.view.can_undo());
         // A map it can't draw: the diagram stays, and a warning says why.
         h.app.perform(Action::OpenText {
             name: "hsa04010.xml".into(),
@@ -2287,6 +2322,49 @@ mod tests {
             "{:?}",
             h.app.warnings
         );
+    }
+
+    #[test]
+    fn a_kegg_map_keeps_its_numbers_when_pubchem_cant_be_reached() {
+        let map = r##"<pathway name="path:eco00010" number="00010" title="Glycolysis">
+  <entry id="1" name="cpd:C00031" type="compound"><graphics x="100" y="100"/></entry>
+  <entry id="2" name="cpd:C00103" type="compound"><graphics x="300" y="100"/></entry>
+  <reaction id="9" name="rn:R00001" type="irreversible">
+    <substrate id="1"/><product id="2"/>
+  </reaction>
+</pathway>"##;
+        let mut h = Harness::new();
+        h.app.gallery.fetch = offline;
+        h.app.perform(Action::OpenText {
+            name: "eco00010.xml".into(),
+            text: map.into(),
+            target: None,
+        });
+        for _ in 0..6 {
+            h.run(vec![]);
+        }
+        assert!(h.app.view.model().find_species("C00031").is_some());
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("PubChem couldn't be reached, so the compounds keep their KEGG numbers")
+        );
+        // Opening another file stops a lookup still under way.
+        h.app.gallery.fetch = waiting;
+        h.app.perform(Action::OpenText {
+            name: "eco00010.xml".into(),
+            text: map.into(),
+            target: None,
+        });
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(h.app.naming.is_some());
+        h.app.perform(Action::OpenText {
+            name: "other.ant".into(),
+            text: "A -> B; k".into(),
+            target: None,
+        });
+        h.run(vec![]);
+        assert!(h.app.naming.is_none());
     }
 
     #[test]

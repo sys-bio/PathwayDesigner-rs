@@ -12,6 +12,7 @@ mod fonts;
 mod gallery;
 mod help;
 mod inspector;
+mod kegg_names;
 mod keys_help;
 #[cfg(target_os = "macos")]
 mod macos_menu;

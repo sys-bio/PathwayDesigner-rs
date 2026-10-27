@@ -94,6 +94,21 @@ impl DiagramView {
         Ok(imported.map)
     }
 
+    /// Renames a KEGG map's compounds to the names found for them (see
+    /// [`crate::kegg::apply_names`]), as one undo step. Returns how many.
+    pub fn name_kegg_compounds(
+        &mut self,
+        compounds: &[(crate::model::Id, String)],
+        names: &[(String, String)],
+    ) -> usize {
+        let before = self.model.clone();
+        let n = crate::kegg::apply_names(&mut self.model, compounds, names);
+        if n > 0 {
+            self.record("Name compounds", before);
+        }
+        n
+    }
+
     /// The diagram as SBML with its layout (S §11.5).
     pub fn export_sbml(&self) -> sbml::Exported {
         sbml::export(&self.model)

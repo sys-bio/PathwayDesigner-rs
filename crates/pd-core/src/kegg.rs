@@ -16,8 +16,8 @@ use std::collections::HashMap;
 
 use crate::geometry::{Pt, pt};
 use crate::model::{
-    BorderDash, Id, Model, ModifierKind, ModifierLook, NodeShape, Participant, Reaction, Rgba,
-    SpeciesNode, VisualStyle, is_valid_sid,
+    BorderDash, Id, Model, ModifierKind, ModifierLook, NodeShape, Participant, Reaction,
+    ReactionMode, Rgba, SpeciesNode, VisualStyle, is_valid_sid,
 };
 use crate::render::draw;
 
@@ -347,21 +347,18 @@ pub fn import(text: &str) -> Result<Imported, String> {
         let _ = tid;
     }
 
-    // Compound names beside their circles, clear of the lines (S §5.11).
-    let ids: Vec<Id> = model
+    let ids: Vec<Id> = model.reactions().iter().map(|r| r.id.clone()).collect();
+    for id in ids {
+        elbows(&mut model, &id);
+    }
+
+    let circles: Vec<Id> = model
         .species()
         .iter()
         .filter(|s| s.shape == NodeShape::Circle)
         .map(|s| s.id.clone())
         .collect();
-    for id in ids {
-        let offset = model
-            .find_species(&id)
-            .map(|s| draw::clear_label_offset(&model, s));
-        if let (Some(o), Some(s)) = (offset, model.find_species_mut(&id)) {
-            s.label_offset = Some(o);
-        }
-    }
+    name_beside(&mut model, &circles);
     model.recompute_id_counter();
     Ok(Imported {
         model,
@@ -372,6 +369,124 @@ pub fn import(text: &str) -> Result<Imported, String> {
             compounds,
         },
     })
+}
+
+/// How far off a line a species may be and still count as on it.
+const ALIGNED: f64 = 4.0;
+/// Where an elbow's handles sit, as a part of the way to the corner: about a
+/// quarter circle.
+const ELBOW: f64 = 0.55;
+
+/// KEGG draws a reaction whose compounds don't line up with it as rounded
+/// right angles, not diagonals, though its file doesn't say how. So a
+/// reaction with a species off both of its junction's axes is drawn curved,
+/// each leg leaving its species across the reaction's main direction and
+/// meeting the junction along it. One whose species all line up stays
+/// straight.
+fn elbows(model: &mut Model, id: &str) {
+    let Some(r) = model.find_reaction(id) else {
+        return;
+    };
+    let at = |p: &Participant| model.find_species(&p.species).map(|s| s.center);
+    let centre = |ps: &[Participant]| {
+        let v: Vec<Pt> = ps.iter().filter_map(at).collect();
+        v.iter().fold(Pt::ZERO, |a, &p| a + p) / v.len().max(1) as f64
+    };
+    let (from, to) = (centre(&r.reactants), centre(&r.products));
+    let j = r.junction;
+    let lined_up = |s: Pt| (s.x - j.x).abs() < ALIGNED || (s.y - j.y).abs() < ALIGNED;
+    if r.reactants
+        .iter()
+        .chain(&r.products)
+        .filter_map(at)
+        .all(lined_up)
+    {
+        return;
+    }
+    let vertical = (to - from).y.abs() >= (to - from).x.abs();
+    // Each leg's handles: by the species, across; by the junction, along.
+    let handles = |s: Pt| {
+        if vertical {
+            (
+                pt(s.x + (j.x - s.x) * ELBOW, s.y),
+                pt(j.x, j.y + (s.y - j.y) * ELBOW),
+            )
+        } else {
+            (
+                pt(s.x, s.y + (j.y - s.y) * ELBOW),
+                pt(j.x + (s.x - j.x) * ELBOW, j.y),
+            )
+        }
+    };
+    let reactants: Vec<Option<(Pt, Pt)>> = r.reactants.iter().map(|p| at(p).map(handles)).collect();
+    let products: Vec<Option<(Pt, Pt)>> = r.products.iter().map(|p| at(p).map(handles)).collect();
+    let Some(r) = model.find_reaction_mut(id) else {
+        return;
+    };
+    r.mode = ReactionMode::Bezier;
+    r.junction_smooth = false;
+    // A reactant's first handle is by its species; a product's, by the
+    // junction (S §5.6.1).
+    for (p, h) in r.reactants.iter_mut().zip(reactants) {
+        if let Some((by_species, by_junction)) = h {
+            (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (by_species, by_junction, true);
+        }
+    }
+    for (p, h) in r.products.iter_mut().zip(products) {
+        if let Some((by_species, by_junction)) = h {
+            (p.ctrl1, p.ctrl2, p.ctrl_pts_set) = (by_junction, by_species, true);
+        }
+    }
+}
+
+/// Puts each of `ids`' names beside its node, on the side clearest of the
+/// lines (S §5.11).
+fn name_beside(model: &mut Model, ids: &[Id]) {
+    for id in ids {
+        let offset = model
+            .find_species(id)
+            .map(|s| draw::clear_label_offset(model, s));
+        if let (Some(o), Some(s)) = (offset, model.find_species_mut(id)) {
+            s.label_offset = Some(o);
+        }
+    }
+}
+
+/// Renames each compound in `compounds` (species and KEGG number, from
+/// [`Map::compounds`]) to the name `names` gives its number, made an id
+/// (`D-Glucose` → `D_Glucose`, `_2` after one in use), and puts the names
+/// beside their circles again, since they are longer. A species no longer
+/// there is passed over. Returns how many were renamed.
+pub fn apply_names(
+    model: &mut Model,
+    compounds: &[(Id, String)],
+    names: &[(String, String)],
+) -> usize {
+    let mut renamed = Vec::new();
+    for (id, number) in compounds {
+        let Some((_, name)) = names.iter().find(|(n, _)| n == number) else {
+            continue;
+        };
+        if model.find_species(id).is_none() {
+            continue;
+        }
+        let base = sid(name);
+        let new = std::iter::once(base.clone())
+            .chain((2..).map(|n| format!("{base}_{n}")))
+            .find(|s| s == id || !model.is_id_used(s))
+            .expect("some suffix is free");
+        if model.rename_species(id, &new).is_ok() {
+            renamed.push(new);
+        }
+    }
+    let drawings: Vec<Id> = model
+        .species()
+        .iter()
+        .filter(|s| renamed.iter().any(|r| *r == s.primary_id()))
+        .map(|s| s.id.clone())
+        .collect();
+    name_beside(model, &drawings);
+    renamed.len()
 }
 
 fn graphics(g: roxmltree::Node) -> Option<Graphics> {
@@ -652,6 +767,35 @@ mod tests {
     }
 
     #[test]
+    fn a_reaction_off_its_lines_is_drawn_as_rounded_elbows() {
+        let mut text = MAP.to_owned();
+        // C00103 moves off R00003's vertical line, to (360, 100).
+        text = text.replace(
+            r#"type="circle" x="300" y="100""#,
+            r#"type="circle" x="360" y="100""#,
+        );
+        let m = import(&text).unwrap().model;
+        let r = m.find_reaction("R00003").unwrap();
+        assert_eq!(r.mode, ReactionMode::Bezier);
+        let leg = &r.reactants[0];
+        assert!(leg.ctrl_pts_set);
+        // Mostly downwards: it leaves C00103 across (level with it) and
+        // meets the junction along (straight above it).
+        assert_eq!(leg.ctrl1.y, 100.0, "across, by the species");
+        assert_eq!(leg.ctrl2.x, r.junction.x, "along, by the junction");
+        // One whose species line up stays straight.
+        let m = map().model;
+        assert_eq!(
+            m.find_reaction("R00003").unwrap().mode,
+            ReactionMode::Straight
+        );
+        assert_eq!(
+            m.find_reaction("R00001").unwrap().mode,
+            ReactionMode::Straight
+        );
+    }
+
+    #[test]
     fn a_junction_is_where_its_box_meets_the_line() {
         let m = map().model;
         // Isozymes between the same compounds: apart, each by its box.
@@ -713,6 +857,49 @@ mod tests {
         assert!(i.model.find_reaction("R00005").is_none());
         assert_eq!(i.map.warnings.len(), 1, "{:?}", i.map.warnings);
         assert!(i.map.warnings[0].contains("R00005"), "{:?}", i.map.warnings);
+    }
+
+    #[test]
+    fn compounds_take_the_names_found() {
+        let i = map();
+        let mut m = i.model.clone();
+        let before = m.find_species("C00031").unwrap().label_offset;
+        let names = [
+            ("C00031".to_owned(), "D-Glucose".to_owned()),
+            // Two names that make the same id: the second gets _2.
+            ("C00103".to_owned(), "glucose 1-phosphate".to_owned()),
+            ("C00022".to_owned(), "glucose-1-phosphate".to_owned()),
+        ];
+        assert_eq!(apply_names(&mut m, &i.map.compounds, &names), 3);
+        assert!(m.find_species("C00031").is_none());
+        let glc = m.find_species("D_Glucose").expect("renamed");
+        assert_ne!(glc.label_offset, before, "the longer name placed again");
+        assert!(m.find_species("glucose_1_phosphate").is_some());
+        assert!(m.find_species("glucose_1_phosphate_2").is_some());
+        // Every drawing and reaction follows.
+        assert_eq!(m.aliases_of("D_Glucose").count(), 1);
+        assert_eq!(
+            m.find_reaction("R00001").unwrap().reactants[0].species,
+            "D_Glucose"
+        );
+        // A name that is already an enzyme's id isn't taken from it.
+        let mut m = i.model.clone();
+        let names = [("C00031".to_owned(), "pykF".to_owned())];
+        apply_names(&mut m, &i.map.compounds, &names);
+        assert!(m.find_species("pykF_2").is_some());
+        assert_eq!(m.find_species("pykF").unwrap().shape, NodeShape::Rectangle);
+        // One the user has renamed meanwhile is passed over.
+        let mut m = i.model.clone();
+        m.rename_species("C00031", "Glc").unwrap();
+        assert_eq!(
+            apply_names(
+                &mut m,
+                &i.map.compounds,
+                &[("C00031".into(), "D-Glucose".into())]
+            ),
+            0
+        );
+        assert!(m.find_species("Glc").is_some());
     }
 
     #[test]

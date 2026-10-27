@@ -23,6 +23,7 @@ pub mod layout;
 pub mod model;
 pub mod node_shape;
 pub mod passes;
+pub mod pubchem;
 pub mod render;
 pub mod sbml;
 pub mod structure;

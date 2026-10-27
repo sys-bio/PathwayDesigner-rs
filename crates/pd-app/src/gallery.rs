@@ -134,7 +134,7 @@ fn failure(status: u16) -> String {
     }
 }
 
-fn take(pending: &Pending) -> Option<Result<String, String>> {
+pub(crate) fn take(pending: &Pending) -> Option<Result<String, String>> {
     pending.lock().unwrap().take()
 }
 
