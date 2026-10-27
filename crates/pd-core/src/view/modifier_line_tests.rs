@@ -651,3 +651,67 @@ fn hidden_modifier_lines_are_saved_with_the_diagram() {
     v.set_show_modifiers(true);
     assert_eq!(v.undo_description(), None, "already shown: no step");
 }
+
+/// The view, with A a self modifier too, its modifier line naming a second
+/// drawing of A far away (as the yeast model's do).
+fn looped() -> DiagramView {
+    let mut v = view();
+    let far = v.model.add_alias("A", pt(-2000.0, 900.0)).unwrap();
+    v.model
+        .find_reaction_mut("R1")
+        .unwrap()
+        .modifiers
+        .push(Participant::new(far, 1.0));
+    v
+}
+
+fn route_of(v: &DiagramView, i: usize) -> Vec<Pt> {
+    let r = v.model().find_reaction("R1").unwrap();
+    modifier_route(v.model(), r, &r.modifiers[i]).unwrap()
+}
+
+#[test]
+fn a_loop_converts_to_corner_points_and_back() {
+    let mut v = looped();
+    assert!(v.is_loop("R1", 1));
+    assert!(!v.is_loop("R1", 0), "E is an ordinary modifier");
+    let loop_route = route_of(&v, 1);
+    v.loop_to_corner_points("R1", 1);
+    assert!(!v.is_loop("R1", 1));
+    let m = &v.model().find_reaction("R1").unwrap().modifiers[1];
+    // From A itself, the drawing the loop started at, not the far one.
+    assert_eq!(m.species, "A");
+    assert_eq!(m.points.len(), 2);
+    // Its corner points lie on the loop, so it looks much the same.
+    for p in &m.points {
+        let near = loop_route
+            .iter()
+            .map(|q| q.distance(*p))
+            .fold(f64::MAX, f64::min);
+        assert!(near < 5.0, "{p:?} is {near} off the loop");
+    }
+    let arc = route_of(&v, 1);
+    assert_eq!(arc.len(), 4);
+    assert!(arc[0].distance(pt(0.0, 0.0)) < 45.0, "{:?}", arc[0]);
+    // One undo step back to the loop; Straighten makes it a loop again too.
+    v.undo();
+    assert!(v.is_loop("R1", 1));
+    v.loop_to_corner_points("R1", 1);
+    v.straighten_line("R1", (Role::Modifier, 1));
+    assert!(v.is_loop("R1", 1));
+}
+
+#[test]
+fn a_corner_point_added_to_a_loop_starts_it_at_its_drawing() {
+    let mut v = looped();
+    v.add_corner_point("R1", (Role::Modifier, 1), 3, pt(100.0, -80.0));
+    let m = &v.model().find_reaction("R1").unwrap().modifiers[1];
+    assert_eq!(m.species, "A");
+    assert_eq!(m.points, [pt(100.0, -80.0)]);
+    // An ordinary modifier keeps the drawing it names.
+    v.add_corner_point("R1", (Role::Modifier, 0), 0, pt(250.0, -100.0));
+    assert_eq!(
+        v.model().find_reaction("R1").unwrap().modifiers[0].species,
+        "E"
+    );
+}

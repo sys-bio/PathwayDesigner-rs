@@ -65,6 +65,8 @@ pub enum MenuAction {
     /// Add Corner Point: the reaction, the line (its role and index), the
     /// piece of it and where (S §5.7.1, §5.6.5).
     AddCornerPoint(String, LineRef, usize, pd_core::geometry::Pt),
+    /// Convert Loop to Corner Points: the reaction and the modifier's index.
+    LoopToCornerPoints(String, usize),
     /// Remove Corner Point: the reaction, the line, the point's index.
     RemoveCornerPoint(String, LineRef, usize),
     /// Straighten Modifier Line or Straighten Line: the reaction and the
@@ -480,6 +482,15 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
             }
             let at = view.context_point().unwrap_or_default();
             let line = (pd_core::model::Role::Modifier, *modifier);
+            if view.is_loop(id, *modifier) {
+                let b = ui.button("Convert Loop to Corner Points").on_hover_text(
+                    "Draw the loop as a line through two corner points you can drag",
+                );
+                if b.clicked() {
+                    item_chosen = Some(MenuAction::LoopToCornerPoints(id.clone(), *modifier));
+                    ui.close();
+                }
+            }
             item(
                 ui,
                 "Add Corner Point",

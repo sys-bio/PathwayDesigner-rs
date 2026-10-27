@@ -107,6 +107,11 @@ impl DiagramView {
     ) -> ViewResponse {
         self.current_corner = None;
         let before = self.model.clone();
+        // A loop's first corner point makes it an arc from where the loop
+        // started, the drawing on the reaction's line.
+        if line.0 == Role::Modifier {
+            self.start_loop_at_its_drawing(id, line.1);
+        }
         if let Some(r) = self.model.find_reaction_mut(id) {
             edit_points(r, line, |pts| {
                 let index = piece.min(pts.len());
@@ -114,6 +119,66 @@ impl DiagramView {
             });
         }
         self.record_if_changed("Add Corner Point", before)
+    }
+
+    /// True if modifier `modifier` of reaction `id` is drawn as a
+    /// self-regulation loop: a self modifier with no corner points
+    /// (docs/self-modifier-loop-design.md).
+    pub fn is_loop(&self, id: &str, modifier: usize) -> bool {
+        self.model.find_reaction(id).is_some_and(|r| {
+            r.modifiers.get(modifier).is_some_and(|m| {
+                m.points.is_empty() && crate::render::draw::self_loop(&self.model, r, m).is_some()
+            })
+        })
+    }
+
+    /// If modifier `modifier` of reaction `id` is drawn as a loop, makes it
+    /// name the drawing the loop starts at, so an arc through corner points
+    /// starts there too. Not an undo step.
+    fn start_loop_at_its_drawing(&mut self, id: &str, modifier: usize) {
+        if !self.is_loop(id, modifier) {
+            return;
+        }
+        let Some(drawing) = self.model.find_reaction(id).and_then(|r| {
+            crate::render::draw::self_modifier_drawing(&self.model, r, &r.modifiers[modifier])
+                .map(|s| s.id.clone())
+        }) else {
+            return;
+        };
+        if let Some(m) = self
+            .model
+            .find_reaction_mut(id)
+            .and_then(|r| r.modifiers.get_mut(modifier))
+        {
+            m.species = drawing;
+        }
+    }
+
+    /// Convert Loop to Corner Points: modifier `modifier` of reaction `id`,
+    /// drawn as a loop, becomes an arc from the same drawing through two
+    /// corner points a third and two thirds of the way along the loop, so it
+    /// looks much the same and each point can be dragged. Straighten Modifier
+    /// Line takes them off, and it is a loop again. One undo step.
+    pub fn loop_to_corner_points(&mut self, id: &str, modifier: usize) -> ViewResponse {
+        if !self.is_loop(id, modifier) {
+            return ViewResponse::default();
+        }
+        self.current_corner = None;
+        let before = self.model.clone();
+        let curve = self
+            .model
+            .find_reaction(id)
+            .and_then(|r| crate::render::draw::self_loop(&self.model, r, &r.modifiers[modifier]));
+        self.start_loop_at_its_drawing(id, modifier);
+        if let (Some(c), Some(m)) = (
+            curve,
+            self.model
+                .find_reaction_mut(id)
+                .and_then(|r| r.modifiers.get_mut(modifier)),
+        ) {
+            m.points = vec![c.eval(1.0 / 3.0), c.eval(2.0 / 3.0)];
+        }
+        self.record_if_changed("Convert Loop to Corner Points", before)
     }
 
     /// Takes corner point `point` off line `line` of reaction `id`. One undo

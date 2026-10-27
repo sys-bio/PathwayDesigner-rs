@@ -521,6 +521,9 @@ impl PathwayApp {
             MenuAction::AddCornerPoint(id, line, piece, at) => {
                 self.view.add_corner_point(&id, line, piece, at);
             }
+            MenuAction::LoopToCornerPoints(id, modifier) => {
+                self.view.loop_to_corner_points(&id, modifier);
+            }
             MenuAction::RemoveCornerPoint(id, line, point) => {
                 self.view.remove_corner_point(&id, line, point);
             }
@@ -2348,6 +2351,28 @@ mod tests {
         h.run(vec![]);
         assert_eq!(h.app.view.model().reactions().len(), 1);
         assert!(h.app.warnings[0].contains("couldn't be read as an Escher map"));
+    }
+
+    #[test]
+    fn a_loop_converts_to_corner_points_from_its_menu() {
+        use pd_core::model::{Model, Participant, Reaction, SpeciesNode};
+        let mut m = Model::new();
+        for (id, x) in [("A", 0.0), ("B", 400.0)] {
+            m.push_species(SpeciesNode::new(id, pt(x, 0.0))).unwrap();
+        }
+        let mut r = Reaction::new("R1", pt(200.0, 0.0));
+        r.reactants.push(Participant::new("A", 1.0));
+        r.products.push(Participant::new("B", 1.0));
+        r.modifiers.push(Participant::new("A", 1.0));
+        m.push_reaction(r).unwrap();
+        let mut h = Harness::new();
+        h.app.view.set_model(m);
+        assert!(h.app.view.is_loop("R1", 0));
+        h.app
+            .act(MenuAction::LoopToCornerPoints("R1".into(), 0), pt(0.0, 0.0));
+        assert!(!h.app.view.is_loop("R1", 0));
+        let points = &h.app.view.model().find_reaction("R1").unwrap().modifiers[0].points;
+        assert_eq!(points.len(), 2);
     }
 
     #[test]
