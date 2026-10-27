@@ -2392,7 +2392,9 @@ mod tests {
     }
 
     /// KEGG for File ▸ Open from KEGG…: eco00010 is a one-reaction map, any
-    /// other code isn't there; PubChem as [`pubchem`].
+    /// other code isn't there; PubChem as [`pubchem`]. Built only where the
+    /// test that uses it runs (not on macOS).
+    #[cfg(not(target_os = "macos"))]
     fn kegg(ctx: &egui::Context, url: String) -> crate::gallery::Pending {
         if !url.contains("rest.kegg.jp") {
             return pubchem(ctx, url);
