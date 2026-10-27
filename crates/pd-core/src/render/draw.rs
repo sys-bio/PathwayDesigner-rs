@@ -4,7 +4,7 @@
 //! anything that depends on the selection when drawing for output (S §11.6).
 
 use crate::bezier::{Ctrl, leg_curve, leg_inner_end, leg_run};
-use crate::geometry::{Pt, filled_arrowhead, normalize, pt, world_to_screen};
+use crate::geometry::{CubicBezier, Pt, filled_arrowhead, normalize, pt, world_to_screen};
 use crate::model::{
     BorderDash, Compartment, Frame, Id, LinePattern, Model, ModifierKind, NodeShape, Participant,
     Reaction, ReactionMode, Rgba, Role, SpeciesNode, TextFont, TextItem, VisualStyle,
@@ -822,11 +822,126 @@ pub fn effective_junction(model: &Model, r: &Reaction) -> Pt {
     }
 }
 
+/// A self-regulation loop's height, as a part of its leg's length, and the
+/// least and most it may be (docs/self-modifier-loop-design.md, L5).
+pub const LOOP_SHARE: f64 = 0.45;
+pub const LOOP_HEIGHT: (f64, f64) = (30.0, 80.0);
+/// How many straight pieces a loop is drawn and hit with.
+const LOOP_PIECES: usize = 32;
+
+/// The drawing of a self modifier's species on its reaction's line: the
+/// reactant's drawing if the species is a reactant, else the product's. `None`
+/// if `m`'s species is neither (it is an ordinary modifier).
+pub fn self_modifier_drawing<'a>(
+    model: &'a Model,
+    r: &Reaction,
+    m: &Participant,
+) -> Option<&'a SpeciesNode> {
+    let primary = model.find_species(&m.species)?.primary_id();
+    r.reactants
+        .iter()
+        .chain(&r.products)
+        .filter_map(|p| model.find_species(&p.species))
+        .find(|s| s.primary_id() == primary && !s.is_null_node)
+}
+
+/// A self modifier's loop (docs/self-modifier-loop-design.md §2): a curve
+/// from the drawing on its reaction's line out to one side of that drawing's
+/// own line and back to the junction. It comes into the junction the way
+/// furthest from the reaction's other lines, so its symbol sits clear of
+/// theirs: on either side of the drawing's line, turned by up to 40° from
+/// where the loop would come in by itself. On a tie, the least turned, on the
+/// left of the way from the species to the junction. `None` for an ordinary
+/// modifier, or one whose drawing is on the junction.
+pub fn self_loop(model: &Model, r: &Reaction, m: &Participant) -> Option<CubicBezier> {
+    let node = self_modifier_drawing(model, r, m)?;
+    let (n, j) = (node.center, effective_junction(model, r));
+    let d = n.distance(j);
+    if d < 1.0 {
+        return None;
+    }
+    let u = (j - n) / d;
+    // Left of the way from the species to the junction, on screen.
+    let left = pt(u.y, -u.x);
+    let h = (LOOP_SHARE * d).clamp(LOOP_HEIGHT.0, LOOP_HEIGHT.1);
+    // The ways the reaction's lines leave the junction, the drawing's own
+    // among them: a leg by where it is a fifth of the way along from the
+    // junction (a curve may leave a smooth junction one way and turn at
+    // once), a modifier's arc by its first piece from the junction.
+    let mut others: Vec<Pt> = Vec::new();
+    for role in [Role::Reactant, Role::Product] {
+        for index in 0..r.participants(role).len() {
+            if let Some(c) = leg_curve(model, r, role, index) {
+                let near = c.eval(if role == Role::Reactant { 0.8 } else { 0.2 });
+                if near.distance(j) >= 1e-6 {
+                    others.push(normalize(near - j));
+                }
+            }
+        }
+    }
+    for o in r.modifiers.iter().filter(|o| o.species != m.species) {
+        let towards = o
+            .points
+            .last()
+            .copied()
+            .or_else(|| model.find_species(&o.species).map(|s| s.center));
+        if let Some(t) = towards.filter(|t| t.distance(j) >= 1.0) {
+            others.push(normalize(t - j));
+        }
+    }
+    // How close a way in comes to another line: the largest cosine between
+    // them.
+    let crowding = |way_in: Pt| {
+        others
+            .iter()
+            .map(|o| o.x * way_in.x + o.y * way_in.y)
+            .fold(-1.0, f64::max)
+    };
+    let mut best: Option<(f64, Pt, Pt)> = None;
+    for turn in [0.0_f64, 20.0, -20.0, 40.0, -40.0] {
+        for out in [left, -left] {
+            // Where the junction's handle is: out to the side and back
+            // toward the species, turned.
+            let by_itself = out * h - u * (0.25 * d);
+            let (sin, cos) = turn.to_radians().sin_cos();
+            // No longer than the loop is high, so turning it can't swing the
+            // loop wider than its height.
+            let by_itself = by_itself * (h / by_itself.length()).min(1.0);
+            let handle = pt(
+                by_itself.x * cos - by_itself.y * sin,
+                by_itself.x * sin + by_itself.y * cos,
+            );
+            let c = crowding(normalize(handle));
+            if best.is_none_or(|(b, ..)| c < b - 1e-9) {
+                best = Some((c, out, handle));
+            }
+        }
+    }
+    let (_, out, handle) = best.expect("ten tried");
+    let start = border(node, n + (u + out) * d);
+    Some(CubicBezier::new(
+        start,
+        n + u * (0.25 * d) + out * h,
+        j + handle,
+        j,
+    ))
+}
+
 /// The points a modifier's arc runs through (S §5.7.1): where it leaves the
-/// modifier node's border, its corner points, then the junction. `None` when
-/// its node is missing, or its first point (the junction, without corner
-/// points) is on the node's centre.
+/// modifier node's border, its corner points, then the junction. A self
+/// modifier with no corner points runs along its loop instead ([`self_loop`]).
+/// `None` when its node is missing, or its first point (the junction, without
+/// corner points) is on the node's centre.
 pub fn modifier_route(model: &Model, r: &Reaction, m: &Participant) -> Option<Vec<Pt>> {
+    if m.points.is_empty()
+        && let Some(c) = self_loop(model, r, m)
+    {
+        return Some(
+            (0..=LOOP_PIECES)
+                .map(|i| c.eval(i as f64 / LOOP_PIECES as f64))
+                .collect(),
+        );
+    }
     let node = model.find_species(&m.species)?;
     let j = effective_junction(model, r);
     let first = m.points.first().copied().unwrap_or(j);
@@ -2466,6 +2581,125 @@ mod tests {
             Some(Rgba::rgb(0x10, 0x20, 0x30)),
             Some(solid)
         )));
+    }
+
+    /// A -> B with A also a modifier of the reaction (a self modifier).
+    fn self_modified() -> Model {
+        let mut m = uni_uni();
+        m.find_reaction_mut("R3")
+            .unwrap()
+            .modifiers
+            .push(Participant::new("S1", 1.0));
+        m
+    }
+
+    #[test]
+    fn a_self_modifier_is_drawn_as_a_loop() {
+        let m = self_modified();
+        let r = m.find_reaction("R3").unwrap();
+        let route = modifier_route(&m, r, &r.modifiers[0]).unwrap();
+        assert!(route.len() > 10, "a curve, in pieces");
+        // From A's border to the junction, bulging out to one side: the
+        // height is 0.45 of the 200 to the junction, kept to 80.
+        assert!(route[0].distance(pt(0.0, 0.0)) < 45.0, "{:?}", route[0]);
+        assert_eq!(*route.last().unwrap(), pt(200.0, 0.0));
+        let bulge = route.iter().map(|p| p.y.abs()).fold(0.0, f64::max);
+        assert!((50.0..=80.0).contains(&bulge), "{bulge}");
+        // Nothing else at the junction but B's line: on the left of the way
+        // from A to the junction, which is up on screen.
+        assert!(route.iter().all(|p| p.y <= 1e-9), "up");
+        // Drawn dashed, ending at its dot, like any modifier arc.
+        let calls = draw(&m, &DrawOptions::default());
+        assert!(
+            calls
+                .iter()
+                .any(|c| matches!(c, Call::Polyline(p, s) if s.dash.is_some() && p.len() > 10))
+        );
+    }
+
+    #[test]
+    fn a_loops_height_is_kept_between_30_and_80() {
+        let bulge = |a_at: Pt| {
+            let mut m = self_modified();
+            m.find_species_mut("S1").unwrap().center = a_at;
+            let r = m.find_reaction("R3").unwrap();
+            modifier_route(&m, r, &r.modifiers[0])
+                .unwrap()
+                .iter()
+                .map(|p| p.y.abs())
+                .fold(0.0, f64::max)
+        };
+        // 1000 from the junction: 0.45 of it would be 450; kept to 80.
+        let far = bulge(pt(-800.0, 0.0));
+        assert!(far <= 80.0, "{far}");
+        // 50 from it: 0.45 would be 22.5; kept to 30, so it shows.
+        let near = bulge(pt(150.0, 0.0));
+        assert!(near >= 0.5 * 30.0, "{near}");
+    }
+
+    #[test]
+    fn a_loop_comes_into_the_junction_clear_of_the_other_lines() {
+        // A line leaves the junction upwards: the loop goes below.
+        let mut m = self_modified();
+        let c = m.add_species(pt(200.0, -200.0), 80.0, 36.0);
+        m.find_reaction_mut("R3")
+            .unwrap()
+            .products
+            .push(Participant::new(c, 1.0));
+        let r = m.find_reaction("R3").unwrap();
+        let route = modifier_route(&m, r, &r.modifiers[0]).unwrap();
+        let mid = route[route.len() / 2];
+        assert!(mid.y > 20.0, "below: {mid:?}");
+    }
+
+    #[test]
+    fn a_loop_starts_at_the_drawing_on_the_reactions_line() {
+        // The modifier names a second drawing of A far away (design L1).
+        let mut m = self_modified();
+        let far = m.add_alias("S1", pt(-2000.0, 900.0)).unwrap();
+        m.find_reaction_mut("R3").unwrap().modifiers[0].species = far;
+        let r = m.find_reaction("R3").unwrap();
+        let route = modifier_route(&m, r, &r.modifiers[0]).unwrap();
+        assert!(route[0].distance(pt(0.0, 0.0)) < 45.0, "{:?}", route[0]);
+    }
+
+    #[test]
+    fn a_self_modifier_with_corner_points_is_an_arc() {
+        // Design L2: corner points win.
+        let mut m = self_modified();
+        m.find_reaction_mut("R3").unwrap().modifiers[0].points = vec![pt(100.0, 100.0)];
+        let r = m.find_reaction("R3").unwrap();
+        let route = modifier_route(&m, r, &r.modifiers[0]).unwrap();
+        assert_eq!(route.len(), 3);
+        assert_eq!(route[1], pt(100.0, 100.0));
+    }
+
+    #[test]
+    fn a_loop_is_hit_as_its_reactions_line() {
+        let m = self_modified();
+        let r = m.find_reaction("R3").unwrap();
+        let route = modifier_route(&m, r, &r.modifiers[0]).unwrap();
+        let apex = *route
+            .iter()
+            .max_by(|a, b| a.y.abs().total_cmp(&b.y.abs()))
+            .unwrap();
+        assert!(matches!(
+            crate::view::hit::hit_test(&m, apex, 1.0, true),
+            crate::view::input::Target::ModifierLine(ref id, 0, _) if id == "R3"
+        ));
+    }
+
+    #[test]
+    fn an_ordinary_modifier_is_no_loop() {
+        let mut m = uni_uni();
+        let e = m.add_species(pt(200.0, -200.0), 80.0, 36.0);
+        m.find_reaction_mut("R3")
+            .unwrap()
+            .modifiers
+            .push(Participant::new(e, 1.0));
+        let r = m.find_reaction("R3").unwrap();
+        assert!(self_loop(&m, r, &r.modifiers[0]).is_none());
+        assert_eq!(modifier_route(&m, r, &r.modifiers[0]).unwrap().len(), 2);
     }
 
     #[test]
