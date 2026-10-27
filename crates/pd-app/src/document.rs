@@ -43,6 +43,10 @@ pub enum Action {
     OpenSample(&'static str),
     /// An example from the Gallery, to be fetched (S §11.8).
     OpenGallery(crate::gallery::Example),
+    /// A KEGG map by its code, to be fetched (desktop;
+    /// docs/kegg-import-design.md, K6).
+    #[cfg(not(target_arch = "wasm32"))]
+    OpenKegg(String),
     /// A file already read: dropped on the window.
     OpenText {
         name: String,
@@ -89,6 +93,12 @@ impl PathwayApp {
                 }
             }
             Action::OpenGallery(example) => self.gallery.start(&self.ctx, example),
+            #[cfg(not(target_arch = "wasm32"))]
+            Action::OpenKegg(code) => {
+                let url = pd_core::kegg::kgml_url(&code);
+                self.notice = Some(format!("Fetching {code} from KEGG…"));
+                self.kegg_fetch = Some((code, (self.gallery.fetch)(&self.ctx, url)));
+            }
             Action::OpenText { name, text, target } => {
                 self.open_text(&name, &text, target);
             }
@@ -380,11 +390,46 @@ impl PathwayApp {
         );
     }
 
+    /// File ▸ Open from KEGG… with map `code` (docs/kegg-import-design.md,
+    /// K6). The desktop fetches the map and opens it. A web page may not read
+    /// KEGG's files, so the browser opens the map's file in a new tab, to be
+    /// saved and opened with File ▸ Open.
+    pub(crate) fn open_from_kegg(&mut self, code: String) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.request(Action::OpenKegg(code));
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.ctx
+                .open_url(egui::OpenUrl::new_tab(pd_core::kegg::kgml_url(&code)));
+            self.notice = Some(format!(
+                "KEGG's file for {code} is in a new tab: save it there (Ctrl+S), then open it with File ▸ Open"
+            ));
+        }
+    }
+
     /// Handles finished file operations and dropped files. A file just read
     /// is opened on the next frame, so this one can show the busy cursor and
     /// say what is being opened first: reading a big file blocks the browser
     /// until it is done.
     pub(crate) fn handle_files(&mut self) {
+        if let Some(result) = self
+            .kegg_fetch
+            .as_ref()
+            .and_then(|(_, pending)| crate::gallery::take(pending))
+        {
+            let (code, _) = self.kegg_fetch.take().expect("checked");
+            match result {
+                Ok(text) => {
+                    self.open_text(&format!("{code}.xml"), &text, None);
+                }
+                Err(why) => {
+                    self.notice = None;
+                    self.warnings = vec![format!(
+                        "{code} couldn't be fetched from KEGG ({why}). The diagram wasn't changed."
+                    )];
+                }
+            }
+        }
         if let Some((example, text)) = self.gallery.poll() {
             if self.open_text(example.name(), &text, None) {
                 self.gallery.open = false;

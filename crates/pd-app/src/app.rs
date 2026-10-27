@@ -123,6 +123,12 @@ pub(crate) enum Dialog {
         error: Option<String>,
         focus: bool,
     },
+    /// File ▸ Open from KEGG…: asks for a map code.
+    OpenKegg {
+        text: String,
+        error: Option<String>,
+        focus: bool,
+    },
     /// Asks for a new id for a species.
     Rename {
         id: String,
@@ -179,6 +185,8 @@ pub struct PathwayApp {
     pub(crate) gallery: crate::gallery::Gallery,
     /// A KEGG map's compound names being looked up in PubChem.
     pub(crate) naming: Option<crate::kegg_names::Naming>,
+    /// A KEGG map being fetched by File ▸ Open from KEGG… (desktop), by code.
+    pub(crate) kegg_fetch: Option<(String, crate::gallery::Pending)>,
     pub(crate) files: Files,
     pub(crate) doc: Document,
     /// What to do once a Save requested by the unsaved-changes prompt is done.
@@ -264,6 +272,7 @@ impl PathwayApp {
             help: Default::default(),
             gallery: Default::default(),
             naming: None,
+            kegg_fetch: None,
             files: Files::default(),
             doc: Document::default(),
             after_save: None,
@@ -693,6 +702,14 @@ impl PathwayApp {
                 self.recent_menu(ui);
                 if item(ui, "Open from Gallery…", None) {
                     self.gallery.open = true;
+                    ui.close();
+                }
+                if item(ui, "Open from KEGG…", None) {
+                    self.dialog = Some(Dialog::OpenKegg {
+                        text: String::new(),
+                        error: None,
+                        focus: true,
+                    });
                     ui.close();
                 }
                 ui.menu_button("Open sample", |ui| {
@@ -1289,7 +1306,54 @@ impl PathwayApp {
             return;
         };
         let mut close = false;
+        let mut kegg_code = None;
         match dialog {
+            Dialog::OpenKegg { text, error, focus } => {
+                let mut submit = false;
+                let modal = egui::Modal::new(egui::Id::unique("open-kegg")).show(ctx, |ui| {
+                    ui.heading("Open from KEGG");
+                    ui.label("A KEGG map code, such as eco00010 (E. coli glycolysis) or ko00010 (the reference map):");
+                    ui.add_space(4.0);
+                    let edit = ui.add(
+                        egui::TextEdit::singleline(text)
+                            .desired_width(240.0)
+                            .hint_text("eco00010"),
+                    );
+                    if std::mem::take(focus) {
+                        edit.request_focus();
+                    }
+                    if edit.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                        submit = true;
+                    }
+                    if cfg!(target_arch = "wasm32") {
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new(
+                                "KEGG doesn't let web pages fetch its maps, so the map's file opens in a new tab: save it there (Ctrl+S), then open it with File ▸ Open.",
+                            )
+                            .small(),
+                        );
+                    }
+                    if let Some(e) = error {
+                        ui.colored_label(egui::Color32::from_rgb(0xCC, 0x33, 0x00), e.as_str());
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        submit |= ui.button("Open").clicked();
+                        close |= ui.button("Cancel").clicked();
+                    });
+                });
+                close |= modal.should_close();
+                if submit {
+                    match pd_core::kegg::map_code(text) {
+                        Ok(code) => {
+                            close = true;
+                            kegg_code = Some(code);
+                        }
+                        Err(e) => *error = Some(e),
+                    }
+                }
+            }
             Dialog::Rename {
                 id,
                 text,
@@ -1534,6 +1598,9 @@ impl PathwayApp {
         if close {
             self.dialog = None;
         }
+        if let Some(code) = kegg_code {
+            self.open_from_kegg(code);
+        }
     }
 }
 
@@ -1720,7 +1787,7 @@ impl eframe::App for PathwayApp {
             self.request(Action::OpenGallery(example));
         }
         // Last, so nothing over the canvas sets another.
-        if self.is_opening() || self.gallery.busy() {
+        if self.is_opening() || self.gallery.busy() || self.kegg_fetch.is_some() {
             ctx.set_cursor_icon(egui::CursorIcon::Wait);
         }
     }
@@ -2321,6 +2388,76 @@ mod tests {
             h.app.warnings[0].starts_with("hsa04010.xml: This KEGG map has no reactions"),
             "{:?}",
             h.app.warnings
+        );
+    }
+
+    /// KEGG for File ▸ Open from KEGG…: eco00010 is a one-reaction map, any
+    /// other code isn't there; PubChem as [`pubchem`].
+    fn kegg(ctx: &egui::Context, url: String) -> crate::gallery::Pending {
+        if !url.contains("rest.kegg.jp") {
+            return pubchem(ctx, url);
+        }
+        let result = if url.ends_with("/eco00010/kgml") {
+            Ok(r#"<pathway name="path:eco00010" number="00010" title="Glycolysis">
+  <entry id="1" name="cpd:C00031" type="compound"><graphics x="100" y="100"/></entry>
+  <entry id="2" name="cpd:C00103" type="compound"><graphics x="300" y="100"/></entry>
+  <reaction id="9" name="rn:R00001" type="irreversible"><substrate id="1"/><product id="2"/></reaction>
+</pathway>"#
+                .to_owned())
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(result)))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn open_from_kegg_fetches_a_map_by_its_code() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = kegg;
+        h.click(h.widget("File"));
+        h.run(vec![]);
+        h.click(h.widget("Open from KEGG…"));
+        h.run(vec![]);
+        assert!(matches!(h.app.dialog, Some(Dialog::OpenKegg { .. })));
+        let type_code = |h: &mut Harness, code: &str| {
+            if let Some(Dialog::OpenKegg { text, .. }) = &mut h.app.dialog {
+                *text = code.to_owned();
+            }
+            h.run(vec![]);
+            h.click(h.widget("Open"));
+            h.run(vec![]);
+        };
+        // Not a code: the dialog stays and says what one is.
+        type_code(&mut h, "glycolysis");
+        match &h.app.dialog {
+            Some(Dialog::OpenKegg { error: Some(e), .. }) => {
+                assert!(e.contains("five digits"), "{e}")
+            }
+            _ => panic!("the dialog should stay with an error"),
+        }
+        // A code, typed in capitals: fetched and opened as a new document.
+        type_code(&mut h, "ECO00010");
+        assert!(h.app.dialog.is_none());
+        for _ in 0..8 {
+            h.run(vec![]);
+        }
+        assert!(h.app.kegg_fetch.is_none());
+        assert_eq!(h.app.doc.name, "eco00010 (from KEGG).json");
+        assert!(
+            h.app.view.model().find_species("D_Glucose").is_some(),
+            "named too"
+        );
+        // A map KEGG hasn't got: the diagram stays, and a warning says why.
+        h.app.perform(Action::OpenKegg("eco99999".into()));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(h.app.view.model().find_species("D_Glucose").is_some());
+        assert_eq!(
+            h.app.warnings,
+            [
+                "eco99999 couldn't be fetched from KEGG (not found (404)). The diagram wasn't changed."
+            ]
         );
     }
 

@@ -55,6 +55,39 @@ pub struct Map {
     pub compounds: Vec<(Id, String)>,
 }
 
+/// A map code as typed made KEGG's (`ECO00010` → `eco00010`), or why it
+/// isn't one. A code is two to four letters, an organism or `ko`, `ec`,
+/// `rn` for the reference maps, then five digits. KEGG has no KGML file for
+/// a `map` code, so the message for one names the `ko` map instead.
+pub fn map_code(typed: &str) -> Result<String, String> {
+    let code = typed.trim().to_ascii_lowercase();
+    let code = code.strip_prefix("path:").unwrap_or(&code).to_owned();
+    let split = code
+        .find(|c: char| c.is_ascii_digit())
+        .unwrap_or(code.len());
+    let (letters, digits) = code.split_at(split);
+    let shaped = (2..=4).contains(&letters.len())
+        && letters.chars().all(|c| c.is_ascii_lowercase())
+        && digits.len() == 5
+        && digits.chars().all(|c| c.is_ascii_digit());
+    if !shaped {
+        return Err(
+            "A KEGG map code is two to four letters then five digits, such as eco00010.".into(),
+        );
+    }
+    if letters == "map" {
+        return Err(format!(
+            "KEGG has no map file for {code}; the reference map is ko{digits}."
+        ));
+    }
+    Ok(code)
+}
+
+/// Where KEGG serves map `code`'s KGML file.
+pub fn kgml_url(code: &str) -> String {
+    format!("https://rest.kegg.jp/get/{code}/kgml")
+}
+
 /// True if `text` is a KGML file: XML whose root element is `<pathway>`.
 pub fn looks_like_kgml(text: &str) -> bool {
     let mut rest = text.trim_start_matches('\u{FEFF}');
@@ -900,6 +933,29 @@ mod tests {
             0
         );
         assert!(m.find_species("Glc").is_some());
+    }
+
+    #[test]
+    fn map_codes() {
+        assert_eq!(map_code(" ECO00010 ").unwrap(), "eco00010");
+        assert_eq!(map_code("path:hsa00020").unwrap(), "hsa00020");
+        assert_eq!(map_code("ko00010").unwrap(), "ko00010");
+        assert!(map_code("map00010").unwrap_err().contains("ko00010"));
+        for bad in [
+            "",
+            "eco",
+            "e00010",
+            "ecoli00010",
+            "eco0001",
+            "eco000100",
+            "eco0001x",
+        ] {
+            assert!(map_code(bad).is_err(), "{bad}");
+        }
+        assert_eq!(
+            kgml_url("eco00010"),
+            "https://rest.kegg.jp/get/eco00010/kgml"
+        );
     }
 
     #[test]
