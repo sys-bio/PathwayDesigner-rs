@@ -92,6 +92,13 @@
       "version": 12
     },
     {
+      "file": "ExampleModels/positiveFeedback.json",
+      "group": "Small examples",
+      "title": "Positive feedback",
+      "description": "A two-step pathway, S1 to S3, whose S2 activates its own making, drawn as a self-regulation loop",
+      "version": 11
+    },
+    {
       "file": "ExampleModels/GepasiYeastGlycolysis.json",
       "group": "Large models",
       "title": "Yeast glycolysis",
