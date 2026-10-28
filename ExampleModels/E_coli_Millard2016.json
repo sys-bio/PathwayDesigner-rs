@@ -1,5 +1,5 @@
 {
-  "version": 13,
+  "version": 11,
   "modelName": "Millard2016 - E. coli central carbon and energy metabolism",
   "compartments": [
     {
@@ -1946,7 +1946,7 @@
     {
       "id": "FDP",
       "x": 771.4711641069738,
-      "y": -195.4907132176206,
+      "y": -193.44980574845283,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.281808159864253,
@@ -1974,7 +1974,8 @@
       "initialValue": 0.861129502441293,
       "isBoundary": false,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "borderDash": "solid"
     },
     {
       "id": "GAP",
@@ -2040,7 +2041,8 @@
       "initialValue": 1.03215312348775,
       "isBoundary": false,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "borderDash": "solid"
     },
     {
       "id": "NAD",
@@ -2095,18 +2097,20 @@
       "initialValue": 0.127839589734497,
       "isBoundary": false,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "borderDash": "solid"
     },
     {
       "id": "PEP",
       "x": 893.9879319390344,
       "y": 531.7372118539633,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 40.0,
+      "h": 30.0,
       "initialValue": 0.997038344330946,
       "isBoundary": false,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "borderDash": "solid"
     },
     {
       "id": "PGA2",
@@ -2139,7 +2143,8 @@
       "initialValue": 0.131599781202154,
       "isBoundary": false,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "borderDash": "solid"
     },
     {
       "id": "PYR",
@@ -2409,12 +2414,25 @@
       "id": "AMP",
       "x": 1585.8040644927084,
       "y": 568.6352336968188,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.186252612968725,
       "isBoundary": false,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "ATP",
@@ -2473,10 +2491,10 @@
     },
     {
       "id": "MG",
-      "x": 2241.029491584866,
-      "y": -605.3652234113829,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 920.5892275300146,
+      "y": -258.7704145118055,
+      "w": 40.0,
+      "h": 30.0,
       "initialValue": 1.0,
       "isBoundary": true,
       "isConstant": true,
@@ -2484,32 +2502,56 @@
     },
     {
       "id": "MgADP",
-      "x": 2241.029491584866,
-      "y": -550.93161781293,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 692.8006075964228,
+      "y": -389.29226188411104,
+      "w": 48.0,
+      "h": 30.0,
       "initialValue": 0.26268256405256,
       "isBoundary": true,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "MgATP",
-      "x": 2034.3775756373025,
-      "y": -550.93161781293,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 643.2578734418377,
+      "y": -295.34760914848124,
+      "w": 50.0,
+      "h": 30.0,
       "initialValue": 2.37120966755768,
       "isBoundary": true,
       "isConstant": false,
-      "compartment": "cell"
+      "compartment": "cell",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "MgFDP",
-      "x": 2139.6006148950646,
-      "y": -605.3652234113829,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 853.6056983519642,
+      "y": -195.0651102438635,
+      "w": 60.0,
+      "h": 30.0,
       "initialValue": 0.0413815212722838,
       "isBoundary": true,
       "isConstant": false,
@@ -2517,8 +2559,8 @@
     },
     {
       "id": "ASP",
-      "x": 2139.6006148950646,
-      "y": -445.2618310011129,
+      "x": 1353.514055834419,
+      "y": 687.6066183844009,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 1.17,
@@ -2528,8 +2570,8 @@
     },
     {
       "id": "CYS",
-      "x": 2139.6006148950646,
-      "y": -550.93161781293,
+      "x": 1421.5901742801677,
+      "y": 595.6827368301498,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.085,
@@ -2539,8 +2581,8 @@
     },
     {
       "id": "MN",
-      "x": 147.4143254931643,
-      "y": 159.70451659940034,
+      "x": 1031.3157068437797,
+      "y": 957.6488528968925,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.3,
@@ -2572,8 +2614,8 @@
     },
     {
       "id": "O2",
-      "x": 2191.2113854972013,
-      "y": 720.1880955377148,
+      "x": 2178.461033132164,
+      "y": 686.9263067593566,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.21,
@@ -2648,7 +2690,7 @@
     },
     {
       "id": "Hout",
-      "x": 1883.6496463508975,
+      "x": 1880.6496463508975,
       "y": -729.8151920724447,
       "w": 80.0,
       "h": 36.0,
@@ -2929,17 +2971,6 @@
       "borderDash": "solid"
     },
     {
-      "id": "S12",
-      "x": 2241.029491584866,
-      "y": -391.42693759520444,
-      "w": 80.0,
-      "h": 36.0,
-      "initialValue": 0.0,
-      "isBoundary": false,
-      "isConstant": false,
-      "aliasOf": "P"
-    },
-    {
       "id": "S13",
       "x": 1885.8003452686705,
       "y": 466.4488340517975,
@@ -3037,8 +3068,8 @@
     },
     {
       "id": "S17",
-      "x": 990.1484563583128,
-      "y": 669.8120641444984,
+      "x": 995.6920878213725,
+      "y": 661.4966169499089,
       "w": 36.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3061,14 +3092,27 @@
     },
     {
       "id": "S18",
-      "x": 2139.6006148950646,
-      "y": -391.42693759520444,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 1456.5670621176826,
+      "y": -612.2761759083178,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S19",
@@ -3120,25 +3164,51 @@
     },
     {
       "id": "S21",
-      "x": 2034.3775756373025,
-      "y": -337.5920441892959,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 1089.5411233473037,
+      "y": 788.9495432219018,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S22",
-      "x": 144.57133310714374,
-      "y": 93.36287615638923,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 1147.9359006687544,
+      "y": 1093.893002543398,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ATP"
+      "aliasOf": "ATP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S23",
@@ -3261,17 +3331,6 @@
       "borderDash": "solid"
     },
     {
-      "id": "S30",
-      "x": 2034.3775756373025,
-      "y": -391.42693759520444,
-      "w": 80.0,
-      "h": 36.0,
-      "initialValue": 0.0,
-      "isBoundary": false,
-      "isConstant": false,
-      "aliasOf": "ATP"
-    },
-    {
       "id": "S31",
       "x": 706.4955934709047,
       "y": -260.2688678993528,
@@ -3369,14 +3428,27 @@
     },
     {
       "id": "S35",
-      "x": 2034.3775756373025,
-      "y": -605.3652234113829,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 705.5306389167018,
+      "y": 669.8239028702434,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ADP"
+      "aliasOf": "ADP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S36",
@@ -3545,19 +3617,31 @@
     },
     {
       "id": "S45",
-      "x": 2139.6006148950646,
-      "y": -499.0967244070214,
+      "x": 1390.6934179474395,
+      "y": 956.4307770839694,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NAD"
+      "aliasOf": "NAD",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S46",
-      "x": 2290.349475286911,
-      "y": 211.69719007850028,
+      "x": 2279.2622123607916,
+      "y": 173.44613298338825,
       "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -3624,26 +3708,16 @@
       "borderDash": "solid"
     },
     {
-      "id": "S49",
-      "x": 2241.029491584866,
-      "y": -499.0967244070214,
-      "w": 80.0,
-      "h": 36.0,
-      "initialValue": 0.0,
-      "isBoundary": false,
-      "isConstant": false,
-      "aliasOf": "NAD"
-    },
-    {
       "id": "S50",
-      "x": 2034.3775756373025,
-      "y": -499.0967244070214,
+      "x": 947.12535172346,
+      "y": 910.9023500493756,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "COA"
+      "aliasOf": "COA",
+      "borderDash": "solid"
     },
     {
       "id": "S51",
@@ -3657,7 +3731,7 @@
       "aliasOf": "COA",
       "style": {
         "fillColor": "#FFE8E8FF",
-        "borderColor": "#FF4444FF",
+        "borderColor": "#A05000FF",
         "labelColor": "#00000000",
         "borderWidth": 0.0,
         "lineColor": "#00000000",
@@ -3681,7 +3755,7 @@
       "aliasOf": "COA",
       "style": {
         "fillColor": "#FFE8E8FF",
-        "borderColor": "#FF4444FF",
+        "borderColor": "#A05000FF",
         "labelColor": "#00000000",
         "borderWidth": 0.0,
         "lineColor": "#00000000",
@@ -3705,7 +3779,7 @@
       "aliasOf": "COA",
       "style": {
         "fillColor": "#FFE8E8FF",
-        "borderColor": "#FF4444FF",
+        "borderColor": "#A05000FF",
         "labelColor": "#00000000",
         "borderWidth": 0.0,
         "lineColor": "#00000000",
@@ -3729,7 +3803,7 @@
       "aliasOf": "COA",
       "style": {
         "fillColor": "#FFE8E8FF",
-        "borderColor": "#FF4444FF",
+        "borderColor": "#A05000FF",
         "labelColor": "#00000000",
         "borderWidth": 0.0,
         "lineColor": "#00000000",
@@ -3753,7 +3827,7 @@
       "aliasOf": "COA",
       "style": {
         "fillColor": "#FFE8E8FF",
-        "borderColor": "#FF4444FF",
+        "borderColor": "#A05000FF",
         "labelColor": "#00000000",
         "borderWidth": 0.0,
         "lineColor": "#00000000",
@@ -3777,7 +3851,7 @@
       "aliasOf": "COA",
       "style": {
         "fillColor": "#FFE8E8FF",
-        "borderColor": "#FF4444FF",
+        "borderColor": "#A05000FF",
         "labelColor": "#00000000",
         "borderWidth": 0.0,
         "lineColor": "#00000000",
@@ -4056,7 +4130,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "HCO3"
+      "aliasOf": "HCO3",
+      "borderDash": "solid"
     },
     {
       "id": "S69",
@@ -4129,30 +4204,54 @@
     },
     {
       "id": "S72",
-      "x": 2034.3775756373025,
-      "y": -445.2618310011129,
+      "x": 1268.1440534704675,
+      "y": 1214.1011553451112,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S73",
-      "x": 2239.3937695922814,
-      "y": -337.5920441892959,
+      "x": 1432.0449435823984,
+      "y": 1163.019309814088,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "NADH"
+      "aliasOf": "NADH",
+      "style": {
+        "fillColor": "#D4C8FFFF",
+        "borderColor": "#7A6FC8FF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
     },
     {
       "id": "S74",
       "x": 2190.877421746012,
-      "y": 210.9303079906508,
+      "y": 208.15849225912095,
       "w": 60.0,
       "h": 36.0,
       "initialValue": 0.0,
@@ -4220,14 +4319,27 @@
     },
     {
       "id": "S77",
-      "x": 2241.029491584866,
-      "y": -445.2618310011129,
-      "w": 80.0,
-      "h": 36.0,
+      "x": 868.9601150938712,
+      "y": -352.1500433227769,
+      "w": 38.0,
+      "h": 38.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "AMP"
+      "aliasOf": "AMP",
+      "style": {
+        "fillColor": "#9DBFFFFF",
+        "borderColor": "#1144CCFF",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 0.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "shape": "circle",
+      "borderDash": "solid"
     },
     {
       "id": "S78",
@@ -4286,29 +4398,32 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "FAD"
+      "aliasOf": "FAD",
+      "borderDash": "solid"
     },
     {
       "id": "S82",
-      "x": 1435.1649841515627,
-      "y": 1112.3132468152764,
+      "x": 1456.2307837111896,
+      "y": 1092.9105366945676,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Q"
+      "aliasOf": "Q",
+      "borderDash": "solid"
     },
     {
       "id": "S83",
-      "x": 2182.7836904690394,
-      "y": 309.48914632523457,
+      "x": 2165.5984329335542,
+      "y": 352.17510859079437,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Q"
+      "aliasOf": "Q",
+      "borderDash": "solid"
     },
     {
       "id": "S84",
@@ -4319,7 +4434,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Q"
+      "aliasOf": "Q",
+      "borderDash": "solid"
     },
     {
       "id": "S85",
@@ -4330,7 +4446,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Q"
+      "aliasOf": "Q",
+      "borderDash": "solid"
     },
     {
       "id": "S86",
@@ -4341,7 +4458,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Q"
+      "aliasOf": "Q",
+      "borderDash": "solid"
     },
     {
       "id": "S87",
@@ -4352,7 +4470,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "QH2"
+      "aliasOf": "QH2",
+      "borderDash": "solid"
     },
     {
       "id": "S88",
@@ -4363,7 +4482,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "QH2"
+      "aliasOf": "QH2",
+      "borderDash": "solid"
     },
     {
       "id": "S89",
@@ -4374,18 +4494,20 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "QH2"
+      "aliasOf": "QH2",
+      "borderDash": "solid"
     },
     {
       "id": "S90",
       "x": 2295.7624505839312,
-      "y": 722.7060763055265,
+      "y": 696.0966452828399,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "QH2"
+      "aliasOf": "QH2",
+      "borderDash": "solid"
     },
     {
       "id": "S91",
@@ -4396,7 +4518,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "QH2"
+      "aliasOf": "QH2",
+      "borderDash": "solid"
     },
     {
       "id": "S92",
@@ -4407,7 +4530,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "FADH2"
+      "aliasOf": "FADH2",
+      "borderDash": "solid"
     },
     {
       "id": "S93",
@@ -4418,7 +4542,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "tktC2"
+      "aliasOf": "tktC2",
+      "borderDash": "solid"
     },
     {
       "id": "S94",
@@ -4429,29 +4554,32 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "tkt"
+      "aliasOf": "tkt",
+      "borderDash": "solid"
     },
     {
       "id": "S95",
-      "x": 955.1637902682446,
-      "y": -283.699538454948,
+      "x": 963.3274201449157,
+      "y": -299.0063444737063,
       "w": 80.0,
       "h": 36.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "tal"
+      "aliasOf": "tal",
+      "borderDash": "solid"
     },
     {
       "id": "S96",
       "x": 416.16399485504286,
       "y": 187.90638419703973,
-      "w": 80.0,
-      "h": 36.0,
+      "w": 40.0,
+      "h": 30.0,
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "PEP"
+      "aliasOf": "PEP",
+      "borderDash": "solid"
     },
     {
       "id": "S97",
@@ -4462,7 +4590,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Hin"
+      "aliasOf": "Hin",
+      "borderDash": "solid"
     },
     {
       "id": "S98",
@@ -4484,7 +4613,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Hin"
+      "aliasOf": "Hin",
+      "borderDash": "solid"
     },
     {
       "id": "S100",
@@ -4495,7 +4625,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Hout"
+      "aliasOf": "Hout",
+      "borderDash": "solid"
     },
     {
       "id": "S101",
@@ -4506,7 +4637,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Hout"
+      "aliasOf": "Hout",
+      "borderDash": "solid"
     },
     {
       "id": "S102",
@@ -4517,7 +4649,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "Hout"
+      "aliasOf": "Hout",
+      "borderDash": "solid"
     },
     {
       "id": "S103",
@@ -4528,7 +4661,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "MAL"
+      "aliasOf": "MAL",
+      "borderDash": "solid"
     },
     {
       "id": "S104",
@@ -4539,7 +4673,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "ACCOA"
+      "aliasOf": "ACCOA",
+      "borderDash": "solid"
     },
     {
       "id": "S105",
@@ -4550,7 +4685,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "PYR"
+      "aliasOf": "PYR",
+      "borderDash": "solid"
     },
     {
       "id": "S107",
@@ -4640,7 +4776,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "MAL"
+      "aliasOf": "MAL",
+      "borderDash": "solid"
     },
     {
       "id": "S114",
@@ -4651,7 +4788,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "OAA"
+      "aliasOf": "OAA",
+      "borderDash": "solid"
     },
     {
       "id": "S115",
@@ -4684,7 +4822,8 @@
       "initialValue": 0.0,
       "isBoundary": false,
       "isConstant": false,
-      "aliasOf": "G6P"
+      "aliasOf": "G6P",
+      "borderDash": "solid"
     },
     {
       "id": "S118",
@@ -4785,6 +4924,609 @@
       "isConstant": false,
       "compartment": "cell",
       "shape": "hexagon"
+    },
+    {
+      "id": "S126",
+      "x": 844.0643481332335,
+      "y": -476.01773124049623,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "PEP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S127",
+      "x": 702.2496047153562,
+      "y": -517.60029119206,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "PGN",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S128",
+      "x": 888.4168761714028,
+      "y": -305.0608378284825,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "PEP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S129",
+      "x": 854.9840620926004,
+      "y": -135.7781423976965,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "PEP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S130",
+      "x": 818.9500230701732,
+      "y": 243.61861493885374,
+      "w": 50.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgADP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S131",
+      "x": 821.0843811646049,
+      "y": 170.65070436036612,
+      "w": 50.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgATP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S132",
+      "x": 896.1212997615208,
+      "y": 593.3124754712085,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "FDP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S133",
+      "x": 896.6172962151724,
+      "y": 658.0920283748874,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "G6P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S134",
+      "x": 971.6327617697021,
+      "y": 487.3797168327898,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "GL6P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S135",
+      "x": 1035.7291370778694,
+      "y": 612.885621902201,
+      "w": 64.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgADP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S136",
+      "x": 934.7781048873535,
+      "y": 447.46911297867985,
+      "w": 50.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgATP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S137",
+      "x": 1075.0319809027644,
+      "y": 663.8366334605377,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "R5P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S138",
+      "x": 1025.638103904742,
+      "y": 459.66510219741116,
+      "w": 60.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "RU5P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S139",
+      "x": 1161.2111670373326,
+      "y": 489.2285918437639,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "S7P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S140",
+      "x": 824.3674309618544,
+      "y": 448.5961566603408,
+      "w": 50.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "SUCCOA",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S141",
+      "x": 1101.678262759271,
+      "y": 453.03106183078853,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "X5P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S142",
+      "x": 1194.0865931799826,
+      "y": -503.53905403319976,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "G6P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S143",
+      "x": 1345.7190336192425,
+      "y": -638.6810341768686,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "FDP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S144",
+      "x": 1374.749372525039,
+      "y": -319.92412562380684,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "E4P",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S145",
+      "x": 1326.2617415559578,
+      "y": 568.8948965645934,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ACCOA",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S146",
+      "x": 1234.8023340146115,
+      "y": 660.3543041059398,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "CIT",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S147",
+      "x": 1348.9906305545026,
+      "y": 630.7860242902956,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "FDP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S148",
+      "x": 1171.417902274303,
+      "y": 544.5029181271308,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "FUM",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S149",
+      "x": 1353.514055834419,
+      "y": 503.7588552758986,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MAL",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S150",
+      "x": 1261.5901742801677,
+      "y": 725.6827368301498,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "SUC",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S151",
+      "x": 1215.2877645954136,
+      "y": 431.66180908626586,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgADP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S152",
+      "x": 1349.6380530208576,
+      "y": 457.31152066082177,
+      "w": 50.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgATP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S153",
+      "x": 740.2142791286601,
+      "y": 721.7316386816766,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "AKG",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S154",
+      "x": 705.5306389167018,
+      "y": 547.3652045134146,
+      "w": 50.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "OAA",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S155",
+      "x": 633.3513641185077,
+      "y": 608.594553691829,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MG",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S156",
+      "x": 697.7878722574673,
+      "y": 453.03106183078853,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgADP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S157",
+      "x": 769.1610089981879,
+      "y": 405.34105653934597,
+      "w": 50.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MgATP",
+      "style": {
+        "fillColor": "#00000000",
+        "borderColor": "#00000000",
+        "labelColor": "#00000000",
+        "borderWidth": 0.0,
+        "lineColor": "#00000000",
+        "lineWidth": 0.0,
+        "fontSize": 11.0,
+        "junctionColor": "#00000000",
+        "junctionVisible": true
+      },
+      "borderDash": "solid"
+    },
+    {
+      "id": "S158",
+      "x": 1006.6743253215594,
+      "y": 869.8830199026537,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ACCOA",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S159",
+      "x": 1234.5692039962628,
+      "y": 791.8392080172123,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "MG",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S160",
+      "x": 1115.5060619640994,
+      "y": 910.9023500493756,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ASP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S161",
+      "x": 1078.0861442342018,
+      "y": 1098.0918538911935,
+      "w": 60.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "AKG",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S162",
+      "x": 1075.3437177981284,
+      "y": 1365.0798663260175,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "ICIT",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S163",
+      "x": 1198.442442914276,
+      "y": 1617.8838520955585,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "CIT",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S164",
+      "x": 1457.2160726336303,
+      "y": 1588.1806344483532,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "icd",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S165",
+      "x": 1310.0489814162527,
+      "y": 1439.5915759307165,
+      "w": 40.0,
+      "h": 30.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "PEP",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S166",
+      "x": 1424.218023375101,
+      "y": 1515.876890879331,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "PGA3",
+      "borderDash": "solid"
+    },
+    {
+      "id": "S167",
+      "x": 1825.9350344112818,
+      "y": 567.7019297828225,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false,
+      "aliasOf": "eiiaP",
+      "borderDash": "solid"
     }
   ],
   "reactions": [
@@ -4811,10 +5553,14 @@
       ],
       "modifiers": [
         {
-          "id": "PEP"
+          "id": "S126"
         },
         {
-          "id": "PGN"
+          "id": "S127",
+          "points": [
+            742.7276788028466,
+            -481.0872837647322
+          ]
         }
       ]
     },
@@ -4849,7 +5595,7 @@
       ],
       "modifiers": [
         {
-          "id": "PEP"
+          "id": "S128"
         },
         {
           "id": "MgADP"
@@ -4857,7 +5603,9 @@
         {
           "id": "MgATP"
         }
-      ]
+      ],
+      "labelDx": 23.208,
+      "labelDy": 20.922
     },
     {
       "id": "FBA",
@@ -4886,7 +5634,7 @@
       ],
       "modifiers": [
         {
-          "id": "PEP"
+          "id": "S129"
         }
       ]
     },
@@ -4979,10 +5727,10 @@
       ],
       "modifiers": [
         {
-          "id": "MgADP"
+          "id": "S130"
         },
         {
-          "id": "MgATP"
+          "id": "S131"
         }
       ]
     },
@@ -5067,8 +5815,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 943.3401960053628,
           "ctrl1y": 634.8415343127183,
-          "ctrl2x": 974.736666447284,
-          "ctrl2y": 648.3859354860641,
+          "ctrl2x": 980.2802979103437,
+          "ctrl2y": 640.0704882914746,
           "ctrlSet": true
         },
         {
@@ -5083,34 +5831,34 @@
       ],
       "modifiers": [
         {
-          "id": "FDP"
+          "id": "S132"
         },
         {
-          "id": "G6P"
+          "id": "S133"
         },
         {
-          "id": "GL6P"
+          "id": "S134"
         },
         {
-          "id": "MgADP"
+          "id": "S135"
         },
         {
-          "id": "MgATP"
+          "id": "S136"
         },
         {
-          "id": "R5P"
+          "id": "S137"
         },
         {
-          "id": "RU5P"
+          "id": "S138"
         },
         {
-          "id": "S7P"
+          "id": "S139"
         },
         {
-          "id": "SUCCOA"
+          "id": "S140"
         },
         {
-          "id": "X5P"
+          "id": "S141"
         }
       ]
     },
@@ -5188,7 +5936,7 @@
       ],
       "modifiers": [
         {
-          "id": "G6P"
+          "id": "S142"
         }
       ]
     },
@@ -5255,7 +6003,7 @@
           "id": "S18"
         },
         {
-          "id": "FDP"
+          "id": "S143"
         }
       ]
     },
@@ -5315,7 +6063,7 @@
       ],
       "modifiers": [
         {
-          "id": "E4P"
+          "id": "S144"
         }
       ]
     },
@@ -5516,8 +6264,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 922.7497386963182,
           "ctrl1y": -217.91402728932493,
-          "ctrl2x": 948.0325142990797,
-          "ctrl2y": -249.02187909556133,
+          "ctrl2x": 956.1961441757508,
+          "ctrl2y": -264.32868511431957,
           "ctrlSet": true
         }
       ],
@@ -5609,7 +6357,9 @@
         {
           "id": "MgFDP"
         }
-      ]
+      ],
+      "labelDx": 23.394,
+      "labelDy": -20.922
     },
     {
       "id": "PPC",
@@ -5662,22 +6412,22 @@
       ],
       "modifiers": [
         {
-          "id": "ACCOA"
+          "id": "S145"
         },
         {
-          "id": "CIT"
+          "id": "S146"
         },
         {
-          "id": "FDP"
+          "id": "S147"
         },
         {
-          "id": "FUM"
+          "id": "S148"
         },
         {
-          "id": "MAL"
+          "id": "S149"
         },
         {
-          "id": "SUC"
+          "id": "S150"
         },
         {
           "id": "ASP"
@@ -5747,10 +6497,10 @@
       ],
       "modifiers": [
         {
-          "id": "MgADP"
+          "id": "S151"
         },
         {
-          "id": "MgATP"
+          "id": "S152"
         }
       ]
     },
@@ -5817,19 +6567,19 @@
           "id": "S35"
         },
         {
-          "id": "AKG"
+          "id": "S153"
         },
         {
-          "id": "OAA"
+          "id": "S154"
         },
         {
-          "id": "MG"
+          "id": "S155"
         },
         {
-          "id": "MgADP"
+          "id": "S156"
         },
         {
-          "id": "MgATP"
+          "id": "S157"
         }
       ]
     },
@@ -5871,16 +6621,16 @@
           "id": "S21"
         },
         {
-          "id": "ACCOA"
+          "id": "S158"
         },
         {
           "id": "S50"
         },
         {
-          "id": "MG"
+          "id": "S159"
         },
         {
-          "id": "ASP"
+          "id": "S160"
         },
         {
           "id": "MN"
@@ -5975,7 +6725,7 @@
           "id": "S22"
         },
         {
-          "id": "AKG"
+          "id": "S161"
         },
         {
           "id": "S72"
@@ -6015,7 +6765,7 @@
       ],
       "modifiers": [
         {
-          "id": "ICIT"
+          "id": "S162"
         }
       ]
     },
@@ -6052,7 +6802,7 @@
       ],
       "modifiers": [
         {
-          "id": "CIT"
+          "id": "S163"
         }
       ]
     },
@@ -6116,7 +6866,7 @@
       ],
       "modifiers": [
         {
-          "id": "icd"
+          "id": "S164"
         }
       ]
     },
@@ -6437,8 +7187,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 1436.907175562978,
           "ctrl1y": 1031.7825074318903,
-          "ctrl2x": 1421.453168786231,
-          "ctrl2y": 1066.8322615889135,
+          "ctrl2x": 1442.5189683458577,
+          "ctrl2y": 1047.4295514682046,
           "ctrlSet": true
         }
       ],
@@ -6493,10 +7243,10 @@
       ],
       "modifiers": [
         {
-          "id": "PEP"
+          "id": "S165"
         },
         {
-          "id": "PGA3"
+          "id": "S166"
         }
       ]
     },
@@ -6673,7 +7423,7 @@
           "id": "S74",
           "stoichiometry": 1.0,
           "ctrl1x": 2191.469465935933,
-          "ctrl1y": 247.2085983662964,
+          "ctrl1y": 244.43678263476656,
           "ctrl2x": 2202.2466655505696,
           "ctrl2y": 261.3169878980587,
           "ctrlSet": true
@@ -6681,8 +7431,8 @@
         {
           "id": "S83",
           "stoichiometry": 1.0,
-          "ctrl1x": 2189.096067272299,
-          "ctrl1y": 272.9903456424132,
+          "ctrl1x": 2171.910809736814,
+          "ctrl1y": 315.676307907973,
           "ctrl2x": 2213.348066177847,
           "ctrl2y": 263.5572124939752,
           "ctrlSet": true
@@ -6703,8 +7453,8 @@
           "stoichiometry": 1.0,
           "ctrl1x": 2281.634404570001,
           "ctrl1y": 262.5940694500514,
-          "ctrl2x": 2276.0138154804145,
-          "ctrl2y": 244.16694221694658,
+          "ctrl2x": 2264.926552554295,
+          "ctrl2y": 205.91588512183455,
           "ctrlSet": true
         },
         {
@@ -6907,7 +7657,7 @@
       ],
       "modifiers": [
         {
-          "id": "eiiaP"
+          "id": "S167"
         }
       ]
     },
@@ -7911,6 +8661,5 @@
       "modifiers": []
     }
   ],
-  "background": "#FFFFFFFF",
-  "modifierLines": false
+  "background": "#FFFFFFFF"
 }
