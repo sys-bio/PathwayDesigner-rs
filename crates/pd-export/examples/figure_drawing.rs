@@ -4,8 +4,9 @@
 //! stem, and a stem with smooth curves. A + B -> C + D for every way but the single line, which is for a
 //! reaction with one reactant and one product, A -> B.
 //!
-//! Writes PNG, SVG and vector PDF files for each panel into a folder;
-//! `Paper/figures/fig_drawing.tex` puts the PDFs together.
+//! Writes PNG, SVG and vector PDF files for each panel into a folder, and
+//! the panel as a PathwayDesigner file (`.json`) to open, adjust and export
+//! again; `Paper/figures/fig_drawing.tex` puts the PDFs together.
 //!
 //! ```text
 //! cargo run -p pd-export --release --example figure_drawing -- <out>
@@ -90,6 +91,8 @@ fn main() {
             Shown::ALL,
         );
         std::fs::write(out.join(format!("{file}.pdf")), pdf).unwrap();
+        let json = pd_core::json::to_json(model);
+        std::fs::write(out.join(format!("{file}.json")), json).unwrap();
     };
 
     // A: straight legs meeting at the junction.
