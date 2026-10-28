@@ -1,7 +1,7 @@
 //! The paper's reaction-drawing figure (Fig 2), drawn by the app's own code:
-//! one reaction drawn the five ways PathwayDesigner offers (S §5.5, §5.6,
-//! §5.13): straight legs, a single line, Bézier legs, a smooth junction, and
-//! a stem. A + B -> C + D for every way but the single line, which is for a
+//! one reaction drawn the ways PathwayDesigner offers (S §5.5, §5.6,
+//! §5.13): straight legs, a single line, Bézier legs, a smooth junction, a
+//! stem, and a stem with smooth curves. A + B -> C + D for every way but the single line, which is for a
 //! reaction with one reactant and one product, A -> B.
 //!
 //! Writes PNG, SVG and vector PDF files for each panel into a folder;
@@ -140,4 +140,18 @@ fn main() {
         r.stem_straight = pd_core::model::stem_is_straight(stem);
     }
     write("E", &m);
+
+    // F: a stem with smooth curves, each joining the stem along its line,
+    // as Escher's maps are drawn.
+    let mut m = reaction(false, "Stem, smooth");
+    {
+        let r = m.find_reaction_mut("J1").unwrap();
+        r.mode = ReactionMode::Bezier;
+        r.junction_smooth = true;
+        let stem = (pt(-60.0, 0.0), pt(60.0, 0.0));
+        r.stem = Some(stem);
+        r.stem_straight = pd_core::model::stem_is_straight(stem);
+    }
+    pd_core::bezier::apply_smooth_handles(&mut m, "J1");
+    write("F", &m);
 }
