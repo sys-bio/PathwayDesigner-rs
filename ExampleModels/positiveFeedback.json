@@ -1,0 +1,132 @@
+{
+  "version": 11,
+  "modelName": "",
+  "compartments": [],
+  "parameters": [
+    {
+      "variable": "k4",
+      "expression": "0.1"
+    },
+    {
+      "variable": "k5",
+      "expression": "0.1"
+    }
+  ],
+  "assignmentRules": [],
+  "species": [
+    {
+      "id": "S1",
+      "x": 140.5,
+      "y": 72.5,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S2",
+      "x": 367.5,
+      "y": 72.5,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false
+    },
+    {
+      "id": "S3",
+      "x": 598.5,
+      "y": 72.5,
+      "w": 80.0,
+      "h": 36.0,
+      "initialValue": 0.0,
+      "isBoundary": false,
+      "isConstant": false
+    }
+  ],
+  "reactions": [
+    {
+      "id": "R4",
+      "jx": 254.0,
+      "jy": 72.5,
+      "kineticLaw": "k4*S1*S2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S1",
+          "stoichiometry": 1.0,
+          "ctrl1x": 180.225,
+          "ctrl1y": 71.8,
+          "ctrl2x": 214.275,
+          "ctrl2y": 72.5,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 293.725,
+          "ctrl1y": 72.5,
+          "ctrl2x": 327.775,
+          "ctrl2y": 73.2,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "S2",
+          "kind": "activator"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "jx": 483.0,
+      "jy": 73.0,
+      "kineticLaw": "k5*S2",
+      "isReversible": false,
+      "isLinear": false,
+      "isBezier": true,
+      "isJunctionSmooth": true,
+      "reactants": [
+        {
+          "id": "S2",
+          "stoichiometry": 1.0,
+          "ctrl1x": 407.925,
+          "ctrl1y": 72.325,
+          "ctrl2x": 442.575,
+          "ctrl2y": 73.175,
+          "ctrlSet": true
+        }
+      ],
+      "products": [
+        {
+          "id": "S3",
+          "stoichiometry": 1.0,
+          "ctrl1x": 523.425,
+          "ctrl1y": 72.825,
+          "ctrl2x": 558.075,
+          "ctrl2y": 72.675,
+          "ctrlSet": true
+        }
+      ],
+      "modifiers": []
+    }
+  ],
+  "texts": [
+    {
+      "id": "T6",
+      "x": 21.78105808962877,
+      "y": -35.25047258979209,
+      "text": "Positive feedback from S2 onto its own reaction.",
+      "size": 26.0,
+      "bold": true,
+      "color": "#003399FF"
+    }
+  ]
+}
