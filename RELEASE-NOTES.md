@@ -4,7 +4,7 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
-## Next version (not yet released)
+## 0.1.25 (2026-10-27)
 
 **New**
 
@@ -19,6 +19,15 @@ version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
   global maps aren't read yet.
 - **Help.** Help ▸ PathwayDesigner Help opens a panel beside the diagram, with
   pages on getting started, Antimony in PathwayDesigner and the diagram language.
+- **Self-regulation loops.** A species that modifies a reaction it is also a
+  reactant or product of (ATP and phosphofructokinase, the protons of a
+  proton-driven reaction) is drawn as a loop from its own drawing back into the
+  junction, instead of a line hidden under its own or crossing the map.
+  Right-click a loop ▸ Convert Loop to Corner Points to shape it by hand.
+- **Arrange ▸ Place Modifiers by Their Reactions.** Gives each modifier line
+  from a far-off drawing its own drawing beside its reaction, and removes
+  drawings left joined to nothing; for models imported with their effectors in
+  a column at the edge. Works on the selected reactions, or all.
 - **A fixed-width font** (Hack) for the Antimony text and the help's examples.
 
 **Changed**

@@ -2490,7 +2490,7 @@ dependencies = [
 
 [[package]]
 name = "pd-app"
-version = "0.1.24"
+version = "0.1.25"
 dependencies = [
  "eframe",
  "egui_commonmark",
@@ -2512,7 +2512,7 @@ dependencies = [
 
 [[package]]
 name = "pd-core"
-version = "0.1.24"
+version = "0.1.25"
 dependencies = [
  "antimony-rs",
  "harfrust",
@@ -2525,7 +2525,7 @@ dependencies = [
 
 [[package]]
 name = "pd-export"
-version = "0.1.24"
+version = "0.1.25"
 dependencies = [
  "pd-core",
  "resvg",
