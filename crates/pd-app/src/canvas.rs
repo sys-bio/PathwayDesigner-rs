@@ -37,6 +37,11 @@ pub struct CanvasState {
 pub enum MenuAction {
     CreateAlias(String),
     SplitIntoAliases(String),
+    /// Select All Drawings: the species or alias right-clicked.
+    SelectAllDrawings(String),
+    /// Mark as Modifier or Unmark as Modifier: the reaction, the species,
+    /// and whether to mark it.
+    MarkModifier(String, String, bool),
     MergeAliases(String),
     SplitOffSelected(String),
     MergeSelectedInto(String),
@@ -284,6 +289,16 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
             }
             if !node.is_null_node {
                 ui.separator();
+                if view.can_select_all_drawings(id) {
+                    item(
+                        ui,
+                        "Select All Drawings",
+                        MenuAction::SelectAllDrawings(id.clone()),
+                    );
+                } else {
+                    ui.add_enabled(false, egui::Button::new("Select All Drawings"))
+                        .on_disabled_hover_text("Only for a species that has aliases");
+                }
                 style_items(ui, view, &Target::Species(id.clone()), &mut item);
             }
             alignment(ui, view, &mut item);
@@ -340,6 +355,28 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 });
                 if removed.is_some() {
                     item_chosen = removed;
+                }
+                // A reactant or product its rate law uses can be a modifier
+                // of it too: a self modifier, drawn as a loop.
+                let mut marked = None;
+                for (label, list, mark) in [
+                    ("Mark as Modifier", view.markable_as_modifier(id), true),
+                    ("Unmark as Modifier", view.marked_as_modifier(id), false),
+                ] {
+                    if list.is_empty() {
+                        continue;
+                    }
+                    ui.menu_button(label, |ui| {
+                        for species in list {
+                            if ui.button(&species).clicked() {
+                                marked = Some(MenuAction::MarkModifier(id.clone(), species, mark));
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+                if marked.is_some() {
+                    item_chosen = marked;
                 }
                 // What each modifier does (S §5.7.1): the kinds straight
                 // away for one modifier, a submenu each for several.

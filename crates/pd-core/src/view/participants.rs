@@ -99,6 +99,107 @@ impl DiagramView {
         )
     }
 
+    /// The reaction's reactants and products (by species) that its rate law
+    /// uses, each with whether it is also a modifier of the reaction already
+    /// (a self modifier). What Mark as Modifier and Unmark as Modifier offer.
+    fn law_uses_own_species(&self, id: &str) -> Vec<(Id, bool)> {
+        let Some(r) = self.model.find_reaction(id) else {
+            return Vec::new();
+        };
+        let Ok(ast) = crate::expr::parse(&r.kinetic_law) else {
+            return Vec::new();
+        };
+        let named: Vec<&str> = crate::expr::identifiers(&ast);
+        let primary = |sp: &str| {
+            self.model
+                .find_species(sp)
+                .filter(|s| !s.is_null_node)
+                .map(|s| s.primary_id().to_owned())
+        };
+        let mut out: Vec<(Id, bool)> = Vec::new();
+        for p in r.reactants.iter().chain(&r.products) {
+            let Some(sp) = primary(&p.species) else {
+                continue;
+            };
+            if !named.contains(&sp.as_str()) || out.iter().any(|(o, _)| *o == sp) {
+                continue;
+            }
+            let marked = r
+                .modifiers
+                .iter()
+                .any(|m| primary(&m.species).as_deref() == Some(sp.as_str()));
+            out.push((sp, marked));
+        }
+        out
+    }
+
+    /// What Mark as Modifier offers for reaction `id`: its reactants and
+    /// products that its rate law uses and that aren't modifiers yet, by
+    /// species.
+    pub fn markable_as_modifier(&self, id: &str) -> Vec<Id> {
+        self.law_uses_own_species(id)
+            .into_iter()
+            .filter(|(_, marked)| !marked)
+            .map(|(s, _)| s)
+            .collect()
+    }
+
+    /// What Unmark as Modifier offers for reaction `id`: its self modifiers,
+    /// by species.
+    pub fn marked_as_modifier(&self, id: &str) -> Vec<Id> {
+        self.law_uses_own_species(id)
+            .into_iter()
+            .filter(|(_, marked)| *marked)
+            .map(|(s, _)| s)
+            .collect()
+    }
+
+    /// Mark as Modifier: makes `species`, a reactant or product of reaction
+    /// `id` that its rate law uses, a modifier of it too, as SBML allows (a
+    /// self modifier, drawn as a loop), from its drawing on the reaction's
+    /// line. Modifier sync never does this on its own (S §8.4), but keeps
+    /// it while the law uses the species. One undo step.
+    pub fn mark_as_modifier(&mut self, id: &str, species: &str) -> ViewResponse {
+        if !self.markable_as_modifier(id).iter().any(|s| s == species) {
+            return ViewResponse::default();
+        }
+        let before = self.model.clone();
+        let m = &self.model;
+        let Some(drawing) = m.find_reaction(id).and_then(|r| {
+            r.reactants
+                .iter()
+                .chain(&r.products)
+                .map(|p| p.species.clone())
+                .find(|d| m.find_species(d).is_some_and(|s| s.primary_id() == species))
+        }) else {
+            return ViewResponse::default();
+        };
+        if let Some(r) = self.model.find_reaction_mut(id) {
+            r.modifiers.push(Participant::new(drawing.as_str(), 1.0));
+        }
+        self.record_if_changed("Mark as Modifier", before)
+    }
+
+    /// Unmark as Modifier: `species` stays a reactant or product of
+    /// reaction `id` but is no longer a modifier of it. One undo step.
+    pub fn unmark_as_modifier(&mut self, id: &str, species: &str) -> ViewResponse {
+        if !self.marked_as_modifier(id).iter().any(|s| s == species) {
+            return ViewResponse::default();
+        }
+        let before = self.model.clone();
+        let primaries: Vec<Id> = self
+            .model
+            .species()
+            .iter()
+            .filter(|s| s.primary_id() == species)
+            .map(|s| s.id.clone())
+            .collect();
+        if let Some(r) = self.model.find_reaction_mut(id) {
+            r.modifiers.retain(|m| !primaries.contains(&m.species));
+        }
+        self.record_if_changed("Unmark as Modifier", before)
+    }
+
     /// Whether `species` can be taken out of reaction `id`: it is one of its
     /// reactants or products, and not the only species left in it (null
     /// nodes aside).

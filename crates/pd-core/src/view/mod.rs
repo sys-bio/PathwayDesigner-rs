@@ -672,6 +672,41 @@ impl DiagramView {
         self.select_only(true, false)
     }
 
+    /// True if Select All Drawings has more than one drawing to select for
+    /// node `id`: its species has aliases.
+    pub fn can_select_all_drawings(&self, id: &str) -> bool {
+        self.model
+            .find_species(id)
+            .filter(|s| !s.is_null_node)
+            .is_some_and(|s| self.model.aliases_of(s.primary_id()).next().is_some())
+    }
+
+    /// Select All Drawings (S §7.3): selects every drawing of the species
+    /// node `id` draws, its first and all its aliases, and nothing else, so
+    /// their look can be set at once in the Properties panel. Not an edit:
+    /// no undo step.
+    pub fn select_all_drawings(&mut self, id: &str) -> ViewResponse {
+        let Some(primary) = self
+            .model
+            .find_species(id)
+            .filter(|s| !s.is_null_node)
+            .map(|s| s.primary_id().to_owned())
+        else {
+            return ViewResponse::default();
+        };
+        let before = self.selection_state();
+        self.model.clear_selection();
+        for s in self.model.species_mut() {
+            s.selected = s.primary_id() == primary;
+        }
+        ViewResponse {
+            repaint: true,
+            selection_changed: self.selection_state() != before,
+            model_changed: false,
+            request: None,
+        }
+    }
+
     /// Selects every reaction, and no species.
     pub fn select_all_reactions(&mut self) -> ViewResponse {
         self.select_only(false, true)

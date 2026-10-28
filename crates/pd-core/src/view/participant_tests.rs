@@ -378,3 +378,64 @@ fn modifier_kinds_are_set_undone_and_kept_by_the_rate_law() {
     v.set_modifier_kind(&r, &e, ModifierKind::Modifier);
     assert_eq!(v.undo_description(), before);
 }
+
+#[test]
+fn a_product_its_rate_law_uses_can_be_marked_as_a_modifier() {
+    // A -> B with the law k*A*B: B speeds up its own making.
+    let mut v = view();
+    v.set_kinetic_law("R1", "k1*S1*S2");
+    assert!(
+        v.model().find_reaction("R1").unwrap().modifiers.is_empty(),
+        "sync never does it"
+    );
+    assert_eq!(v.markable_as_modifier("R1"), ["S1", "S2"]);
+    assert!(v.marked_as_modifier("R1").is_empty());
+    v.mark_as_modifier("R1", "S2");
+    let r = v.model().find_reaction("R1").unwrap();
+    assert_eq!(r.modifiers.len(), 1);
+    assert_eq!(r.modifiers[0].species, "S2");
+    assert_eq!(v.undo_description(), Some("Mark as Modifier"));
+    // Drawn as a loop.
+    assert!(v.is_loop("R1", 0));
+    assert_eq!(v.markable_as_modifier("R1"), ["S1"]);
+    assert_eq!(v.marked_as_modifier("R1"), ["S2"]);
+    // Editing the law keeps it while the law uses S2, and drops it after.
+    v.set_kinetic_law("R1", "k1*S1*S2/(1 + S1)");
+    assert_eq!(v.marked_as_modifier("R1"), ["S2"]);
+    v.set_kinetic_law("R1", "k1*S1");
+    assert!(v.model().find_reaction("R1").unwrap().modifiers.is_empty());
+    // Unmark takes it off, and only it.
+    v.set_kinetic_law("R1", "k1*S1*S2");
+    v.mark_as_modifier("R1", "S2");
+    v.mark_as_modifier("R1", "S1");
+    v.unmark_as_modifier("R1", "S2");
+    assert_eq!(v.marked_as_modifier("R1"), ["S1"]);
+    assert_eq!(v.undo_description(), Some("Unmark as Modifier"));
+    v.undo();
+    assert_eq!(v.marked_as_modifier("R1"), ["S1", "S2"]);
+}
+
+#[test]
+fn only_what_the_law_uses_can_be_marked() {
+    let mut v = view();
+    // k1*S1: S2 isn't used, and S3 isn't in the reaction.
+    assert_eq!(v.markable_as_modifier("R1"), ["S1"]);
+    v.mark_as_modifier("R1", "S2");
+    v.mark_as_modifier("R1", "S3");
+    assert!(v.model().find_reaction("R1").unwrap().modifiers.is_empty());
+}
+
+#[test]
+fn a_marked_modifier_is_the_drawing_on_the_line() {
+    // The product drawn as an alias: the modifier is that drawing.
+    let mut v = view();
+    let b2 = v.model.add_alias("S2", pt(300.0, 100.0)).unwrap();
+    v.model.find_reaction_mut("R1").unwrap().products[0].species = b2.clone();
+    v.set_kinetic_law("R1", "k1*S1*S2");
+    assert_eq!(v.markable_as_modifier("R1"), ["S1", "S2"]);
+    v.mark_as_modifier("R1", "S2");
+    assert_eq!(
+        v.model().find_reaction("R1").unwrap().modifiers[0].species,
+        b2
+    );
+}

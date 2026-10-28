@@ -308,7 +308,7 @@ otherwise in `#3D5C2B`; it has no color of its own.
 |---|---|---|
 | `line` | line | `#007777 1.5 dashed` |
 | `symbol` | size | the kind's (dot 8, circle 10, arrow 12, bar 16) |
-| `distance` | number | the kind's (6, 5, 8, 8) |
+| `distance` | number | the kind's (6, 8, 8, 8) |
 
 These defaults are the format's own: a reader draws a property a file doesn't
 give with the value in these tables, whatever its own defaults are. (They are

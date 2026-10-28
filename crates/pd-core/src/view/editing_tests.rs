@@ -857,3 +857,34 @@ fn one_alias_merges_into_the_primary() {
     // Nothing to do for a primary.
     assert!(!v.merge_alias_into_primary("ADP").model_changed);
 }
+
+#[test]
+fn select_all_drawings_selects_a_species_and_its_aliases_only() {
+    let mut v = four_species();
+    let a2 = v.model.add_alias("S1", pt(500.0, 500.0)).unwrap();
+    let a3 = v.model.add_alias("S1", pt(600.0, 500.0)).unwrap();
+    v.model.find_species_mut("S2").unwrap().selected = true;
+    assert!(v.can_select_all_drawings(&a2));
+    assert!(!v.can_select_all_drawings("S3"), "no aliases");
+    let undo_before = v.undo_description();
+    // Right-clicked on an alias: the whole species, nothing else.
+    let r = v.select_all_drawings(&a2);
+    assert!(r.selection_changed);
+    let selected: Vec<&str> = v
+        .model()
+        .species()
+        .iter()
+        .filter(|s| s.selected)
+        .map(|s| s.id.as_str())
+        .collect();
+    assert_eq!(selected, ["S1", a2.as_str(), a3.as_str()]);
+    // Not an edit: no undo step of its own.
+    assert_eq!(v.undo_description(), undo_before);
+    // Then one size for all of them.
+    v.set_species_size(Some(40.0), Some(20.0));
+    for id in ["S1", a2.as_str(), a3.as_str()] {
+        let s = v.model().find_species(id).unwrap();
+        assert_eq!((s.width, s.height), (40.0, 20.0), "{id}");
+    }
+    assert_ne!(v.model().find_species("S2").unwrap().width, 40.0);
+}

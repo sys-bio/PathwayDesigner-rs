@@ -532,7 +532,7 @@ impl ModifierKind {
     pub fn symbol_defaults(self) -> (f64, f64) {
         match self {
             ModifierKind::Modifier => (8.0, 6.0),
-            ModifierKind::Catalyst => (10.0, 5.0),
+            ModifierKind::Catalyst => (10.0, 8.0),
             ModifierKind::Activator => (12.0, 8.0),
             ModifierKind::Inhibitor => (16.0, 8.0),
         }

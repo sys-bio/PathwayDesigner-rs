@@ -822,6 +822,20 @@ pub fn effective_junction(model: &Model, r: &Reaction) -> Pt {
     }
 }
 
+/// How far from the junction a modifier's line stops at its symbol: the
+/// dot's centre, the circle's far side, the arrowhead's base, the bar
+/// (S §5.7.1, §5.7.2).
+fn symbol_stop_distance(m: &Participant) -> f64 {
+    let (size, gap) = m.kind.symbol_defaults();
+    let size = m.look.symbol_size.unwrap_or(size);
+    let gap = m.look.symbol_gap.unwrap_or(gap);
+    match m.kind {
+        ModifierKind::Modifier => gap + size / 2.0,
+        ModifierKind::Catalyst | ModifierKind::Activator => gap + size,
+        ModifierKind::Inhibitor => gap,
+    }
+}
+
 /// A self-regulation loop's height, as a part of its leg's length, and the
 /// least and most it may be (docs/self-modifier-loop-design.md, L5).
 pub const LOOP_SHARE: f64 = 0.45;
@@ -1283,12 +1297,25 @@ impl Drawer<'_> {
             };
             // Starts inside the node, so the node hides the start.
             route[0] = route[0] - normalize(route[1] - route[0]) * MODIFIER_INSET;
-            // The symbol follows the last piece.
+            // The line stops where its symbol starts: pieces nearer the
+            // junction than that are left out (a loop is drawn in short
+            // pieces), so none shows through or past the symbol, which then
+            // points from the line's last point into the junction, in line
+            // with its last piece.
+            let keep = symbol_stop_distance(m);
             let n = route.len();
-            let toward_j = normalize(j - route[n - 2]);
-            route[n - 1] = self.modifier_symbol(m, j, toward_j, color, width, out);
+            route.truncate(n - 1);
+            while route.len() > 1 && route.last().is_some_and(|p| p.distance(j) < keep) {
+                route.pop();
+            }
+            let from = *route.last().expect("the route's start is kept");
+            let toward_j = normalize(j - from);
+            let stop = j - toward_j * keep;
+            route.push(stop);
             let pts: Vec<SPt> = route.iter().map(|&p| self.to_screen(p)).collect();
             out.polyline(&pts, stroke);
+            // Then the symbol, over the line's end.
+            self.modifier_symbol(m, j, toward_j, color, width, out);
         }
     }
 
@@ -1326,7 +1353,7 @@ impl Drawer<'_> {
 
     /// The symbol at the junction end of a modifier's arc, for its kind
     /// (S §5.7.1) and look (S §5.7.2), its axis along `dir` (toward the
-    /// junction `j`). Returns where the arc's line stops. Open symbols are
+    /// junction `j`); the line stops at [`symbol_stop_distance`]. Open symbols are
     /// filled with the background, so the line doesn't show through them.
     fn modifier_symbol(
         &self,
@@ -1336,7 +1363,7 @@ impl Drawer<'_> {
         color: Rgba,
         width: f64,
         out: &mut dyn Renderer,
-    ) -> Pt {
+    ) {
         let (size, gap) = m.kind.symbol_defaults();
         let size = m.look.symbol_size.unwrap_or(size);
         let gap = m.look.symbol_gap.unwrap_or(gap);
@@ -1351,7 +1378,6 @@ impl Drawer<'_> {
             ModifierKind::Modifier => {
                 let dot = j - dir * (gap + size / 2.0);
                 out.circle(self.to_screen(dot), self.len(size / 2.0), Some(color), None);
-                dot
             }
             ModifierKind::Catalyst => {
                 let centre = j - dir * (gap + size / 2.0);
@@ -1361,7 +1387,6 @@ impl Drawer<'_> {
                     Some(back),
                     Some(solid),
                 );
-                centre - dir * (size / 2.0)
             }
             ModifierKind::Activator => {
                 let tip = j - dir * gap;
@@ -1369,7 +1394,6 @@ impl Drawer<'_> {
                 let screen = tri.map(|p| self.to_screen(p));
                 out.polygon(&screen, back);
                 out.polyline(&[screen[0], screen[1], screen[2], screen[0]], solid);
-                tip - dir * size
             }
             ModifierKind::Inhibitor => {
                 let centre = j - dir * gap;
@@ -1384,7 +1408,6 @@ impl Drawer<'_> {
                         ..solid
                     },
                 );
-                centre
             }
         }
     }
@@ -2526,15 +2549,16 @@ mod tests {
                 .unwrap();
             (calls, arc_end)
         };
-        // Catalyst: an open circle where the dot was; the arc stops at it.
+        // Catalyst: an open circle, 8 clear of the junction as the arrowhead
+        // and the bar are; the arc stops at it.
         let (calls, end) = draw_kind(&mut m, ModifierKind::Catalyst);
         assert!(calls.contains(&Call::Circle(
-            spt(200.0, -10.0),
+            spt(200.0, -13.0),
             5.0,
             Some(back),
             Some(solid)
         )));
-        assert!(close(end, spt(200.0, -15.0)), "{end:?}");
+        assert!(close(end, spt(200.0, -18.0)), "{end:?}");
         assert!(!calls.contains(&Call::Circle(spt(200.0, -10.0), 4.0, Some(MODIFIER), None)));
         // Activator: an open arrowhead, tip 8 above the junction, pointing at it.
         let (calls, end) = draw_kind(&mut m, ModifierKind::Activator);
@@ -2576,7 +2600,7 @@ mod tests {
         m.background = Rgba::rgb(0x10, 0x20, 0x30);
         let (calls, _) = draw_kind(&mut m, ModifierKind::Catalyst);
         assert!(calls.contains(&Call::Circle(
-            spt(200.0, -10.0),
+            spt(200.0, -13.0),
             5.0,
             Some(Rgba::rgb(0x10, 0x20, 0x30)),
             Some(solid)
@@ -2615,6 +2639,58 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, Call::Polyline(p, s) if s.dash.is_some() && p.len() > 10))
         );
+    }
+
+    #[test]
+    fn a_loops_line_stops_at_its_symbol_and_the_symbol_covers_it() {
+        use crate::model::ModifierKind;
+        for kind in ModifierKind::ALL {
+            let mut m = self_modified();
+            m.find_reaction_mut("R3").unwrap().modifiers[0].kind = kind;
+            let calls = draw(&m, &DrawOptions::default());
+            let (at, line) = calls
+                .iter()
+                .enumerate()
+                .find_map(|(i, c)| match c {
+                    Call::Polyline(p, s) if s.dash.is_some() => Some((i, p.clone())),
+                    _ => None,
+                })
+                .unwrap();
+            // No piece of the line comes nearer the junction (200, 0) than
+            // where it stops at the symbol.
+            let j = spt(200.0, 0.0);
+            let d = |p: &SPt| f64::from(((p.x - j.x).powi(2) + (p.y - j.y).powi(2)).sqrt());
+            let stop = d(line.last().unwrap());
+            assert!(
+                line.iter().all(|p| d(p) >= stop - 1e-3),
+                "{kind:?}: a piece past the symbol"
+            );
+            let (size, gap) = kind.symbol_defaults();
+            let expected = match kind {
+                ModifierKind::Modifier => gap + size / 2.0,
+                ModifierKind::Inhibitor => gap,
+                _ => gap + size,
+            };
+            assert!((stop - expected).abs() < 1e-3, "{kind:?}: stops at {stop}");
+            // The symbol is drawn right after the line, over its end.
+            assert!(
+                matches!(
+                    &calls[at + 1],
+                    Call::Circle(..)
+                        | Call::Polygon(..)
+                        | Call::Polyline(_, Stroke { dash: None, .. })
+                ),
+                "{kind:?}: {:?}",
+                calls[at + 1]
+            );
+            // And it points along the line's last piece.
+            let n = line.len();
+            let piece = (line[n - 1].x - line[n - 2].x, line[n - 1].y - line[n - 2].y);
+            let axis = (j.x - line[n - 1].x, j.y - line[n - 1].y);
+            let cos = (piece.0 * axis.0 + piece.1 * axis.1)
+                / ((piece.0.hypot(piece.1)) * (axis.0.hypot(axis.1)));
+            assert!(cos > 0.97, "{kind:?}: the symbol turns {cos} off the line");
+        }
     }
 
     #[test]

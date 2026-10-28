@@ -454,6 +454,15 @@ impl PathwayApp {
             MenuAction::SplitIntoAliases(id) => {
                 self.view.split_into_aliases(&id);
             }
+            MenuAction::SelectAllDrawings(id) => {
+                self.view.select_all_drawings(&id);
+            }
+            MenuAction::MarkModifier(id, species, true) => {
+                self.view.mark_as_modifier(&id, &species);
+            }
+            MenuAction::MarkModifier(id, species, false) => {
+                self.view.unmark_as_modifier(&id, &species);
+            }
             MenuAction::MergeAliases(id) => {
                 self.view.merge_aliases(&id);
             }
@@ -2351,6 +2360,58 @@ mod tests {
         h.run(vec![]);
         assert_eq!(h.app.view.model().reactions().len(), 1);
         assert!(h.app.warnings[0].contains("couldn't be read as an Escher map"));
+    }
+
+    #[test]
+    fn mark_and_unmark_as_modifier_from_a_reactions_menu() {
+        let mut h = Harness::new();
+        let opts = pd_core::antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        h.app
+            .view
+            .import_antimony(
+                "J1: A -> B; k*A*B
+k = 1
+",
+                &opts,
+            )
+            .unwrap();
+        h.app.act(
+            MenuAction::MarkModifier("J1".into(), "B".into(), true),
+            pt(0.0, 0.0),
+        );
+        assert_eq!(h.app.view.marked_as_modifier("J1"), ["B"]);
+        h.app.act(
+            MenuAction::MarkModifier("J1".into(), "B".into(), false),
+            pt(0.0, 0.0),
+        );
+        assert!(h.app.view.marked_as_modifier("J1").is_empty());
+    }
+
+    #[test]
+    fn select_all_drawings_from_a_species_menu() {
+        use pd_core::model::{Model, SpeciesNode};
+        let mut m = Model::new();
+        m.push_species(SpeciesNode::new("A", pt(0.0, 0.0))).unwrap();
+        m.push_species(SpeciesNode::new("B", pt(300.0, 0.0)))
+            .unwrap();
+        let a2 = m.add_alias("A", pt(0.0, 200.0)).unwrap();
+        let mut h = Harness::new();
+        h.app.view.set_model(m);
+        h.app
+            .act(MenuAction::SelectAllDrawings(a2.clone()), pt(0.0, 0.0));
+        let selected: Vec<String> = h
+            .app
+            .view
+            .model()
+            .species()
+            .iter()
+            .filter(|s| s.selected)
+            .map(|s| s.id.clone())
+            .collect();
+        assert_eq!(selected, ["A".to_owned(), a2]);
     }
 
     #[test]

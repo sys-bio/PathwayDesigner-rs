@@ -528,7 +528,7 @@ symbol at the junction end:
 | Modifier (default) | filled dot, radius 4 (as above) | `modifier` | none written; SBO:0000019 read | (none) |
 | Activator | open arrowhead (12 long, 10 wide), tip 8 from the junction | `activator` | SBO:0000459 (stimulator) | `kind activator` (diagram comment) |
 | Inhibitor | blunt bar across the line, 16 long, width 2.5, 8 from the junction | `inhibitor` | SBO:0000020 (inhibitor) | `kind inhibitor` (diagram comment) |
-| Catalyst | open circle, radius 5, centred 10 from the junction | `modifier` | SBO:0000013 (catalyst) | `kind catalyst` (diagram comment) |
+| Catalyst | open circle, radius 5, centred 13 from the junction | `modifier` | SBO:0000013 (catalyst) | `kind catalyst` (diagram comment) |
 
 Each symbol lies on the arc's last piece and is turned to its direction; the
 dashed line stops at the symbol (the dot's or circle's centre side, the arrow's
@@ -626,7 +626,7 @@ exactly as §5.7 and §5.7.1 say, so existing diagrams don't change.
 | Line width | 0.5 – 20 | 1.5 |
 | Pattern | Dashed, Dotted, Solid | Dashed (6 on, 4 off) |
 | Symbol size | 2 – 100 | the kind's: the dot's diameter 8, the circle's 10, the arrowhead's length 12, the bar's length 16 |
-| Symbol distance | 0 – 200 | the kind's: from the junction to the symbol's nearest point, 6 for the dot, 5 for the circle, 8 for the arrowhead's tip and for the bar |
+| Symbol distance | 0 – 200 | the kind's: from the junction to the symbol's nearest point, 6 for the dot, 8 for the circle (5 before 0.1.26, which touched the junction's dot), 8 for the arrowhead's tip and for the bar |
 
 - **Drawing.** The line takes its colour, width and pattern: Dotted is round dots,
   on 0.1 and off 2.5 × the width with round ends, so each dot is about as wide as
@@ -1122,6 +1122,11 @@ single item.
   primary it merges only the selected aliases. The primary itself is never merged
   away. Select with click and Shift-click, then right-click the one to keep.
   Otherwise the item is shown disabled. One undo step.
+- **Select All Drawings** (context menu, a species or alias whose species has
+  aliases; added in the Rust version): selects the species' first drawing and every
+  alias of it, and nothing else, so their look (size, colours, shape, font) can be
+  set at once in the Properties panel, which changes every selected species. Not an
+  edit: no undo step. Shown disabled for a species without aliases.
 - **Place Modifiers by Their Reactions** (Arrange menu; added in the Rust version):
   for a model whose effectors sit far from the reactions they act on, as models
   imported from other tools often have them in a column at the edge. It works on
@@ -1705,6 +1710,17 @@ When a reaction's kinetic law is edited:
 
 This keeps the diagram matching the rate law: typing `Vm*S/(Km+S)*E` adds a
 modifier arc from `E`.
+
+*(Rust version.)* **Mark as Modifier** and **Unmark as Modifier** (the reaction's
+context menu, a submenu listing species): a reactant or product that the rate law
+uses can be made a modifier of the reaction too, as SBML allows, for example B in
+`A -> B` with the law `k*A*B`, whose product speeds up its own making. Sync never
+does this on its own, but keeps such a **self modifier** while the law uses the
+species (rule 3 above removes it once the law doesn't). It is the species' drawing
+on the reaction's line (the reactant's if it is both), drawn as a self-regulation
+loop (docs/self-modifier-loop-design.md), and its kind can be set as for any
+modifier. Unmark as Modifier takes it off; the species stays a reactant or
+product. One undo step each.
 
 ### 8.5 Copy Style and Paste Style
 
