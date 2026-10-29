@@ -184,7 +184,7 @@ impl DiagramView {
         let desc = if show {
             "Show Display Names"
         } else {
-            "Show Ids"
+            "Hide Display Names"
         };
         self.record_if_changed(desc, before)
     }
@@ -527,7 +527,7 @@ impl DiagramView {
                 r.label_offset = place;
             }
         }
-        let desc = if shown { "Show Id" } else { "Hide Id" };
+        let desc = if shown { "Show Label" } else { "Hide Label" };
         self.record_if_changed(desc, before)
     }
 

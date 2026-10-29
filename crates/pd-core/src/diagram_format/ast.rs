@@ -36,6 +36,8 @@ pub enum StatementKind {
     Background(Color),
     /// `modifierLines hidden` (`true`) or `shown`.
     ModifierLinesHidden(bool),
+    /// `labels displayName` (`true`) or `labels id`.
+    LabelsDisplayName(bool),
     /// `color metab = #FFD54F`
     ColorDef { name: String, value: Color },
     /// `defaults species { … }`: what a property is, for items of that kind,

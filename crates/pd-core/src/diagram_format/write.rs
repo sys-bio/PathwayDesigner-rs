@@ -46,6 +46,9 @@ pub fn write(model: &Model, name: &str) -> String {
     if model.hide_modifier_lines {
         line("modifierLines hidden".into());
     }
+    if model.show_display_names {
+        line("labels displayName".into());
+    }
     for d in DEFAULTS {
         line(d.into());
     }
@@ -356,7 +359,8 @@ impl<'m> Writer<'m> {
         if let Some(s) = style {
             clauses.push(self.style_clause(s));
         }
-        let props = compartment_style_props(&self.model.color_names, c.style, base_style);
+        let mut props = compartment_style_props(&self.model.color_names, c.style, base_style);
+        props.extend(label_prop(c.label_choice));
         (!clauses.is_empty() || !props.is_empty())
             .then(|| statement(format!("compartment {}", c.id), clauses, props))
     }
@@ -474,6 +478,7 @@ impl<'m> Writer<'m> {
                 None => format!("id offset {}", point(o)),
             }),
         }
+        props.extend(label_prop(s.label_choice));
         statement(self.drawing(&s.id), clauses, props)
     }
 
@@ -576,6 +581,7 @@ impl<'m> Writer<'m> {
                 },
             ),
         }
+        props.extend(label_prop(r.label_choice));
         (!clauses.is_empty() || !props.is_empty()).then(|| statement(r.id.clone(), clauses, props))
     }
 
@@ -1075,6 +1081,12 @@ fn statement(head: String, clauses: Vec<String>, props: Vec<String>) -> String {
     s
 }
 
+/// An item's own label choice, `label id` or `label displayName`
+/// (docs/display-names-design.md D4); nothing when it is as the diagram says.
+fn label_prop(choice: crate::model::LabelChoice) -> Option<String> {
+    choice.key().map(|k| format!("label {k}"))
+}
+
 fn block(props: &[String]) -> String {
     if props.is_empty() {
         "{ }".into()
@@ -1180,6 +1192,36 @@ end
             "written again the same"
         );
         back.model
+    }
+
+    /// docs/display-names-design.md D4: the diagram's setting and the
+    /// items' own choices are written, and read back the same.
+    #[test]
+    fn labels_are_written_and_read_back() {
+        use crate::model::LabelChoice;
+        let (mut m, d) = rewritten("Glc at (0, 0)\nhk at (100, 0)");
+        assert!(!d.contains("label"), "{d}");
+        m.show_display_names = true;
+        m.find_species_mut("Glc").unwrap().label_choice = LabelChoice::Id;
+        m.find_reaction_mut("hk").unwrap().label_choice = LabelChoice::DisplayName;
+        let text = export_with_diagram(&m);
+        assert!(text.contains("\n  labels displayName\n"), "{text}");
+        assert!(text.contains("Glc at (0, 0) { label id }"), "{text}");
+        assert!(text.contains("{ label displayName }"), "{text}");
+        let back = round_trip(&m);
+        assert!(back.show_display_names);
+        assert_eq!(
+            back.find_species("Glc").unwrap().label_choice,
+            LabelChoice::Id
+        );
+        assert_eq!(
+            back.find_reaction("hk").unwrap().label_choice,
+            LabelChoice::DisplayName
+        );
+        assert_eq!(
+            back.find_species("G6P").unwrap().label_choice,
+            LabelChoice::Diagram
+        );
     }
 
     #[test]

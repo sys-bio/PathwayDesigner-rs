@@ -1,6 +1,6 @@
 # A readable diagram format for Antimony models — draft specification
 
-**Status: draft for discussion, version 0.9, 2026-10-24. Read and written by
+**Status: draft for discussion, version 0.10, 2026-10-28. Read and written by
 PathwayDesigner (docs/diagram-format-implementation-design.md).** Version 0.7 is published as a technical report (Zenodo, DOI
 10.5281/zenodo.23608982). 0.2: the file type and COMBINE archives settled (§3). 0.3: made
 consistent with the app and with the minimal Render profile
@@ -34,6 +34,10 @@ places, so a position from automatic layout reads `81.031` (§12); the defaults
 are the format's, not any one tool's, and a file can state them, `defaults
 species { … }`, which a writer always does, so it looks the same in every reader
 (§6.5).
+0.10 (settled with the author): labels can show display names, the SBML term
+for an item's name, which the model gives in Antimony as `S1 is "glucose"`:
+`labels displayName` for the whole diagram (§6.4), `label id` or
+`label displayName` for one item (§6.2).
 Working name: *Antimony diagram*.
 
 ## Contents
@@ -240,6 +244,16 @@ gives only the properties it names.
 | `idColor` | color | `#1A1A1A` |
 | `idSize` | number | 12 |
 | `idBold`, `idItalic` | flags | off |
+| `label` | `id`, `displayName` | as the diagram (§6.4) |
+
+**What a label shows.** An item's label is its id, or its display name if the
+diagram says `labels displayName` (§6.4). `label id` or `label displayName`
+sets it for one item, whatever the diagram says; an item with no display name
+always shows its id. Each drawing of a species has its own choice, so `ATP#2`
+can show the name while `ATP` shows the id. The display names themselves are
+the model's: the Antimony section gives them (`S1 is "glucose"`), not the
+diagram. The `id`, `idColor`, `idSize`, `idBold` and `idItalic` properties
+place and draw the label, whichever it shows.
 
 **Where a species' id goes.** It is drawn inside the node by default. Outside,
 there are three ways to place it, from simplest to finest:
@@ -273,6 +287,7 @@ when the id is exactly there, and the offset otherwise (§12).
 | `id` | `hidden`, `shown`, `above`, `below`, `left`, `right`, `offset (dx, dy)` | `hidden` |
 | `idColor`, `idSize` | color, number | `#1A1A1A`, 12 |
 | `idBold`, `idItalic` | flags | off |
+| `label` | `id`, `displayName` | as the diagram (§6.4) |
 
 A reaction's id is hidden by default. `id shown` shows it beside the junction,
 placed clear of the reaction's lines (SPECIFICATION.md §5.12); `id above`,
@@ -287,6 +302,7 @@ with its centre at that offset from the junction.
 | `fill` | color, `none` | `#F0F6EA` |
 | `border` | border, `none` | `#7FA36B 2` |
 | `idSize` | number | 12 |
+| `label` | `id`, `displayName` | as the diagram (§6.4) |
 
 The compartment's id is drawn in its border color when the border color is set,
 otherwise in `#3D5C2B`; it has no color of its own.
@@ -343,6 +359,7 @@ given by name, a theme is §6.4, and an item's own look is its `{ … }`.
 theme escher
 background white
 modifierLines hidden
+labels displayName
 ```
 
 `theme` names a built-in set of style definitions (`classic`, `escher`); a
@@ -351,6 +368,9 @@ style the file defines with the same name replaces the theme's. Only the first
 `modifierLines hidden` draws no modifier lines anywhere in the diagram (they stay
 in the file, with their routes and looks, and show again without it); the
 default is `modifierLines shown`.
+`labels displayName` labels every species, reaction and compartment that has a
+display name with that name instead of its id; the default is `labels id`. An
+item's own `label` overrides it (§6.2).
 
 ### 6.5 Defaults
 
@@ -514,7 +534,8 @@ A writer produces one canonical form, so that two tools writing the same diagram
 write the same text:
 
 1. `theme`, then `background` (always, as drawn), then `modifierLines hidden`
-   if so, then the five `defaults` statements (always).
+   if so, then `labels displayName` if so, then the five `defaults` statements
+   (always).
 2. Color constants, in the order they were defined.
 3. Styles: species, reaction, compartment, text, modifier; each kind by name.
 4. Compartments, in the model's compartment order.
@@ -585,6 +606,8 @@ warning with a line and column.
 | Modifier line look | modifier look keys | Render style on that reference glyph |
 | `theme` | `theme` | not carried by Render: the profile writes what is drawn, not the look of items added later |
 | `background` | `background` | the render information's background color |
+| `labels displayName` | `displayNames` | not carried: a text glyph refers to its item (`originOfText`), and the reader chooses whether to show the item's name or id |
+| Item's `label` | the item's `label` | not carried, as above |
 
 The Render written is PathwayDesigner's minimal Render profile
 (`docs/render-design.md`). Things SBML Layout and Render can't hold (Linear
@@ -632,12 +655,13 @@ EBNF over tokens (§4). `NL` is a line break.
 ```
 file        = model-section { NL } [ "/*" diagram "*/" ] ;
 diagram     = "diagram" id "v" number NL { statement NL } "end" ;
-statement   = theme | background | mlines | defaults | colordef | style | compartment | text
+statement   = theme | background | mlines | labels | defaults | colordef | style | compartment | text
             | species | reaction | leg | mline | (* empty *) ;
 
 theme       = "theme" id ;
 background  = "background" color ;
 mlines      = "modifierLines" ( "shown" | "hidden" ) ;
+labels      = "labels" ( "id" | "displayName" ) ;
 defaults    = "defaults" kind block ;
 colordef    = "color" id "=" color ;
 style       = "style" name [ kind ] block ;

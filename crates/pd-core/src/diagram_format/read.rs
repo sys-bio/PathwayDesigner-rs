@@ -15,8 +15,8 @@ use super::colors::Constants;
 use crate::antimony::{Diagnostic, Severity};
 use crate::geometry::{Pt, pt};
 use crate::model::{
-    ALIAS_OFFSET, BorderDash, Frame, LinePattern, Look, Model, ModifierKind, ModifierLook,
-    NodeShape, ReactionMode, Rgba, Role, StyleKind, TextAlign, Typeface, VisualStyle,
+    ALIAS_OFFSET, BorderDash, Frame, LabelChoice, LinePattern, Look, Model, ModifierKind,
+    ModifierLook, NodeShape, ReactionMode, Rgba, Role, StyleKind, TextAlign, Typeface, VisualStyle,
 };
 use crate::passes::NULL_OFFSET;
 use crate::render::draw;
@@ -306,6 +306,8 @@ struct Edit {
     modifier: ModifierLook,
     /// A reaction's empty sets' size.
     empty_set: Option<f64>,
+    /// `label id` or `label displayName` (docs/display-names-design.md D4).
+    label: Option<LabelChoice>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -418,6 +420,7 @@ impl Reader<'_> {
                     None => self.warn(s.pos, "the background isn't a color"),
                 },
                 StatementKind::ModifierLinesHidden(h) => model.hide_modifier_lines = *h,
+                StatementKind::LabelsDisplayName(on) => model.show_display_names = *on,
                 _ => {}
             }
         }
@@ -601,6 +604,9 @@ impl Reader<'_> {
                             let d = s.width.max(s.height);
                             (s.width, s.height) = (d, d);
                         }
+                        if let Some(l) = e.label {
+                            s.label_choice = l;
+                        }
                         if let Some(place) = e.id.filter(|p| *p != IdPlace::Inside) {
                             pending.push(Pending::Species(id, place));
                         }
@@ -611,6 +617,9 @@ impl Reader<'_> {
                     for id in ids {
                         let r = model.find_reaction_mut(&id).expect("listed");
                         r.style = super::write::overlay(r.style, e.style);
+                        if let Some(l) = e.label {
+                            r.label_choice = l;
+                        }
                         if let Some(place) = e.id.filter(|p| *p != IdPlace::Hidden) {
                             pending.push(Pending::Reaction(id.clone(), place));
                         }
@@ -641,6 +650,9 @@ impl Reader<'_> {
                 "compartment" => {
                     for c in &mut model.compartments {
                         c.style = super::write::overlay(c.style, e.style);
+                        if let Some(l) = e.label {
+                            c.label_choice = l;
+                        }
                     }
                 }
                 "text" => {
@@ -770,7 +782,11 @@ impl Reader<'_> {
         let start = Edit::of_style(c.style);
         let names = self.named_styles("compartment", clauses);
         let e = self.edit("compartment", start, &names, props);
-        model.find_compartment_mut(id).expect("found above").style = e.style;
+        let c = model.find_compartment_mut(id).expect("found above");
+        c.style = e.style;
+        if let Some(l) = e.label {
+            c.label_choice = l;
+        }
         if let [one] = names.as_slice() {
             links.push((StyleKind::Compartment, id.to_owned(), one.clone()));
         }
@@ -864,6 +880,9 @@ impl Reader<'_> {
         };
         s.shape = e.shape;
         s.border_dash = e.border_dash;
+        if let Some(l) = e.label {
+            s.label_choice = l;
+        }
         if let Some((w, h)) = e.size {
             (s.width, s.height) = (w, h);
         }
@@ -955,6 +974,9 @@ impl Reader<'_> {
             junction_visible: e.style.junction_visible,
             ..e.style
         };
+        if let Some(l) = e.label {
+            r.label_choice = l;
+        }
         if let Some(d) = e.empty_set {
             for null in [format!("_source_{id}"), format!("_sink_{id}")] {
                 if let Some(n) = model.find_species_mut(&null) {
@@ -1164,6 +1186,12 @@ impl Reader<'_> {
                 .map(|d| e.border_dash = d),
             ("species", "id") => species_id(v).map(|i| e.id = Some(i)),
             ("reaction", "id") => reaction_id(v).map(|i| e.id = Some(i)),
+            ("species" | "reaction" | "compartment", "label") => match word(v) {
+                Some("id") => Some(LabelChoice::Id),
+                Some("displayName") => Some(LabelChoice::DisplayName),
+                _ => None,
+            }
+            .map(|l| e.label = Some(l)),
             ("species" | "reaction", "idColor") => self.color_value(v).map(|c| {
                 e.style.label_color = c;
                 e.style.has_custom_style = true;
@@ -1436,6 +1464,7 @@ impl Edit {
             text: TextEdit::default(),
             modifier: ModifierLook::default(),
             empty_set: None,
+            label: None,
         }
     }
 }
@@ -1609,6 +1638,54 @@ mod tests {
 
     fn messages(i: &Imported) -> Vec<String> {
         i.warnings.iter().map(|w| w.message.clone()).collect()
+    }
+
+    /// docs/display-names-design.md D4: `labels displayName` for the
+    /// diagram, `label id` or `label displayName` for an item, also from a
+    /// style or the defaults.
+    #[test]
+    fn labels_and_label_choices() {
+        use crate::model::LabelChoice;
+        let m = clean(
+            "labels displayName\nGlc at (0, 0) { label id }\nhk { label id }\ncompartment cell { label id }",
+        );
+        assert!(m.show_display_names);
+        assert_eq!(m.find_species("Glc").unwrap().label_choice, LabelChoice::Id);
+        assert_eq!(
+            m.find_species("G6P").unwrap().label_choice,
+            LabelChoice::Diagram
+        );
+        assert_eq!(m.find_reaction("hk").unwrap().label_choice, LabelChoice::Id);
+        assert_eq!(
+            m.find_compartment("cell").unwrap().label_choice,
+            LabelChoice::Id
+        );
+        assert!(!clean("labels id").show_display_names);
+        assert!(!clean("").show_display_names);
+
+        let m = clean("style enzyme { label displayName }\nE at (0, 0) style enzyme");
+        assert_eq!(
+            m.find_species("E").unwrap().label_choice,
+            LabelChoice::DisplayName
+        );
+        assert_eq!(
+            m.find_species("Glc").unwrap().label_choice,
+            LabelChoice::Diagram
+        );
+
+        let m = clean("defaults reaction { label displayName }");
+        assert!(
+            m.reactions()
+                .iter()
+                .all(|r| r.label_choice == LabelChoice::DisplayName)
+        );
+
+        let i = read("Glc at (0, 0) { label name }");
+        assert_eq!(messages(&i).len(), 1, "{:?}", messages(&i));
+        assert_eq!(
+            i.model.find_species("Glc").unwrap().label_choice,
+            LabelChoice::Diagram
+        );
     }
 
     #[test]

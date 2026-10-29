@@ -116,6 +116,8 @@ Settings a species can have:
   `left`, `right`, `outside` (whichever side is clearest of lines), or
   `offset (dx, dy)` to move it by that much from the centre.
 - `idColor`, `idSize`, `idBold` and `idItalic`: how the name is written.
+- `label`: `id` or `displayName`, what this drawing's label shows, whatever
+  the whole diagram shows (see "The whole diagram" below).
 
 ## Reactions
 
@@ -155,6 +157,7 @@ Settings a reaction can have:
 - `id`: the reaction's name is hidden unless shown: `shown`, `above`, `below`,
   `left`, `right`, or `offset (dx, dy)` from the junction.
 - `idColor`, `idSize`, `idBold`, `idItalic`, as for species.
+- `label`: `id` or `displayName`, as for species.
 - `emptySetSize`: the size of its empty-set symbols.
 
 ## Shaping a single line
@@ -204,7 +207,7 @@ text "Upper glycolysis" at (80, 72) { size 22; bold }
 
 - A compartment's `at` is the top-left corner of its box, and `size` its width
   and height. `hidden` keeps the compartment in the model but draws no box.
-  Settings: `fill`, `border` and `idSize`.
+  Settings: `fill`, `border`, `idSize` and `label`.
 - A text's `at` is its top-left corner. Settings: `size`, `font` (`sans` or
   `serif`), `bold`, `italic`, `align` (`left`, `center` or `right`), `color`,
   and `wrap` with a width to wrap the lines.
@@ -248,12 +251,17 @@ These lines come at the top of the diagram:
 theme escher
 background white
 modifierLines hidden
+labels displayName
 defaults species { fill #EEF6FF; border #4A7FCB 1.5 }
 ```
 
 - `theme` gives the whole diagram a ready-made look: `classic` or `escher`.
 - `background` is the color behind the diagram.
 - `modifierLines hidden` hides every modifier line, without losing them.
+- `labels displayName` labels every species, reaction and compartment that has
+  a display name with that name instead of its id. The display names
+  themselves are part of the model, in the Antimony above the diagram:
+  `S1 is "glucose"`.
 - `defaults` sets what every item of a kind looks like where nothing else
   says. PathwayDesigner always writes the five `defaults` lines and the
   background, so the file looks the same in any program that reads it.

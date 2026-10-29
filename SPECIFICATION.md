@@ -133,7 +133,9 @@ world coordinates.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `id` | string | generated | Biochemical identifier, also the label of a primary node. |
+| `id` | string | generated | Biochemical identifier, and the label unless the display name is shown (§5.14). |
+| `displayName` | string or none | none | The species' name (SBML `name`, Antimony `S1 is "glucose"`), on a primary only (§5.14). Added in the Rust version. |
+| `label` | As the diagram, Id or Display name | As the diagram | What this drawing's label shows (§5.14). Each drawing, alias or not, has its own. Added in the Rust version. |
 | `center` | point | — | World coordinates of the centre. |
 | `width`, `height` | number | 80 × 36 | Null nodes are 28 × 28. Can be changed (§7.10). |
 | `shape` | NodeShape | rounded rectangle | What it is drawn as (§5.10). Ignored for null nodes. Added in the Rust version. |
@@ -153,7 +155,8 @@ Rules:
 
 - An alias's biochemical fields are ignored. Everything biochemical comes from its
   primary.
-- An alias SHOULD display its **primary's** id as its label (see §15, D-1).
+- An alias SHOULD display its **primary's** id as its label (see §15, D-1), or
+  its primary's display name (§5.14).
 - Null nodes have no biochemical meaning. They MUST NOT appear in Antimony export
   and SHOULD NOT appear in SBML export (§15, D-9).
 
@@ -179,6 +182,8 @@ Rules:
 | `isLinear` | bool | false | Render mode flag |
 | `isBezier` | bool | false | Render mode flag |
 | `isJunctionSmooth` | bool | false | Only meaningful when `isBezier`. |
+| `displayName` | string or none | none | Its name (§5.14). Added in the Rust version. |
+| `label` | As the diagram, Id or Display name | As the diagram | What its label shows (§5.14). Added in the Rust version. |
 | `selected` | bool | false | Transient |
 | `style` | VisualStyle | default | |
 
@@ -188,7 +193,8 @@ sets one MUST clear the other.
 ### 3.5 Compartment, Parameter, AssignmentRule
 
 - **Compartment**: `id`, `size` (the volume; default 1), `dimensions` (default 3),
-  `style`, the box it is drawn as, and whether that box is hidden (§7.9). The id
+  `style`, the box it is drawn as, and whether that box is hidden (§7.9); in the
+  Rust version also a display name and what its label shows (§5.14). The id
   `defaultCompartment` is special: it is never shown as a "real" compartment, and
   never drawn, even with a box (renaming a drawn compartment to it removes its box
   from the diagram).
@@ -810,13 +816,13 @@ which draws names as now.
 
 ### 5.12 Reaction names
 
-*Added in the Rust version.* A reaction can show its **id** as text beside its
-junction, as Escher's metabolic maps label reactions. There is no separate display
-name: renaming the reaction renames the label.
+*Added in the Rust version.* A reaction can show its **label**, its id or its
+display name (§5.14), as text beside its junction, as Escher's metabolic maps
+label reactions.
 
-- **Shown or not** is the reaction's own setting, off by default: the **Show Id**
-  tick box in the Reaction group (§8.1), named to match its Id field, for every
-  selected reaction; one undo step, *Show Id* or *Hide Id*. A name shown starts beside the junction on the
+- **Shown or not** is the reaction's own setting, off by default: the **Show
+  label** tick box in the Reaction group (§8.1), for every selected reaction; one
+  undo step, *Show Label* or *Hide Label*. A name shown starts beside the junction on the
   side clearest of its lines, as a species' name does (§5.11): of the same eight
   directions, the one furthest from every line leaving the junction. A line
   leaves towards its handle on a Bézier reaction (§5.6), otherwise towards its
@@ -830,7 +836,7 @@ name: renaming the reaction renames the label.
   (§7.6), Alt to place it freely.
 - **Look:** drawn in the reaction style's `fontSize` (default 12) and `labelColor`
   (default `#1A1A1A`), fields a reaction's style always had but never used, set by
-  **Font size** and **Id colour** in the Reaction group. Drawn after the junction
+  **Font size** and **Label colour** in the Reaction group. Drawn after the junction
   handles, over the lines. Not drawn below 2 screen points, as species names.
 - **Selecting:** clicking the name selects its reaction (Shift toggles it), a
   rubber band touching the name selects it, and a selected reaction's name is
@@ -895,6 +901,33 @@ junction (dragging it, moving the reaction, alignment, layout) carries the stem.
   stem. In SBML the stem is the reaction glyph's own curve, and each leg ends at
   its end of it (SPEC-Rust §8.3); reading SBML, a reaction glyph's curve, from this
   app or another tool, becomes the stem.
+
+### 5.14 Display names
+
+*Added in the Rust version* (docs/display-names-design.md). SBML and Antimony
+give a species, reaction or compartment an **id**, which rate laws and other
+statements use, and optionally a **display name** (SBML `name`; Antimony
+`S1 is "glucose"`), which can be any words. A model whose ids are generated
+(MINERVA's `species_11`) is much easier to read by its names.
+
+- **Kept.** The display name is read from SBML and Antimony, written back to
+  both (§11.3, §11.5) and saved in the JSON file (SPEC-Rust §4.2, version 17).
+  An alias has none of its own: it shows its species'. A blank name is no name.
+- **Edited** in the Display name field of the item's group in the inspector
+  (§8.1), for one item at a time; one undo step, *Edit Display Name*. Clearing
+  the field removes the name. The id and the rate laws don't change.
+- **Shown.** **View ▸ Display names** (§7.6) labels every item that has a
+  display name with it instead of its id. Each item's **Label** list in the
+  inspector overrides that: *As the diagram* (the default), *Id* or *Display
+  name*. An item without a display name always shows its id. The label shown is
+  what is drawn on screen and in output, measured by Fit to Name (§7.10) and
+  placed beside a node (§5.11) or a junction (§5.12).
+- **No guessing.** A file opens showing ids, unless it says otherwise; the app
+  doesn't try to tell generated ids from meaningful ones.
+- **SBML.** A Layout text glyph refers to its item (`originOfText`), so another
+  reader shows the item's name or id as it chooses; the setting and the label
+  choices aren't carried. **Antimony** carries them in the diagram comment
+  (`labels displayName`, `{ label id }`, docs/diagram-format.md §6.2, §6.4).
 
 ## 6. Interaction model
 
@@ -1313,6 +1346,12 @@ recomputed). Without this, the mean movement could put the junction anywhere.
   "Hide Modifier Lines"), and a new diagram shows them. (It was first remembered
   as a preference, which a file then couldn't override.) SBML and Antimony don't
   carry it.
+- **Display names** on/off (View menu). Default **off**. Labels species,
+  reactions and compartments with their display names instead of their ids
+  (§5.14). *Added in the Rust version.* Like Modifier lines, a setting of the
+  diagram, saved in its file (JSON version 17, `"displayNames": true`; in a
+  diagram comment, `labels displayName`): one undo step, "Show Display Names" /
+  "Hide Display Names".
 - **Reversible arrowheads** on/off (View menu). Default **on**. Draws reversible
   reactions with an arrowhead at both ends (§5.5), on screen and in output.
   Remembered between sessions. *Added in the Rust version.*
@@ -1609,6 +1648,9 @@ fields are enabled only when exactly one species is selected.
 
 | Control | Applies to | Behaviour |
 |---|---|---|
+| Id (text) | single species | Shown, not edited here (Rename, §7.1). |
+| Display name (text) | single species | Its species' display name (§5.14), applied when the field loses focus; empty removes it. Added in the Rust version. |
+| Label (list) | all selected species | As the diagram, Id or Display name (§5.14). Shows "Mixed" when they differ. Added in the Rust version. |
 | Fill colour swatch | all selected species | Opens the colour picker (§8.2). Sets `fillColor` and `hasCustomStyle`. |
 | Border colour swatch | all selected species | Sets `borderColor`. |
 | Border width (number) | single species | Applied when the field loses focus. Sets `borderWidth` and `hasCustomStyle`. Shows the width drawn (1.5 by default). **0 means no border** (`noBorder`, §3.6; the width is kept for when it gets one again); any other width gives it one. Rust version: the reference treated 0 as the default. |
@@ -1626,6 +1668,7 @@ fields are enabled only when exactly one species is selected.
 
 | Control | Applies to | Behaviour |
 |---|---|---|
+| Display name (text), Label (list) | single reaction; all selected reactions | As for species (§5.14). The Compartment group has them too. Added in the Rust version. |
 | Line colour swatch | all selected reactions | Sets `lineColor` and `hasCustomStyle`. |
 | Line width (number) | single reaction | Sets `lineWidth` and `hasCustomStyle`. Shows the width drawn (1.5 by default); 0 or less is refused. |
 | Show junction (checkbox) | all selected reactions | Sets `junctionVisible`. The box is ticked only if **every** selected reaction shows its junction. |
@@ -2321,6 +2364,10 @@ Sections are separated by blank lines and introduced by `// Section` comments.
 4. `k = <expression>;` for each parameter.
 5. `S = <initialValue>;` for each primary, non-null species.
 6. `x := <expression>;` for each assignment rule.
+6a. *(Rust version.)* `S is "glucose";` for each compartment, primary species and
+   reaction with a display name (§5.14), in a `// Display names` section. A name
+   is written on one line, with `'` for `"`. Import keeps these for species,
+   compartments and reactions; a parameter's name is skipped with a warning.
 
 7. *(Rust version.)* **The drawing**, when the drawing is exported too: File ▸
    Export Antimony always, and the Antimony panel's Get Antimony when *Diagram*
@@ -2402,7 +2449,7 @@ libSBML. The reference writes the XML itself.
 | Element | Content |
 |---|---|
 | compartments | Add `defaultCompartment` (size 1, 3-D, constant) if it is missing, then every model compartment (`constant="true"`). |
-| species | One per **primary** species. Null nodes SHOULD be left out. Attributes: `compartment` (defaults to `defaultCompartment`), `initialConcentration`, `hasOnlySubstanceUnits="false"`, `boundaryCondition`, `constant`. |
+| species | One per **primary** species. Null nodes SHOULD be left out. Attributes: `name` (its display name, §5.14, when it has one; Rust version), `compartment` (defaults to `defaultCompartment`), `initialConcentration`, `hasOnlySubstanceUnits="false"`, `boundaryCondition`, `constant`. |
 | parameters | One per parameter whose expression is a number, with `constant="true"`. Parameters with non-numeric expressions SHOULD become an `initialAssignment`. |
 | reactions | `reversible`, `fast="false"`. Reactants and products as `speciesReference` elements with `stoichiometry` and `constant="true"`. Modifiers SHOULD be written as `modifierSpeciesReference` (§15, D-10). |
 | kineticLaw | The rate law converted to Content MathML (table below). If the law is empty or cannot be parsed, leave out the `<kineticLaw>` element entirely. |

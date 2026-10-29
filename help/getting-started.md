@@ -40,6 +40,16 @@ written too: where each item is and how it looks, in a short comment after
 the model. Any Antimony tool still reads the model, and PathwayDesigner reads
 the drawing back when the text is loaded again.
 
+## Ids and display names
+
+Every species, reaction and compartment has an **id**, the name that rate laws
+use, such as `S1`. It can also have a **display name**, any words you like,
+such as *glucose*. Select an item and type its display name in the
+**Properties** tab. **View ▸ Display names** then labels the diagram with the
+display names instead of the ids; the **Label** list in the Properties tab
+changes this for the selected items only. Models read from SBML or Antimony
+keep the display names they have.
+
 ## Open an example
 
 **File ▸ Open from Gallery…** opens example models, from small networks to

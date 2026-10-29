@@ -68,7 +68,7 @@ fn a_name_shown_starts_clear_of_the_lines() {
     v.select_item(&Target::Leg("R1".into()), false);
     assert_eq!(v.selected_reactions_label_shown(), Some(false));
     v.set_reaction_label_shown(true);
-    assert_eq!(v.undo_description(), Some("Show Id"));
+    assert_eq!(v.undo_description(), Some("Show Label"));
     assert_eq!(v.selected_reactions_label_shown(), Some(true));
     // Its lines go left and right, so the name goes above, centred, its
     // box LABEL_GAP clear of the junction's dot and the line.
@@ -82,7 +82,7 @@ fn a_name_shown_starts_clear_of_the_lines() {
     assert_eq!(offset(&v), Some(pt(30.0, 30.0)));
     // Hidden, and undo shows it again.
     v.set_reaction_label_shown(false);
-    assert_eq!(v.undo_description(), Some("Hide Id"));
+    assert_eq!(v.undo_description(), Some("Hide Label"));
     assert_eq!(offset(&v), None);
     v.undo();
     assert_eq!(offset(&v), Some(pt(30.0, 30.0)));
@@ -149,7 +149,7 @@ fn the_name_is_hit_and_selects_its_reaction() {
     });
     assert_eq!(
         v.undo_description(),
-        Some("Show Id"),
+        Some("Show Label"),
         "a click moves nothing"
     );
     // Shift-click takes it out of the selection.

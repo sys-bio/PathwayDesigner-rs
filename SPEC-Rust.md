@@ -348,6 +348,16 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 17: display names (S §5.14).** A species, reaction or compartment
+object may have `"displayName"`: its name, from SBML `name` or Antimony
+`S1 is "glucose"`; a species has one only if it is a primary. It may have
+`"label"`: `"id"` or `"displayName"`, what its label shows whatever the diagram
+says; left out for *as the diagram*. A top-level `"displayNames": true`, after
+`colorNames`, labels the diagram with display names; left out when it shows
+ids. A blank name reads as none, and an alias's as none; a `label` this version
+doesn't know reads as *as the diagram*, with a warning. A document with any of
+these is version 17.
+
 **Version 16: named colors (docs/diagram-format.md §5.1), and sized species styles (§6.2).** A top-level
 `"colorNames"`, after `modifierLines`: a list of `{"name": "gold", "value":
 "#FFD54F"}`, the colors a diagram read from Antimony named with `color gold =

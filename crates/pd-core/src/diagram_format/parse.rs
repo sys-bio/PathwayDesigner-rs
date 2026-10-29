@@ -315,6 +315,11 @@ fn statement(line: &[Token], problems: &mut Vec<Problem>) -> Option<Statement> {
                 Some("shown") => return shaped(StatementKind::ModifierLinesHidden(false)),
                 _ => {}
             },
+            Some("labels") if line.len() == 2 => match word(&line[1]) {
+                Some("displayName") => return shaped(StatementKind::LabelsDisplayName(true)),
+                Some("id") => return shaped(StatementKind::LabelsDisplayName(false)),
+                _ => {}
+            },
             Some("color") if line.len() == 4 && line[2].tok == Tok::Equals => {
                 c.i = 1;
                 let name = c.word()?.to_owned();
