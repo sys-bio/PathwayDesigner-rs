@@ -199,3 +199,30 @@ fn validate_checks_layout_references() {
         "{issues:#?}"
     );
 }
+
+/// A layout without its size, as MINERVA 22.0.2 writes for a hidden layer, is
+/// refused with a reason that names it; so is a glyph's box without its place.
+#[test]
+fn an_incomplete_layout_is_refused_saying_what_is_missing() {
+    let path = format!("{}/tests/data/layout-l3v1.xml", env!("CARGO_MANIFEST_DIR"));
+    let text = std::fs::read_to_string(path).unwrap();
+    let first = |xml: &str| match read(xml) {
+        Ok(_) => panic!("read, though incomplete"),
+        Err(errors) => errors[0].message.clone(),
+    };
+    let start = text.find("<layout:dimensions").unwrap();
+    let end = start + text[start..].find("/>").unwrap() + 2;
+    let no_size = format!("{}{}", &text[..start], &text[end..]);
+    let message = first(&no_size);
+    assert!(
+        message.contains("the layout 'layout1' has no <dimensions>"),
+        "{message}"
+    );
+    assert!(message.contains("SBML Layout requires"), "{message}");
+
+    let at = text.find("<layout:position").unwrap();
+    let end = at + text[at..].find("/>").unwrap() + 2;
+    let no_place = format!("{}{}", &text[..at], &text[end..]);
+    let message = first(&no_place);
+    assert!(message.contains("the bounding box of '"), "{message}");
+}

@@ -138,7 +138,13 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         l.render = render;
         match dims {
             Some(d) => l.dimensions = d,
-            None => self.error(n, "<layout> needs <dimensions>"),
+            None => {
+                let message = format!(
+                    "the layout '{}' has no <dimensions> (its width and height), which SBML Layout requires of every layout",
+                    l.id
+                );
+                self.error(n, &message)
+            }
         }
         l
     }
@@ -311,7 +317,17 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         }
         match (pos, dims) {
             (Some(p), Some(d)) => (bb.position, bb.dimensions) = (p, d),
-            _ => self.error(c, "<boundingBox> needs <position> and <dimensions>"),
+            _ => {
+                // The glyph it belongs to, by its id in any namespace.
+                let glyph = c
+                    .parent_element()
+                    .and_then(|g| g.attributes().find(|a| a.name() == "id"))
+                    .map_or_else(|| "a glyph".to_owned(), |a| format!("'{}'", a.value()));
+                let message = format!(
+                    "the bounding box of {glyph} lacks its <position> or <dimensions>, which SBML Layout requires"
+                );
+                self.error(c, &message)
+            }
         }
         *slot = Some(bb);
         true
@@ -357,7 +373,10 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         let (start, end) = match (start, end) {
             (Some(s), Some(e)) => (s, e),
             _ => {
-                self.error(n, "<curveSegment> needs <start> and <end>");
+                self.error(
+                    n,
+                    "a curve segment lacks its <start> or <end>, which SBML Layout requires",
+                );
                 (Point::default(), Point::default())
             }
         };
