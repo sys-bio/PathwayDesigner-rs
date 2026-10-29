@@ -320,7 +320,7 @@ pub fn species_corners(s: &SpeciesNode) -> [Pt; 4] {
 /// The width that fits a species' name: the label, as drawn, and
 /// [`FIT_MARGIN`] each side (S §7.10).
 pub fn width_for_name(s: &SpeciesNode) -> f64 {
-    text_width_in(name_font(&s.style), s.primary_id(), label_size(s)) + 2.0 * FIT_MARGIN
+    text_width_in(name_font(&s.style), s.label(), label_size(s)) + 2.0 * FIT_MARGIN
 }
 
 /// The face a species' or reaction's name is drawn in (S §5.11.1): the
@@ -344,8 +344,8 @@ pub fn label_size(s: &SpeciesNode) -> f64 {
 /// and for a null node. Returns (min, max).
 pub fn outside_label_box(s: &SpeciesNode) -> Option<(Pt, Pt)> {
     let offset = s.label_offset.filter(|_| !s.is_null_node)?;
-    let half = name_half(s.primary_id(), label_size(s), name_font(&s.style))
-        + pt(LABEL_BOX_PAD, LABEL_BOX_PAD);
+    let half =
+        name_half(s.label(), label_size(s), name_font(&s.style)) + pt(LABEL_BOX_PAD, LABEL_BOX_PAD);
     let c = s.center + offset;
     Some((c - half, c + half))
 }
@@ -422,19 +422,14 @@ fn clearest_direction(lines: &[Pt]) -> Pt {
 /// it is on (to the nearest eighth of a turn), so the gap between the name
 /// and the node stays the same.
 pub fn label_offset_resized(s: &SpeciesNode, offset: Pt, old: (f64, TextFont)) -> Pt {
-    name_offset_resized(
-        s.primary_id(),
-        offset,
-        old,
-        (label_size(s), name_font(&s.style)),
-    )
+    name_offset_resized(s.label(), offset, old, (label_size(s), name_font(&s.style)))
 }
 
 /// [`label_offset_resized`] for a reaction's name (S §5.12), from its
 /// junction.
 pub fn reaction_label_offset_resized(r: &Reaction, offset: Pt, old: (f64, TextFont)) -> Pt {
     name_offset_resized(
-        &r.id,
+        r.label(),
         offset,
         old,
         (reaction_label_size(r), name_font(&r.style)),
@@ -459,7 +454,7 @@ fn name_offset_resized(text: &str, offset: Pt, old: (f64, TextFont), new: (f64, 
 fn label_offset_towards(s: &SpeciesNode, d: Pt) -> Pt {
     beside(
         pt(s.width / 2.0, s.height / 2.0),
-        name_half(s.primary_id(), label_size(s), name_font(&s.style)),
+        name_half(s.label(), label_size(s), name_font(&s.style)),
         d,
     )
 }
@@ -506,7 +501,7 @@ pub fn reaction_label_colour(r: &Reaction) -> Rgba {
 /// (S §5.12). `None` when the name isn't shown. Returns (min, max).
 pub fn reaction_label_box(model: &Model, r: &Reaction) -> Option<(Pt, Pt)> {
     let offset = r.label_offset?;
-    let half = name_half(&r.id, reaction_label_size(r), name_font(&r.style))
+    let half = name_half(r.label(), reaction_label_size(r), name_font(&r.style))
         + pt(LABEL_BOX_PAD, LABEL_BOX_PAD);
     let c = effective_junction(model, r) + offset;
     Some((c - half, c + half))
@@ -526,7 +521,7 @@ pub fn label_offset_on_side(s: &SpeciesNode, d: Pt) -> Pt {
 pub fn reaction_label_offset_on_side(r: &Reaction, d: Pt) -> Pt {
     beside(
         reaction_label_clearance(r),
-        name_half(&r.id, reaction_label_size(r), name_font(&r.style)),
+        name_half(r.label(), reaction_label_size(r), name_font(&r.style)),
         d,
     )
 }
@@ -587,7 +582,7 @@ pub fn clear_reaction_label_offset(model: &Model, r: &Reaction) -> Pt {
         .collect();
     beside(
         reaction_label_clearance(r),
-        name_half(&r.id, reaction_label_size(r), name_font(&r.style)),
+        name_half(r.label(), reaction_label_size(r), name_font(&r.style)),
         clearest_direction(&lines),
     )
 }
@@ -604,7 +599,7 @@ pub fn compartment_corners(f: &Frame) -> [Pt; 4] {
 pub fn compartment_label_box(c: &Compartment, f: &Frame) -> (Pt, Pt) {
     let size = compartment_label_size(c);
     let m = font_metrics(size);
-    let w = text_width(&c.id, size);
+    let w = text_width(c.label(), size);
     let a = f.min() + pt(COMPARTMENT_LABEL_INSET, COMPARTMENT_LABEL_INSET);
     (a, a + pt(w, m.ascent - m.descent))
 }
@@ -1471,7 +1466,7 @@ impl Drawer<'_> {
             // Inside the node, or outside it at its offset (S §5.11).
             out.text(
                 self.to_screen(node.center + node.label_offset.unwrap_or(Pt::ZERO)),
-                node.primary_id(),
+                node.label(),
                 size as f32,
                 name_font(&node.style),
                 color,
@@ -1651,7 +1646,7 @@ impl Drawer<'_> {
             let centre = pt((a.x + b.x) / 2.0, a.y + m.ascent - cap / 2.0);
             out.text(
                 self.to_screen(centre),
-                &c.id,
+                c.label(),
                 size as f32,
                 TextFont::default(),
                 // The name takes a custom border colour; otherwise its own.
@@ -1791,7 +1786,7 @@ impl Drawer<'_> {
         if size >= MIN_LABEL_SIZE_PX {
             out.text(
                 self.to_screen(effective_junction(self.model, r) + offset),
-                &r.id,
+                r.label(),
                 size as f32,
                 name_font(&r.style),
                 reaction_label_colour(r),
@@ -1971,6 +1966,58 @@ mod tests {
 
     fn close(a: SPt, b: SPt) -> bool {
         (a.x - b.x).abs() < 1e-3 && (a.y - b.y).abs() < 1e-3
+    }
+
+    /// The words drawn, in order.
+    fn words(calls: &[Call]) -> Vec<String> {
+        calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::Text(_, s, ..) | Call::TextIn(_, s, ..) => Some(s.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// docs/display-names-design.md D4: species (and their aliases),
+    /// reactions and compartments are labelled with what
+    /// [`Model::refresh_labels`] chose.
+    #[test]
+    fn labels_are_drawn_as_chosen() {
+        let mut m = uni_uni();
+        let a = m.species()[0].id.clone();
+        m.add_alias(&a, pt(0.0, 100.0)).unwrap();
+        m.find_species_mut(&a).unwrap().display_name = Some("glucose".into());
+        let r = m.reactions()[0].id.clone();
+        let rx = m.find_reaction_mut(&r).unwrap();
+        rx.display_name = Some("uptake".into());
+        rx.label_offset = Some(pt(0.0, -30.0));
+        let mut c = Compartment::new("cell");
+        c.display_name = Some("astrocyte".into());
+        c.frame = Some(Frame {
+            center: pt(200.0, 0.0),
+            width: 600.0,
+            height: 300.0,
+        });
+        m.compartments.push(c);
+        m.refresh_labels();
+        let ids = words(&draw(&m, &DrawOptions::default()));
+        assert!(
+            ids.contains(&"cell".to_owned()) && ids.contains(&r),
+            "{ids:?}"
+        );
+        assert_eq!(ids.iter().filter(|w| **w == a).count(), 2, "{ids:?}");
+        m.show_display_names = true;
+        m.refresh_labels();
+        let names = words(&draw(&m, &DrawOptions::default()));
+        assert_eq!(
+            names.iter().filter(|w| *w == "glucose").count(),
+            2,
+            "{names:?}"
+        );
+        assert!(names.contains(&"uptake".to_owned()), "{names:?}");
+        assert!(names.contains(&"astrocyte".to_owned()), "{names:?}");
+        assert!(!names.contains(&a) && !names.contains(&r), "{names:?}");
     }
 
     /// A at (0,0) → R at (200,0) → B at (400,0), all 80 × 36.

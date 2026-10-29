@@ -79,6 +79,8 @@ impl DiagramView {
         // An item whose look was changed by hand no longer follows its style
         // (S §8.6).
         crate::styles::drop_stale_links(&mut self.model);
+        // Labels follow names, label choices and the diagram's setting (D4).
+        self.model.refresh_labels();
         self.undo.push(Command::Snapshot {
             desc,
             before: Box::new(before),

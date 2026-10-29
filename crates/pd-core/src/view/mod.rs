@@ -400,7 +400,8 @@ impl Default for DiagramView {
 }
 
 impl DiagramView {
-    pub fn new(model: Model) -> Self {
+    pub fn new(mut model: Model) -> Self {
+        model.refresh_labels();
         Self {
             model,
             zoom: 1.0,
@@ -441,6 +442,7 @@ impl DiagramView {
     pub fn set_model(&mut self, model: Model) {
         self.model = model;
         crate::compartments::place_unplaced(&mut self.model);
+        self.model.refresh_labels();
         self.undo.clear();
         self.gesture = Gesture::Idle;
         self.pending = Pending::default();

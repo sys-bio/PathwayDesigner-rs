@@ -268,12 +268,60 @@ pub struct SpeciesNode {
     /// docs/display-names-design.md D1), on a primary only: an alias shows
     /// its species'. `None` when it has none.
     pub display_name: Option<String>,
+    /// What its label shows (D4); each drawing, alias or not, has its own.
+    pub label_choice: LabelChoice,
+    /// Transient, kept by [`Model::refresh_labels`]: the display name its
+    /// label shows, or `None` for its species' id. Read it through
+    /// [`SpeciesNode::label`].
+    pub shown_name: Option<String>,
 }
 
 /// A display name as read from a file: `None` for a missing or blank one
 /// (docs/display-names-design.md D1).
 pub fn display_name(name: Option<String>) -> Option<String> {
     name.filter(|n| !n.trim().is_empty())
+}
+
+/// What an item's label shows (docs/display-names-design.md D4): as the
+/// diagram says ([`Model::show_display_names`]), or its id, or its display
+/// name, whatever the diagram says. An item without a display name always
+/// shows its id.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum LabelChoice {
+    #[default]
+    Diagram,
+    Id,
+    DisplayName,
+}
+
+impl LabelChoice {
+    /// Its key in the file; `None` for [`LabelChoice::Diagram`], which is
+    /// left out.
+    pub fn key(self) -> Option<&'static str> {
+        match self {
+            LabelChoice::Diagram => None,
+            LabelChoice::Id => Some("id"),
+            LabelChoice::DisplayName => Some("displayName"),
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        match key {
+            "id" => Some(LabelChoice::Id),
+            "displayName" => Some(LabelChoice::DisplayName),
+            _ => None,
+        }
+    }
+
+    /// Whether the display name is shown, under a diagram that shows them or
+    /// not.
+    pub fn shows_name(self, diagram: bool) -> bool {
+        match self {
+            LabelChoice::Diagram => diagram,
+            LabelChoice::Id => false,
+            LabelChoice::DisplayName => true,
+        }
+    }
 }
 
 /// What a species is drawn as (S §5.10).
@@ -385,6 +433,8 @@ impl SpeciesNode {
             style: VisualStyle::default(),
             style_name: None,
             display_name: None,
+            label_choice: LabelChoice::Diagram,
+            shown_name: None,
         }
     }
 
@@ -409,6 +459,11 @@ impl SpeciesNode {
     /// alias, its own otherwise. This is also its label (S §3.2).
     pub fn primary_id(&self) -> &str {
         self.alias_of.as_deref().unwrap_or(&self.id)
+    }
+
+    /// The words its label shows: its species' display name or id (D4).
+    pub fn label(&self) -> &str {
+        self.shown_name.as_deref().unwrap_or(self.primary_id())
     }
 }
 
@@ -661,6 +716,11 @@ pub struct Reaction {
     /// Its display name (docs/display-names-design.md D1); `None` when it
     /// has none.
     pub display_name: Option<String>,
+    /// What its label shows (D4).
+    pub label_choice: LabelChoice,
+    /// Transient, kept by [`Model::refresh_labels`]; read it through
+    /// [`Reaction::label`].
+    pub shown_name: Option<String>,
 }
 
 /// True if a stem's ends, offsets from the junction, are on one straight
@@ -703,7 +763,14 @@ impl Reaction {
             stem: None,
             stem_straight: false,
             display_name: None,
+            label_choice: LabelChoice::Diagram,
+            shown_name: None,
         }
+    }
+
+    /// The words its label shows: its display name or id (D4).
+    pub fn label(&self) -> &str {
+        self.shown_name.as_deref().unwrap_or(&self.id)
     }
 
     pub fn participants(&self, role: Role) -> &[Participant] {
@@ -871,6 +938,11 @@ pub struct Compartment {
     /// Its display name (docs/display-names-design.md D1); `None` when it
     /// has none.
     pub display_name: Option<String>,
+    /// What its label shows (D4).
+    pub label_choice: LabelChoice,
+    /// Transient, kept by [`Model::refresh_labels`]; read it through
+    /// [`Compartment::label`].
+    pub shown_name: Option<String>,
 }
 
 impl Compartment {
@@ -885,7 +957,14 @@ impl Compartment {
             selected: false,
             style_name: None,
             display_name: None,
+            label_choice: LabelChoice::Diagram,
+            shown_name: None,
         }
+    }
+
+    /// The words its label shows: its display name or id (D4).
+    pub fn label(&self) -> &str {
+        self.shown_name.as_deref().unwrap_or(&self.id)
     }
 
     /// True for `defaultCompartment` (any case), which is never drawn.
@@ -973,6 +1052,9 @@ pub struct Model {
     /// (docs/diagram-format.md §5.1), in the order they were defined, so the
     /// names are written back where the colors are used.
     pub color_names: Vec<(String, Rgba)>,
+    /// View ▸ Show Display Names for this diagram
+    /// (docs/display-names-design.md D4). Saved with it.
+    pub show_display_names: bool,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -995,6 +1077,7 @@ impl Default for Model {
             background: Rgba::DEFAULT,
             hide_modifier_lines: false,
             color_names: Vec::new(),
+            show_display_names: false,
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),
@@ -1008,6 +1091,36 @@ impl Default for Model {
 impl Model {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Sets every item's [`SpeciesNode::shown_name`] (and the reactions' and
+    /// compartments') from the display names, the items' label choices and
+    /// [`Model::show_display_names`] (D4). Run after any of them changes:
+    /// the view does it for every step, and on opening a model.
+    pub fn refresh_labels(&mut self) {
+        let diagram = self.show_display_names;
+        let names: HashMap<Id, Option<String>> = self
+            .species
+            .iter()
+            .filter(|s| s.alias_of.is_none())
+            .map(|s| (s.id.clone(), s.display_name.clone()))
+            .collect();
+        for s in &mut self.species {
+            let name = names.get(s.primary_id()).cloned().flatten();
+            s.shown_name = name.filter(|_| s.label_choice.shows_name(diagram));
+        }
+        for r in &mut self.reactions {
+            r.shown_name = r
+                .display_name
+                .clone()
+                .filter(|_| r.label_choice.shows_name(diagram));
+        }
+        for c in &mut self.compartments {
+            c.shown_name = c
+                .display_name
+                .clone()
+                .filter(|_| c.label_choice.shows_name(diagram));
+        }
     }
 
     // ----- Reading ---------------------------------------------------------

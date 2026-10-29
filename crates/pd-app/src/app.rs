@@ -947,6 +947,18 @@ impl PathwayApp {
                 {
                     self.view.set_show_modifiers(modifiers);
                 }
+                // A setting of the diagram, saved in its file
+                // (docs/display-names-design.md D4).
+                let mut names = self.view.show_display_names();
+                if ui
+                    .checkbox(&mut names, "Display names")
+                    .on_hover_text(
+                        "Label items with their display names instead of their ids, where they have one; saved with the diagram",
+                    )
+                    .changed()
+                {
+                    self.view.set_show_display_names(names);
+                }
                 ui.checkbox(&mut self.view.show_reversible, "Reversible arrowheads")
                     .on_hover_text("Draw reversible reactions with an arrowhead at both ends");
                 ui.checkbox(&mut self.view.show_grid, "Grid").on_hover_text(
@@ -3147,6 +3159,37 @@ k = 0.1",
         assert_eq!(h.app.view.undo_description(), Some("Edit Display Name"));
         // The id row still shows the id.
         h.text(&id);
+    }
+
+    /// docs/display-names-design.md D4: View ▸ Display names labels the
+    /// diagram with names, and each panel's Label choice overrides it.
+    #[test]
+    fn view_display_names_and_the_label_choice() {
+        use pd_core::model::{LabelChoice, StyleKind};
+        let mut h = Harness::new();
+        let id = h.app.view.model().species()[0].id.clone();
+        h.app.view.set_display_name(&id, "glucose");
+        h.run(vec![]);
+        assert_eq!(h.app.view.model().species()[0].label(), id);
+        h.click(h.widget("View"));
+        h.run(vec![]);
+        h.click(h.widget("Display names"));
+        h.run(vec![]);
+        assert!(h.app.view.show_display_names());
+        assert_eq!(h.app.view.model().species()[0].label(), "glucose");
+        // The species set to show its id, from its panel.
+        h.key(Key::Escape, Modifiers::NONE);
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        h.click(h.text("As the diagram"));
+        h.run(vec![]);
+        h.click(h.widget("Id"));
+        h.run(vec![]);
+        assert_eq!(
+            h.app.view.selected_label_choice(StyleKind::Species),
+            Some(LabelChoice::Id)
+        );
+        assert_eq!(h.app.view.model().find_species(&id).unwrap().label(), id);
     }
 
     #[test]

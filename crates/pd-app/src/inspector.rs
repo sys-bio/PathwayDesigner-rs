@@ -9,7 +9,9 @@
 use eframe::egui::{self, Color32, RichText, Sense, Vec2, text::CCursor, text::CCursorRange};
 use pd_core::expr;
 use pd_core::json::colour::{from_hex, to_hex};
-use pd_core::model::{BorderDash, ModifierLook, NodeShape, Rgba, StyleKind, TextAlign, Typeface};
+use pd_core::model::{
+    BorderDash, LabelChoice, ModifierLook, NodeShape, Rgba, StyleKind, TextAlign, Typeface,
+};
 use pd_core::render::constants::{DEFAULT_LINE_WIDTH, PICKER_SWATCHES};
 use pd_core::render::draw;
 use pd_core::view::{ColourField, DiagramView};
@@ -249,6 +251,9 @@ impl Inspector {
                             ui.label("Display name");
                             self.name_field(ui, view, Field::SpeciesName, one_species.is_some());
                             ui.end_row();
+                            ui.label("Label");
+                            label_choice(ui, view, StyleKind::Species);
+                            ui.end_row();
                         }
 
                         ui.label("Fill");
@@ -432,6 +437,9 @@ impl Inspector {
                             ui.label("Display name");
                             self.name_field(ui, view, Field::ReactionName, one_reaction.is_some());
                             ui.end_row();
+                            ui.label("Label");
+                            label_choice(ui, view, StyleKind::Reaction);
+                            ui.end_row();
                         }
 
                         ui.label("Line");
@@ -485,12 +493,12 @@ impl Inspector {
                         // Its id beside the junction, for every selected
                         // reaction (S §5.12). Where it is isn't part of a look.
                         if !look_only {
-                            ui.label("Show Id");
+                            ui.label("Show label");
                             let mut named = view.selected_reactions_label_shown() == Some(true);
                             if ui
                                 .checkbox(&mut named, "")
                                 .on_hover_text(
-                                    "Draw the reaction's id beside it; drag it to move it",
+                                    "Draw the reaction's id or display name beside it; drag it to move it",
                                 )
                                 .changed()
                             {
@@ -504,7 +512,7 @@ impl Inspector {
                         ui.label("Font");
                         name_face(ui, view, false);
                         ui.end_row();
-                        ui.label("Id colour");
+                        ui.label("Label colour");
                         self.swatch(ui, view, ColourField::ReactionLabel);
                         ui.end_row();
                     });
@@ -543,6 +551,9 @@ impl Inspector {
                                 Field::CompartmentName,
                                 one_compartment.is_some(),
                             );
+                            ui.end_row();
+                            ui.label("Label");
+                            label_choice(ui, view, StyleKind::Compartment);
                             ui.end_row();
                             ui.label("Volume");
                             self.number(ui, view, Field::Volume, one_compartment.is_some(), "");
@@ -1375,6 +1386,44 @@ fn optional_number(
 
 /// Bold and Italic for the names of the selected species (`species`) or
 /// reactions (S §5.11.1): ticked when every one is.
+/// What the labels of the selected items of `kind` show
+/// (docs/display-names-design.md D4), for all of them at once.
+fn label_choice(ui: &mut egui::Ui, view: &mut DiagramView, kind: StyleKind) {
+    let current = view.selected_label_choice(kind);
+    let text = |c: LabelChoice| match c {
+        LabelChoice::Diagram => "As the diagram",
+        LabelChoice::Id => "Id",
+        LabelChoice::DisplayName => "Display name",
+    };
+    let mut chosen = None;
+    egui::ComboBox::from_id_salt(("label-choice", kind.key()))
+        .selected_text(current.map_or("Mixed", text))
+        .show_ui(ui, |ui| {
+            for (choice, tip) in [
+                (
+                    LabelChoice::Diagram,
+                    "The display name if View ▸ Display names is on, otherwise the id",
+                ),
+                (LabelChoice::Id, "Always the id"),
+                (
+                    LabelChoice::DisplayName,
+                    "Always the display name, or the id if there is none",
+                ),
+            ] {
+                if ui
+                    .selectable_label(current == Some(choice), text(choice))
+                    .on_hover_text(tip)
+                    .clicked()
+                {
+                    chosen = Some(choice);
+                }
+            }
+        });
+    if let Some(c) = chosen {
+        view.set_label_choice(kind, c);
+    }
+}
+
 fn name_face(ui: &mut egui::Ui, view: &mut DiagramView, species: bool) {
     let (bold, italic) = view.selected_names_bold_italic(species);
     ui.horizontal(|ui| {

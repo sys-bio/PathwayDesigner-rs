@@ -6,8 +6,8 @@
 use super::DiagramView;
 use crate::expr;
 use crate::model::{
-    BorderDash, Compartment, Id, Model, ModifierKind, NodeShape, RenameError, Rgba, StyleKind,
-    TextAlign, TextItem, Typeface, VisualStyle,
+    BorderDash, Compartment, Id, LabelChoice, Model, ModifierKind, NodeShape, RenameError, Rgba,
+    StyleKind, TextAlign, TextItem, Typeface, VisualStyle,
 };
 use crate::render::constants::LABEL;
 use crate::render::draw::compartment_colours;
@@ -168,6 +168,80 @@ impl DiagramView {
             c.display_name = name;
         }
         self.record_if_changed("Edit Display Name", before)
+    }
+
+    /// Whether labels show display names (View ▸ Show Display Names,
+    /// docs/display-names-design.md D4). A setting of the diagram, saved in
+    /// its file.
+    pub fn show_display_names(&self) -> bool {
+        self.model.show_display_names
+    }
+
+    /// Shows display names in the labels, or ids. One undo step.
+    pub fn set_show_display_names(&mut self, show: bool) -> ViewResponse {
+        let before = self.model.clone();
+        self.model.show_display_names = show;
+        let desc = if show {
+            "Show Display Names"
+        } else {
+            "Show Ids"
+        };
+        self.record_if_changed(desc, before)
+    }
+
+    /// The label choice every selected item of `kind` has, if they all have
+    /// the same one (D4). Species, reactions and compartments only.
+    pub fn selected_label_choice(&self, kind: StyleKind) -> Option<LabelChoice> {
+        let m = &self.model;
+        let choices: Vec<LabelChoice> = match kind {
+            StyleKind::Species => m
+                .species()
+                .iter()
+                .filter(|s| s.selected && !s.is_null_node)
+                .map(|s| s.label_choice)
+                .collect(),
+            StyleKind::Reaction => m
+                .reactions()
+                .iter()
+                .filter(|r| r.selected)
+                .map(|r| r.label_choice)
+                .collect(),
+            StyleKind::Compartment => m
+                .compartments
+                .iter()
+                .filter(|c| c.selected)
+                .map(|c| c.label_choice)
+                .collect(),
+            StyleKind::Text => Vec::new(),
+        };
+        let first = *choices.first()?;
+        choices.iter().all(|c| *c == first).then_some(first)
+    }
+
+    /// Sets what the labels of the selected items of `kind` show (D4): as
+    /// the diagram says, the id, or the display name. Each drawing of a
+    /// species has its own. One undo step.
+    pub fn set_label_choice(&mut self, kind: StyleKind, choice: LabelChoice) -> ViewResponse {
+        let before = self.model.clone();
+        match kind {
+            StyleKind::Species => {
+                for s in self.model.species_mut().filter(|s| s.selected) {
+                    s.label_choice = choice;
+                }
+            }
+            StyleKind::Reaction => {
+                for r in self.model.reactions_mut().filter(|r| r.selected) {
+                    r.label_choice = choice;
+                }
+            }
+            StyleKind::Compartment => {
+                for c in self.model.compartments.iter_mut().filter(|c| c.selected) {
+                    c.label_choice = choice;
+                }
+            }
+            StyleKind::Text => {}
+        }
+        self.record_if_changed("Label", before)
     }
 
     /// Makes the selected species boundary species, or not (their primaries,
@@ -1066,6 +1140,116 @@ mod tests {
         let steps = v.undo_description();
         v.set_display_name("cell", "astrocyte");
         assert_eq!(v.undo_description(), steps);
+    }
+
+    /// D4 of docs/display-names-design.md: the labels a view shows.
+    fn labels(v: &DiagramView) -> Vec<String> {
+        let m = v.model();
+        m.species()
+            .iter()
+            .map(|s| s.label().to_owned())
+            .chain(m.reactions().iter().map(|r| r.label().to_owned()))
+            .chain(m.compartments.iter().map(|c| c.label().to_owned()))
+            .collect()
+    }
+
+    /// S1 (glucose) with an alias, S2 without a name, E, S4, R5 (uptake),
+    /// and a compartment `cell` (astrocyte). Nothing selected.
+    fn named_view() -> DiagramView {
+        let mut v = view();
+        v.model
+            .compartments
+            .push(crate::model::Compartment::new("cell"));
+        v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        v.set_display_name("S1", "glucose");
+        v.set_display_name("R5", "uptake");
+        v.set_display_name("cell", "astrocyte");
+        v.model.clear_selection();
+        v
+    }
+
+    #[test]
+    fn labels_show_ids_until_the_diagram_shows_display_names() {
+        let mut v = named_view();
+        assert_eq!(labels(&v), ["S1", "S2", "E", "S4", "S1", "R5", "cell"]);
+        v.set_show_display_names(true);
+        assert_eq!(v.undo_description(), Some("Show Display Names"));
+        // The alias shows its species' name; S2 has none, so shows its id.
+        assert_eq!(
+            labels(&v),
+            ["glucose", "S2", "E", "S4", "glucose", "uptake", "astrocyte"]
+        );
+        v.undo();
+        assert_eq!(labels(&v)[0], "S1");
+        v.redo();
+        assert_eq!(labels(&v)[0], "glucose");
+        // A name typed while names are shown shows at once.
+        v.set_display_name("S2", "fructose");
+        assert_eq!(labels(&v)[1], "fructose");
+    }
+
+    #[test]
+    fn an_items_label_choice_overrides_the_diagram() {
+        let mut v = named_view();
+        // The alias alone shows its name; the primary keeps its id.
+        let alias = v.model().species()[4].id.clone();
+        v.model.find_species_mut(&alias).unwrap().selected = true;
+        v.set_label_choice(StyleKind::Species, LabelChoice::DisplayName);
+        assert_eq!(v.undo_description(), Some("Label"));
+        assert_eq!(labels(&v)[0], "S1");
+        assert_eq!(labels(&v)[4], "glucose");
+        // With the diagram showing names, a reaction set to its id keeps it.
+        v.set_show_display_names(true);
+        v.model.clear_selection();
+        v.model.find_reaction_mut("R5").unwrap().selected = true;
+        v.set_label_choice(StyleKind::Reaction, LabelChoice::Id);
+        assert_eq!(labels(&v)[5], "R5");
+        assert_eq!(
+            v.selected_label_choice(StyleKind::Reaction),
+            Some(LabelChoice::Id)
+        );
+        // Saved and read back: the setting and the choices come too.
+        let text = crate::json::to_json(v.model());
+        let back = DiagramView::new(crate::json::from_json(&text).unwrap().model);
+        assert_eq!(labels(&back), labels(&v));
+    }
+
+    #[test]
+    fn the_selection_s_label_choice_is_none_when_mixed() {
+        let mut v = named_view();
+        for s in v.model.species_mut() {
+            s.selected = true;
+        }
+        assert_eq!(
+            v.selected_label_choice(StyleKind::Species),
+            Some(LabelChoice::Diagram)
+        );
+        v.model.find_species_mut("S1").unwrap().label_choice = LabelChoice::Id;
+        assert_eq!(v.selected_label_choice(StyleKind::Species), None);
+    }
+
+    #[test]
+    fn opening_a_model_labels_it() {
+        let mut m = Model::new();
+        let s = m.add_species(pt(0.0, 0.0), 80.0, 36.0);
+        m.find_species_mut(&s).unwrap().display_name = Some("glucose".into());
+        m.show_display_names = true;
+        // Not refreshed yet: as an import hands it over.
+        assert_eq!(m.species()[0].label(), s);
+        let v = DiagramView::new(m.clone());
+        assert_eq!(v.model().species()[0].label(), "glucose");
+        let mut v = DiagramView::new(Model::new());
+        v.set_model(m);
+        assert_eq!(v.model().species()[0].label(), "glucose");
+    }
+
+    #[test]
+    fn fit_to_name_measures_the_label_shown() {
+        let mut v = named_view();
+        let id_width = crate::render::draw::width_for_name(&v.model().species()[0]);
+        v.set_show_display_names(true);
+        let name_width = crate::render::draw::width_for_name(&v.model().species()[0]);
+        assert!(name_width > id_width, "{name_width} > {id_width}");
     }
 
     #[test]

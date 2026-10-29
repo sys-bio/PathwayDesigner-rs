@@ -15,9 +15,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::geometry::pt;
 use crate::model::{
     AssignmentRule, BorderDash, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH,
-    DEFAULT_TEXT_SIZE, Frame, LinePattern, Look, Model, ModifierKind, ModifierLook, NodeShape,
-    Parameter, Participant, Reaction, ReactionMode, Rgba, SavedStyle, SpeciesNode, StyleKind,
-    TextAlign, TextFont, TextItem, Typeface, VisualStyle,
+    DEFAULT_TEXT_SIZE, Frame, LabelChoice, LinePattern, Look, Model, ModifierKind, ModifierLook,
+    NodeShape, Parameter, Participant, Reaction, ReactionMode, Rgba, SavedStyle, SpeciesNode,
+    StyleKind, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must: the
@@ -74,7 +74,7 @@ pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
 /// (SPEC-Rust §4.2): 17 if a species, reaction or compartment has a display
-/// name, 16 if the diagram names colors (from a diagram's
+/// name or its own label choice, or the diagram shows display names, 16 if the diagram names colors (from a diagram's
 /// `color gold = #FFD54F`) or a species style has a size with the name
 /// inside (`style cofactor { size 18 }`), 15 if a reactant's or product's line has corner points
 /// (S §5.6.5), 14 if a name is bold or italic (S §5.11.1), 13 if its
@@ -125,9 +125,20 @@ pub fn needed_version(model: &Model) -> u32 {
             }
         )
     });
-    let display_names = model.species().iter().any(|s| s.display_name.is_some())
-        || model.reactions().iter().any(|r| r.display_name.is_some())
-        || model.compartments.iter().any(|c| c.display_name.is_some());
+    let chosen = |c: LabelChoice| c != LabelChoice::Diagram;
+    let display_names = model.show_display_names
+        || model
+            .species()
+            .iter()
+            .any(|s| s.display_name.is_some() || chosen(s.label_choice))
+        || model
+            .reactions()
+            .iter()
+            .any(|r| r.display_name.is_some() || chosen(r.label_choice))
+        || model
+            .compartments
+            .iter()
+            .any(|c| c.display_name.is_some() || chosen(c.label_choice));
     if display_names {
         FORMAT_VERSION
     } else if !model.color_names.is_empty() || sized_inside {
@@ -314,6 +325,10 @@ struct FileModel {
     /// defined (docs/diagram-format.md §5.1). Left out when there are none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     color_names: Vec<FileColorName>,
+    /// Version 17: `true` when labels show display names
+    /// (docs/display-names-design.md D4). Left out when they show ids.
+    #[serde(default, skip_serializing_if = "is_false")]
+    display_names: bool,
 }
 
 /// A named color (version 16).
@@ -440,6 +455,10 @@ struct FileCompartment {
     /// Version 17: its display name (docs/display-names-design.md D1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
+    /// Version 17: what its label shows, `"id"` or `"displayName"` (D4).
+    /// Left out when it is as the diagram says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
 }
 
 /// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
@@ -502,6 +521,10 @@ struct FileSpecies {
     /// primary only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
+    /// Version 17: what its label shows, `"id"` or `"displayName"` (D4).
+    /// Left out when it is as the diagram says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -552,6 +575,10 @@ struct FileReaction {
     /// Version 17: its display name (docs/display-names-design.md D1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
+    /// Version 17: what its label shows, `"id"` or `"displayName"` (D4).
+    /// Left out when it is as the diagram says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -704,6 +731,8 @@ impl FileModel {
             .compartments
             .into_iter()
             .map(|c| Compartment {
+                // Before `id` is moved.
+                label_choice: label_choice(c.label.as_deref(), &c.id, &mut warnings),
                 id: c.id,
                 size: c.size,
                 dimensions: c.dimensions,
@@ -724,6 +753,7 @@ impl FileModel {
                 selected: false,
                 style_name: c.style_name,
                 display_name: crate::model::display_name(c.display_name),
+                shown_name: None,
             })
             .collect();
         model.parameters = self
@@ -778,6 +808,8 @@ impl FileModel {
                 }
             };
             let node = SpeciesNode {
+                // Before `id` is moved.
+                label_choice: label_choice(s.label.as_deref(), &s.id, &mut warnings),
                 id: s.id,
                 center: pt(s.x, s.y),
                 width: s.w,
@@ -799,6 +831,7 @@ impl FileModel {
                 },
                 style_name: s.style_name,
                 display_name: crate::model::display_name(s.display_name),
+                shown_name: None,
             };
             if let Err(dup) = model.push_species(node) {
                 warnings.push(format!("A second species with id `{}` was skipped.", dup.0));
@@ -828,6 +861,7 @@ impl FileModel {
             reaction.style = style_from_file(r.style);
             reaction.style_name = r.style_name;
             reaction.display_name = crate::model::display_name(r.display_name);
+            reaction.label_choice = label_choice(r.label.as_deref(), &reaction.id, &mut warnings);
             reaction.stem = match r.stem.as_deref() {
                 None => None,
                 Some(&[a, b, c, d]) if [a, b, c, d].iter().all(|v| v.is_finite()) => {
@@ -938,6 +972,8 @@ impl FileModel {
             .into_iter()
             .map(|c| (c.name, c.value))
             .collect();
+        model.show_display_names = self.display_names;
+        model.refresh_labels();
 
         model.recompute_id_counter();
         Loaded {
@@ -946,6 +982,20 @@ impl FileModel {
             warnings,
         }
     }
+}
+
+/// An item's label choice from its `label` key (D4): as the diagram says
+/// when it is missing, or, with a warning, one this version doesn't know.
+fn label_choice(key: Option<&str>, id: &str, warnings: &mut Vec<String>) -> LabelChoice {
+    let Some(key) = key else {
+        return LabelChoice::Diagram;
+    };
+    LabelChoice::from_key(key).unwrap_or_else(|| {
+        warnings.push(format!(
+            "`{id}` has the unknown label choice `{key}`; it shows what the diagram shows."
+        ));
+        LabelChoice::Diagram
+    })
 }
 
 /// The saved styles (S §8.6). One with no name, a kind this version doesn't
@@ -1221,6 +1271,7 @@ impl FileModel {
                     style_name: c.style_name.clone(),
                     no_border: c.style.no_border,
                     display_name: c.display_name.clone(),
+                    label: c.label_choice.key().map(str::to_owned),
                 })
                 .collect(),
             parameters: m
@@ -1264,6 +1315,7 @@ impl FileModel {
                     style_name: s.style_name.clone(),
                     no_border: s.style.no_border,
                     display_name: s.display_name.clone(),
+                    label: s.label_choice.key().map(str::to_owned),
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -1303,6 +1355,7 @@ impl FileModel {
             theme: m.theme.map(|t| t.key().to_owned()),
             background: m.background,
             modifier_lines: m.hide_modifier_lines.then_some(false),
+            display_names: m.show_display_names,
             color_names: m
                 .color_names
                 .iter()
@@ -1447,6 +1500,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         stem: r.stem.map(|(a, b)| vec![a.x, a.y, b.x, b.y]),
         stem_straight: needs_stem_straight(r).then_some(false),
         display_name: r.display_name.clone(),
+        label: r.label_choice.key().map(str::to_owned),
     }
 }
 
