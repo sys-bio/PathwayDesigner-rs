@@ -4,6 +4,43 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.26 (2026-10-28)
+
+**New**
+
+- **Display names.** A species, reaction or compartment can have a display
+  name besides its id, as SBML (`name`) and Antimony (`S1 is "glucose"`)
+  allow: read from both, written back to both, and saved in PathwayDesigner's
+  files (version 17). Each item's Properties show its id and its display
+  name, which can be typed there. **View ▸ Display names** labels the diagram
+  with names instead of ids, for models whose ids mean nothing, such as
+  MINERVA's `species_11`; each item's **Label** list (As the diagram, Id,
+  Display name) overrides it. The diagram language says the same with
+  `labels displayName` and `{ label id }`.
+- **Select All Drawings** (a species' right-click menu) selects a species and
+  all its other drawings, so their look can be set at once.
+- **Mark as Modifier / Unmark as Modifier** (a reaction's right-click menu)
+  makes a reactant or product the rate law uses a modifier of the reaction
+  too, as SBML allows (B in A -> B with `k*A*B`), drawn as a loop.
+- **Gallery:** a positive-feedback example, next to negative feedback; the
+  Millard *E. coli* model with each regulator drawn beside its reaction.
+
+**Changed**
+
+- **KEGG maps** keep KEGG's numbers as ids (`C00031`, `b1676`) and show the
+  names, PubChem's for compounds (*D-Glucose*) and the box's label for
+  enzymes (*pykF*), as display names; a map opens with display names shown.
+- **Modifier symbols.** A modifier line stops where its symbol starts, and
+  the symbol is drawn over the line's end, pointing along its last piece: an
+  activator's arrowhead no longer has the line running through it and past
+  its tip. A catalyst's circle keeps the same gap from the junction as the
+  other symbols.
+- In the Reaction properties, **Show Id** and **Id colour** are now **Show
+  label** and **Label colour**, since the label can be the display name.
+- An SBML file whose layout is incomplete (a layout without its size, as
+  MINERVA writes for a hidden layer) is still refused, but the message now
+  names what is missing and where.
+
 ## 0.1.25 (2026-10-27)
 
 **New**
