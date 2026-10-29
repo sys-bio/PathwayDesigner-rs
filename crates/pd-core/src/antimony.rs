@@ -197,14 +197,18 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
         if let Some(rule) = s.rate_rule() {
             skip(rule.span, "Rate rules");
         }
-        if s.notes.is_some() || !s.cv_terms.is_empty() || s.sbo_term.is_some() {
-            skip(s.span, "Notes and annotations");
-        }
         // Species, compartments and reactions keep their names; others don't.
         let named = matches!(
             s.kind,
             SymbolKind::Species | SymbolKind::Compartment | SymbolKind::Reaction
         ) || (s.is_boundary && s.kind == SymbolKind::Parameter);
+        // They and parameters keep their annotations too
+        // (docs/annotations-design.md).
+        let annotated = named || s.kind == SymbolKind::Parameter;
+        let has_annotation = s.notes.is_some() || !s.cv_terms.is_empty() || s.sbo_term.is_some();
+        if (has_annotation && !annotated) || !s.metadata.is_empty() {
+            skip(s.span, "Notes and annotations");
+        }
         if s.display_name.is_some() && !named {
             skip(s.span, "Names of parameters and other items");
         }
@@ -660,6 +664,30 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         .filter_map(|(id, name)| Some(format!("{id} is {};", quoted_name(name.as_deref()?))))
         .collect();
 
+    // Annotations (docs/annotations-design.md): the model's, then each
+    // item's, in the order of the sections above.
+    let mut annotations: Vec<String> = annotation_lines("model", &model.annotation, true);
+    annotations.extend(history_lines(&model.history));
+    for c in model
+        .compartments
+        .iter()
+        .filter(|c| !c.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT))
+    {
+        annotations.extend(annotation_lines(&c.id, &c.annotation, false));
+    }
+    for s in &primaries {
+        annotations.extend(annotation_lines(&s.id, &s.annotation, false));
+    }
+    for r in model.reactions() {
+        annotations.extend(annotation_lines(&r.id, &r.annotation, false));
+    }
+    for p in &model.parameters {
+        annotations.extend(annotation_lines(&p.variable, &p.annotation, false));
+    }
+    for r in &model.assignment_rules {
+        annotations.extend(annotation_lines(&r.variable, &r.annotation, false));
+    }
+
     let mut out = format!("model {name}\n");
     let mut first = true;
     for (title, lines) in [
@@ -670,6 +698,7 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         ("Initial values", initial),
         ("Assignment rules", rules),
         ("Display names", names),
+        ("Annotations", annotations),
         ("Layout", layout),
     ] {
         if lines.is_empty() {
@@ -702,6 +731,128 @@ fn number(v: f64) -> String {
 
 /// One side of a reaction: species ids with their stoichiometry.
 type Side = Vec<(String, f64)>;
+
+/// `id`'s annotation, from its symbol: `S1.sboTerm = 247`,
+/// `S1 identity "…"`, `S1 notes "…"`.
+fn annotation_of(module: &Module, id: &str) -> crate::model::Annotation {
+    module
+        .symbols
+        .iter()
+        .find(|s| s.name == id)
+        .map(|s| annotation_from(s.sbo_term, &s.cv_terms, &s.notes, false))
+        .unwrap_or_default()
+}
+
+fn annotation_from(
+    sbo: Option<u32>,
+    terms: &[antimony::model::CvTerm],
+    notes: &Option<String>,
+    on_model: bool,
+) -> crate::model::Annotation {
+    crate::model::Annotation {
+        sbo,
+        references: terms
+            .iter()
+            .map(|t| crate::model::Reference {
+                qualifier: sbml_qualifier(t.qualifier, on_model),
+                resource: t.resource.clone(),
+            })
+            .collect(),
+        notes: notes.clone().filter(|n| !n.trim().is_empty()),
+    }
+}
+
+/// An Antimony qualifier as SBML names it: `identity` → `bqbiol:is`. On a
+/// model, `description` is `bqmodel:isDescribedBy`.
+fn sbml_qualifier(q: antimony::model::Qualifier, on_model: bool) -> String {
+    use antimony::model::Qualifier;
+    let model = q.is_model_only() || (on_model && q == Qualifier::IsDescribedBy);
+    let prefix = if model { "bqmodel" } else { "bqbiol" };
+    format!("{prefix}:{}", q.element())
+}
+
+/// The Antimony word for an SBML qualifier on an item (or the model), or
+/// `None` if Antimony has none.
+fn antimony_qualifier(qualifier: &str, on_model: bool) -> Option<&'static str> {
+    use antimony::model::Qualifier;
+    Qualifier::ALL
+        .into_iter()
+        .find(|q| sbml_qualifier(*q, on_model) == qualifier)
+        .map(Qualifier::keyword)
+}
+
+/// The Antimony lines of one subject's annotation (`model` for the model):
+/// its SBO term, notes, then its references, consecutive ones with the same
+/// qualifier on one line. A reference Antimony has no word for is left out.
+fn annotation_lines(subject: &str, a: &crate::model::Annotation, on_model: bool) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(sbo) = a.sbo {
+        out.push(format!("{subject}.sboTerm = {sbo};"));
+    }
+    if let Some(notes) = &a.notes {
+        if notes.contains('\n') || notes.contains('"') {
+            out.push(format!("{subject} notes ```\n{notes}\n```;"));
+        } else {
+            out.push(format!(
+                "{subject} notes {};",
+                antimony::write::quoted(notes)
+            ));
+        }
+    }
+    let mut i = 0;
+    while i < a.references.len() {
+        let q = &a.references[i].qualifier;
+        let mut j = i + 1;
+        while j < a.references.len() && a.references[j].qualifier == *q {
+            j += 1;
+        }
+        if let Some(word) = antimony_qualifier(q, on_model) {
+            let list: Vec<String> = a.references[i..j]
+                .iter()
+                .map(|r| antimony::write::quoted(&r.resource))
+                .collect();
+            out.push(format!("{subject} {word} {};", list.join(", ")));
+        }
+        i = j;
+    }
+    out
+}
+
+/// The model's history as Antimony: `model created "…"`, `model
+/// creator.familyName "…"` (numbered when there are several).
+fn history_lines(h: &crate::model::History) -> Vec<String> {
+    let q = antimony::write::quoted;
+    let mut out = Vec::new();
+    if let Some(c) = &h.created {
+        out.push(format!("model created {};", q(c)));
+    }
+    for (n, m) in h.modified.iter().enumerate() {
+        let word = if h.modified.len() == 1 {
+            "modified".to_owned()
+        } else {
+            format!("modified{}", n + 1)
+        };
+        out.push(format!("model {word} {};", q(m)));
+    }
+    for (n, c) in h.creators.iter().enumerate() {
+        let prefix = if h.creators.len() == 1 {
+            "creator".to_owned()
+        } else {
+            format!("creator{}", n + 1)
+        };
+        for (field, value) in [
+            ("givenName", &c.given),
+            ("familyName", &c.family),
+            ("organization", &c.organization),
+            ("email", &c.email),
+        ] {
+            if let Some(v) = value {
+                out.push(format!("model {prefix}.{field} {};", q(v)));
+            }
+        }
+    }
+    out
+}
 
 /// The display name `id` is given (`S1 is "glucose"`), if any.
 fn display_name_of(module: &Module, id: &str) -> Option<String> {
@@ -1030,6 +1181,40 @@ impl Builder<'_> {
         for r in model.reactions_mut() {
             r.display_name = display_name_of(module, &r.id);
         }
+        // Annotations (docs/annotations-design.md): each item's from its
+        // symbol, the model's from the module.
+        for sp in model.species_mut().filter(|s| s.alias_of.is_none()) {
+            sp.annotation = annotation_of(module, &sp.id);
+        }
+        for r in model.reactions_mut() {
+            r.annotation = annotation_of(module, &r.id);
+        }
+        for c in &mut model.compartments {
+            c.annotation = annotation_of(module, &c.id);
+        }
+        for p in &mut model.parameters {
+            p.annotation = annotation_of(module, &p.variable);
+        }
+        for r in &mut model.assignment_rules {
+            r.annotation = annotation_of(module, &r.variable);
+        }
+        model.annotation = annotation_from(module.sbo_term, &module.cv_terms, &module.notes, true);
+        model.history = crate::model::History {
+            creators: module
+                .metadata
+                .creators
+                .iter()
+                .filter(|c| !c.is_empty())
+                .map(|c| crate::model::Creator {
+                    family: c.family_name.clone().or_else(|| c.name.clone()),
+                    given: c.given_name.clone(),
+                    email: c.email.clone(),
+                    organization: c.organization.clone(),
+                })
+                .collect(),
+            created: module.metadata.created.clone(),
+            modified: module.metadata.modified.clone(),
+        };
         model.recompute_id_counter();
         model
     }
@@ -1551,6 +1736,94 @@ J1 is \"uptake\"",
         assert_eq!(i.warnings.len(), 1, "{:?}", i.warnings);
         // At the symbol, as for its notes: where `k` is first given.
         assert_eq!(i.warnings[0].line, 2);
+    }
+
+    /// docs/annotations-design.md, step 3: SBO terms, references, notes and
+    /// the model's history are read from Antimony and written back, in a
+    /// `// Annotations` section; read again, nothing is lost.
+    #[test]
+    fn annotations_round_trip() {
+        let text = "model m\n  compartment cell = 1\n  species S in cell, P in cell\n\
+                    \x20 J1: S -> P; k*S\n  k = 1\n  kr := 2*k\n\
+                    \x20 model.sboTerm = 4\n  model description \"http://identifiers.org/pubmed/1\"\n\
+                    \x20 model created \"2005-02-02T14:56:11Z\"\n\
+                    \x20 model creator.familyName \"Elowitz\"\n\
+                    \x20 S.sboTerm = 247\n\
+                    \x20 S identity \"http://identifiers.org/chebi/CHEBI:17234\", \"urn:miriam:kegg.compound:C00031\"\n\
+                    \x20 S notes \"Glucose\"\n  J1 hypernym \"http://identifiers.org/ec-code/2.7.1.1\"\n\
+                    \x20 cell.sboTerm = 290\n  k.sboTerm = 35\n  kr.sboTerm = 186\nend";
+        let i = import(text, &ON).unwrap();
+        assert!(i.warnings.is_empty(), "{:?}", i.warnings);
+        let check = |m: &Model| {
+            let s = &m.find_species("S").unwrap().annotation;
+            assert_eq!(s.sbo, Some(247));
+            assert_eq!(s.references.len(), 2);
+            assert_eq!(s.references[0].qualifier, "bqbiol:is");
+            assert_eq!(s.references[1].resource, "urn:miriam:kegg.compound:C00031");
+            assert_eq!(s.notes.as_deref(), Some("Glucose"));
+            let j = &m.find_reaction("J1").unwrap().annotation;
+            assert_eq!(j.references[0].qualifier, "bqbiol:isVersionOf");
+            assert_eq!(
+                m.find_compartment("cell").unwrap().annotation.sbo,
+                Some(290)
+            );
+            assert_eq!(m.find_parameter("k").unwrap().annotation.sbo, Some(35));
+            assert_eq!(m.assignment_rules[0].annotation.sbo, Some(186));
+            assert_eq!(m.annotation.sbo, Some(4));
+            assert_eq!(
+                m.annotation.references[0].qualifier,
+                "bqmodel:isDescribedBy"
+            );
+            assert_eq!(m.history.created.as_deref(), Some("2005-02-02T14:56:11Z"));
+            assert_eq!(m.history.creators[0].family.as_deref(), Some("Elowitz"));
+        };
+        check(&i.model);
+        let out = export(&i.model);
+        assert!(out.contains("  // Annotations\n"), "{out}");
+        assert!(
+            out.contains(
+                "  S identity \"http://identifiers.org/chebi/CHEBI:17234\", \
+                 \"urn:miriam:kegg.compound:C00031\";\n"
+            ),
+            "{out}"
+        );
+        let back = import(&out, &ON).unwrap();
+        assert!(back.warnings.is_empty(), "{:?}", back.warnings);
+        check(&back.model);
+    }
+
+    #[test]
+    fn notes_over_several_lines_are_fenced_and_come_back() {
+        let mut m = ok("A -> B; k*A\nk = 1", &ON);
+        let notes = "<body xmlns=\"http://www.w3.org/1999/xhtml\">\n<p>Two\nlines</p>\n</body>";
+        m.find_species_mut("A").unwrap().annotation.notes = Some(notes.into());
+        let out = export(&m);
+        assert!(out.contains("A notes ```\n"), "{out}");
+        let back = ok(&out, &ON);
+        assert_eq!(
+            back.find_species("A").unwrap().annotation.notes.as_deref(),
+            Some(notes)
+        );
+    }
+
+    #[test]
+    fn a_reference_antimony_cant_say_is_left_out() {
+        let mut m = ok("A -> B; k*A\nk = 1", &ON);
+        m.find_species_mut("A").unwrap().annotation.references = vec![
+            crate::model::Reference {
+                qualifier: "bqbiol:isRelatedTo".into(),
+                resource: "urn:x".into(),
+            },
+            crate::model::Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: "urn:y".into(),
+            },
+        ];
+        let out = export(&m);
+        assert!(
+            !out.contains("urn:x") && out.contains("A identity \"urn:y\";"),
+            "{out}"
+        );
     }
 
     #[test]

@@ -2371,6 +2371,14 @@ Sections are separated by blank lines and introduced by `// Section` comments.
    reaction with a display name (§5.14), in a `// Display names` section. A name
    is written on one line, with `'` for `"`. Import keeps these for species,
    compartments and reactions; a parameter's name is skipped with a warning.
+6b. *(Rust version, docs/annotations-design.md.)* In an `// Annotations` section:
+   the model's then each item's SBO term (`S.sboTerm = 247;`), notes
+   (`S notes "…";`, or in a ```` ``` ```` fence over several lines) and database
+   references (`S identity "http://identifiers.org/chebi/CHEBI:17234";`), and the
+   model's history (`model created "…";`, `model creator.familyName "…";`). Import
+   keeps the same for species, compartments, reactions, parameters (a rule's
+   variable too) and the model. A reference whose qualifier Antimony has no word
+   for is left out.
 
 7. *(Rust version.)* **The drawing**, when the drawing is exported too: File ▸
    Export Antimony always, and the Antimony panel's Get Antimony when *Diagram*

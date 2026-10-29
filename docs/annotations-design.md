@@ -4,7 +4,12 @@ Status: agreed with the author 2026-10-28: A1 parameters included, A2–A6 and A
 as proposed; A7 (KEGG) open. Steps 1 and 2 done: five curated BioModels
 models (BIOMD 5, 10, 12, 64, 206) come back through SBML with every reference,
 SBO term, note and the history, compared with libSBML, and pass its checks. A
-parameter set by an assignment rule keeps its annotation on the rule.
+parameter set by an assignment rule keeps its annotation on the rule. Step 3
+done: the same five go through Antimony and back with nothing lost. libAntimony
+3.2.1 reads the same Antimony with one difference: Antimony has one word,
+`description`, for `bqbiol:isDescribedBy` and, on a model, `bqmodel:isDescribedBy`,
+and libAntimony reads it on a model as the biology qualifier; our reader takes
+the model's.
 
 ## The problem
 
