@@ -2,17 +2,28 @@
 //! (docs/annotations-design.md, step 4): names for common SBO terms, links
 //! for references, the qualifiers to choose from, and notes as text.
 
-/// Common SBO terms with their names (A5): enough to name what most
-/// models use; any other number can be typed, and is shown as its number.
-pub const SBO_TERMS: &[(u32, &str)] = &[
-    // Species.
+/// What kind of thing an SBO term is for: each has its own common terms.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SboKind {
+    Species,
+    Reaction,
+    Compartment,
+    Parameter,
+    /// The whole model: its modelling framework.
+    Model,
+}
+
+/// Common SBO terms for species (A5).
+const SPECIES_TERMS: &[(u32, &str)] = &[
     (247, "simple chemical"),
     (245, "macromolecule"),
     (252, "polypeptide chain"),
     (250, "ribonucleic acid"),
     (251, "deoxyribonucleic acid"),
     (253, "non-covalent complex"),
-    // Reactions.
+];
+
+const REACTION_TERMS: &[(u32, &str)] = &[
     (176, "biochemical reaction"),
     (182, "conversion"),
     (177, "non-covalent binding"),
@@ -23,9 +34,11 @@ pub const SBO_TERMS: &[(u32, &str)] = &[
     (184, "translation"),
     (216, "phosphorylation"),
     (330, "dephosphorylation"),
-    // Compartments.
-    (290, "physical compartment"),
-    // Parameters.
+];
+
+const COMPARTMENT_TERMS: &[(u32, &str)] = &[(290, "physical compartment")];
+
+const PARAMETER_TERMS: &[(u32, &str)] = &[
     (2, "quantitative systems description parameter"),
     (9, "kinetic constant"),
     (25, "catalytic rate constant"),
@@ -33,14 +46,43 @@ pub const SBO_TERMS: &[(u32, &str)] = &[
     (186, "maximal velocity"),
     (193, "equilibrium or steady-state constant"),
     (356, "decay constant"),
-    // Models.
-    (62, "continuous framework"),
 ];
 
-/// The name of SBO term `n`, if it is one of [`SBO_TERMS`].
+/// A model's SBO term says which modelling framework its equations are for.
+const MODEL_TERMS: &[(u32, &str)] = &[
+    (62, "continuous framework"),
+    (293, "non-spatial continuous framework"),
+    (63, "discrete framework"),
+    (234, "logical framework"),
+    (624, "flux balance framework"),
+];
+
+/// The common SBO terms for `kind`, with their names: enough to name what
+/// most models use; any other number can be typed, and is shown as its
+/// number.
+pub fn sbo_terms(kind: SboKind) -> &'static [(u32, &'static str)] {
+    match kind {
+        SboKind::Species => SPECIES_TERMS,
+        SboKind::Reaction => REACTION_TERMS,
+        SboKind::Compartment => COMPARTMENT_TERMS,
+        SboKind::Parameter => PARAMETER_TERMS,
+        SboKind::Model => MODEL_TERMS,
+    }
+}
+
+const ALL_KINDS: [SboKind; 5] = [
+    SboKind::Species,
+    SboKind::Reaction,
+    SboKind::Compartment,
+    SboKind::Parameter,
+    SboKind::Model,
+];
+
+/// The name of SBO term `n`, if it is one of the common terms of any kind.
 pub fn sbo_name(n: u32) -> Option<&'static str> {
-    SBO_TERMS
+    ALL_KINDS
         .iter()
+        .flat_map(|k| sbo_terms(*k))
         .find(|(t, _)| *t == n)
         .map(|(_, name)| *name)
 }
@@ -213,10 +255,24 @@ mod tests {
         assert_eq!(sbo_name(999_999), None);
         assert_eq!(sbo_id(247), "SBO:0000247");
         assert_eq!(sbo_url(27), "https://identifiers.org/SBO:0000027");
-        // No number twice.
-        for (i, (a, _)) in SBO_TERMS.iter().enumerate() {
-            assert!(SBO_TERMS[i + 1..].iter().all(|(b, _)| a != b), "{a}");
+        // No number twice, in any list.
+        let all: Vec<u32> = ALL_KINDS
+            .iter()
+            .flat_map(|k| sbo_terms(*k))
+            .map(|(n, _)| *n)
+            .collect();
+        for (i, a) in all.iter().enumerate() {
+            assert!(all[i + 1..].iter().all(|b| a != b), "{a}");
         }
+        // Each kind its own: a model's are frameworks, not chemicals.
+        assert!(
+            sbo_terms(SboKind::Model)
+                .iter()
+                .all(|(_, n)| n.ends_with("framework"))
+        );
+        assert!(sbo_terms(SboKind::Species).iter().any(|(n, _)| *n == 247));
+        assert!(sbo_terms(SboKind::Model).iter().all(|(n, _)| *n != 247));
+        assert_eq!(sbo_name(293), Some("non-spatial continuous framework"));
     }
 
     #[test]

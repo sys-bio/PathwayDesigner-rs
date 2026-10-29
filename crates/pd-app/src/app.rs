@@ -3231,6 +3231,15 @@ k = 0.1",
         // An SBO term from the common ones.
         h.click(h.widget("Common"));
         h.run(vec![]);
+        assert!(
+            !h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .any(|(_, n)| n.label() == Some("62  continuous framework")),
+            "a species' list has no frameworks"
+        );
         h.click(h.widget("247  simple chemical"));
         h.run(vec![]);
         let a = |h: &Harness| {
@@ -3280,8 +3289,20 @@ k = 0.1",
         h.run(vec![]);
         h.click(h.widget("Annotations"));
         h.run(vec![]);
+        // A model's SBO term is its framework, and its list holds frameworks.
+        h.text("Framework (SBO)");
         h.click(h.widget("Common"));
         h.run(vec![]);
+        let shown = |h: &Harness, label: &str| {
+            h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .any(|(_, n)| n.label() == Some(label))
+        };
+        assert!(shown(&h, "624  flux balance framework"));
+        assert!(!shown(&h, "247  simple chemical"), "not a species' term");
         h.click(h.widget("62  continuous framework"));
         h.run(vec![]);
         assert_eq!(h.app.view.model().annotation.sbo, Some(62));

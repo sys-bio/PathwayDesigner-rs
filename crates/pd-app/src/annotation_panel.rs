@@ -6,7 +6,7 @@
 
 use eframe::egui::{self, RichText};
 use pd_core::annotation::{
-    ITEM_QUALIFIERS, MODEL_QUALIFIERS, SBO_TERMS, notes_text, notes_xhtml, qualifier_text,
+    ITEM_QUALIFIERS, MODEL_QUALIFIERS, SboKind, notes_text, notes_xhtml, qualifier_text,
     resource_from_typed, resource_text, resource_url, sbo_id, sbo_name, sbo_url,
 };
 use pd_core::model::{Annotation, Reference};
@@ -77,9 +77,23 @@ impl AnnotationPanel {
         id: Option<&str>,
         current: &Annotation,
     ) {
-        // The SBO term: its number, its name, and the common ones to pick.
+        // The SBO term: its number, its name, and the common ones to pick,
+        // those for this kind of item. A model's says its framework.
+        let m = view.model();
+        let kind = match id {
+            None => SboKind::Model,
+            Some(i) if m.find_species(i).is_some() => SboKind::Species,
+            Some(i) if m.find_reaction(i).is_some() => SboKind::Reaction,
+            Some(_) => SboKind::Compartment,
+        };
         ui.horizontal(|ui| {
-            ui.label("SBO term");
+            if kind == SboKind::Model {
+                ui.label("Framework (SBO)").on_hover_text(
+                    "The modelling framework the model's equations are for, as an SBO term",
+                );
+            } else {
+                ui.label("SBO term");
+            }
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.sbo)
                     .desired_width(70.0)
@@ -93,7 +107,7 @@ impl AnnotationPanel {
             }
             let mut picked = None;
             ui.menu_button("Common", |ui| {
-                for (n, name) in SBO_TERMS {
+                for (n, name) in pd_core::annotation::sbo_terms(kind) {
                     if ui.button(format!("{n}  {name}")).clicked() {
                         picked = Some(*n);
                         ui.close();
