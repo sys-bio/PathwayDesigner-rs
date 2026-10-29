@@ -35,7 +35,7 @@ pub use modifier_place::{MODIFIER_FAR, Placed};
 mod name_face_tests;
 #[cfg(test)]
 mod participant_tests;
-mod participants;
+pub(crate) mod participants;
 mod properties;
 #[cfg(test)]
 mod reaction_label_tests;

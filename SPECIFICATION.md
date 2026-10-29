@@ -1763,7 +1763,10 @@ species (rule 3 above removes it once the law doesn't). It is the species' drawi
 on the reaction's line (the reactant's if it is both), drawn as a self-regulation
 loop (docs/self-modifier-loop-design.md), and its kind can be set as for any
 modifier. Unmark as Modifier takes it off; the species stays a reactant or
-product. One undo step each.
+product. One undo step each. Antimony can't say that a reactant or product is
+also a modifier, so a self modifier goes through Antimony only in the diagram
+comment: its `line` is always written there, and reading it makes the species a
+modifier again (docs/diagram-format.md §10).
 
 ### 8.5 Copy Style and Paste Style
 

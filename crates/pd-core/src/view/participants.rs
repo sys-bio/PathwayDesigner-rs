@@ -99,38 +99,9 @@ impl DiagramView {
         )
     }
 
-    /// The reaction's reactants and products (by species) that its rate law
-    /// uses, each with whether it is also a modifier of the reaction already
-    /// (a self modifier). What Mark as Modifier and Unmark as Modifier offer.
+    /// See [`law_uses_own_species`].
     fn law_uses_own_species(&self, id: &str) -> Vec<(Id, bool)> {
-        let Some(r) = self.model.find_reaction(id) else {
-            return Vec::new();
-        };
-        let Ok(ast) = crate::expr::parse(&r.kinetic_law) else {
-            return Vec::new();
-        };
-        let named: Vec<&str> = crate::expr::identifiers(&ast);
-        let primary = |sp: &str| {
-            self.model
-                .find_species(sp)
-                .filter(|s| !s.is_null_node)
-                .map(|s| s.primary_id().to_owned())
-        };
-        let mut out: Vec<(Id, bool)> = Vec::new();
-        for p in r.reactants.iter().chain(&r.products) {
-            let Some(sp) = primary(&p.species) else {
-                continue;
-            };
-            if !named.contains(&sp.as_str()) || out.iter().any(|(o, _)| *o == sp) {
-                continue;
-            }
-            let marked = r
-                .modifiers
-                .iter()
-                .any(|m| primary(&m.species).as_deref() == Some(sp.as_str()));
-            out.push((sp, marked));
-        }
-        out
+        law_uses_own_species(&self.model, id)
     }
 
     /// What Mark as Modifier offers for reaction `id`: its reactants and
@@ -436,4 +407,39 @@ fn auto_law(model: &Model, id: &str) -> bool {
     model
         .find_reaction(id)
         .is_some_and(|r| r.kinetic_law == mass_action(model, id))
+}
+
+/// Reaction `id`'s reactants and products (by species) that its rate law
+/// uses, each with whether it is also a modifier of the reaction already (a
+/// self modifier). What Mark as Modifier and Unmark as Modifier offer, and
+/// what a diagram's `line B to J1` may make a self modifier.
+pub(crate) fn law_uses_own_species(model: &Model, id: &str) -> Vec<(Id, bool)> {
+    let Some(r) = model.find_reaction(id) else {
+        return Vec::new();
+    };
+    let Ok(ast) = crate::expr::parse(&r.kinetic_law) else {
+        return Vec::new();
+    };
+    let named: Vec<&str> = crate::expr::identifiers(&ast);
+    let primary = |sp: &str| {
+        model
+            .find_species(sp)
+            .filter(|s| !s.is_null_node)
+            .map(|s| s.primary_id().to_owned())
+    };
+    let mut out: Vec<(Id, bool)> = Vec::new();
+    for p in r.reactants.iter().chain(&r.products) {
+        let Some(sp) = primary(&p.species) else {
+            continue;
+        };
+        if !named.contains(&sp.as_str()) || out.iter().any(|(o, _)| *o == sp) {
+            continue;
+        }
+        let marked = r
+            .modifiers
+            .iter()
+            .any(|m| primary(&m.species).as_deref() == Some(sp.as_str()));
+        out.push((sp, marked));
+    }
+    out
 }

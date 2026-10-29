@@ -629,8 +629,9 @@ impl<'m> Writer<'m> {
 
     /// A `line` for each modifier whose line isn't plain: a kind other than
     /// a plain modifier, a second drawing, corner points or a look of its own.
-    /// Only modifiers the Antimony text keeps: named in the rate law, and not
-    /// also a reactant or product (which the import never makes a modifier).
+    /// Only modifiers named in the rate law, which the Antimony text keeps;
+    /// a self modifier (also a reactant or product) always, since the line
+    /// is what makes it one again when read.
     fn modifier_lines(&self, r: &Reaction) -> Vec<String> {
         let names = law_names(&r.kinetic_law);
         let mut out = Vec::new();
@@ -644,7 +645,7 @@ impl<'m> Writer<'m> {
                     .find_species(&p.species)
                     .is_some_and(|s| s.primary_id() == primary)
             });
-            if participant || !names.iter().any(|n| n == primary) {
+            if !names.iter().any(|n| n == primary) {
                 continue;
             }
             let kind = match m.kind {
@@ -653,7 +654,9 @@ impl<'m> Writer<'m> {
                 ModifierKind::Inhibitor => Some("inhibitor"),
                 ModifierKind::Catalyst => Some("catalyst"),
             };
-            if kind.is_none() && !node.is_alias() && m.points.is_empty() && m.look.is_default() {
+            let plain =
+                kind.is_none() && !node.is_alias() && m.points.is_empty() && m.look.is_default();
+            if plain && !participant {
                 continue;
             }
             let mut clauses = Vec::new();
@@ -1224,6 +1227,28 @@ end
         );
     }
 
+    /// A self modifier, made with Mark as Modifier, goes through Antimony
+    /// with its diagram and comes back, with its kind.
+    #[test]
+    fn a_self_modifier_comes_back() {
+        use crate::model::{ModifierKind, Participant};
+        let (mut m, _) = rewritten("Glc at (0, 0)\nhk at (100, 0)");
+        let r = m.find_reaction_mut("hk").unwrap();
+        let mut glc = Participant::new("Glc", 1.0);
+        glc.kind = ModifierKind::Inhibitor;
+        r.modifiers.push(glc);
+        let text = export_with_diagram(&m);
+        assert!(text.contains("line Glc to hk"), "{text}");
+        let back = round_trip(&m);
+        let hk = back.find_reaction("hk").unwrap();
+        let glc = hk
+            .modifiers
+            .iter()
+            .find(|p| p.species == "Glc")
+            .expect("kept");
+        assert_eq!(glc.kind, ModifierKind::Inhibitor);
+    }
+
     #[test]
     fn a_small_diagram_in_the_canonical_form() {
         let (_, d) = rewritten(
@@ -1632,13 +1657,17 @@ end */";
         // the diagram, not as an interaction.
         assert!(out.contains("line A to hk kind activator"), "{out}");
         assert!(!out.contains("-o"), "{out}");
-        // A modifier that is also a reactant can't come back through
-        // Antimony, so its line isn't written.
+        // A modifier that is also a reactant the law uses (a self modifier)
+        // comes back only through its line, so the line is written; one the
+        // law doesn't use can't come back, so isn't.
         let hk = m.find_reaction_mut("hk").unwrap();
         let mut p = crate::model::Participant::new("Glc", 1.0);
         p.points = vec![pt(5.0, 5.0)];
         hk.modifiers.push(p);
+        hk.kinetic_law = "E*C*A*k".into();
         assert!(!export_with_diagram(&m).contains("line Glc"));
+        m.find_reaction_mut("hk").unwrap().kinetic_law = "E*C*A*k*Glc".into();
+        assert!(export_with_diagram(&m).contains("line Glc to hk via (5, 5)"));
     }
 
     #[test]

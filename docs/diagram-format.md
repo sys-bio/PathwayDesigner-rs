@@ -513,6 +513,12 @@ line E#2 to R5 kind catalyst
 - `via` lists the line's corner points in order from the modifier.
 - The look is the modifier properties of §6.2, from a `modifier` style or the
   line's own `{ … }`.
+- **A self modifier.** A line from a reactant or product of the reaction that
+  its rate law uses makes that species a modifier of its own reaction as well,
+  drawn as a loop (SPECIFICATION.md §8.4). Antimony has no way to say this, so
+  a writer always writes a self modifier's line, even a plain one. A line from
+  any other species that isn't one of the reaction's modifiers is skipped,
+  with a warning (§13).
 - A modifier the model has (from its rate law) but the diagram
   doesn't mention is drawn as a plain straight line from its first drawing.
 

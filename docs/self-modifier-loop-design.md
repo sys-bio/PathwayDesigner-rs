@@ -130,7 +130,9 @@ arrowhead, bar or circle, S §5.7.1) in the modifier's look (S §5.7.2).
 2. Editing: the apex handle, Flip and Reset Loop, the stored offset, JSON.
 3. SBML Layout written and read.
 4. The diagram format: the `loop` word, the reader accepting self modifiers,
-   docs/diagram-format.md, and the specification (S §5.7.3).
+   docs/diagram-format.md, and the specification (S §5.7.3). *The reader and
+   writer part (L3) done 2026-10-28: a self modifier's `line` is always
+   written and makes it one again when read; the `loop` word waits for step 2.*
 
 ## 8. Decisions (made 2026-10-27)
 

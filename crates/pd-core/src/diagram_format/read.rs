@@ -1114,11 +1114,19 @@ impl Reader<'_> {
             return;
         };
         if !set_drawing(model, reaction, &[Role::Modifier], &modifier.id, &node) {
-            self.warn(
-                pos,
-                format!("'{}' doesn't modify '{reaction}'", modifier.id),
-            );
-            return;
+            // A reactant or product its rate law uses: a self modifier, as
+            // Mark as Modifier makes one (S §5.7), which Antimony can't say.
+            let own = crate::view::participants::law_uses_own_species(model, reaction);
+            if !own.iter().any(|(s, _)| *s == modifier.id) {
+                self.warn(
+                    pos,
+                    format!("'{}' doesn't modify '{reaction}'", modifier.id),
+                );
+                return;
+            }
+            let r = model.find_reaction_mut(reaction).expect("checked above");
+            r.modifiers
+                .push(crate::model::Participant::new(node.as_str(), 1.0));
         }
         self.check_clauses("a modifier's line", clauses, &["via", "kind", "style"]);
         let names = self.named_styles("modifier", clauses);
@@ -1686,6 +1694,24 @@ mod tests {
             i.model.find_species("Glc").unwrap().label_choice,
             LabelChoice::Diagram
         );
+    }
+
+    /// A line from a reactant or product its rate law uses makes it a
+    /// modifier of its own reaction (a self modifier, S §5.7), which
+    /// Antimony can't say; one its law doesn't use is still skipped.
+    #[test]
+    fn a_line_from_a_reactant_the_law_uses_makes_a_self_modifier() {
+        let i = read("line Glc to hk kind activator\nline G6P to hk");
+        let hk = i.model.find_reaction("hk").unwrap();
+        let glc = hk
+            .modifiers
+            .iter()
+            .find(|m| m.species == "Glc")
+            .expect("marked");
+        assert_eq!(glc.kind, ModifierKind::Activator);
+        // G6P is a product of hk, but its law doesn't use it.
+        assert!(hk.modifiers.iter().all(|m| m.species != "G6P"));
+        assert_eq!(messages(&i), ["'G6P' doesn't modify 'hk'"]);
     }
 
     #[test]
