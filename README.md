@@ -138,8 +138,8 @@ Delphi version does, and some more (see [Status](#status)).
 - **KEGG maps**: *File ▸ Open* reads a [KEGG](https://www.kegg.jp) metabolic
   pathway map (a KGML file, `.xml`) at KEGG's positions: compounds as circles,
   enzymes as boxes catalysing their reactions, links to other maps as grey text.
-  Compounds are named from [PubChem](https://pubchem.ncbi.nlm.nih.gov)
-  (`D_Glucose`, not `C00031`). On the desktop, *File ▸ Open from KEGG…* fetches a
+  Compounds are labelled with names from [PubChem](https://pubchem.ncbi.nlm.nih.gov)
+  (*D-Glucose*, not `C00031`), as display names; the KEGG numbers stay their ids. On the desktop, *File ▸ Open from KEGG…* fetches a
   map by its code (`eco00010`); KEGG doesn't let web pages fetch its files, so in
   the browser the map's file opens in a new tab, to be saved and opened. KGML
   gives no line routes, so reactions whose compounds don't line up are drawn as

@@ -2684,8 +2684,9 @@ an edit, and the status bar says *Opened the KEGG map <title> (<code>)*.
 - **Enzymes.** Each box (`gene`, `ortholog` or `enzyme` entry) that carries a
   reaction is a species: a rectangle at KEGG's place, size and fill (green when the
   organism has the gene), black border 1, the name inside. Its name is the box's
-  label without KEGG's trailing dots or anything after a comma (`pykF...` → `pykF`),
-  else the entry's first id. Boxes of the same enzyme (same entry name) are one
+  entry's first id without its prefix (`eco:b1676` → `b1676`), and its display name
+  (§5.14) the box's label without KEGG's trailing dots or anything after a comma
+  (`pykF...` → `pykF`). Boxes of the same enzyme (same entry name) are one
   species and its aliases. A box that carries no reaction (the white ortholog boxes)
   isn't drawn.
 - **Reactions.** Each `reaction` is a reaction named by its KEGG number (`R00200`,
@@ -2712,13 +2713,16 @@ an edit, and the status bar says *Opened the KEGG map <title> (<code>)*.
   may read and to which KEGG deposits its compounds under their numbers, a batch of
   40 at a time: the KEGG substances' synonyms (which include the number), their
   compounds, then the compounds' titles. A batch PubChem refuses (it refuses one
-  with any unknown number) is asked again one number at a time. Each compound is
-  renamed (§7.1) to its compound's title, else its substance's first synonym that
-  isn't a number (not the KEGG or CAS number), made an id: what isn't a letter or
-  digit becomes `_`, runs of `_` one, `_` before a leading digit (`D-Glucose` →
-  `D_Glucose`), `_2` after an id in use. Its name is placed again (§5.11). This is
-  one undo step, *Name compounds*; the status bar says how many were named. If
-  PubChem can't be reached, the KEGG numbers stay and the status bar says so.
+  with any unknown number) is asked again one number at a time. Each compound
+  keeps its KEGG number as its id and is given its compound's title as its display
+  name (§5.14), else its substance's first synonym that isn't a number (not the
+  KEGG or CAS number), as PubChem writes it (`D-Glucose`). One the user has given a
+  display name meanwhile keeps it. Its name is placed again (§5.11). This is one
+  undo step, *Name compounds*; the status bar says how many were named. If PubChem
+  can't be reached, the labels stay KEGG numbers and the status bar says so.
+- **Labels.** The map opens with View ▸ Display names on (§7.6), so enzymes and,
+  once named, compounds are labelled by name, while rate laws and files use the
+  KEGG ids. *(Before display names, names were made into ids: `D_Glucose`.)*
   Opening another file stops a lookup under way.
 - **File ▸ Open from KEGG…** asks for a map code: two to four letters then five
   digits, made lower case (`ECO00010` → `eco00010`). KEGG has no KGML for a `map`

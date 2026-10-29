@@ -2525,18 +2525,26 @@ end */
         assert!(h.app.view.is_modified());
         assert!(!h.app.view.can_undo());
         assert_eq!(h.app.view.model().reactions().len(), 1);
-        assert!(
-            h.app.view.model().find_species("glk").is_some(),
-            "the enzyme"
-        );
+        // KEGG's ids, labelled with names (docs/display-names-design.md D6).
+        let glk = h
+            .app
+            .view
+            .model()
+            .find_species("b0001")
+            .expect("the enzyme");
+        assert_eq!(glk.label(), "glk");
+        assert!(h.app.view.show_display_names());
         // The compounds take their names from PubChem, a request a frame.
         for _ in 0..6 {
             h.run(vec![]);
         }
         let m = h.app.view.model();
-        assert!(m.find_species("D_Glucose").is_some(), "named");
-        assert!(m.find_species("alpha_D_glucose_1_phosphate").is_some());
-        assert!(m.find_species("C00031").is_none());
+        let label = |id: &str| m.find_species(id).map(|s| s.label().to_owned());
+        assert_eq!(label("C00031").as_deref(), Some("D-Glucose"), "named");
+        assert_eq!(
+            label("C00103").as_deref(),
+            Some("alpha-D-glucose 1-phosphate")
+        );
         assert!(h.app.naming.is_none(), "the lookup is over");
         assert_eq!(
             h.app.notice.as_deref(),
@@ -2616,15 +2624,19 @@ end */
         }
         assert!(h.app.kegg_fetch.is_none());
         assert_eq!(h.app.doc.name, "eco00010 (from KEGG).json");
-        assert!(
-            h.app.view.model().find_species("D_Glucose").is_some(),
+        assert_eq!(
+            h.app.view.model().find_species("C00031").unwrap().label(),
+            "D-Glucose",
             "named too"
         );
         // A map KEGG hasn't got: the diagram stays, and a warning says why.
         h.app.perform(Action::OpenKegg("eco99999".into()));
         h.run(vec![]);
         h.run(vec![]);
-        assert!(h.app.view.model().find_species("D_Glucose").is_some());
+        assert_eq!(
+            h.app.view.model().find_species("C00031").unwrap().label(),
+            "D-Glucose"
+        );
         assert_eq!(
             h.app.warnings,
             [

@@ -89,10 +89,14 @@ is as short as KEGG's gap between box and line.
 
 **Ids.** Antimony needs ids that are words.
 
-- **K2. Compounds:** a real name, made into an id (`D-Glucose` →
-  `D_Glucose`), looked up in PubChem (§5); the KEGG number (`C00031`) only if
-  no name is found. A clash gets `_2`. The author: KEGG numbers mean nothing
-  to a reader, so names are used wherever possible.
+- **K2. Compounds:** a real name, looked up in PubChem (§5); the KEGG number
+  (`C00031`) only if no name is found. The author: KEGG numbers mean nothing
+  to a reader, so names are used wherever possible. *Changed 2026-10-28
+  (docs/display-names-design.md D6):* the name was first made into an id
+  (`D-Glucose` → `D_Glucose`); now the KEGG number stays the id and the name,
+  as PubChem writes it, is the display name, with the map's labels showing
+  display names. Enzymes likewise: KEGG's id (`b1676`), the box's label
+  (`pykF`) as the display name.
 - Enzymes: the gene name without the dots (`pykF`); an ortholog box in a
   reference map, its KO name (`K00873`). A clash gets `_2`.
 - Reactions: the KEGG number (`R00200`); a second drawing of it, `R00200_2`.

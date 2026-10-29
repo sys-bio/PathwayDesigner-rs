@@ -1,6 +1,6 @@
 # Display names: design
 
-Status: design, agreed with the author 2026-10-28 (D1–D6).
+Status: agreed with the author 2026-10-28 (D1–D6); all five steps done.
 
 ## The problem
 

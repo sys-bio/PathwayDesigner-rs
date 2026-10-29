@@ -247,10 +247,12 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 .add_alias(primary, g.center)
                 .expect("the species exists"),
             None => {
-                let id = unused(&model, &sid(&enzyme_name(&g.name, e.name)));
-                model
-                    .push_species(SpeciesNode::new(id.clone(), g.center))
-                    .expect("checked unused");
+                // KEGG's id (`eco:b0001` → `b0001`), its box's label as the
+                // display name (docs/display-names-design.md D6).
+                let id = unused(&model, &sid(first_number(e.name)));
+                let mut s = SpeciesNode::new(id.clone(), g.center);
+                s.display_name = enzyme_label(&g.name);
+                model.push_species(s).expect("checked unused");
                 enzyme_species.insert(e.name, id.clone());
                 id
             }
@@ -385,6 +387,10 @@ pub fn import(text: &str) -> Result<Imported, String> {
         elbows(&mut model, &id);
     }
 
+    // Labelled by name where there is one (D6): the enzymes' now, the
+    // compounds' once PubChem's come ([`apply_names`]).
+    model.show_display_names = true;
+    model.refresh_labels();
     let circles: Vec<Id> = model
         .species()
         .iter()
@@ -485,41 +491,42 @@ fn name_beside(model: &mut Model, ids: &[Id]) {
     }
 }
 
-/// Renames each compound in `compounds` (species and KEGG number, from
-/// [`Map::compounds`]) to the name `names` gives its number, made an id
-/// (`D-Glucose` → `D_Glucose`, `_2` after one in use), and puts the names
-/// beside their circles again, since they are longer. A species no longer
-/// there is passed over. Returns how many were renamed.
+/// Gives each compound in `compounds` (species and KEGG number, from
+/// [`Map::compounds`]) the name `names` gives its number as its display name
+/// (docs/display-names-design.md D6): its id stays the KEGG number. Puts
+/// the names beside their circles again, since they are longer. A species no
+/// longer there, or one the user has named meanwhile, is passed over.
+/// Returns how many were named.
 pub fn apply_names(
     model: &mut Model,
     compounds: &[(Id, String)],
     names: &[(String, String)],
 ) -> usize {
-    let mut renamed = Vec::new();
+    let mut named = Vec::new();
     for (id, number) in compounds {
         let Some((_, name)) = names.iter().find(|(n, _)| n == number) else {
             continue;
         };
-        if model.find_species(id).is_none() {
+        let Some(s) = model
+            .find_species_mut(id)
+            .filter(|s| s.display_name.is_none())
+        else {
             continue;
-        }
-        let base = sid(name);
-        let new = std::iter::once(base.clone())
-            .chain((2..).map(|n| format!("{base}_{n}")))
-            .find(|s| s == id || !model.is_id_used(s))
-            .expect("some suffix is free");
-        if model.rename_species(id, &new).is_ok() {
-            renamed.push(new);
+        };
+        s.display_name = crate::model::display_name(Some(name.clone()));
+        if s.display_name.is_some() {
+            named.push(id.clone());
         }
     }
+    model.refresh_labels();
     let drawings: Vec<Id> = model
         .species()
         .iter()
-        .filter(|s| renamed.iter().any(|r| *r == s.primary_id()))
+        .filter(|s| named.iter().any(|r| *r == s.primary_id()))
         .map(|s| s.id.clone())
         .collect();
     name_beside(model, &drawings);
-    renamed.len()
+    named.len()
 }
 
 fn graphics(g: roxmltree::Node) -> Option<Graphics> {
@@ -570,24 +577,28 @@ fn enzyme_look(s: &mut SpeciesNode, g: &Graphics) {
     };
 }
 
-/// An enzyme's name: its box's label without KEGG's trailing dots (`pykF...`,
-/// for more genes) or anything after a comma, else the entry's first id.
-fn enzyme_name(label: &str, entry: &str) -> String {
+/// An enzyme's display name: its box's label without KEGG's trailing dots
+/// (`pykF...`, for more genes) or anything after a comma; `None` for a box
+/// with no label.
+fn enzyme_label(label: &str) -> Option<String> {
     let label = label
         .split(',')
         .next()
         .unwrap_or("")
         .trim()
         .trim_end_matches('.');
-    if !label.is_empty() {
-        return label.to_owned();
-    }
+    (!label.is_empty()).then(|| label.to_owned())
+}
+
+/// The first KEGG id of an entry, without its prefix: `eco:b0001 eco:b0002`
+/// → `b0001`, `ko:K00844` → `K00844`.
+fn first_number(entry: &str) -> &str {
     entry
         .split_whitespace()
         .next()
         .map(|n| n.split_once(':').map_or(n, |(_, id)| id))
+        .filter(|n| !n.is_empty())
         .unwrap_or("enzyme")
-        .to_owned()
 }
 
 /// `p` projected onto the segment from `a` to `b`, kept off its ends.
@@ -770,7 +781,11 @@ mod tests {
     #[test]
     fn enzymes_are_boxes_that_catalyse_their_reactions() {
         let m = map().model;
-        let glk = m.find_species("glkA").expect("the dots dropped");
+        // KEGG's gene id; its box's label, the dots dropped, its name (D6).
+        let glk = m.find_species("b0001").expect("KEGG's id");
+        assert_eq!(glk.display_name.as_deref(), Some("glkA"));
+        assert_eq!(glk.label(), "glkA", "the map shows names");
+        assert!(m.show_display_names);
         assert_eq!(glk.shape, NodeShape::Rectangle);
         assert_eq!((glk.width, glk.height), (46.0, 17.0));
         assert_eq!(glk.center, pt(160.0, 90.0));
@@ -778,7 +793,7 @@ mod tests {
         let cat = &m.find_reaction("R00001").unwrap().modifiers[0];
         assert_eq!(
             (cat.species.as_str(), cat.kind),
-            ("glkA", ModifierKind::Catalyst)
+            ("b0001", ModifierKind::Catalyst)
         );
         assert!(
             cat.look.symbol_size.unwrap() < COMPOUND_SIZE / 2.0,
@@ -786,10 +801,11 @@ mod tests {
         );
         // One box carrying two reactions: one enzyme, catalysing both.
         for r in ["R00003", "R00004"] {
-            assert_eq!(m.find_reaction(r).unwrap().modifiers[0].species, "pykF");
+            assert_eq!(m.find_reaction(r).unwrap().modifiers[0].species, "b0003");
         }
         // The same enzyme's second box: an alias, catalysing R00005.
-        let second = m.aliases_of("glkA").next().expect("a second box");
+        let second = m.aliases_of("b0001").next().expect("a second box");
+        assert_eq!(second.label(), "glkA", "an alias shows its species' name");
         assert_eq!(second.center, pt(200.0, 310.0));
         assert_eq!(
             m.find_reaction("R00005").unwrap().modifiers[0].species,
@@ -897,31 +913,46 @@ mod tests {
         let i = map();
         let mut m = i.model.clone();
         let before = m.find_species("C00031").unwrap().label_offset;
+        assert_eq!(m.find_species("C00031").unwrap().label(), "C00031");
         let names = [
             ("C00031".to_owned(), "D-Glucose".to_owned()),
-            // Two names that make the same id: the second gets _2.
+            // Two compounds may share a name: ids stay apart.
             ("C00103".to_owned(), "glucose 1-phosphate".to_owned()),
-            ("C00022".to_owned(), "glucose-1-phosphate".to_owned()),
+            ("C00022".to_owned(), "glucose 1-phosphate".to_owned()),
         ];
         assert_eq!(apply_names(&mut m, &i.map.compounds, &names), 3);
-        assert!(m.find_species("C00031").is_none());
-        let glc = m.find_species("D_Glucose").expect("renamed");
+        // The KEGG number stays the id; the name is the display name, as
+        // PubChem gives it (D6).
+        let glc = m.find_species("C00031").expect("still its id");
+        assert_eq!(glc.display_name.as_deref(), Some("D-Glucose"));
+        assert_eq!(glc.label(), "D-Glucose");
         assert_ne!(glc.label_offset, before, "the longer name placed again");
-        assert!(m.find_species("glucose_1_phosphate").is_some());
-        assert!(m.find_species("glucose_1_phosphate_2").is_some());
-        // Every drawing and reaction follows.
-        assert_eq!(m.aliases_of("D_Glucose").count(), 1);
+        let alias = m.aliases_of("C00031").next().unwrap();
+        assert_eq!(alias.label(), "D-Glucose");
+        assert_eq!(
+            m.find_species("C00022").unwrap().label(),
+            "glucose 1-phosphate"
+        );
         assert_eq!(
             m.find_reaction("R00001").unwrap().reactants[0].species,
-            "D_Glucose"
+            "C00031"
         );
-        // A name that is already an enzyme's id isn't taken from it.
+        // One the user has named meanwhile is passed over.
         let mut m = i.model.clone();
-        let names = [("C00031".to_owned(), "pykF".to_owned())];
-        apply_names(&mut m, &i.map.compounds, &names);
-        assert!(m.find_species("pykF_2").is_some());
-        assert_eq!(m.find_species("pykF").unwrap().shape, NodeShape::Rectangle);
-        // One the user has renamed meanwhile is passed over.
+        m.find_species_mut("C00031").unwrap().display_name = Some("Glc".into());
+        assert_eq!(
+            apply_names(
+                &mut m,
+                &i.map.compounds,
+                &[("C00031".into(), "D-Glucose".into())]
+            ),
+            0
+        );
+        assert_eq!(
+            m.find_species("C00031").unwrap().display_name.as_deref(),
+            Some("Glc")
+        );
+        // As is one deleted meanwhile.
         let mut m = i.model.clone();
         m.rename_species("C00031", "Glc").unwrap();
         assert_eq!(
@@ -932,7 +963,6 @@ mod tests {
             ),
             0
         );
-        assert!(m.find_species("Glc").is_some());
     }
 
     #[test]
@@ -967,8 +997,11 @@ mod tests {
         );
         assert_eq!(sid("2-Oxoglutarate"), "_2_Oxoglutarate");
         assert_eq!(sid("--"), "S");
-        assert_eq!(enzyme_name("pykF...", "eco:b1854"), "pykF");
-        assert_eq!(enzyme_name("PK, pyk", "ko:K00873"), "PK");
-        assert_eq!(enzyme_name("", "ko:K00873 ko:K12406"), "K00873");
+        assert_eq!(enzyme_label("pykF...").as_deref(), Some("pykF"));
+        assert_eq!(enzyme_label("PK, pyk").as_deref(), Some("PK"));
+        assert_eq!(enzyme_label(" ..."), None);
+        assert_eq!(first_number("eco:b1854 eco:b1676"), "b1854");
+        assert_eq!(first_number("ko:K00873 ko:K12406"), "K00873");
+        assert_eq!(first_number(""), "enzyme");
     }
 }
