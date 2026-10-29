@@ -4,6 +4,35 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.27 (2026-10-28)
+
+**New**
+
+- **Annotations are kept.** What a curated model says each item *is* now
+  survives opening and saving: SBO terms, database references (links to
+  ChEBI, UniProt, KEGG, PubMed and the like) and notes on species, reactions,
+  compartments, parameters and the model, and the model's creators and dates.
+  They are read from and written to SBML and Antimony, and saved in
+  PathwayDesigner's files (version 18). Five curated BioModels models come
+  back through PathwayDesigner with every one unchanged. Before, they were
+  dropped without a word.
+- **Annotations in the panels.** Each species, reaction and compartment, and
+  the model (in the Diagram group, with nothing selected), has an
+  *Annotations* part: the SBO term with its name and a list of common ones,
+  the references as links that open in the browser, with a way to add one
+  (a link, or an identifier such as `CHEBI:15422`) and remove one, and the
+  notes as text. The Diagram group also shows who made the model and when.
+- **KEGG maps are annotated.** Compounds refer to their KEGG entries and, once
+  named, their PubChem compounds; enzymes to their KEGG genes; reactions to
+  their KEGG reactions; each with an SBO term.
+
+**Changed**
+
+- A reactant or product marked as a modifier of its own reaction (a
+  self-regulation loop) now comes back through Antimony with the diagram.
+- Opening an SBML file whose annotations hold another tool's own data (as
+  COPASI writes) says that part won't be kept.
+
 ## 0.1.26 (2026-10-28)
 
 **New**
