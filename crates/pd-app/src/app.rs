@@ -1829,7 +1829,22 @@ impl eframe::App for PathwayApp {
         if self.is_opening() || self.gallery.busy() || self.kegg_fetch.is_some() {
             ctx.set_cursor_icon(egui::CursorIcon::Wait);
         }
+        links_in_new_tabs(&ctx);
     }
+}
+
+/// Every link clicked this frame opens in a new tab: in the browser, one in
+/// the same tab would replace PathwayDesigner (an annotation's reference, a
+/// help page's link to the Antimony docs). On the desktop it makes no
+/// difference.
+fn links_in_new_tabs(ctx: &egui::Context) {
+    ctx.output_mut(|o| {
+        for c in &mut o.commands {
+            if let egui::OutputCommand::OpenUrl(url) = c {
+                url.new_tab = true;
+            }
+        }
+    });
 }
 
 /// What the status bar says after Place Modifiers by Their Reactions.
@@ -1867,6 +1882,8 @@ mod tests {
         size: Vec2,
         /// The pointer's cursor after the last frame.
         cursor: egui::CursorIcon,
+        /// The links the last frame opened.
+        opened: Vec<egui::OpenUrl>,
     }
 
     impl Harness {
@@ -1880,6 +1897,7 @@ mod tests {
                 access: None,
                 size: egui::vec2(1400.0, 900.0),
                 cursor: egui::CursorIcon::Default,
+                opened: Vec::new(),
             };
             h.run(vec![]);
             h
@@ -1900,6 +1918,15 @@ mod tests {
             out.textures_delta.clear();
             self.access = out.platform_output.accesskit_update.take();
             self.cursor = out.platform_output.cursor_icon;
+            self.opened = out
+                .platform_output
+                .commands
+                .iter()
+                .filter_map(|c| match c {
+                    egui::OutputCommand::OpenUrl(u) => Some(u.clone()),
+                    _ => None,
+                })
+                .collect();
         }
 
         /// The centre of the widget labelled `label`, from the accessibility
@@ -3111,6 +3138,7 @@ end */
             access: None,
             size: egui::vec2(1400.0, 900.0),
             cursor: egui::CursorIcon::Default,
+            opened: Vec::new(),
         };
         // The first frames see a small canvas, as a new browser tab can.
         h.size = egui::vec2(300.0, 150.0);
@@ -3306,6 +3334,33 @@ k = 0.1",
         h.click(h.widget("62  continuous framework"));
         h.run(vec![]);
         assert_eq!(h.app.view.model().annotation.sbo, Some(62));
+    }
+
+    /// A link clicked in the app opens in a new tab, never over the app
+    /// itself (in the browser): here, an annotation's reference.
+    #[test]
+    fn links_open_in_a_new_tab() {
+        let mut h = Harness::new();
+        let id = h.app.view.model().species()[0].id.clone();
+        let a = pd_core::model::Annotation {
+            references: vec![pd_core::model::Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: "https://identifiers.org/CHEBI:17234".into(),
+            }],
+            ..Default::default()
+        };
+        h.app.view.set_annotation(Some(&id), a);
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        h.click(h.widget("Annotations (1)"));
+        h.run(vec![]);
+        let link = h.widget("CHEBI:17234");
+        h.pointer(link, None);
+        h.pointer(link, Some(true));
+        h.pointer(link, Some(false));
+        assert_eq!(h.opened.len(), 1, "{:?}", h.opened);
+        assert_eq!(h.opened[0].url, "https://identifiers.org/CHEBI:17234");
+        assert!(h.opened[0].new_tab);
     }
 
     /// A4: notes the user only looks at stay as they were read.
