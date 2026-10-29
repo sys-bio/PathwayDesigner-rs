@@ -374,6 +374,28 @@ impl Builder {
                 m.layouts.len()
             ));
         }
+        // Annotations aren't kept yet (docs/annotations-design.md, A8): say so
+        // once, before they are lost on saving.
+        let annotated = |meta: &sb::Meta| {
+            meta.sbo_term.is_some()
+                || meta.notes.as_deref().is_some_and(|n| !n.trim().is_empty())
+                || meta
+                    .annotation
+                    .as_deref()
+                    .is_some_and(|a| !a.trim().is_empty())
+        };
+        let items = usize::from(annotated(&m.meta))
+            + m.compartments.iter().filter(|c| annotated(&c.meta)).count()
+            + m.species.iter().filter(|s| annotated(&s.meta)).count()
+            + m.reactions.iter().filter(|r| annotated(&r.meta)).count()
+            + m.parameters.iter().filter(|p| annotated(&p.meta)).count();
+        if items > 0 {
+            self.warn(format!(
+                "annotations on {items} item{} (database references, SBO terms, notes, or another tool's own) \
+                 aren't kept yet: saving will lose them",
+                if items == 1 { "" } else { "s" }
+            ));
+        }
     }
 
     /// Positions and sizes from species glyphs. A species' first glyph places

@@ -742,6 +742,67 @@ mod tests {
         assert_eq!(ids.unique("b".into()), "b");
     }
 
+    /// docs/annotations-design.md A8: annotations aren't kept yet, so a file
+    /// with them says so once; PathwayDesigner's own files never do.
+    #[test]
+    fn dropped_annotations_are_reported_once() {
+        let opts = crate::antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        let sbml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="m">
+    <listOfCompartments>
+      <compartment id="c" size="1" constant="true"/>
+    </listOfCompartments>
+    <listOfSpecies>
+      <species id="S" metaid="S" compartment="c" sboTerm="SBO:0000247" initialConcentration="1"
+               hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false">
+        <annotation>
+          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                   xmlns:bqbiol="http://biomodels.net/biology-qualifiers/">
+            <rdf:Description rdf:about="#S">
+              <bqbiol:is><rdf:Bag><rdf:li rdf:resource="http://identifiers.org/chebi/CHEBI:17234"/></rdf:Bag></bqbiol:is>
+            </rdf:Description>
+          </rdf:RDF>
+        </annotation>
+      </species>
+      <species id="P" compartment="c" initialConcentration="0"
+               hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="k" value="1" constant="true">
+        <notes><body xmlns="http://www.w3.org/1999/xhtml"><p>A rate constant.</p></body></notes>
+      </parameter>
+    </listOfParameters>
+  </model>
+</sbml>"##;
+        let i = crate::sbml::import(sbml, &opts).unwrap();
+        let notes: Vec<&String> = i
+            .warnings
+            .iter()
+            .filter(|w| w.contains("aren't kept"))
+            .collect();
+        assert_eq!(notes.len(), 1, "{:?}", i.warnings);
+        assert!(
+            notes[0].starts_with("annotations on 2 items"),
+            "{}",
+            notes[0]
+        );
+
+        // An export of PathwayDesigner's own, with what it writes for
+        // itself (display names, modifier kinds), raises no such warning.
+        let mut m = i.model.clone();
+        m.find_species_mut("S").unwrap().display_name = Some("glucose".into());
+        let back = crate::sbml::import(&export(&m).xml, &opts).unwrap();
+        assert!(
+            back.warnings.iter().all(|w| !w.contains("aren't kept")),
+            "{:?}",
+            back.warnings
+        );
+    }
+
     /// Display names go out as SBML `name` and come back (D1 of
     /// docs/display-names-design.md); an alias has none of its own.
     #[test]
