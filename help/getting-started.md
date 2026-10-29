@@ -50,6 +50,17 @@ display names instead of the ids; the **Label** list in the Properties tab
 changes this for the selected items only. Models read from SBML or Antimony
 keep the display names they have.
 
+## Annotations
+
+A species, reaction or compartment can also say what it *is*: an SBO term
+(247 is a simple chemical), references to database entries (ChEBI, UniProt, a
+paper in PubMed) and notes. Select an item and open **Annotations** in the
+**Properties** tab to see and change them; with nothing selected, the
+**Diagram** group shows the model's own, and who made it. A reference can be
+typed as a link or a short identifier such as `CHEBI:15422`, and clicking it
+opens the entry in your browser. Annotations come and go with SBML and
+Antimony files.
+
 ## Open an example
 
 **File ▸ Open from Gallery…** opens example models, from small networks to

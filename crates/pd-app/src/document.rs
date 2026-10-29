@@ -282,8 +282,10 @@ impl PathwayApp {
         };
         let total = naming.compounds().len();
         self.notice = Some(match done {
-            Done::Found(names) => {
-                let n = self.view.name_kegg_compounds(naming.compounds(), &names);
+            Done::Found(names, cids) => {
+                let n = self
+                    .view
+                    .name_kegg_compounds(naming.compounds(), &names, &cids);
                 if n == total {
                     format!("Named the {n} compounds from PubChem")
                 } else {

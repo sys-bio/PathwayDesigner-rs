@@ -22,7 +22,8 @@ pub struct Naming {
 #[derive(Debug, PartialEq)]
 pub enum Done {
     /// The names found, each a KEGG number and a name.
-    Found(Vec<(String, String)>),
+    /// And the PubChem compound found for each, a KEGG number and a CID.
+    Found(Vec<(String, String)>, Vec<(String, u64)>),
     /// PubChem never answered.
     Unreachable,
 }
@@ -63,7 +64,7 @@ impl Naming {
                 None
             }
             None if self.lookup.unreachable() => Some(Done::Unreachable),
-            None => Some(Done::Found(self.lookup.names())),
+            None => Some(Done::Found(self.lookup.names(), self.lookup.compounds())),
         }
     }
 }

@@ -212,6 +212,18 @@ impl Lookup {
         self.answered == 0 && self.failed > 0
     }
 
+    /// Each number with the PubChem compound (CID) found for it, in the
+    /// order asked.
+    pub fn compounds(&self) -> Vec<(String, u64)> {
+        self.numbers
+            .iter()
+            .filter_map(|n| {
+                let (sid, _) = self.substances.get(n)?;
+                Some((n.clone(), *self.cids.get(sid)?))
+            })
+            .collect()
+    }
+
     /// Each number with a name found for it, in the order asked: the
     /// compound's title, else the substance's first synonym that is a name.
     pub fn names(&self) -> Vec<(String, String)> {
@@ -298,6 +310,11 @@ mod tests {
                 // No compound: the substance's first synonym that is a name.
                 ("C15972".to_owned(), "Lipoamide-E".to_owned()),
             ]
+        );
+        // The compounds found, for the references (A7); C15972 has none.
+        assert_eq!(
+            l.compounds(),
+            [("C00031".to_owned(), 5793), ("C00103".to_owned(), 65533)]
         );
         assert!(!l.unreachable());
     }

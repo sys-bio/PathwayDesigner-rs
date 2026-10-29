@@ -94,16 +94,20 @@ impl DiagramView {
         Ok(imported.map)
     }
 
-    /// Renames a KEGG map's compounds to the names found for them (see
-    /// [`crate::kegg::apply_names`]), as one undo step. Returns how many.
+    /// Names a KEGG map's compounds with the names found for them, and adds
+    /// their PubChem compounds to their references (see
+    /// [`crate::kegg::apply_names`], [`crate::kegg::apply_pubchem`]), as one
+    /// undo step. Returns how many were named.
     pub fn name_kegg_compounds(
         &mut self,
         compounds: &[(crate::model::Id, String)],
         names: &[(String, String)],
+        cids: &[(String, u64)],
     ) -> usize {
         let before = self.model.clone();
         let n = crate::kegg::apply_names(&mut self.model, compounds, names);
-        if n > 0 {
+        let added = crate::kegg::apply_pubchem(&mut self.model, compounds, cids);
+        if n > 0 || added > 0 {
             self.record("Name compounds", before);
         }
         n

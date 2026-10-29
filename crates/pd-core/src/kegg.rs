@@ -16,8 +16,8 @@ use std::collections::HashMap;
 
 use crate::geometry::{Pt, pt};
 use crate::model::{
-    BorderDash, Id, Model, ModifierKind, ModifierLook, NodeShape, Participant, Reaction,
-    ReactionMode, Rgba, SpeciesNode, VisualStyle, is_valid_sid,
+    Annotation, BorderDash, Id, Model, ModifierKind, ModifierLook, NodeShape, Participant,
+    Reaction, ReactionMode, Reference, Rgba, SpeciesNode, VisualStyle, is_valid_sid,
 };
 use crate::render::draw;
 
@@ -212,6 +212,13 @@ pub fn import(text: &str) -> Result<Imported, String> {
             let id = unused(&model, &id);
             let mut s = SpeciesNode::new(id.clone(), g.center);
             compound_look(&mut s);
+            // What it is (docs/annotations-design.md A7): a simple chemical,
+            // KEGG's entry.
+            s.annotation = Annotation {
+                sbo: Some(SBO_SIMPLE_CHEMICAL),
+                references: compound_reference(number).into_iter().collect(),
+                notes: None,
+            };
             model.push_species(s).expect("checked unused");
             compounds.push((id.clone(), number.to_owned()));
             id
@@ -252,6 +259,11 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 let id = unused(&model, &sid(first_number(e.name)));
                 let mut s = SpeciesNode::new(id.clone(), g.center);
                 s.display_name = enzyme_label(&g.name);
+                s.annotation = Annotation {
+                    sbo: Some(SBO_POLYPEPTIDE),
+                    references: enzyme_references(e.name),
+                    notes: None,
+                };
                 model.push_species(s).expect("checked unused");
                 enzyme_species.insert(e.name, id.clone());
                 id
@@ -320,6 +332,15 @@ pub fn import(text: &str) -> Result<Imported, String> {
         let id = unused_reaction(&model, &sid(number));
         let mut rx = Reaction::new(id, junction);
         rx.is_reversible = r.attribute("type") == Some("reversible");
+        rx.annotation = Annotation {
+            sbo: Some(SBO_BIOCHEMICAL_REACTION),
+            references: name
+                .split_whitespace()
+                .filter_map(|n| n.strip_prefix("rn:"))
+                .map(|n| reference("bqbiol:is", &format!("kegg.reaction:{n}")))
+                .collect(),
+            notes: None,
+        };
         rx.reactants = reactants
             .iter()
             .map(|s| Participant::new(s.as_str(), 1.0))
@@ -489,6 +510,75 @@ fn name_beside(model: &mut Model, ids: &[Id]) {
             s.label_offset = Some(o);
         }
     }
+}
+
+/// Adds to each compound in `compounds` (species and KEGG number) its
+/// PubChem compound, from `cids` (KEGG number and PubChem CID, as the names
+/// lookup found them): `bqbiol:is` `pubchem.compound:<cid>`
+/// (docs/annotations-design.md A7). One it has already, or a species no
+/// longer there, is passed over. Returns how many were added.
+pub fn apply_pubchem(
+    model: &mut Model,
+    compounds: &[(Id, String)],
+    cids: &[(String, u64)],
+) -> usize {
+    let mut added = 0;
+    for (id, number) in compounds {
+        let Some((_, cid)) = cids.iter().find(|(n, _)| n == number) else {
+            continue;
+        };
+        let Some(s) = model.find_species_mut(id) else {
+            continue;
+        };
+        let r = reference("bqbiol:is", &format!("pubchem.compound:{cid}"));
+        if !s.annotation.references.contains(&r) {
+            s.annotation.references.push(r);
+            added += 1;
+        }
+    }
+    added
+}
+
+/// SBO terms for what a KEGG map draws (A7).
+const SBO_SIMPLE_CHEMICAL: u32 = 247;
+const SBO_POLYPEPTIDE: u32 = 252;
+const SBO_BIOCHEMICAL_REACTION: u32 = 176;
+
+/// A reference through identifiers.org, by its compact identifier.
+fn reference(qualifier: &str, compact: &str) -> Reference {
+    Reference {
+        qualifier: qualifier.to_owned(),
+        resource: format!("https://identifiers.org/{compact}"),
+    }
+}
+
+/// A compound's KEGG entry: `C00031` a compound, `G…` a glycan, `D…` a drug.
+fn compound_reference(number: &str) -> Option<Reference> {
+    let db = match number.chars().next()? {
+        'C' => "kegg.compound",
+        'G' => "kegg.glycan",
+        'D' => "kegg.drug",
+        _ => return None,
+    };
+    Some(reference("bqbiol:is", &format!("{db}:{number}")))
+}
+
+/// An enzyme box's entries: each gene it is encoded by (`eco:b0001`), or the
+/// orthology group (`ko:K00844`) or EC number (`ec:2.7.1.1`) it is a version
+/// of.
+fn enzyme_references(entry: &str) -> Vec<Reference> {
+    entry
+        .split_whitespace()
+        .filter_map(|e| {
+            let (prefix, id) = e.split_once(':')?;
+            Some(match prefix {
+                "ko" => reference("bqbiol:isVersionOf", &format!("kegg.orthology:{id}")),
+                "ec" => reference("bqbiol:isVersionOf", &format!("ec-code:{id}")),
+                "cpd" | "gl" | "dr" | "path" | "rn" => return None,
+                org => reference("bqbiol:isEncodedBy", &format!("kegg.genes:{org}:{id}")),
+            })
+        })
+        .collect()
 }
 
 /// Gives each compound in `compounds` (species and KEGG number, from
@@ -906,6 +996,75 @@ mod tests {
         assert!(i.model.find_reaction("R00005").is_none());
         assert_eq!(i.map.warnings.len(), 1, "{:?}", i.map.warnings);
         assert!(i.map.warnings[0].contains("R00005"), "{:?}", i.map.warnings);
+    }
+
+    /// docs/annotations-design.md A7: what a map draws says what it is.
+    #[test]
+    fn items_are_annotated_with_their_kegg_entries() {
+        let m = map().model;
+        let glc = &m.find_species("C00031").unwrap().annotation;
+        assert_eq!(glc.sbo, Some(247));
+        assert_eq!(glc.references.len(), 1);
+        assert_eq!(glc.references[0].qualifier, "bqbiol:is");
+        assert_eq!(
+            glc.references[0].resource,
+            "https://identifiers.org/kegg.compound:C00031"
+        );
+        // A drawing again has its species' annotation, not one of its own.
+        assert!(m.aliases_of("C00031").all(|a| a.annotation.is_empty()));
+        let glk = &m.find_species("b0001").unwrap().annotation;
+        assert_eq!(glk.sbo, Some(252));
+        assert_eq!(glk.references[0].qualifier, "bqbiol:isEncodedBy");
+        assert_eq!(
+            glk.references[0].resource,
+            "https://identifiers.org/kegg.genes:eco:b0001"
+        );
+        let r = &m.find_reaction("R00001").unwrap().annotation;
+        assert_eq!(r.sbo, Some(176));
+        assert_eq!(
+            r.references[0].resource,
+            "https://identifiers.org/kegg.reaction:R00001"
+        );
+        assert_eq!(
+            enzyme_references("ko:K00844 ec:2.7.1.1")
+                .iter()
+                .map(|r| (r.qualifier.as_str(), r.resource.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                (
+                    "bqbiol:isVersionOf",
+                    "https://identifiers.org/kegg.orthology:K00844"
+                ),
+                (
+                    "bqbiol:isVersionOf",
+                    "https://identifiers.org/ec-code:2.7.1.1"
+                )
+            ]
+        );
+        assert_eq!(
+            compound_reference("G00001").unwrap().resource,
+            "https://identifiers.org/kegg.glycan:G00001"
+        );
+        assert!(compound_reference("X1").is_none());
+    }
+
+    #[test]
+    fn pubchem_compounds_are_added_once() {
+        let i = map();
+        let mut m = i.model.clone();
+        let cids = [("C00031".to_owned(), 5793)];
+        assert_eq!(apply_pubchem(&mut m, &i.map.compounds, &cids), 1);
+        let refs = &m.find_species("C00031").unwrap().annotation.references;
+        assert_eq!(refs.len(), 2);
+        assert_eq!(
+            refs[1].resource,
+            "https://identifiers.org/pubchem.compound:5793"
+        );
+        assert_eq!(
+            apply_pubchem(&mut m, &i.map.compounds, &cids),
+            0,
+            "not twice"
+        );
     }
 
     #[test]

@@ -37,8 +37,11 @@ mistake is shaded, and a message under the text says what is wrong; click the
 message to go to the line.
 
 Some things that Antimony allows cannot be shown in a diagram, such as events,
-units, rate rules and notes. These are skipped and listed as warnings under the
-text, and the rest of the model loads as usual. Functions are written into the
+units and rate rules. These are skipped and listed as warnings under the text,
+and the rest of the model loads as usual. Annotations are kept: SBO terms
+(`S1.sboTerm = 247`), database references (`S1 identity "…"`), notes and the
+model's creators and dates, for species, reactions, compartments, parameters
+and the model. Functions are written into the
 rate laws that use them.
 
 ## Files

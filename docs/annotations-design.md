@@ -1,7 +1,7 @@
 # Keeping annotations: design
 
 Status: agreed with the author 2026-10-28: A1 parameters included, A2–A6 and A8
-as proposed; A7 (KEGG) open. Steps 1 and 2 done: five curated BioModels
+as proposed; A7 yes, references and SBO terms. All five steps done. Steps 1 and 2 done: five curated BioModels
 models (BIOMD 5, 10, 12, 64, 206) come back through SBML with every reference,
 SBO term, note and the history, compared with libSBML, and pass its checks. A
 parameter set by an assignment rule keeps its annotation on the rule. Step 3

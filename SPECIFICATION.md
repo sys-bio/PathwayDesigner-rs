@@ -2733,6 +2733,14 @@ an edit, and the status bar says *Opened the KEGG map <title> (<code>)*.
   display name meanwhile keeps it. Its name is placed again (§5.11). This is one
   undo step, *Name compounds*; the status bar says how many were named. If PubChem
   can't be reached, the labels stay KEGG numbers and the status bar says so.
+- **Annotations** (docs/annotations-design.md A7). Each compound is a simple
+  chemical (SBO 247) that `is` its KEGG entry (`kegg.compound:C00031`; a glycan's
+  or drug's for `G…` and `D…`), and, once the names lookup has found it, its
+  PubChem compound (`pubchem.compound:5793`). Each enzyme is a polypeptide chain
+  (SBO 252) `isEncodedBy` each KEGG gene of its box (`kegg.genes:eco:b0001`), or
+  `isVersionOf` its orthology group or EC number. Each reaction is a biochemical
+  reaction (SBO 176) that `is` each KEGG reaction it names. All as identifiers.org
+  links; no data of KEGG's is copied.
 - **Labels.** The map opens with View ▸ Display names on (§7.6), so enzymes and,
   once named, compounds are labelled by name, while rate laws and files use the
   KEGG ids. *(Before display names, names were made into ids: `D_Glucose`.)*

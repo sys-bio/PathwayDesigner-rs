@@ -2541,6 +2541,19 @@ end */
         let m = h.app.view.model();
         let label = |id: &str| m.find_species(id).map(|s| s.label().to_owned());
         assert_eq!(label("C00031").as_deref(), Some("D-Glucose"), "named");
+        // And referred to its PubChem compound (A7).
+        assert!(
+            m.find_species("C00031")
+                .unwrap()
+                .annotation
+                .references
+                .iter()
+                .any(|r| r
+                    .resource
+                    .starts_with("https://identifiers.org/pubchem.compound:")),
+            "{:?}",
+            m.find_species("C00031").unwrap().annotation
+        );
         assert_eq!(
             label("C00103").as_deref(),
             Some("alpha-D-glucose 1-phosphate")
