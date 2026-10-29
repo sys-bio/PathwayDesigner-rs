@@ -834,6 +834,7 @@ mod tests {
         m.assignment_rules.push(crate::model::AssignmentRule {
             variable: "D".into(),
             expression: "2*A".into(),
+            annotation: Default::default(),
         });
         let mut sink = SpeciesNode::new("_sink", pt(0.0, 0.0));
         sink.is_null_node = true;

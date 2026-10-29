@@ -919,6 +919,7 @@ impl Builder<'_> {
                     None => parameters.push(Parameter {
                         variable: s.name.clone(),
                         expression: text,
+                        annotation: Default::default(),
                     }),
                 }
             }
@@ -935,6 +936,7 @@ impl Builder<'_> {
             .map(|(s, e)| AssignmentRule {
                 variable: s.name.clone(),
                 expression: self.expanded_text(e),
+                annotation: Default::default(),
             })
             .collect();
 
@@ -958,6 +960,7 @@ impl Builder<'_> {
                     parameters.push(Parameter {
                         variable: name.to_owned(),
                         expression: "0".to_owned(),
+                        annotation: Default::default(),
                     });
                 }
             }

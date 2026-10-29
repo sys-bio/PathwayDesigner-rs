@@ -14,16 +14,22 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::geometry::pt;
 use crate::model::{
-    AssignmentRule, BorderDash, Compartment, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH,
-    DEFAULT_TEXT_SIZE, Frame, LabelChoice, LinePattern, Look, Model, ModifierKind, ModifierLook,
-    NodeShape, Parameter, Participant, Reaction, ReactionMode, Rgba, SavedStyle, SpeciesNode,
-    StyleKind, TextAlign, TextFont, TextItem, Typeface, VisualStyle,
+    Annotation, AssignmentRule, BorderDash, Compartment, Creator, DEFAULT_SPECIES_HEIGHT,
+    DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE, Frame, History, LabelChoice, LinePattern, Look,
+    Model, ModifierKind, ModifierLook, NodeShape, Parameter, Participant, Reaction, ReactionMode,
+    Reference, Rgba, SavedStyle, SpeciesNode, StyleKind, TextAlign, TextFont, TextItem, Typeface,
+    VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought display names on species, reactions and compartments
-/// (docs/display-names-design.md D1).
-pub const FORMAT_VERSION: u32 = 17;
+/// one that brought annotations: SBO terms, database references and notes on
+/// species, reactions, compartments, parameters and the model, and the
+/// model's history (docs/annotations-design.md).
+pub const FORMAT_VERSION: u32 = 18;
+
+/// The version that brought display names on species, reactions and
+/// compartments (docs/display-names-design.md D1).
+pub const DISPLAY_NAME_VERSION: u32 = 17;
 
 /// The version that brought the diagram's named colors
 /// (docs/diagram-format.md §5.1) and species styles with a size and the name
@@ -73,7 +79,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 17 if a species, reaction or compartment has a display
+/// (SPEC-Rust §4.2): 18 if anything has an annotation or the model a history,
+/// 17 if a species, reaction or compartment has a display
 /// name or its own label choice, or the diagram shows display names, 16 if the diagram names colors (from a diagram's
 /// `color gold = #FFD54F`) or a species style has a size with the name
 /// inside (`style cofactor { size 18 }`), 15 if a reactant's or product's line has corner points
@@ -139,8 +146,20 @@ pub fn needed_version(model: &Model) -> u32 {
             .compartments
             .iter()
             .any(|c| c.display_name.is_some() || chosen(c.label_choice));
-    if display_names {
+    let annotations = !model.annotation.is_empty()
+        || !model.history.is_empty()
+        || model.species().iter().any(|s| !s.annotation.is_empty())
+        || model.reactions().iter().any(|r| !r.annotation.is_empty())
+        || model.compartments.iter().any(|c| !c.annotation.is_empty())
+        || model.parameters.iter().any(|p| !p.annotation.is_empty())
+        || model
+            .assignment_rules
+            .iter()
+            .any(|r| !r.annotation.is_empty());
+    if annotations {
         FORMAT_VERSION
+    } else if display_names {
+        DISPLAY_NAME_VERSION
     } else if !model.color_names.is_empty() || sized_inside {
         COLOR_NAMES_VERSION
     } else if leg_corners {
@@ -329,6 +348,95 @@ struct FileModel {
     /// (docs/display-names-design.md D4). Left out when they show ids.
     #[serde(default, skip_serializing_if = "is_false")]
     display_names: bool,
+    /// Version 18: the model's annotation (docs/annotations-design.md).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
+    /// Version 18: who made the model and when.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    history: Option<FileHistory>,
+}
+
+/// An annotation (version 18): an SBO term's number, database references
+/// and notes (XHTML, as read). Each left out when empty.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FileAnnotation {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "lenient_u32_opt"
+    )]
+    sbo: Option<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    references: Vec<FileReference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    notes: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileReference {
+    qualifier: String,
+    resource: String,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FileHistory {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    creators: Vec<FileCreator>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    created: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    modified: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FileCreator {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    family: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    given: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    email: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    organization: Option<String>,
+}
+
+fn annotation_to_file(a: &Annotation) -> Option<FileAnnotation> {
+    (!a.is_empty()).then(|| FileAnnotation {
+        sbo: a.sbo,
+        references: a
+            .references
+            .iter()
+            .map(|r| FileReference {
+                qualifier: r.qualifier.clone(),
+                resource: r.resource.clone(),
+            })
+            .collect(),
+        notes: a.notes.clone(),
+    })
+}
+
+/// A reference with no qualifier or no resource is dropped.
+fn annotation_from_file(f: Option<FileAnnotation>) -> Annotation {
+    let Some(f) = f else {
+        return Annotation::default();
+    };
+    Annotation {
+        sbo: f.sbo,
+        references: f
+            .references
+            .into_iter()
+            .filter(|r| !r.qualifier.trim().is_empty() && !r.resource.trim().is_empty())
+            .map(|r| Reference {
+                qualifier: r.qualifier,
+                resource: r.resource,
+            })
+            .collect(),
+        notes: f.notes.filter(|n| !n.trim().is_empty()),
+    }
 }
 
 /// A named color (version 16).
@@ -459,6 +567,10 @@ struct FileCompartment {
     /// Left out when it is as the diagram says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    /// Version 18 (docs/annotations-design.md); on a species, a primary's
+    /// only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
 }
 
 /// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
@@ -468,6 +580,9 @@ struct FileExpression {
     variable: String,
     #[serde(default)]
     expression: String,
+    /// Version 18, a parameter's (docs/annotations-design.md A1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -525,6 +640,10 @@ struct FileSpecies {
     /// Left out when it is as the diagram says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    /// Version 18 (docs/annotations-design.md); on a species, a primary's
+    /// only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -579,6 +698,10 @@ struct FileReaction {
     /// Left out when it is as the diagram says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    /// Version 18 (docs/annotations-design.md); on a species, a primary's
+    /// only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -753,6 +876,7 @@ impl FileModel {
                 selected: false,
                 style_name: c.style_name,
                 display_name: crate::model::display_name(c.display_name),
+                annotation: annotation_from_file(c.annotation),
                 shown_name: None,
             })
             .collect();
@@ -762,6 +886,7 @@ impl FileModel {
             .map(|p| Parameter {
                 variable: p.variable,
                 expression: p.expression,
+                annotation: annotation_from_file(p.annotation),
             })
             .collect();
         model.assignment_rules = self
@@ -770,6 +895,7 @@ impl FileModel {
             .map(|r| AssignmentRule {
                 variable: r.variable,
                 expression: r.expression,
+                annotation: annotation_from_file(r.annotation),
             })
             .collect();
 
@@ -831,6 +957,7 @@ impl FileModel {
                 },
                 style_name: s.style_name,
                 display_name: crate::model::display_name(s.display_name),
+                annotation: annotation_from_file(s.annotation),
                 shown_name: None,
             };
             if let Err(dup) = model.push_species(node) {
@@ -838,10 +965,12 @@ impl FileModel {
             }
         }
         resolve_aliases(&mut model, &mut warnings);
-        // An alias shows its species' name; it has none of its own.
+        // An alias shows its species' name and shares its annotation; it has
+        // none of its own.
         for s in model.species_mut() {
             if s.alias_of.is_some() {
                 s.display_name = None;
+                s.annotation = Annotation::default();
             }
         }
 
@@ -861,6 +990,7 @@ impl FileModel {
             reaction.style = style_from_file(r.style);
             reaction.style_name = r.style_name;
             reaction.display_name = crate::model::display_name(r.display_name);
+            reaction.annotation = annotation_from_file(r.annotation);
             reaction.label_choice = label_choice(r.label.as_deref(), &reaction.id, &mut warnings);
             reaction.stem = match r.stem.as_deref() {
                 None => None,
@@ -973,6 +1103,24 @@ impl FileModel {
             .map(|c| (c.name, c.value))
             .collect();
         model.show_display_names = self.display_names;
+        model.annotation = annotation_from_file(self.annotation);
+        model.history = self
+            .history
+            .map(|h| History {
+                creators: h
+                    .creators
+                    .into_iter()
+                    .map(|c| Creator {
+                        family: c.family,
+                        given: c.given,
+                        email: c.email,
+                        organization: c.organization,
+                    })
+                    .collect(),
+                created: h.created,
+                modified: h.modified,
+            })
+            .unwrap_or_default();
         model.refresh_labels();
 
         model.recompute_id_counter();
@@ -1272,6 +1420,7 @@ impl FileModel {
                     no_border: c.style.no_border,
                     display_name: c.display_name.clone(),
                     label: c.label_choice.key().map(str::to_owned),
+                    annotation: annotation_to_file(&c.annotation),
                 })
                 .collect(),
             parameters: m
@@ -1280,6 +1429,7 @@ impl FileModel {
                 .map(|p| FileExpression {
                     variable: p.variable.clone(),
                     expression: p.expression.clone(),
+                    annotation: annotation_to_file(&p.annotation),
                 })
                 .collect(),
             assignment_rules: m
@@ -1288,6 +1438,7 @@ impl FileModel {
                 .map(|r| FileExpression {
                     variable: r.variable.clone(),
                     expression: r.expression.clone(),
+                    annotation: annotation_to_file(&r.annotation),
                 })
                 .collect(),
             species: m
@@ -1316,6 +1467,7 @@ impl FileModel {
                     no_border: s.style.no_border,
                     display_name: s.display_name.clone(),
                     label: s.label_choice.key().map(str::to_owned),
+                    annotation: annotation_to_file(&s.annotation),
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -1356,6 +1508,22 @@ impl FileModel {
             background: m.background,
             modifier_lines: m.hide_modifier_lines.then_some(false),
             display_names: m.show_display_names,
+            annotation: annotation_to_file(&m.annotation),
+            history: (!m.history.is_empty()).then(|| FileHistory {
+                creators: m
+                    .history
+                    .creators
+                    .iter()
+                    .map(|c| FileCreator {
+                        family: c.family.clone(),
+                        given: c.given.clone(),
+                        email: c.email.clone(),
+                        organization: c.organization.clone(),
+                    })
+                    .collect(),
+                created: m.history.created.clone(),
+                modified: m.history.modified.clone(),
+            }),
             color_names: m
                 .color_names
                 .iter()
@@ -1501,6 +1669,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         stem_straight: needs_stem_straight(r).then_some(false),
         display_name: r.display_name.clone(),
         label: r.label_choice.key().map(str::to_owned),
+        annotation: annotation_to_file(&r.annotation),
     }
 }
 
@@ -1573,6 +1742,61 @@ mod tests {
         );
     }
 
+    /// docs/annotations-design.md: annotations and the model's history are
+    /// saved in version 18 and read back; an alias's is dropped.
+    #[test]
+    fn annotations_are_kept_in_version_18() {
+        use crate::model::{Annotation, Creator, Reference};
+        let mut m = Model::default();
+        let s = m.add_species(Pt::ZERO, 60.0, 30.0);
+        let alias = m.add_alias(&s, pt(100.0, 0.0)).unwrap();
+        m.parameters.push(Parameter {
+            variable: "Km".into(),
+            expression: "0.5".into(),
+            annotation: Annotation::default(),
+        });
+        assert!(needed_version(&m) < FORMAT_VERSION);
+        let a = Annotation {
+            sbo: Some(247),
+            references: vec![Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: "http://identifiers.org/chebi/CHEBI:17234".into(),
+            }],
+            notes: Some(
+                "<body xmlns=\"http://www.w3.org/1999/xhtml\"><p>Glucose.</p></body>".into(),
+            ),
+        };
+        m.find_species_mut(&s).unwrap().annotation = a.clone();
+        m.parameters[0].annotation.sbo = Some(27);
+        m.push_reaction(Reaction::new("R1", pt(50.0, 50.0)))
+            .unwrap();
+        m.find_reaction_mut("R1").unwrap().annotation.sbo = Some(176);
+        m.compartments.push(Compartment::new("cell"));
+        m.compartments[0].annotation.sbo = Some(290);
+        m.assignment_rules.push(crate::model::AssignmentRule {
+            variable: "kr".into(),
+            expression: "2*Km".into(),
+            annotation: Annotation {
+                sbo: Some(186),
+                ..Annotation::default()
+            },
+        });
+        m.history.creators.push(Creator {
+            family: Some("Sauro".into()),
+            ..Creator::default()
+        });
+        m.history.created = Some("2026-10-28T00:00:00Z".into());
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let back = from_json(&to_json(&m)).unwrap().model;
+        assert_eq!(back.find_species(&s).unwrap().annotation, a);
+        assert!(back.find_species(&alias).unwrap().annotation.is_empty());
+        assert_eq!(back.parameters[0].annotation.sbo, Some(27));
+        assert_eq!(back.find_reaction("R1").unwrap().annotation.sbo, Some(176));
+        assert_eq!(back.compartments[0].annotation.sbo, Some(290));
+        assert_eq!(back.assignment_rules[0].annotation.sbo, Some(186));
+        assert_eq!(back.history, m.history);
+    }
+
     #[test]
     fn display_names_are_kept_in_version_17() {
         let mut m = Model::default();
@@ -1581,12 +1805,12 @@ mod tests {
         let alias = m.add_alias(&s, pt(100.0, 0.0)).unwrap();
         m.push_reaction(Reaction::new("re12", pt(50.0, 50.0)))
             .unwrap();
-        assert!(needed_version(&m) < FORMAT_VERSION);
+        assert!(needed_version(&m) < DISPLAY_NAME_VERSION);
         assert!(!to_json(&m).contains("displayName"));
         m.find_species_mut(&s).unwrap().display_name = Some("L-glutamate".into());
         m.find_reaction_mut("re12").unwrap().display_name = Some("glutamate uptake".into());
         m.compartments[0].display_name = Some("astrocyte".into());
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), DISPLAY_NAME_VERSION);
         let text = to_json(&m);
         assert_eq!(text.matches("\"displayName\"").count(), 3, "{text}");
         let back = from_json(&text).unwrap().model;
@@ -1610,7 +1834,7 @@ mod tests {
         let text = r#"{"version": 17, "species": [
             {"id": "A", "displayName": "  "},
             {"id": "B", "displayName": "glucose"},
-            {"id": "B_1", "aliasOf": "B", "displayName": "glucose"}]}"#;
+            {"id": "B_1", "aliasOf": "B", "displayName": "glucose", "annotation": {"sbo": 247}}]}"#;
         let m = from_json(text).unwrap().model;
         assert_eq!(m.find_species("A").unwrap().display_name, None);
         assert_eq!(
@@ -1618,6 +1842,7 @@ mod tests {
             Some("glucose")
         );
         assert_eq!(m.find_species("B_1").unwrap().display_name, None);
+        assert!(m.find_species("B_1").unwrap().annotation.is_empty());
     }
 
     #[test]

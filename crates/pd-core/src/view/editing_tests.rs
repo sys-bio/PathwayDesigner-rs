@@ -186,6 +186,7 @@ fn an_existing_parameter_is_not_duplicated() {
     m.parameters.push(Parameter {
         variable: "k5".into(),
         expression: "3".into(),
+        annotation: Default::default(),
     });
     v.set_model(m);
     v.set_tool(Tool::UNI_UNI);

@@ -2457,6 +2457,7 @@ libSBML. The reference writes the XML itself.
 | reactions | `reversible`, `fast="false"`. Reactants and products as `speciesReference` elements with `stoichiometry` and `constant="true"`. Modifiers SHOULD be written as `modifierSpeciesReference` (§15, D-10). |
 | kineticLaw | The rate law converted to Content MathML (table below). If the law is empty or cannot be parsed, leave out the `<kineticLaw>` element entirely. |
 | rules | Assignment rules SHOULD be written as `assignmentRule` elements. The reference leaves them out. |
+| annotations | *(Rust version, docs/annotations-design.md.)* The model, compartments, species, reactions and parameters (a rule's on the parameter it sets) get their SBO term (`sboTerm`), notes (as read) and database references, written as MIRIAM RDF on a `metaid` that is the item's id; the model also its history (creators, created and modified dates). Reading keeps the same. Another tool's own XML in an annotation is not kept; a file with any says so once, with how many items. |
 
 **Converting the rate law to MathML.**
 

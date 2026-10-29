@@ -268,6 +268,9 @@ pub struct SpeciesNode {
     /// docs/display-names-design.md D1), on a primary only: an alias shows
     /// its species'. `None` when it has none.
     pub display_name: Option<String>,
+    /// What it is (docs/annotations-design.md), on a primary only: an alias
+    /// shares its species'.
+    pub annotation: Annotation,
     /// What its label shows (D4); each drawing, alias or not, has its own.
     pub label_choice: LabelChoice,
     /// Transient, kept by [`Model::refresh_labels`]: the display name its
@@ -433,6 +436,7 @@ impl SpeciesNode {
             style: VisualStyle::default(),
             style_name: None,
             display_name: None,
+            annotation: Annotation::default(),
             label_choice: LabelChoice::Diagram,
             shown_name: None,
         }
@@ -716,6 +720,8 @@ pub struct Reaction {
     /// Its display name (docs/display-names-design.md D1); `None` when it
     /// has none.
     pub display_name: Option<String>,
+    /// What it is (docs/annotations-design.md).
+    pub annotation: Annotation,
     /// What its label shows (D4).
     pub label_choice: LabelChoice,
     /// Transient, kept by [`Model::refresh_labels`]; read it through
@@ -763,6 +769,7 @@ impl Reaction {
             stem: None,
             stem_straight: false,
             display_name: None,
+            annotation: Annotation::default(),
             label_choice: LabelChoice::Diagram,
             shown_name: None,
         }
@@ -938,6 +945,8 @@ pub struct Compartment {
     /// Its display name (docs/display-names-design.md D1); `None` when it
     /// has none.
     pub display_name: Option<String>,
+    /// What it is (docs/annotations-design.md).
+    pub annotation: Annotation,
     /// What its label shows (D4).
     pub label_choice: LabelChoice,
     /// Transient, kept by [`Model::refresh_labels`]; read it through
@@ -957,6 +966,7 @@ impl Compartment {
             selected: false,
             style_name: None,
             display_name: None,
+            annotation: Annotation::default(),
             label_choice: LabelChoice::Diagram,
             shown_name: None,
         }
@@ -981,17 +991,74 @@ impl Compartment {
 }
 
 /// `variable = expression` (S §3.5).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct Parameter {
     pub variable: String,
     pub expression: String,
+    /// What it is (docs/annotations-design.md A1).
+    pub annotation: Annotation,
+}
+
+/// What an item is, beyond its name (docs/annotations-design.md): its SBO
+/// term, its database references and its notes, as SBML and Antimony give
+/// them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Annotation {
+    /// The SBO term's number: 247 for `SBO:0000247`.
+    pub sbo: Option<u32>,
+    /// In order; several may share a qualifier.
+    pub references: Vec<Reference>,
+    /// The notes as read, XHTML (A4); written back unchanged.
+    pub notes: Option<String>,
+}
+
+impl Annotation {
+    pub fn is_empty(&self) -> bool {
+        self.sbo.is_none() && self.references.is_empty() && self.notes.is_none()
+    }
+}
+
+/// A database reference: how the item relates to an entry, and the entry,
+/// as written (A6).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reference {
+    /// `bqbiol:is`, `bqbiol:isVersionOf`, `bqmodel:isDescribedBy`, …
+    pub qualifier: String,
+    /// `http://identifiers.org/chebi/CHEBI:15422`, or `urn:miriam:…`.
+    pub resource: String,
+}
+
+/// Who made a model and when.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct History {
+    pub creators: Vec<Creator>,
+    /// W3CDTF, as written: `2005-02-02T14:56:11Z`.
+    pub created: Option<String>,
+    pub modified: Vec<String>,
+}
+
+impl History {
+    pub fn is_empty(&self) -> bool {
+        self.creators.is_empty() && self.created.is_none() && self.modified.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Creator {
+    pub family: Option<String>,
+    pub given: Option<String>,
+    pub email: Option<String>,
+    pub organization: Option<String>,
 }
 
 /// `variable := expression` (S §3.5).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct AssignmentRule {
     pub variable: String,
     pub expression: String,
+    /// The annotation of the parameter it sets, when that parameter is
+    /// nothing else (docs/annotations-design.md A1).
+    pub annotation: Annotation,
 }
 
 /// Why a rename was refused (S §4).
@@ -1055,6 +1122,11 @@ pub struct Model {
     /// View ▸ Show Display Names for this diagram
     /// (docs/display-names-design.md D4). Saved with it.
     pub show_display_names: bool,
+    /// What the model is (docs/annotations-design.md): its SBO term,
+    /// references (`bqmodel:isDescribedBy` a paper) and notes.
+    pub annotation: Annotation,
+    /// Who made the model and when.
+    pub history: History,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -1078,6 +1150,8 @@ impl Default for Model {
             hide_modifier_lines: false,
             color_names: Vec::new(),
             show_display_names: false,
+            annotation: Annotation::default(),
+            history: History::default(),
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),
@@ -1750,6 +1824,7 @@ mod tests {
         m.parameters.push(Parameter {
             variable: "Km".into(),
             expression: "0.5".into(),
+            annotation: Default::default(),
         });
         m.compartments.push(Compartment::new("Cell"));
         assert!(m.find_species("Glc").is_some());
@@ -1895,6 +1970,7 @@ mod tests {
         m.parameters.push(Parameter {
             variable: "k".into(),
             expression: "2*R2".into(),
+            annotation: Default::default(),
         });
         assert_eq!(m.rename_reaction("R2", "J1"), Ok(()));
         assert!(m.find_reaction("J1").is_some() && m.find_reaction("R2").is_none());
@@ -1910,6 +1986,7 @@ mod tests {
         m.parameters.push(Parameter {
             variable: "k1".into(),
             expression: "0.1".into(),
+            annotation: Default::default(),
         });
         assert_eq!(m.rename_species("S1", ""), Err(RenameError::InvalidId));
         assert_eq!(m.rename_species("S1", "2x"), Err(RenameError::InvalidId));

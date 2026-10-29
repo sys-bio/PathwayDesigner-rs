@@ -348,6 +348,17 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 18: annotations (docs/annotations-design.md).** A species,
+reaction, compartment, parameter or assignment rule object, and the model, may
+have `"annotation"`: `{"sbo": 247, "references": [{"qualifier": "bqbiol:is",
+"resource": "http://identifiers.org/chebi/CHEBI:17234"}], "notes": "<body …>"}`,
+each key left out when empty, and the whole object when all are. A rule's is
+the annotation of the parameter it sets. A species has one only if it is a
+primary. The model may also have `"history"`: `{"creators": [{"family", "given",
+"email", "organization"}], "created": "…", "modified": ["…"]}`, dates as
+written (W3CDTF). A reference with no qualifier or resource is dropped. A
+document with any of these is version 18.
+
 **Version 17: display names (S §5.14).** A species, reaction or compartment
 object may have `"displayName"`: its name, from SBML `name` or Antimony
 `S1 is "glucose"`; a species has one only if it is a primary. It may have

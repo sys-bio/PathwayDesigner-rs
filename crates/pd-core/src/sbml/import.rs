@@ -52,6 +52,7 @@ pub fn import(xml: &str, opts: &ImportOptions) -> Result<Imported, Vec<sb::Diagn
         functions: HashMap::new(),
         broken_functions: HashMap::new(),
         targets: Vec::new(),
+        namespaces: read.document.namespaces.clone(),
     };
     let (had_layout, unplaced) = b.build(m, opts);
     Ok(Imported {
@@ -74,6 +75,8 @@ struct Builder {
     broken_functions: HashMap<String, String>,
     /// Each glyph and what it draws, for its look from Render.
     targets: Vec<(String, Target)>,
+    /// Those declared on `<sbml>`, which an annotation may use.
+    namespaces: Vec<(Option<String>, String)>,
 }
 
 /// What the layout says about a reaction's empty side: where its null node
@@ -87,6 +90,39 @@ struct NullLeg {
 impl Builder {
     fn warn(&mut self, message: String) {
         self.warnings.push(message);
+    }
+
+    /// An item's SBO term, database references and notes
+    /// (docs/annotations-design.md).
+    fn annotation(&self, meta: &sb::Meta) -> crate::model::Annotation {
+        crate::model::Annotation {
+            sbo: meta.sbo_term.as_deref().and_then(sbo_number),
+            references: self
+                .miriam(meta)
+                .terms
+                .iter()
+                .flat_map(|t| {
+                    let q = format!(
+                        "{}:{}",
+                        if t.model { "bqmodel" } else { "bqbiol" },
+                        t.qualifier
+                    );
+                    t.resources.iter().map(move |r| crate::model::Reference {
+                        qualifier: q.clone(),
+                        resource: r.clone(),
+                    })
+                })
+                .collect(),
+            notes: meta.notes.clone().filter(|n| !n.trim().is_empty()),
+        }
+    }
+
+    /// The MIRIAM part of an item's annotation, taken apart.
+    fn miriam(&self, meta: &sb::Meta) -> sb::miriam::Annotation {
+        meta.annotation
+            .as_deref()
+            .map(|a| sb::miriam::read_annotation(a, &self.namespaces))
+            .unwrap_or_default()
     }
 
     /// An expression from MathML, or a warning saying why not.
@@ -138,6 +174,22 @@ impl Builder {
         self.report_unsupported(m);
         self.read_functions(m);
         self.model.model_name = m.name.clone().or_else(|| m.id.clone()).unwrap_or_default();
+        self.model.annotation = self.annotation(&m.meta);
+        let h = self.miriam(&m.meta).history;
+        self.model.history = crate::model::History {
+            creators: h
+                .creators
+                .into_iter()
+                .map(|c| crate::model::Creator {
+                    family: c.family,
+                    given: c.given,
+                    email: c.email,
+                    organization: c.organization,
+                })
+                .collect(),
+            created: h.created,
+            modified: h.modified,
+        };
         let none = HashMap::new();
 
         // Compartments. The default one is implied, unless it was changed.
@@ -146,6 +198,7 @@ impl Builder {
                 size: c.size.unwrap_or(1.0),
                 dimensions: c.spatial_dimensions.map_or(3, |d| d as u32),
                 display_name: crate::model::display_name(c.name.clone()),
+                annotation: self.annotation(&c.meta),
                 ..Compartment::new(c.id.clone())
             };
             let implied = c.id == DEFAULT_COMPARTMENT && comp.size == 1.0 && comp.dimensions == 3;
@@ -166,6 +219,7 @@ impl Builder {
             node.is_boundary = s.boundary_condition.unwrap_or(false);
             node.is_constant = s.constant.unwrap_or(false);
             node.display_name = crate::model::display_name(s.name.clone());
+            node.annotation = self.annotation(&s.meta);
             if s.compartment != DEFAULT_COMPARTMENT {
                 node.compartment = s.compartment.clone();
             }
@@ -186,9 +240,11 @@ impl Builder {
             .collect();
         for p in &m.parameters {
             if !rule_vars.contains(p.id.as_str()) {
+                let annotation = self.annotation(&p.meta);
                 self.model.parameters.push(Parameter {
                     variable: p.id.clone(),
                     expression: sb::fmt_f64(p.value.unwrap_or(0.0)),
+                    annotation,
                 });
             }
         }
@@ -224,9 +280,17 @@ impl Builder {
             if let sb::Rule::Assignment { variable, math, .. } = r {
                 let what = format!("The rule for {variable}");
                 if let Some(ast) = self.expression(math.as_ref(), &none, &what) {
+                    // The parameter it sets, which is kept as the rule.
+                    let annotation = m
+                        .parameters
+                        .iter()
+                        .find(|p| p.id == *variable)
+                        .map(|p| self.annotation(&p.meta))
+                        .unwrap_or_default();
                     self.model.assignment_rules.push(AssignmentRule {
                         variable: variable.clone(),
                         expression: expr::to_infix(&ast),
+                        annotation,
                     });
                 }
             }
@@ -374,16 +438,9 @@ impl Builder {
                 m.layouts.len()
             ));
         }
-        // Annotations aren't kept yet (docs/annotations-design.md, A8): say so
-        // once, before they are lost on saving.
-        let annotated = |meta: &sb::Meta| {
-            meta.sbo_term.is_some()
-                || meta.notes.as_deref().is_some_and(|n| !n.trim().is_empty())
-                || meta
-                    .annotation
-                    .as_deref()
-                    .is_some_and(|a| !a.trim().is_empty())
-        };
+        // Another tool's own annotation isn't kept (docs/annotations-design.md
+        // A3, A8): say so once, before it is lost on saving.
+        let annotated = |meta: &sb::Meta| !self.miriam(meta).other.is_empty();
         let items = usize::from(annotated(&m.meta))
             + m.compartments.iter().filter(|c| annotated(&c.meta)).count()
             + m.species.iter().filter(|s| annotated(&s.meta)).count()
@@ -391,8 +448,8 @@ impl Builder {
             + m.parameters.iter().filter(|p| annotated(&p.meta)).count();
         if items > 0 {
             self.warn(format!(
-                "annotations on {items} item{} (database references, SBO terms, notes, or another tool's own) \
-                 aren't kept yet: saving will lose them",
+                "another tool's own annotations on {items} item{} aren't kept: saving will lose \
+                 them (SBO terms, database references and notes are kept)",
                 if items == 1 { "" } else { "s" }
             ));
         }
@@ -608,6 +665,7 @@ impl Builder {
         }
         let mut rx = Reaction::new(r.id.clone(), Pt::ZERO);
         rx.display_name = crate::model::display_name(r.name.clone());
+        rx.annotation = self.annotation(&r.meta);
         rx.mode = ReactionMode::Straight;
         // Level 2 makes reactions reversible unless they say otherwise.
         rx.is_reversible = r.reversible.unwrap_or(self.level == 2);
@@ -687,6 +745,7 @@ impl Builder {
                 self.model.parameters.push(Parameter {
                     variable: name,
                     expression: sb::fmt_f64(lp.value.unwrap_or(0.0)),
+                    annotation: Default::default(),
                 });
             }
             law = self.expression(
@@ -1143,4 +1202,9 @@ fn find_participant(
             .find(|(i, p)| p.species == species && !matched.contains(&(role, *i)))
             .map(|(i, _)| (role, i))
     })
+}
+
+/// `SBO:0000247` → 247; `None` for anything else.
+fn sbo_number(term: &str) -> Option<u32> {
+    term.trim().strip_prefix("SBO:")?.parse().ok()
 }

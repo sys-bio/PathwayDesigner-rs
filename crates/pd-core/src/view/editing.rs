@@ -288,6 +288,7 @@ impl DiagramView {
             self.model.parameters.push(Parameter {
                 variable: k,
                 expression: NEW_PARAMETER_VALUE.to_owned(),
+                annotation: Default::default(),
             });
         }
         self.record("Add Reaction", before)

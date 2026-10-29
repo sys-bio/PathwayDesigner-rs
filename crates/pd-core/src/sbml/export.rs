@@ -8,7 +8,9 @@ use super::math::to_math;
 use crate::bezier::leg_curve;
 use crate::expr;
 use crate::geometry::Pt;
-use crate::model::{DEFAULT_COMPARTMENT, Model, ModifierKind, ReactionMode, Role, SpeciesNode};
+use crate::model::{
+    DEFAULT_COMPARTMENT, History, Model, ModifierKind, ReactionMode, Role, SpeciesNode,
+};
 use crate::render::constants::JUNCTION_RADIUS;
 use crate::render::draw::{border, effective_junction, effective_mode, modifier_route};
 use crate::textbox::lay_out;
@@ -138,6 +140,8 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
         name: (!model.model_name.trim().is_empty()).then(|| model.model_name.clone()),
         ..Default::default()
     };
+    let model_id = m.id.clone().unwrap_or_default();
+    m.meta = meta(&model_id, &model.annotation, &model.history);
 
     // Compartments: the default one if it's missing, then the model's.
     if model.find_compartment(DEFAULT_COMPARTMENT).is_none() {
@@ -151,6 +155,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     }
     for c in &model.compartments {
         m.compartments.push(sb::Compartment {
+            meta: meta(&c.id, &c.annotation, &History::default()),
             id: c.id.clone(),
             name: c.display_name.clone(),
             size: Some(c.size),
@@ -167,6 +172,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
         .filter(|s| !s.is_alias() && !s.is_null_node)
     {
         m.species.push(sb::Species {
+            meta: meta(&s.id, &s.annotation, &History::default()),
             id: s.id.clone(),
             name: s.display_name.clone(),
             compartment: if s.compartment.is_empty() {
@@ -195,6 +201,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             id: p.variable.clone(),
             value,
             constant: Some(true),
+            meta: meta(&p.variable, &p.annotation, &History::default()),
             ..Default::default()
         });
         if value.is_none()
@@ -217,6 +224,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             m.parameters.push(sb::Parameter {
                 id: r.variable.clone(),
                 constant: Some(false),
+                meta: meta(&r.variable, &r.annotation, &History::default()),
                 ..Default::default()
             });
         }
@@ -240,6 +248,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     let mut legs: Vec<Leg> = Vec::new();
     for r in model.reactions() {
         let mut rx = sb::Reaction {
+            meta: meta(&r.id, &r.annotation, &History::default()),
             id: r.id.clone(),
             name: r.display_name.clone(),
             reversible: Some(r.is_reversible),
@@ -727,6 +736,53 @@ pub(crate) fn leg_segments(
     Some(leg_segments)
 }
 
+/// An item's SBO term, notes and database references (and the model's
+/// history) as SBML (docs/annotations-design.md). The metaid the RDF hangs
+/// on is the item's id, which is unique among them.
+fn meta(id: &str, a: &crate::model::Annotation, history: &History) -> sb::Meta {
+    let mut terms: Vec<sb::miriam::CvTerm> = Vec::new();
+    for r in &a.references {
+        let (model, qualifier) = match r.qualifier.split_once(':') {
+            Some(("bqmodel", q)) => (true, q),
+            Some((_, q)) => (false, q),
+            None => (false, r.qualifier.as_str()),
+        };
+        // References with one qualifier, one after another, share its Bag.
+        match terms.last_mut() {
+            Some(t) if t.model == model && t.qualifier == qualifier => {
+                t.resources.push(r.resource.clone())
+            }
+            _ => terms.push(sb::miriam::CvTerm {
+                model,
+                qualifier: qualifier.to_owned(),
+                resources: vec![r.resource.clone()],
+            }),
+        }
+    }
+    let history = sb::miriam::History {
+        creators: history
+            .creators
+            .iter()
+            .map(|c| sb::miriam::Creator {
+                family: c.family.clone(),
+                given: c.given.clone(),
+                email: c.email.clone(),
+                organization: c.organization.clone(),
+            })
+            .collect(),
+        created: history.created.clone(),
+        modified: history.modified.clone(),
+    };
+    let annotation = sb::miriam::write_annotation(id, &terms, &history);
+    sb::Meta {
+        metaid: annotation.is_some().then(|| id.to_owned()),
+        sbo_term: a.sbo.map(|n| format!("SBO:{n:07}")),
+        notes: a.notes.clone(),
+        annotation,
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -742,65 +798,136 @@ mod tests {
         assert_eq!(ids.unique("b".into()), "b");
     }
 
-    /// docs/annotations-design.md A8: annotations aren't kept yet, so a file
-    /// with them says so once; PathwayDesigner's own files never do.
+    /// docs/annotations-design.md: SBO terms, database references and notes
+    /// on species, reactions, compartments, parameters and the model, and the
+    /// model's history, come back through SBML; another tool's own
+    /// annotation doesn't, and the file says so once (A3, A8).
     #[test]
-    fn dropped_annotations_are_reported_once() {
+    fn annotations_round_trip_and_other_tools_are_reported() {
         let opts = crate::antimony::ImportOptions {
             convert_catalytic: false,
             seed: 1,
         };
         let sbml = r##"<?xml version="1.0" encoding="UTF-8"?>
-<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
-  <model id="m">
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1"
+      xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <model id="m" metaid="m" sboTerm="SBO:0000004">
+    <annotation>
+      <rdf:RDF xmlns:dcterms="http://purl.org/dc/terms/" xmlns:vCard="http://www.w3.org/2001/vcard-rdf/3.0#"
+               xmlns:bqmodel="http://biomodels.net/model-qualifiers/">
+        <rdf:Description rdf:about="#m">
+          <dcterms:creator><rdf:Bag><rdf:li rdf:parseType="Resource">
+            <vCard:N rdf:parseType="Resource"><vCard:Family>Elowitz</vCard:Family><vCard:Given>Michael</vCard:Given></vCard:N>
+          </rdf:li></rdf:Bag></dcterms:creator>
+          <dcterms:created rdf:parseType="Resource"><dcterms:W3CDTF>2005-02-02T14:56:11Z</dcterms:W3CDTF></dcterms:created>
+          <bqmodel:isDescribedBy><rdf:Bag><rdf:li rdf:resource="http://identifiers.org/pubmed/10659856"/></rdf:Bag></bqmodel:isDescribedBy>
+        </rdf:Description>
+      </rdf:RDF>
+    </annotation>
     <listOfCompartments>
-      <compartment id="c" size="1" constant="true"/>
+      <compartment id="c" size="1" constant="true" sboTerm="SBO:0000290"/>
     </listOfCompartments>
     <listOfSpecies>
-      <species id="S" metaid="S" compartment="c" sboTerm="SBO:0000247" initialConcentration="1"
+      <species id="S" metaid="_S" compartment="c" sboTerm="SBO:0000247" initialConcentration="1"
                hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false">
+        <notes><body xmlns="http://www.w3.org/1999/xhtml"><p>Glucose.</p></body></notes>
         <annotation>
-          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-                   xmlns:bqbiol="http://biomodels.net/biology-qualifiers/">
-            <rdf:Description rdf:about="#S">
-              <bqbiol:is><rdf:Bag><rdf:li rdf:resource="http://identifiers.org/chebi/CHEBI:17234"/></rdf:Bag></bqbiol:is>
+          <rdf:RDF xmlns:bqbiol="http://biomodels.net/biology-qualifiers/">
+            <rdf:Description rdf:about="#_S">
+              <bqbiol:is><rdf:Bag>
+                <rdf:li rdf:resource="http://identifiers.org/chebi/CHEBI:17234"/>
+                <rdf:li rdf:resource="urn:miriam:kegg.compound:C00031"/>
+              </rdf:Bag></bqbiol:is>
             </rdf:Description>
           </rdf:RDF>
+          <COPASI xmlns="http://www.copasi.org/static/sbml"><x/></COPASI>
         </annotation>
       </species>
       <species id="P" compartment="c" initialConcentration="0"
                hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters>
-      <parameter id="k" value="1" constant="true">
+      <parameter id="k" value="1" constant="true" sboTerm="SBO:0000035">
         <notes><body xmlns="http://www.w3.org/1999/xhtml"><p>A rate constant.</p></body></notes>
       </parameter>
+      <parameter id="kr" constant="false" sboTerm="SBO:0000186"/>
     </listOfParameters>
+    <listOfRules>
+      <assignmentRule variable="kr">
+        <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><cn>2</cn><ci>k</ci></apply></math>
+      </assignmentRule>
+    </listOfRules>
+    <listOfReactions>
+      <reaction id="R" reversible="false" sboTerm="SBO:0000176">
+        <listOfReactants><speciesReference species="S" stoichiometry="1" constant="true"/></listOfReactants>
+        <listOfProducts><speciesReference species="P" stoichiometry="1" constant="true"/></listOfProducts>
+      </reaction>
+    </listOfReactions>
   </model>
 </sbml>"##;
         let i = crate::sbml::import(sbml, &opts).unwrap();
-        let notes: Vec<&String> = i
+        // Only COPASI's own XML, on one item, isn't kept.
+        let lost: Vec<&String> = i
             .warnings
             .iter()
             .filter(|w| w.contains("aren't kept"))
             .collect();
-        assert_eq!(notes.len(), 1, "{:?}", i.warnings);
+        assert_eq!(lost.len(), 1, "{:?}", i.warnings);
         assert!(
-            notes[0].starts_with("annotations on 2 items"),
+            lost[0].starts_with("another tool's own annotations on 1 item"),
             "{}",
-            notes[0]
+            lost[0]
         );
 
-        // An export of PathwayDesigner's own, with what it writes for
-        // itself (display names, modifier kinds), raises no such warning.
-        let mut m = i.model.clone();
-        m.find_species_mut("S").unwrap().display_name = Some("glucose".into());
-        let back = crate::sbml::import(&export(&m).xml, &opts).unwrap();
+        let check = |m: &Model| {
+            let s = &m.find_species("S").unwrap().annotation;
+            assert_eq!(s.sbo, Some(247));
+            let refs: Vec<(&str, &str)> = s
+                .references
+                .iter()
+                .map(|r| (r.qualifier.as_str(), r.resource.as_str()))
+                .collect();
+            assert_eq!(
+                refs,
+                [
+                    ("bqbiol:is", "http://identifiers.org/chebi/CHEBI:17234"),
+                    ("bqbiol:is", "urn:miriam:kegg.compound:C00031")
+                ]
+            );
+            assert!(s.notes.as_deref().unwrap().contains("Glucose."));
+            assert_eq!(m.find_compartment("c").unwrap().annotation.sbo, Some(290));
+            assert_eq!(m.find_reaction("R").unwrap().annotation.sbo, Some(176));
+            let k = &m.find_parameter("k").unwrap().annotation;
+            assert_eq!(k.sbo, Some(35));
+            assert!(k.notes.as_deref().unwrap().contains("A rate constant."));
+            // A parameter set by a rule is kept as the rule, with its annotation.
+            let kr = m
+                .assignment_rules
+                .iter()
+                .find(|r| r.variable == "kr")
+                .unwrap();
+            assert_eq!(kr.annotation.sbo, Some(186));
+            assert_eq!(m.annotation.sbo, Some(4));
+            assert_eq!(
+                m.annotation.references[0].qualifier,
+                "bqmodel:isDescribedBy"
+            );
+            assert_eq!(m.history.creators[0].family.as_deref(), Some("Elowitz"));
+            assert_eq!(m.history.created.as_deref(), Some("2005-02-02T14:56:11Z"));
+        };
+        check(&i.model);
+        // Written and read again: the same, and nothing more lost. The RDF
+        // hangs on each item's metaid, its id.
+        let text = export(&i.model).xml;
+        assert!(text.contains(r#"metaid="S""#), "{text}");
+        assert!(text.contains(r##"rdf:about="#S""##), "{text}");
+        let back = crate::sbml::import(&text, &opts).unwrap();
         assert!(
             back.warnings.iter().all(|w| !w.contains("aren't kept")),
             "{:?}",
             back.warnings
         );
+        check(&back.model);
     }
 
     /// Display names go out as SBML `name` and come back (D1 of

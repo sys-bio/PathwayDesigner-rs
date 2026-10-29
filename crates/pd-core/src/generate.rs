@@ -88,6 +88,7 @@ pub fn random_network(seed: u64) -> Model {
         m.parameters.push(Parameter {
             variable: k,
             expression: "0.1".to_owned(),
+            annotation: Default::default(),
         });
     }
     m
