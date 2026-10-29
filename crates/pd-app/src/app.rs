@@ -3204,6 +3204,106 @@ k = 0.1",
         assert_eq!(h.app.view.model().find_species(&id).unwrap().label(), id);
     }
 
+    /// docs/annotations-design.md step 4: a species' Annotations part picks
+    /// an SBO term, adds a reference typed as a compact identifier, and
+    /// removes it, each one undo step.
+    #[test]
+    fn annotations_are_edited_in_the_panel() {
+        let mut h = Harness::new();
+        let id = h.app.view.model().species()[0].id.clone();
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        h.click(h.widget("Annotations"));
+        h.run(vec![]);
+        // An SBO term from the common ones.
+        h.click(h.widget("Common"));
+        h.run(vec![]);
+        h.click(h.widget("247  simple chemical"));
+        h.run(vec![]);
+        let a = |h: &Harness| {
+            h.app
+                .view
+                .model()
+                .find_species(&id)
+                .unwrap()
+                .annotation
+                .clone()
+        };
+        assert_eq!(a(&h).sbo, Some(247));
+        assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
+        // A reference, typed in the field left of Add.
+        let field = h.widget("Add") - egui::vec2(90.0, 0.0);
+        h.click(field);
+        h.run(vec![Event::Text("CHEBI:17234".into())]);
+        h.click(h.widget("Add"));
+        h.run(vec![]);
+        let refs = a(&h).references;
+        assert_eq!(refs.len(), 1, "{refs:?}");
+        assert_eq!(refs[0].qualifier, "bqbiol:is");
+        assert_eq!(refs[0].resource, "https://identifiers.org/CHEBI:17234");
+        h.run(vec![]);
+        // Shown as a link, and removed with its button.
+        h.click(h.widget("✕"));
+        h.run(vec![]);
+        assert!(a(&h).references.is_empty());
+        assert_eq!(a(&h).sbo, Some(247));
+        // Notes, typed as text, applied when the field loses focus.
+        let notes = h.text("Notes") + egui::vec2(0.0, 30.0);
+        h.click(notes);
+        h.run(vec![Event::Text("From yeast.".into())]);
+        h.click(h.text("Notes"));
+        h.run(vec![]);
+        assert!(
+            a(&h)
+                .notes
+                .as_deref()
+                .is_some_and(|n| n.contains("<p>From yeast.</p>")),
+            "{:?}",
+            a(&h).notes
+        );
+        // With nothing selected, the Diagram's part is the model's.
+        h.key(Key::Escape, Modifiers::NONE);
+        h.click(h.on_screen(&id) + egui::vec2(0.0, 300.0));
+        h.run(vec![]);
+        h.click(h.widget("Annotations"));
+        h.run(vec![]);
+        h.click(h.widget("Common"));
+        h.run(vec![]);
+        h.click(h.widget("62  continuous framework"));
+        h.run(vec![]);
+        assert_eq!(h.app.view.model().annotation.sbo, Some(62));
+    }
+
+    /// A4: notes the user only looks at stay as they were read.
+    #[test]
+    fn untouched_notes_stay_as_read() {
+        let mut h = Harness::new();
+        let id = h.app.view.model().species()[0].id.clone();
+        let read = "<body xmlns=\"http://www.w3.org/1999/xhtml\"><p class=\"x\">Kept <b>as</b> read.</p></body>";
+        let a = pd_core::model::Annotation {
+            notes: Some(read.into()),
+            ..Default::default()
+        };
+        h.app.view.set_annotation(Some(&id), a);
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        // Titled with how many it holds.
+        h.click(h.widget("Annotations (1)"));
+        h.run(vec![]);
+        let notes = h.text("Notes") + egui::vec2(0.0, 30.0);
+        h.click(notes);
+        // Typed and taken back: the same words, so the notes stay as read.
+        h.run(vec![Event::Text("x".into())]);
+        h.key(Key::Backspace, Modifiers::NONE);
+        h.click(h.text("Notes"));
+        h.run(vec![]);
+        let m = h.app.view.model();
+        assert_eq!(
+            m.find_species(&id).unwrap().annotation.notes.as_deref(),
+            Some(read)
+        );
+    }
+
     #[test]
     fn save_works_while_typing_in_the_text_box() {
         let dir = std::env::temp_dir().join(format!("pd-save-typing-{}", std::process::id()));

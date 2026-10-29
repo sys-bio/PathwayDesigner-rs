@@ -170,6 +170,51 @@ impl DiagramView {
         self.record_if_changed("Edit Display Name", before)
     }
 
+    /// The annotation of a species (its primary's, for an alias), a reaction
+    /// or a compartment by id, or of the model for `None`
+    /// (docs/annotations-design.md).
+    pub fn annotation(&self, id: Option<&str>) -> Option<&crate::model::Annotation> {
+        let m = &self.model;
+        let Some(id) = id else {
+            return Some(&m.annotation);
+        };
+        if let Some(s) = m.find_species(id) {
+            return m.find_species(s.primary_id()).map(|p| &p.annotation);
+        }
+        m.find_reaction(id)
+            .map(|r| &r.annotation)
+            .or_else(|| m.find_compartment(id).map(|c| &c.annotation))
+    }
+
+    /// Replaces that annotation. One undo step, *Edit Annotation*; nothing if
+    /// it is the same.
+    pub fn set_annotation(
+        &mut self,
+        id: Option<&str>,
+        annotation: crate::model::Annotation,
+    ) -> ViewResponse {
+        let before = self.model.clone();
+        match id {
+            None => self.model.annotation = annotation,
+            Some(id) => {
+                let primary = self
+                    .model
+                    .find_species(id)
+                    .map(|s| s.primary_id().to_owned());
+                if let Some(primary) = primary {
+                    if let Some(s) = self.model.find_species_mut(&primary) {
+                        s.annotation = annotation;
+                    }
+                } else if let Some(r) = self.model.find_reaction_mut(id) {
+                    r.annotation = annotation;
+                } else if let Some(c) = self.model.find_compartment_mut(id) {
+                    c.annotation = annotation;
+                }
+            }
+        }
+        self.record_if_changed("Edit Annotation", before)
+    }
+
     /// Whether labels show display names (View ▸ Show Display Names,
     /// docs/display-names-design.md D4). A setting of the diagram, saved in
     /// its file.
@@ -1250,6 +1295,47 @@ mod tests {
         v.set_show_display_names(true);
         let name_width = crate::render::draw::width_for_name(&v.model().species()[0]);
         assert!(name_width > id_width, "{name_width} > {id_width}");
+    }
+
+    #[test]
+    fn an_annotation_is_edited_on_the_primary_or_the_model_in_one_step() {
+        use crate::model::{Annotation, Reference};
+        let mut v = view();
+        let alias = v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        let a = Annotation {
+            sbo: Some(247),
+            references: vec![Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: "https://identifiers.org/CHEBI:17234".into(),
+            }],
+            notes: None,
+        };
+        v.set_annotation(Some(&alias), a.clone());
+        assert_eq!(v.undo_description(), Some("Edit Annotation"));
+        assert_eq!(v.model().find_species("S1").unwrap().annotation, a);
+        assert!(
+            v.model()
+                .find_species(&alias)
+                .unwrap()
+                .annotation
+                .is_empty()
+        );
+        assert_eq!(
+            v.annotation(Some(&alias)),
+            Some(&a),
+            "an alias shows its species'"
+        );
+        v.set_annotation(Some("R5"), a.clone());
+        assert_eq!(v.model().find_reaction("R5").unwrap().annotation, a);
+        v.set_annotation(None, a.clone());
+        assert_eq!(v.model().annotation, a);
+        assert_eq!(v.annotation(Some("nothing")), None);
+        // The same again is no step.
+        let steps = v.undo_description();
+        v.set_annotation(None, a);
+        assert_eq!(v.undo_description(), steps);
+        v.undo();
+        assert!(v.model().annotation.is_empty());
     }
 
     #[test]

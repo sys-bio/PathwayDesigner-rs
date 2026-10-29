@@ -83,6 +83,11 @@ pub struct Inspector {
     compartment_name: Draft,
     /// Why the last compartment rename was refused.
     rename_error: Option<String>,
+    /// The Annotations parts (docs/annotations-design.md, step 4).
+    species_annotation: crate::annotation_panel::AnnotationPanel,
+    reaction_annotation: crate::annotation_panel::AnnotationPanel,
+    compartment_annotation: crate::annotation_panel::AnnotationPanel,
+    model_annotation: crate::annotation_panel::AnnotationPanel,
     /// The words of the one selected text, as shown or typed.
     words: String,
     /// The text `words` belongs to.
@@ -414,6 +419,9 @@ impl Inspector {
                         }
                     });
             });
+            if !look_only && let Some(id) = &one_species {
+                self.species_annotation.show(ui, view, Some(id), "species");
+            }
         }
 
         if !reactions.is_empty() {
@@ -522,6 +530,10 @@ impl Inspector {
                     self.modifiers(ui, view, one_reaction.as_deref());
                 }
             });
+            if !look_only && let Some(id) = &one_reaction {
+                self.reaction_annotation
+                    .show(ui, view, Some(id), "reaction");
+            }
         }
 
         if !compartments.is_empty() {
@@ -610,6 +622,10 @@ impl Inspector {
                     ui.label(RichText::new(e).color(ERROR).small());
                 }
             });
+            if !look_only && let Some(id) = &one_compartment {
+                self.compartment_annotation
+                    .show(ui, view, Some(id), "compartment");
+            }
         }
 
         if !texts.is_empty() {
@@ -744,6 +760,9 @@ impl Inspector {
                         });
                         ui.end_row();
                     });
+                // The model's own annotation, and its history.
+                self.model_annotation.show(ui, view, None, "model");
+                history(ui, view);
             }
         }
     }
@@ -1422,6 +1441,35 @@ fn label_choice(ui: &mut egui::Ui, view: &mut DiagramView, kind: StyleKind) {
     if let Some(c) = chosen {
         view.set_label_choice(kind, c);
     }
+}
+
+/// The model's history, as read: who made it and when. Not edited here.
+fn history(ui: &mut egui::Ui, view: &DiagramView) {
+    let h = &view.model().history;
+    if h.is_empty() {
+        return;
+    }
+    let mut lines = Vec::new();
+    for c in &h.creators {
+        let name = [c.given.as_deref(), c.family.as_deref()]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" ");
+        let place = c
+            .organization
+            .as_deref()
+            .map(|o| format!(", {o}"))
+            .unwrap_or_default();
+        lines.push(format!("{name}{place}"));
+    }
+    if let Some(d) = &h.created {
+        lines.push(format!("Created {d}"));
+    }
+    if let Some(d) = h.modified.last() {
+        lines.push(format!("Modified {d}"));
+    }
+    ui.label(RichText::new(lines.join("\n")).small().weak());
 }
 
 fn name_face(ui: &mut egui::Ui, view: &mut DiagramView, species: bool) {

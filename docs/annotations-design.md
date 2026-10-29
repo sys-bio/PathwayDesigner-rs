@@ -9,7 +9,9 @@ done: the same five go through Antimony and back with nothing lost. libAntimony
 3.2.1 reads the same Antimony with one difference: Antimony has one word,
 `description`, for `bqbiol:isDescribedBy` and, on a model, `bqmodel:isDescribedBy`,
 and libAntimony reads it on a model as the biology qualifier; our reader takes
-the model's.
+the model's. Step 4 done for species, reactions, compartments and the model
+(in the Diagram group); parameters have no panel yet, so theirs are kept but
+not shown.
 
 ## The problem
 

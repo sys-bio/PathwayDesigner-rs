@@ -5,6 +5,7 @@
 //! `wasm32-unknown-unknown`, and its tests run with a plain `cargo test`
 //! (SPEC-Rust §2).
 
+pub mod annotation;
 pub mod antimony;
 pub(crate) mod antimony_colors;
 pub mod antimony_layout;
