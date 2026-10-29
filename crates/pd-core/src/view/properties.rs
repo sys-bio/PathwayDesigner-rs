@@ -147,6 +147,29 @@ impl DiagramView {
         self.record_if_changed("Edit Concentration", before)
     }
 
+    /// Sets the display name of a species (its primary's, for an alias), a
+    /// reaction or a compartment (docs/display-names-design.md D3). A blank
+    /// name removes it. Neither the id nor any rate law changes. One undo
+    /// step.
+    pub fn set_display_name(&mut self, id: &str, name: &str) -> ViewResponse {
+        let name = crate::model::display_name(Some(name.trim().to_owned()));
+        let before = self.model.clone();
+        let primary = self
+            .model
+            .find_species(id)
+            .map(|s| s.primary_id().to_owned());
+        if let Some(primary) = primary {
+            if let Some(s) = self.model.find_species_mut(&primary) {
+                s.display_name = name;
+            }
+        } else if let Some(r) = self.model.find_reaction_mut(id) {
+            r.display_name = name;
+        } else if let Some(c) = self.model.find_compartment_mut(id) {
+            c.display_name = name;
+        }
+        self.record_if_changed("Edit Display Name", before)
+    }
+
     /// Makes the selected species boundary species, or not (their primaries,
     /// for aliases). One undo step.
     pub fn set_boundary(&mut self, boundary: bool) -> ViewResponse {
@@ -984,6 +1007,65 @@ mod tests {
             .iter()
             .map(|m| m.species.clone())
             .collect()
+    }
+
+    #[test]
+    fn a_display_name_is_set_on_the_primary_and_undone_in_one_step() {
+        let mut v = view();
+        let alias = v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        v.set_kinetic_law("R5", "k*S1");
+        let before = v.model().clone();
+        v.set_display_name(&alias, "  glucose ");
+        assert_eq!(v.undo_description(), Some("Edit Display Name"));
+        let m = v.model();
+        assert_eq!(
+            m.find_species("S1").unwrap().display_name.as_deref(),
+            Some("glucose")
+        );
+        assert_eq!(m.find_species(&alias).unwrap().display_name, None);
+        // Only the name changed: not the id, not the law.
+        assert_eq!(m.reactions()[0].kinetic_law, "k*S1");
+        let mut named = before.clone();
+        named.find_species_mut("S1").unwrap().display_name = Some("glucose".into());
+        assert_eq!(*m, named);
+        v.undo();
+        // As saved: undo clears the selection, which isn't.
+        assert_eq!(
+            crate::json::to_json(v.model()),
+            crate::json::to_json(&before)
+        );
+    }
+
+    #[test]
+    fn a_display_name_goes_to_a_reaction_or_compartment_and_blank_removes_it() {
+        let mut v = view();
+        v.model
+            .compartments
+            .push(crate::model::Compartment::new("cell"));
+        v.set_display_name("R5", "uptake");
+        v.set_display_name("cell", "astrocyte");
+        assert_eq!(
+            v.model()
+                .find_reaction("R5")
+                .unwrap()
+                .display_name
+                .as_deref(),
+            Some("uptake")
+        );
+        assert_eq!(
+            v.model()
+                .find_compartment("cell")
+                .unwrap()
+                .display_name
+                .as_deref(),
+            Some("astrocyte")
+        );
+        v.set_display_name("R5", "   ");
+        assert_eq!(v.model().find_reaction("R5").unwrap().display_name, None);
+        // The same name again is no step at all.
+        let steps = v.undo_description();
+        v.set_display_name("cell", "astrocyte");
+        assert_eq!(v.undo_description(), steps);
     }
 
     #[test]

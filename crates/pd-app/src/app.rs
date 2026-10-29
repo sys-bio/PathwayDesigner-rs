@@ -3128,6 +3128,27 @@ k = 0.1",
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// docs/display-names-design.md D3: the species panel shows the id and
+    /// a display name that can be typed, as one undo step.
+    #[test]
+    fn a_display_name_is_typed_in_the_panel() {
+        let mut h = Harness::new();
+        let id = h.app.view.model().species()[0].id.clone();
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        // The field is in the column beside its label.
+        let field = h.text("Display name") + egui::vec2(140.0, 0.0);
+        h.click(field);
+        h.run(vec![Event::Text("glucose".into())]);
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        let s = h.app.view.model().find_species(&id).unwrap();
+        assert_eq!(s.display_name.as_deref(), Some("glucose"));
+        assert_eq!(h.app.view.undo_description(), Some("Edit Display Name"));
+        // The id row still shows the id.
+        h.text(&id);
+    }
+
     #[test]
     fn save_works_while_typing_in_the_text_box() {
         let dir = std::env::temp_dir().join(format!("pd-save-typing-{}", std::process::id()));

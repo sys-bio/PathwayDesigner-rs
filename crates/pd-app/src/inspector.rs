@@ -33,6 +33,23 @@ enum Field {
     Volume,
     CompartmentBorderWidth,
     CompartmentFontSize,
+    /// Display names (docs/display-names-design.md D3).
+    SpeciesName,
+    ReactionName,
+    CompartmentName,
+}
+
+impl Field {
+    /// A field that holds words, not a number.
+    fn is_words(self) -> bool {
+        matches!(
+            self,
+            Field::CompartmentId
+                | Field::SpeciesName
+                | Field::ReactionName
+                | Field::CompartmentName
+        )
+    }
 }
 
 /// The text being typed into one field, and the item it is for.
@@ -59,6 +76,9 @@ pub struct Inspector {
     volume: Draft,
     compartment_border: Draft,
     compartment_font_size: Draft,
+    species_name: Draft,
+    reaction_name: Draft,
+    compartment_name: Draft,
     /// Why the last compartment rename was refused.
     rename_error: Option<String>,
     /// The words of the one selected text, as shown or typed.
@@ -191,6 +211,9 @@ impl Inspector {
             (Field::Volume, &one_compartment),
             (Field::CompartmentBorderWidth, &one_compartment),
             (Field::CompartmentFontSize, &first_compartment),
+            (Field::SpeciesName, &one_species),
+            (Field::ReactionName, &one_reaction),
+            (Field::CompartmentName, &one_compartment),
         ] {
             if self.draft(field).target != *target {
                 self.commit(field, view);
@@ -222,6 +245,9 @@ impl Inspector {
                                 None if species.is_empty() => String::new(),
                                 None => format!("{} selected", species.len()),
                             });
+                            ui.end_row();
+                            ui.label("Display name");
+                            self.name_field(ui, view, Field::SpeciesName, one_species.is_some());
                             ui.end_row();
                         }
 
@@ -403,6 +429,9 @@ impl Inspector {
                                 None => format!("{} selected", reactions.len()),
                             });
                             ui.end_row();
+                            ui.label("Display name");
+                            self.name_field(ui, view, Field::ReactionName, one_reaction.is_some());
+                            ui.end_row();
                         }
 
                         ui.label("Line");
@@ -506,6 +535,14 @@ impl Inspector {
                             } else {
                                 ui.label(format!("{} selected", compartments.len()));
                             }
+                            ui.end_row();
+                            ui.label("Display name");
+                            self.name_field(
+                                ui,
+                                view,
+                                Field::CompartmentName,
+                                one_compartment.is_some(),
+                            );
                             ui.end_row();
                             ui.label("Volume");
                             self.number(ui, view, Field::Volume, one_compartment.is_some(), "");
@@ -764,6 +801,9 @@ impl Inspector {
             Field::Volume => &self.volume,
             Field::CompartmentBorderWidth => &self.compartment_border,
             Field::CompartmentFontSize => &self.compartment_font_size,
+            Field::SpeciesName => &self.species_name,
+            Field::ReactionName => &self.reaction_name,
+            Field::CompartmentName => &self.compartment_name,
         }
     }
 
@@ -783,6 +823,9 @@ impl Inspector {
             Field::Volume => &mut self.volume,
             Field::CompartmentBorderWidth => &mut self.compartment_border,
             Field::CompartmentFontSize => &mut self.compartment_font_size,
+            Field::SpeciesName => &mut self.species_name,
+            Field::ReactionName => &mut self.reaction_name,
+            Field::CompartmentName => &mut self.compartment_name,
         }
     }
 
@@ -821,6 +864,12 @@ impl Inspector {
             Field::CompartmentFontSize => m
                 .find_compartment(target)
                 .map(|c| size_text(draw::compartment_label_size(c))),
+            // An alias shows its species' name.
+            Field::SpeciesName => species().and_then(|s| s.display_name.clone()),
+            Field::ReactionName => m.find_reaction(target).and_then(|r| r.display_name.clone()),
+            Field::CompartmentName => m
+                .find_compartment(target)
+                .and_then(|c| c.display_name.clone()),
         }
         .unwrap_or_default()
     }
@@ -890,6 +939,9 @@ impl Inspector {
             (Field::CompartmentBorderWidth, Some(v)) => {
                 view.set_compartment_border_width(&target, v);
             }
+            (Field::SpeciesName | Field::ReactionName | Field::CompartmentName, _) => {
+                view.set_display_name(&target, &text);
+            }
             _ => {}
         }
     }
@@ -916,12 +968,11 @@ impl Inspector {
     ) -> egui::Response {
         self.refresh(field, view);
         let d = self.draft_mut(field);
-        // The compartment's id is the one field here that isn't a number.
-        let valid = field == Field::CompartmentId
-            || !d.dirty
-            || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite);
-        // An id can be long; a number is short.
-        let width = if field == Field::CompartmentId {
+        // Ids and names are words; the other fields are numbers.
+        let valid =
+            field.is_words() || !d.dirty || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite);
+        // An id or a name can be long; a number is short.
+        let width = if field.is_words() {
             f32::INFINITY
         } else {
             90.0
@@ -938,6 +989,14 @@ impl Inspector {
             self.commit(field, view);
         }
         r
+    }
+
+    /// A display-name field (docs/display-names-design.md D3): empty, with a
+    /// hint, when the item has none; for one item at a time.
+    fn name_field(&mut self, ui: &mut egui::Ui, view: &mut DiagramView, field: Field, one: bool) {
+        let hint = if one { "none" } else { "select one" };
+        self.number(ui, view, field, one, hint)
+            .on_hover_text("The name shown instead of the id, when names are shown");
     }
 
     /// The rate-law field: a parse error shows under it, but the law is
