@@ -264,6 +264,16 @@ pub struct SpeciesNode {
     pub style: VisualStyle,
     /// The saved style it follows (S §8.6), by name, while it looks like it.
     pub style_name: Option<String>,
+    /// Its display name (SBML `name`, Antimony `is "..."`;
+    /// docs/display-names-design.md D1), on a primary only: an alias shows
+    /// its species'. `None` when it has none.
+    pub display_name: Option<String>,
+}
+
+/// A display name as read from a file: `None` for a missing or blank one
+/// (docs/display-names-design.md D1).
+pub fn display_name(name: Option<String>) -> Option<String> {
+    name.filter(|n| !n.trim().is_empty())
 }
 
 /// What a species is drawn as (S §5.10).
@@ -374,6 +384,7 @@ impl SpeciesNode {
             selected: false,
             style: VisualStyle::default(),
             style_name: None,
+            display_name: None,
         }
     }
 
@@ -647,6 +658,9 @@ pub struct Reaction {
     /// The stem is kept straight (S §5.13): dragging an end pivots it about
     /// the junction instead of bending it.
     pub stem_straight: bool,
+    /// Its display name (docs/display-names-design.md D1); `None` when it
+    /// has none.
+    pub display_name: Option<String>,
 }
 
 /// True if a stem's ends, offsets from the junction, are on one straight
@@ -688,6 +702,7 @@ impl Reaction {
             label_offset: None,
             stem: None,
             stem_straight: false,
+            display_name: None,
         }
     }
 
@@ -853,6 +868,9 @@ pub struct Compartment {
     pub selected: bool,
     /// The saved style it follows (S §8.6), by name, while it looks like it.
     pub style_name: Option<String>,
+    /// Its display name (docs/display-names-design.md D1); `None` when it
+    /// has none.
+    pub display_name: Option<String>,
 }
 
 impl Compartment {
@@ -866,6 +884,7 @@ impl Compartment {
             hidden: false,
             selected: false,
             style_name: None,
+            display_name: None,
         }
     }
 

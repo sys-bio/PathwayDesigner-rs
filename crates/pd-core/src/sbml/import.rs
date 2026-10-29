@@ -145,6 +145,7 @@ impl Builder {
             let comp = Compartment {
                 size: c.size.unwrap_or(1.0),
                 dimensions: c.spatial_dimensions.map_or(3, |d| d as u32),
+                display_name: crate::model::display_name(c.name.clone()),
                 ..Compartment::new(c.id.clone())
             };
             let implied = c.id == DEFAULT_COMPARTMENT && comp.size == 1.0 && comp.dimensions == 3;
@@ -164,6 +165,7 @@ impl Builder {
             };
             node.is_boundary = s.boundary_condition.unwrap_or(false);
             node.is_constant = s.constant.unwrap_or(false);
+            node.display_name = crate::model::display_name(s.name.clone());
             if s.compartment != DEFAULT_COMPARTMENT {
                 node.compartment = s.compartment.clone();
             }
@@ -583,6 +585,7 @@ impl Builder {
             return;
         }
         let mut rx = Reaction::new(r.id.clone(), Pt::ZERO);
+        rx.display_name = crate::model::display_name(r.name.clone());
         rx.mode = ReactionMode::Straight;
         // Level 2 makes reactions reversible unless they say otherwise.
         rx.is_reversible = r.reversible.unwrap_or(self.level == 2);

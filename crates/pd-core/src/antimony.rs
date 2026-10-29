@@ -197,12 +197,16 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
         if let Some(rule) = s.rate_rule() {
             skip(rule.span, "Rate rules");
         }
-        if s.display_name.is_some()
-            || s.notes.is_some()
-            || !s.cv_terms.is_empty()
-            || s.sbo_term.is_some()
-        {
-            skip(s.span, "Names, notes and annotations");
+        if s.notes.is_some() || !s.cv_terms.is_empty() || s.sbo_term.is_some() {
+            skip(s.span, "Notes and annotations");
+        }
+        // Species, compartments and reactions keep their names; others don't.
+        let named = matches!(
+            s.kind,
+            SymbolKind::Species | SymbolKind::Compartment | SymbolKind::Reaction
+        ) || (s.is_boundary && s.kind == SymbolKind::Parameter);
+        if s.display_name.is_some() && !named {
+            skip(s.span, "Names of parameters and other items");
         }
         if s.units.is_some() || s.conversion_factor.is_some() {
             skip(s.span, "Units and conversion factors");
@@ -643,6 +647,19 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         .map(|r| format!("{} := {};", r.variable, r.expression.trim()))
         .collect();
 
+    // `S1 is "glucose";` (docs/display-names-design.md D1), in the order of
+    // the sections above.
+    let named = model
+        .compartments
+        .iter()
+        .filter(|c| !c.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT))
+        .map(|c| (&c.id, &c.display_name))
+        .chain(primaries.iter().map(|s| (&s.id, &s.display_name)))
+        .chain(model.reactions().iter().map(|r| (&r.id, &r.display_name)));
+    let names: Vec<String> = named
+        .filter_map(|(id, name)| Some(format!("{id} is {};", quoted_name(name.as_deref()?))))
+        .collect();
+
     let mut out = format!("model {name}\n");
     let mut first = true;
     for (title, lines) in [
@@ -652,6 +669,7 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         ("Parameters", parameters),
         ("Initial values", initial),
         ("Assignment rules", rules),
+        ("Display names", names),
         ("Layout", layout),
     ] {
         if lines.is_empty() {
@@ -684,6 +702,26 @@ fn number(v: f64) -> String {
 
 /// One side of a reaction: species ids with their stoichiometry.
 type Side = Vec<(String, f64)>;
+
+/// The display name `id` is given (`S1 is "glucose"`), if any.
+fn display_name_of(module: &Module, id: &str) -> Option<String> {
+    let symbol = module.symbols.iter().find(|s| s.name == id)?;
+    crate::model::display_name(symbol.display_name.clone())
+}
+
+/// A display name as an Antimony string: on one line, with ' for ", which
+/// libAntimony's strings can't be relied on to hold.
+fn quoted_name(name: &str) -> String {
+    let one_line: String = name
+        .chars()
+        .map(|c| match c {
+            '"' => '\'',
+            '\n' | '\r' | '\t' => ' ',
+            c => c,
+        })
+        .collect();
+    format!("\"{one_line}\"")
+}
 
 /// What is known about one species while building.
 struct SpeciesInfo {
@@ -844,7 +882,10 @@ impl Builder<'_> {
         // Compartments.
         let mut compartments: Vec<Compartment> = module
             .compartments()
-            .map(|c| Compartment::new(c.name.clone()))
+            .map(|c| Compartment {
+                display_name: crate::model::display_name(c.display_name.clone()),
+                ..Compartment::new(c.name.clone())
+            })
             .collect();
 
         // `x = expr`, in the order written: a species' initial value, a
@@ -937,6 +978,7 @@ impl Builder<'_> {
             node.is_constant = s.constant;
             node.compartment = s.compartment.clone();
             node.initial_value = s.initial;
+            node.display_name = display_name_of(module, &s.id);
             if model.push_species(node).is_err() {
                 // Unreachable: names were made unique above.
                 continue;
@@ -982,6 +1024,9 @@ impl Builder<'_> {
             );
         }
         self.interactions(&mut model);
+        for r in model.reactions_mut() {
+            r.display_name = display_name_of(module, &r.id);
+        }
         model.recompute_id_counter();
         model
     }
@@ -1419,6 +1464,90 @@ mod tests {
         let lines: Vec<usize> = i.warnings.iter().map(|w| w.line).collect();
         assert_eq!(lines, [1, 4, 5, 6], "{:?}", i.warnings);
         assert_eq!(i.model.reactions().len(), 1);
+    }
+
+    /// D1 of docs/display-names-design.md: `x is "…"` on a species,
+    /// compartment or reaction is kept, written back in its own section, and
+    /// read again.
+    #[test]
+    fn display_names_round_trip() {
+        let i = import(
+            "compartment cell = 1
+species S in cell
+J1: S -> ; k*S
+k = 1
+             cell is \"astrocyte\"
+S is \"L-glutamate\"
+J1 is \"uptake\"",
+            &ON,
+        )
+        .unwrap();
+        assert!(i.warnings.is_empty(), "{:?}", i.warnings);
+        let m = ok(
+            "compartment cell = 1\nspecies S in cell, P in cell\n\
+             J1: S -> P; k*S\nk = 1\n\
+             cell is \"astrocyte\"\nS is \"L-glutamate\"\nJ1 is \"glutamate uptake\"",
+            &ON,
+        );
+        let name = |id: &str| m.find_species(id).unwrap().display_name.clone();
+        assert_eq!(name("S").as_deref(), Some("L-glutamate"));
+        assert_eq!(name("P"), None);
+        assert_eq!(
+            m.find_reaction("J1").unwrap().display_name.as_deref(),
+            Some("glutamate uptake")
+        );
+        assert_eq!(
+            m.find_compartment("cell").unwrap().display_name.as_deref(),
+            Some("astrocyte")
+        );
+        let text = export(&m);
+        assert!(
+            text.contains(
+                "  // Display names\n  cell is \"astrocyte\";\n  S is \"L-glutamate\";\n  \
+                 J1 is \"glutamate uptake\";\n"
+            ),
+            "{text}"
+        );
+        let back = ok(&text, &ON);
+        assert_eq!(
+            back.find_species("S").unwrap().display_name.as_deref(),
+            Some("L-glutamate")
+        );
+        assert_eq!(
+            back.find_reaction("J1").unwrap().display_name.as_deref(),
+            Some("glutamate uptake")
+        );
+        assert_eq!(
+            back.find_compartment("cell")
+                .unwrap()
+                .display_name
+                .as_deref(),
+            Some("astrocyte")
+        );
+    }
+
+    #[test]
+    fn a_display_name_is_written_on_one_line_without_double_quotes() {
+        let mut m = ok("A -> B; k*A\nk = 1", &ON);
+        m.find_species_mut("A").unwrap().display_name = Some("5\" cap\nmRNA".into());
+        let text = export(&m);
+        assert!(text.contains("  A is \"5' cap mRNA\";\n"), "{text}");
+        assert_eq!(
+            ok(&text, &ON)
+                .find_species("A")
+                .unwrap()
+                .display_name
+                .as_deref(),
+            Some("5' cap mRNA")
+        );
+    }
+
+    #[test]
+    fn a_parameters_name_is_skipped_with_a_warning() {
+        let i = import("A -> B; k*A\nk = 1\nk is \"rate constant\"", &ON).unwrap();
+        assert_eq!(i.warnings.len(), 1, "{:?}", i.warnings);
+        // At the symbol, as for its notes: where `k` is first given.
+        assert_eq!(i.warnings[0].line, 2);
     }
 
     #[test]

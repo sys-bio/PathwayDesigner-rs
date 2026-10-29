@@ -152,6 +152,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     for c in &model.compartments {
         m.compartments.push(sb::Compartment {
             id: c.id.clone(),
+            name: c.display_name.clone(),
             size: Some(c.size),
             spatial_dimensions: Some(f64::from(c.dimensions)),
             constant: Some(true),
@@ -167,6 +168,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     {
         m.species.push(sb::Species {
             id: s.id.clone(),
+            name: s.display_name.clone(),
             compartment: if s.compartment.is_empty() {
                 DEFAULT_COMPARTMENT.into()
             } else {
@@ -239,6 +241,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     for r in model.reactions() {
         let mut rx = sb::Reaction {
             id: r.id.clone(),
+            name: r.display_name.clone(),
             reversible: Some(r.is_reversible),
             fast: Some(false),
             ..Default::default()
@@ -737,5 +740,49 @@ mod tests {
         assert_eq!(ids.unique("a".into()), "a_2");
         assert_eq!(ids.unique("a".into()), "a_3");
         assert_eq!(ids.unique("b".into()), "b");
+    }
+
+    /// Display names go out as SBML `name` and come back (D1 of
+    /// docs/display-names-design.md); an alias has none of its own.
+    #[test]
+    fn display_names_round_trip() {
+        use crate::geometry::pt;
+        use crate::model::{Compartment, Participant, Reaction};
+        let mut m = Model::new();
+        let mut c = Compartment::new("comp_0");
+        c.display_name = Some("astrocyte".into());
+        m.compartments.push(c);
+        let a = m.add_species(pt(0.0, 0.0), 60.0, 30.0);
+        let b = m.add_species(pt(200.0, 0.0), 60.0, 30.0);
+        m.find_species_mut(&a).unwrap().display_name = Some("L-glutamate".into());
+        let alias = m.add_alias(&a, pt(0.0, 100.0)).unwrap();
+        let mut r = Reaction::new("re12", pt(100.0, 0.0));
+        r.reactants.push(Participant::new(a.as_str(), 1.0));
+        r.products.push(Participant::new(b.as_str(), 1.0));
+        r.display_name = Some("glutamate uptake".into());
+        m.push_reaction(r).unwrap();
+
+        let text = export(&m).xml;
+        assert!(text.contains("name=\"L-glutamate\""), "{text}");
+        let opts = crate::antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        let back = crate::sbml::import(&text, &opts).unwrap().model;
+        let name = |id: &str| back.find_species(id).unwrap().display_name.clone();
+        assert_eq!(name(&a).as_deref(), Some("L-glutamate"));
+        assert_eq!(name(&b), None);
+        assert_eq!(name(&alias), None);
+        assert_eq!(
+            back.find_reaction("re12").unwrap().display_name.as_deref(),
+            Some("glutamate uptake")
+        );
+        assert_eq!(
+            back.find_compartment("comp_0")
+                .unwrap()
+                .display_name
+                .as_deref(),
+            Some("astrocyte")
+        );
     }
 }

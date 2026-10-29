@@ -21,9 +21,14 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought the diagram's named colors (docs/diagram-format.md §5.1)
-/// and species styles with a size and the name inside (§6.2).
-pub const FORMAT_VERSION: u32 = 16;
+/// one that brought display names on species, reactions and compartments
+/// (docs/display-names-design.md D1).
+pub const FORMAT_VERSION: u32 = 17;
+
+/// The version that brought the diagram's named colors
+/// (docs/diagram-format.md §5.1) and species styles with a size and the name
+/// inside (§6.2).
+pub const COLOR_NAMES_VERSION: u32 = 16;
 
 /// The version that brought corner points on reactant and product lines
 /// (S §5.6.5).
@@ -68,7 +73,8 @@ pub const TEXT_VERSION: u32 = 4;
 pub const DELPHI_VERSION: u32 = 3;
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 16 if the diagram names colors (from a diagram's
+/// (SPEC-Rust §4.2): 17 if a species, reaction or compartment has a display
+/// name, 16 if the diagram names colors (from a diagram's
 /// `color gold = #FFD54F`) or a species style has a size with the name
 /// inside (`style cofactor { size 18 }`), 15 if a reactant's or product's line has corner points
 /// (S §5.6.5), 14 if a name is bold or italic (S §5.11.1), 13 if its
@@ -119,8 +125,13 @@ pub fn needed_version(model: &Model) -> u32 {
             }
         )
     });
-    if !model.color_names.is_empty() || sized_inside {
+    let display_names = model.species().iter().any(|s| s.display_name.is_some())
+        || model.reactions().iter().any(|r| r.display_name.is_some())
+        || model.compartments.iter().any(|c| c.display_name.is_some());
+    if display_names {
         FORMAT_VERSION
+    } else if !model.color_names.is_empty() || sized_inside {
+        COLOR_NAMES_VERSION
     } else if leg_corners {
         LEG_CORNERS_VERSION
     } else if name_fonts {
@@ -426,6 +437,9 @@ struct FileCompartment {
     /// Version 6: no border (S §7.9). Left out when it has one.
     #[serde(default, skip_serializing_if = "is_false")]
     no_border: bool,
+    /// Version 17: its display name (docs/display-names-design.md D1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
 }
 
 /// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
@@ -484,6 +498,10 @@ struct FileSpecies {
     /// Version 6: no border (S §5.3). Left out when it has one.
     #[serde(default, skip_serializing_if = "is_false")]
     no_border: bool,
+    /// Version 17: its display name (docs/display-names-design.md D1), on a
+    /// primary only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -531,6 +549,9 @@ struct FileReaction {
     /// it is straight.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     stem_straight: Option<bool>,
+    /// Version 17: its display name (docs/display-names-design.md D1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -702,6 +723,7 @@ impl FileModel {
                 hidden: c.hidden,
                 selected: false,
                 style_name: c.style_name,
+                display_name: crate::model::display_name(c.display_name),
             })
             .collect();
         model.parameters = self
@@ -776,12 +798,19 @@ impl FileModel {
                     ..style_from_file(s.style)
                 },
                 style_name: s.style_name,
+                display_name: crate::model::display_name(s.display_name),
             };
             if let Err(dup) = model.push_species(node) {
                 warnings.push(format!("A second species with id `{}` was skipped.", dup.0));
             }
         }
         resolve_aliases(&mut model, &mut warnings);
+        // An alias shows its species' name; it has none of its own.
+        for s in model.species_mut() {
+            if s.alias_of.is_some() {
+                s.display_name = None;
+            }
+        }
 
         for r in self.reactions {
             let mode = if r.is_bezier {
@@ -798,6 +827,7 @@ impl FileModel {
             reaction.junction_smooth = r.is_junction_smooth;
             reaction.style = style_from_file(r.style);
             reaction.style_name = r.style_name;
+            reaction.display_name = crate::model::display_name(r.display_name);
             reaction.stem = match r.stem.as_deref() {
                 None => None,
                 Some(&[a, b, c, d]) if [a, b, c, d].iter().all(|v| v.is_finite()) => {
@@ -1190,6 +1220,7 @@ impl FileModel {
                     hidden: c.hidden,
                     style_name: c.style_name.clone(),
                     no_border: c.style.no_border,
+                    display_name: c.display_name.clone(),
                 })
                 .collect(),
             parameters: m
@@ -1232,6 +1263,7 @@ impl FileModel {
                     label_dy: s.label_offset.map(|o| o.y),
                     style_name: s.style_name.clone(),
                     no_border: s.style.no_border,
+                    display_name: s.display_name.clone(),
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -1414,6 +1446,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         label_dy: r.label_offset.map(|o| o.y),
         stem: r.stem.map(|(a, b)| vec![a.x, a.y, b.x, b.y]),
         stem_straight: needs_stem_straight(r).then_some(false),
+        display_name: r.display_name.clone(),
     }
 }
 
@@ -1474,7 +1507,7 @@ mod tests {
         });
         let id = m.add_species(Pt::ZERO, 18.0, 18.0);
         crate::styles::set_link(&mut m, StyleKind::Species, &id, Some("cofactor".into()));
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), COLOR_NAMES_VERSION);
         let back = from_json(&to_json(&m)).unwrap().model;
         assert!(crate::styles::same_look(
             back.styles[0].look,
@@ -1487,15 +1520,62 @@ mod tests {
     }
 
     #[test]
+    fn display_names_are_kept_in_version_17() {
+        let mut m = Model::default();
+        m.compartments.push(Compartment::new("comp_0"));
+        let s = m.add_species(Pt::ZERO, 60.0, 30.0);
+        let alias = m.add_alias(&s, pt(100.0, 0.0)).unwrap();
+        m.push_reaction(Reaction::new("re12", pt(50.0, 50.0)))
+            .unwrap();
+        assert!(needed_version(&m) < FORMAT_VERSION);
+        assert!(!to_json(&m).contains("displayName"));
+        m.find_species_mut(&s).unwrap().display_name = Some("L-glutamate".into());
+        m.find_reaction_mut("re12").unwrap().display_name = Some("glutamate uptake".into());
+        m.compartments[0].display_name = Some("astrocyte".into());
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let text = to_json(&m);
+        assert_eq!(text.matches("\"displayName\"").count(), 3, "{text}");
+        let back = from_json(&text).unwrap().model;
+        assert_eq!(
+            back.find_species(&s).unwrap().display_name.as_deref(),
+            Some("L-glutamate")
+        );
+        assert_eq!(back.find_species(&alias).unwrap().display_name, None);
+        assert_eq!(
+            back.find_reaction("re12").unwrap().display_name.as_deref(),
+            Some("glutamate uptake")
+        );
+        assert_eq!(
+            back.compartments[0].display_name.as_deref(),
+            Some("astrocyte")
+        );
+    }
+
+    #[test]
+    fn a_blank_or_alias_display_name_is_dropped() {
+        let text = r#"{"version": 17, "species": [
+            {"id": "A", "displayName": "  "},
+            {"id": "B", "displayName": "glucose"},
+            {"id": "B_1", "aliasOf": "B", "displayName": "glucose"}]}"#;
+        let m = from_json(text).unwrap().model;
+        assert_eq!(m.find_species("A").unwrap().display_name, None);
+        assert_eq!(
+            m.find_species("B").unwrap().display_name.as_deref(),
+            Some("glucose")
+        );
+        assert_eq!(m.find_species("B_1").unwrap().display_name, None);
+    }
+
+    #[test]
     fn named_colors_are_kept_in_version_16() {
         let mut m = Model::default();
-        assert!(needed_version(&m) < FORMAT_VERSION);
+        assert!(needed_version(&m) < COLOR_NAMES_VERSION);
         assert!(!to_json(&m).contains("colorNames"));
         m.color_names = vec![
             ("gold".into(), Rgba::rgb(0xFF, 0xD5, 0x4F)),
             ("blue".into(), Rgba::rgb(0x15, 0x65, 0xC0)),
         ];
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), COLOR_NAMES_VERSION);
         let text = to_json(&m);
         assert!(text.contains("\"colorNames\""), "{text}");
         assert_eq!(from_json(&text).unwrap().model.color_names, m.color_names);
