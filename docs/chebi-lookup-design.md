@@ -1,6 +1,10 @@
 # Finding ChEBI entries by name: design
 
-Status: decisions C1–C9 made with the author, 2026-10-29.
+Status: decisions C1–C9 made with the author, 2026-10-29. All four steps done
+(2026-10-29). Tried on the Millard model, OLS4's loose search gave only wrong
+matches and is not used; "sure" was made stricter (a match's name must be the
+name looked for). Added with step 3: a species' name in the review selects it
+and centres the diagram on it, and the list on the left has a Find box.
 
 ## The problem
 

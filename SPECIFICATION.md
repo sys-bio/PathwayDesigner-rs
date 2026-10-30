@@ -1669,7 +1669,7 @@ fields are enabled only when exactly one species is selected.
 | Control | Applies to | Behaviour |
 |---|---|---|
 | Display name (text), Label (list) | single reaction; all selected reactions | As for species (§5.14). The Compartment group has them too. Added in the Rust version. |
-| Annotations (folded part) | single species, reaction or compartment; the model, in the Diagram group shown when nothing is selected | *(Rust version, docs/annotations-design.md.)* The SBO term (a number, its name if it is a common one, a link to its definition, and a Common list of terms for that kind of item; in the Diagram group the row is *Framework (SBO)*, the modelling framework, and its list the frameworks: continuous, non-spatial continuous, discrete, logical, flux balance), the database references (each a link, opened in the browser through identifiers.org, with a button to remove it; a qualifier list and a field to add one, typed as a link or a compact identifier such as `CHEBI:15422`) and the notes, as text. Each change is one undo step, *Edit Annotation*; the SBO term and notes apply when their field loses focus, and notes not changed stay as read. The Diagram group also shows the model's history (creators, dates). |
+| Annotations (folded part) | single species, reaction or compartment; the model, in the Diagram group shown when nothing is selected | *(Rust version, docs/annotations-design.md.)* The SBO term (a number, its name if it is a common one, a link to its definition, and a Common list of terms for that kind of item; in the Diagram group the row is *Framework (SBO)*, the modelling framework, and its list the frameworks: continuous, non-spatial continuous, discrete, logical, flux balance), the database references (each a link, opened in the browser through identifiers.org, with a button to remove it; a qualifier list and a field to add one, typed as a link or a compact identifier such as `CHEBI:15422`) and the notes, as text. Each change is one undo step, *Edit Annotation*; the SBO term and notes apply when their field loses focus, and notes not changed stay as read. The Diagram group also shows the model's history (creators, dates). A species' part also has **Find in ChEBI** (docs/chebi-lookup-design.md): a field filled in with its display name or id, and a Search button that looks the words up as Annotate Species from Names does (§13.3) and lists the ChEBI entries found, each a link to its page and an Add button that adds it as a reference (`bqbiol:is`), one undo step; it says when nothing is found or no service can be reached. |
 | Line colour swatch | all selected reactions | Sets `lineColor` and `hasCustomStyle`. |
 | Line width (number) | single reaction | Sets `lineWidth` and `hasCustomStyle`. Shows the width drawn (1.5 by default); 0 or less is refused. |
 | Show junction (checkbox) | all selected reactions | Sets `junctionVisible`. The box is ticked only if **every** selected reaction shows its junction. |
@@ -2793,7 +2793,7 @@ file name when a file is open).
 | Menu | Items |
 |---|---|
 | **File** | New · Open… · Open from Gallery… (§11.8) · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
-| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Preferences… |
+| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Annotate Species from Names… (§13.3; Rust version) · *(separator)* · Preferences… |
 | **Help** | Mouse and Keyboard (added in the Rust version: a window, not modal, listing the mouse actions and keyboard shortcuts as the README does; on the macOS desktop app it names Cmd and Option, elsewhere it notes them) · About (shows the version and build date) |
 
 File dialogs: Open and Save use `*.json`. Antimony uses `*.ant` and `*.txt`. SBML
@@ -2835,6 +2835,27 @@ the Species and Reaction groups; there was no room left for more.)*
   look (§8.6). With none, it says how to save one.
 - **Structure** has the network's stoichiometry matrix, flux null space and
   conservation laws (§8.9); its matrix opens in a panel under the canvas.
+- **Annotate** *(Rust version, docs/chebi-lookup-design.md)* is there only while
+  **Annotate Species from Names…** runs (Edit menu, or a species' context menu,
+  §13.4). The species looked up are the one right-clicked if it isn't selected,
+  else the selected ones, else all; primaries only, and none that already has a
+  ChEBI reference. Each is looked up by its display name or id, one request at a
+  time and at most one every 100 ms: in BiGG (by name or id, lower case, also
+  without a compartment ending such as `_c`), which gives a full name, ChEBI
+  entries (named through ChEBI's own search) and KEGG and MetaNetX links; else in
+  ChEBI by exact name; else in PubChem. The tab shows *Searching n of m…* and a
+  **Stop** button, which reviews what was found so far. The review lists each
+  species found: a tick, its name (a link that selects it and centres the
+  diagram on it), the full name found and where from; the ChEBI entry proposed
+  (the one named as found, with the others in a list) and a link to its page;
+  and a tick to give it the full name as its display name (on when it has none).
+  The first tick is on only for a clear match: from BiGG, one entry ChEBI names
+  as BiGG names the compound; from ChEBI, one entry named exactly as the name
+  looked up; never from PubChem. Species with nothing found are listed as links.
+  **Apply (n)** adds the ticked ChEBI entries (`bqbiol:is`), with BiGG's KEGG and
+  MetaNetX links, and the ticked display names, as one undo step, *Annotate
+  Species*, and closes the tab; **Cancel** closes it and changes nothing. If no
+  service can be reached it says so.
 
 The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,
@@ -2847,7 +2868,7 @@ Which items appear depends on what was right-clicked:
 
 | Target | Items |
 |---|---|
-| Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
+| Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Annotate Species from Names… (§13.3) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
 | Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Add Stem, or Straighten Stem and Remove Stem (§5.13) · Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |

@@ -1304,7 +1304,12 @@ reference's guard against editing the model by mistake while filling in controls
   whose box is hidden can still be selected, S §7.9.) It also helps everyone find their way around large networks.
   Selecting in the tree never moves the diagram: stepping through the list with
   the arrow keys would otherwise scroll it at every step, and the selected item
-  would be hard to follow. (Earlier builds centred the clicked item.)
+  would be hard to follow. (Earlier builds centred the clicked item.) A **Find**
+  box above the lists (Ctrl/Cmd+F) keeps only the items whose id or display name
+  holds the words typed, case aside; picking one of those, or Enter for the
+  first, selects it and centres the diagram on it, since finding an item is
+  wanting to see it. A row shows the item's display name after its id when they
+  differ (`COPASI15 — G6P`).
 - The default colours already meet WCAG AA contrast for labels (`#1A1A1A` on
   `#EEF6FF`). Check this again after any change to the colours.
 

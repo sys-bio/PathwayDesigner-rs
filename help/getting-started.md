@@ -61,6 +61,23 @@ typed as a link or a short identifier such as `CHEBI:15422`, and clicking it
 opens the entry in your browser. Annotations come and go with SBML and
 Antimony files.
 
+PathwayDesigner can also look species up for you, in BiGG, ChEBI and PubChem:
+
+- **Find in ChEBI**, in a species' Annotations, searches for its name (or any
+  words you type) and lists what it finds; **Add** puts one in.
+- **Edit ▸ Annotate Species from Names…** (also on a species' right-click
+  menu) looks up the selected species, or all of them, and shows what it found
+  in an **Annotate** tab. Clear matches are ticked; check the others, since a
+  short name can find the wrong thing (click a species' name to see it on the
+  diagram). **Apply** adds what is ticked, in one step you can undo.
+
+## Finding an item
+
+The list on the left, below the tools, has every species, reaction and
+compartment. Type in its **Find** box (or press Ctrl+F) to keep only those
+whose id or display name holds the words; click one, or press Enter for the
+first, to select it and bring it into view.
+
 ## Open an example
 
 **File ▸ Open from Gallery…** opens example models, from small networks to
