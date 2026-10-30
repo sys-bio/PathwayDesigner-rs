@@ -2793,7 +2793,7 @@ file name when a file is open).
 | Menu | Items |
 |---|---|
 | **File** | New · Open… · Open from Gallery… (§11.8) · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
-| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Annotate Species from Names… (§13.3; Rust version) · *(separator)* · Preferences… |
+| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Annotate Species from Names… · Annotate Reactions from Names… (§13.3; Rust version) · *(separator)* · Preferences… |
 | **Help** | Mouse and Keyboard (added in the Rust version: a window, not modal, listing the mouse actions and keyboard shortcuts as the README does; on the macOS desktop app it names Cmd and Option, elsewhere it notes them) · About (shows the version and build date) |
 
 File dialogs: Open and Save use `*.json`. Antimony uses `*.ant` and `*.txt`. SBML
@@ -2847,7 +2847,8 @@ the Species and Reaction groups; there was no room left for more.)*
   **Stop** button, which reviews what was found so far. The review lists each
   species found: a tick, its name (a link that selects it and centres the
   diagram on it), the full name found and where from; the ChEBI entry proposed
-  (the one named as found, with the others in a list) and a link to its page;
+  (the one named as found, with the others in a list; from BiGG, only the
+  entries ChEBI names, unless it names none) and a link to its page;
   and a tick to give it the full name as its display name (on when it has none).
   The first tick is on only for a clear match: from BiGG, one entry ChEBI names
   as BiGG names the compound; from ChEBI, one entry named exactly as the name
@@ -2855,7 +2856,34 @@ the Species and Reaction groups; there was no room left for more.)*
   **Apply (n)** adds the ticked ChEBI entries (`bqbiol:is`), with BiGG's KEGG and
   MetaNetX links, and the ticked display names, as one undo step, *Annotate
   Species*, and closes the tab; **Cancel** closes it and changes nothing. If no
-  service can be reached it says so.
+  service can be reached it says so. A **Find** box above the review keeps only
+  the rows whose name, id or what was found holds the words typed.
+
+  **Annotate Reactions from Names…** *(docs/reaction-lookup-design.md; Edit
+  menu, or a reaction's context menu)* uses the same tab for reactions: the one
+  right-clicked if it isn't selected, else the selected ones, else all; none that
+  already has an EC number or a Rhea reference. Each is looked up with its
+  reactants and products (as their species, once each; modifiers left out) and
+  their ChEBI entries, in the same way: in BiGG by its id, as it is and upper
+  case, then its display name; else in Rhea, when two or more of its species have
+  ChEBI entries, for the Rhea reactions that have all of them; else BiGG's search
+  for the id, of whose first three answers only those that share the reaction's
+  species are kept (all of them, or two and one of those not a common cofactor
+  such as ATP, NAD or CoA). The review lists each reaction found: a tick, its
+  name (a link that selects it and centres the diagram on it), where it was
+  found and BiGG's name (or Rhea's equation); the reactions found, in a list,
+  and a link to the chosen one's page; what it adds (EC numbers, Rhea, KEGG and
+  MetaNetX reactions); its equation, to compare with the reaction; and a tick to
+  give it BiGG's name as its display name (on when it has none). The first tick
+  is on only for a clear match: from BiGG by id, when the reaction's species are
+  BiGG's metabolites (by BiGG id or name, case aside, a compartment ending
+  dropped) and each of those, H+ and water aside, is one of the species; from
+  Rhea, the only match, with no participants beyond the species, H+ and water
+  aside; never from BiGG's search. When some reactions have species without a
+  ChEBI entry, the review suggests annotating the species first. **Apply (n)**
+  adds the EC numbers (`bqbiol:isVersionOf`) and the Rhea master reaction, KEGG
+  and MetaNetX reactions (`bqbiol:is`), and the ticked display names, as one undo
+  step, *Annotate Reactions*.
 
 The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,
@@ -2871,7 +2899,7 @@ Which items appear depends on what was right-clicked:
 | Primary species | Create Alias · Split into Aliases (one per reaction) · Split Off Selected Reactions · Merge Aliases · Merge Selected Aliases into This · Rename · Delete Species · Annotate Species from Names… (§13.3) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Null node | Remove Null Node · Alignment ▸ … |
 | Alias | Rename (renames the primary) · Go to Primary · Split Off Selected Reactions · Merge Selected Aliases into This · Merge into Primary · Merge All Aliases into Primary · Delete Alias · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
-| Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Add Stem, or Straighten Stem and Remove Stem (§5.13) · Delete Reaction · Adjust Reaction (Make Nice) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
+| Reaction (junction or leg) | Add Reactant… · Add Product… · Remove from Reaction ▸ (§7.11) · Add Stem, or Straighten Stem and Remove Stem (§5.13) · Delete Reaction · Adjust Reaction (Make Nice) · Annotate Reactions from Names… (§13.3) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 | Free text (§7.8) | Edit Text · Delete Text · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ · Alignment ▸ … |
 | Compartment (§7.9, its border or name) | Delete Compartment (keeps its species) · Copy Style · Paste Style · Save Style… · Apply Style ▸ · Change Style to Match This ▸ |
 

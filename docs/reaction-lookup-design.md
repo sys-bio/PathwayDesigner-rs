@@ -9,7 +9,9 @@ two and one of those not a common cofactor (ATP, NAD, CoA …). Then 31 of 68
 reactions were offered (20 from BiGG by id, 6 from Rhea, 5 from the search),
 each the right reaction or its close relative, and 7 ticked, all correct. The
 others are Millard's lumped and exchange reactions, or have species the
-species lookup didn't identify (DAP, P).
+species lookup didn't identify (DAP, P). Step 2 done (2026-10-30): the menus,
+and the review in the Annotate tab, which serves species and reactions alike.
+Step 3 done: the specification (§8 Annotate tab, the menus) and help.
 
 ## The problem
 

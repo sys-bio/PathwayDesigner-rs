@@ -61,7 +61,8 @@ typed as a link or a short identifier such as `CHEBI:15422`, and clicking it
 opens the entry in your browser. Annotations come and go with SBML and
 Antimony files.
 
-PathwayDesigner can also look species up for you, in BiGG, ChEBI and PubChem:
+PathwayDesigner can also look species and reactions up for you, in BiGG,
+ChEBI, PubChem and Rhea:
 
 - **Find in ChEBI**, in a species' Annotations, searches for its name (or any
   words you type) and lists what it finds; **Add** puts one in.
@@ -70,6 +71,11 @@ PathwayDesigner can also look species up for you, in BiGG, ChEBI and PubChem:
   in an **Annotate** tab. Clear matches are ticked; check the others, since a
   short name can find the wrong thing (click a species' name to see it on the
   diagram). **Apply** adds what is ticked, in one step you can undo.
+- **Edit ▸ Annotate Reactions from Names…** (also on a reaction's right-click
+  menu) does the same for reactions: it finds their EC numbers and their Rhea,
+  KEGG and MetaNetX entries, by the reaction's id in BiGG or by its species in
+  Rhea. Compare the equation shown with your reaction before ticking it.
+  Annotate the species first: Rhea is searched by the species' ChEBI entries.
 
 ## Finding an item
 

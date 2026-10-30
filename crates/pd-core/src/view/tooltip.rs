@@ -5,7 +5,9 @@
 //! what it shows and draws it.
 
 use super::DiagramView;
+use crate::annotation::{notes_text, qualifier_text, resource_text, sbo_id, sbo_name};
 use crate::geometry::Pt;
+use crate::model::Annotation;
 use crate::render::constants::{TOOLTIP_BORDER, TOOLTIP_FILL, TOOLTIP_TEXT};
 use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::text::{font_metrics, text_width};
@@ -18,12 +20,20 @@ const OFFSET: f64 = 14.0;
 const PADDING_X: f64 = 6.0;
 const PADDING_Y: f64 = 4.0;
 const CORNER_RADIUS: f32 = 3.0;
+/// The space between two lines, as a multiple of the text's height.
+const LINE_SPACING: f64 = 1.25;
+/// How many of a qualifier's references are listed before "+ n more".
+const MAX_REFERENCES: usize = 4;
+/// How many letters of the notes' first line are shown.
+const NOTES_LETTERS: usize = 60;
 
 impl DiagramView {
     /// What the tooltip says for `target`: `id: initialValue` for a species
     /// (with up to 4 decimals; an alias shows its primary), `id: kineticLaw`
-    /// for a reaction, or just the id if it has no law. Nothing for empty
-    /// canvas or a null node.
+    /// for a reaction, or just the id if it has no law; `id: volume v` for a
+    /// compartment. Below it, the item's display name and annotation, if any
+    /// (docs/annotation-marks-design.md M1, M2), a line each. Nothing for
+    /// empty canvas or a null node.
     pub fn tooltip_text(&self, target: &Target) -> Option<String> {
         match target {
             Target::Species(id) | Target::SpeciesLabel(id) => {
@@ -32,10 +42,11 @@ impl DiagramView {
                     return None;
                 }
                 let primary = self.model.find_species(node.primary_id()).unwrap_or(node);
-                Some(format!(
-                    "{}: {}",
-                    primary.id,
-                    format_value(primary.initial_value)
+                let first = format!("{}: {}", primary.id, format_value(primary.initial_value));
+                Some(with_annotation(
+                    first,
+                    primary.display_name.as_deref(),
+                    &primary.annotation,
                 ))
             }
             Target::Handle(h) => self.tooltip_text(&Target::Leg(h.reaction.clone())),
@@ -47,27 +58,43 @@ impl DiagramView {
             | Target::ModifierLine(id, ..)
             | Target::CornerPoint(id, ..) => {
                 let r = self.model.find_reaction(id)?;
-                Some(if r.kinetic_law.trim().is_empty() {
+                let first = if r.kinetic_law.trim().is_empty() {
                     r.id.clone()
                 } else {
                     format!("{}: {}", r.id, r.kinetic_law)
-                })
+                };
+                Some(with_annotation(
+                    first,
+                    r.display_name.as_deref(),
+                    &r.annotation,
+                ))
             }
             Target::SpeciesCorner(..) => None,
             Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
                 let c = self.model.find_compartment(id)?;
-                Some(format!("{}: volume {}", c.id, format_value(c.size)))
+                let first = format!("{}: volume {}", c.id, format_value(c.size));
+                Some(with_annotation(
+                    first,
+                    c.display_name.as_deref(),
+                    &c.annotation,
+                ))
             }
             Target::Text(_) | Target::TextWrap(_) | Target::Empty => None,
         }
     }
 
     /// Draws a tooltip with `text` near `cursor` (screen points), moved back
-    /// inside `area` if it would stick out (S §5.9).
+    /// inside `area` if it would stick out (S §5.9). Each line of `text` a
+    /// line of the tooltip, from its left.
     pub fn draw_tooltip(&self, r: &mut dyn Renderer, text: &str, cursor: Pt, area: SRect) {
-        let w = text_width(text, TEXT_SIZE) + 2.0 * PADDING_X;
+        let lines: Vec<&str> = text.lines().collect();
+        let widths: Vec<f64> = lines.iter().map(|l| text_width(l, TEXT_SIZE)).collect();
+        let w = widths.iter().copied().fold(0.0, f64::max) + 2.0 * PADDING_X;
         let m = font_metrics(TEXT_SIZE);
-        let h = (m.ascent - m.descent) + 2.0 * PADDING_Y;
+        let line = m.ascent - m.descent;
+        let step = line * LINE_SPACING;
+        let n = lines.len().max(1) as f64;
+        let h = line + (n - 1.0) * step + 2.0 * PADDING_Y;
         let (min_x, min_y) = (f64::from(area.min.x), f64::from(area.min.y));
         let (max_x, max_y) = (f64::from(area.max.x), f64::from(area.max.y));
         let mut x = cursor.x + OFFSET;
@@ -89,15 +116,69 @@ impl DiagramView {
             Some(TOOLTIP_FILL),
             Some(Stroke::solid(1.0, TOOLTIP_BORDER)),
         );
-        let centre = spt((x + w / 2.0) as f32, (y + h / 2.0) as f32);
-        r.text(
-            centre,
-            text,
-            TEXT_SIZE as f32,
-            crate::model::TextFont::default(),
-            TOOLTIP_TEXT,
-        );
+        // Text is drawn about its centre: each line's centre put so that it
+        // starts at the left padding.
+        for (i, (l, lw)) in lines.iter().zip(&widths).enumerate() {
+            let centre = spt(
+                (x + PADDING_X + lw / 2.0) as f32,
+                (y + PADDING_Y + line / 2.0 + i as f64 * step) as f32,
+            );
+            r.text(
+                centre,
+                l,
+                TEXT_SIZE as f32,
+                crate::model::TextFont::default(),
+                TOOLTIP_TEXT,
+            );
+        }
     }
+}
+
+/// The tooltip's first line, then the item's display name and annotation:
+/// its SBO term, its references a line per qualifier (`is CHEBI:4170 ·
+/// kegg.compound:C00092`, the fifth on as "+ n more"), and its notes' first
+/// line, cut short.
+fn with_annotation(first: String, display_name: Option<&str>, a: &Annotation) -> String {
+    let mut lines = vec![first];
+    if let Some(name) = display_name.map(str::trim).filter(|n| !n.is_empty()) {
+        lines.push(name.to_owned());
+    }
+    if let Some(n) = a.sbo {
+        lines.push(match sbo_name(n) {
+            Some(name) => format!("{} {name}", sbo_id(n)),
+            None => sbo_id(n),
+        });
+    }
+    let mut qualifiers: Vec<&str> = Vec::new();
+    for r in &a.references {
+        if !qualifiers.contains(&r.qualifier.as_str()) {
+            qualifiers.push(&r.qualifier);
+        }
+    }
+    for q in qualifiers {
+        let all: Vec<String> = a
+            .references
+            .iter()
+            .filter(|r| r.qualifier == q)
+            .map(|r| resource_text(&r.resource))
+            .collect();
+        let mut shown = all[..all.len().min(MAX_REFERENCES)].join(" · ");
+        if all.len() > MAX_REFERENCES {
+            shown.push_str(&format!(" + {} more", all.len() - MAX_REFERENCES));
+        }
+        lines.push(format!("{} {shown}", qualifier_text(q)));
+    }
+    if let Some(notes) = &a.notes {
+        let text = notes_text(notes);
+        if let Some(l) = text.lines().map(str::trim).find(|l| !l.is_empty()) {
+            let mut cut: String = l.chars().take(NOTES_LETTERS).collect();
+            if l.chars().count() > NOTES_LETTERS {
+                cut.push('…');
+            }
+            lines.push(format!("Notes: {cut}"));
+        }
+    }
+    lines.join("\n")
 }
 
 /// A number with at most 4 decimals and no trailing zeros: 1 → "1",
@@ -156,6 +237,66 @@ mod tests {
         assert_eq!(t(Target::Species("nope".into())), None);
     }
 
+    /// M1, M2: the display name and annotation below, for species (an alias
+    /// its primary's), reactions and compartments.
+    #[test]
+    fn annotations_are_shown_below() {
+        use crate::model::Reference;
+        let mut v = view();
+        let mut m = v.model().clone();
+        let r = |q: &str, x: &str| Reference {
+            qualifier: q.into(),
+            resource: x.into(),
+        };
+        let s1 = m.find_species_mut("S1").unwrap();
+        s1.display_name = Some("D-Glucose 6-phosphate".into());
+        s1.annotation.sbo = Some(247);
+        s1.annotation.references = vec![
+            r("bqbiol:is", "https://identifiers.org/CHEBI:4170"),
+            r("bqbiol:isVersionOf", "https://identifiers.org/CHEBI:17"),
+            r("bqbiol:is", "urn:miriam:kegg.compound:C00092"),
+        ];
+        s1.annotation.notes = Some(format!(
+            "<body xmlns=\"http://www.w3.org/1999/xhtml\"><p>{}</p><p>Second.</p></body>",
+            "a".repeat(70)
+        ));
+        let rr = m.find_reaction_mut("R3").unwrap();
+        rr.annotation.references = (1..=6)
+            .map(|i| {
+                r(
+                    "bqbiol:isVersionOf",
+                    &format!("https://identifiers.org/ec-code:1.1.1.{i}"),
+                )
+            })
+            .collect();
+        let c = m.add_compartment(crate::model::Frame::from_corners(
+            pt(-500.0, -500.0),
+            pt(-300.0, -300.0),
+        ));
+        m.find_compartment_mut(&c).unwrap().annotation.sbo = Some(9_999_999);
+        v.set_model(m);
+        let t = |target: Target| v.tooltip_text(&target).unwrap();
+        let s1 = format!(
+            "S1: 0.3333\nD-Glucose 6-phosphate\nSBO:0000247 simple chemical\n\
+             is CHEBI:4170 · kegg.compound:C00092\nisVersionOf CHEBI:17\nNotes: {}…",
+            "a".repeat(60)
+        );
+        assert_eq!(t(Target::Species("S1".into())), s1);
+        assert_eq!(
+            t(Target::Species("S4".into())),
+            s1,
+            "an alias shows its primary"
+        );
+        assert_eq!(
+            t(Target::Leg("R3".into())),
+            "R3: k3*S1\nisVersionOf ec-code:1.1.1.1 · ec-code:1.1.1.2 · ec-code:1.1.1.3 · \
+             ec-code:1.1.1.4 + 2 more"
+        );
+        assert!(t(Target::Compartment(c)).ends_with("\nSBO:9999999"));
+        // Nothing to add: one line, as before.
+        assert_eq!(t(Target::Species("S2".into())), "S2: 0");
+    }
+
     #[test]
     fn reaction_without_a_law_shows_its_id() {
         let mut v = view();
@@ -180,7 +321,7 @@ mod tests {
     #[derive(Default)]
     struct Rec {
         rect: Option<SRect>,
-        text: Option<(String, f32, Rgba)>,
+        texts: Vec<(SPt, String, f32, Rgba)>,
     }
 
     impl Renderer for Rec {
@@ -192,8 +333,8 @@ mod tests {
         fn polyline(&mut self, _: &[SPt], _: Stroke) {}
         fn cubic(&mut self, _: SPt, _: SPt, _: SPt, _: SPt, _: Stroke) {}
         fn polygon(&mut self, _: &[SPt], _: Rgba) {}
-        fn text(&mut self, _: SPt, s: &str, size: f32, _: crate::model::TextFont, color: Rgba) {
-            self.text = Some((s.to_owned(), size, color));
+        fn text(&mut self, at: SPt, s: &str, size: f32, _: crate::model::TextFont, color: Rgba) {
+            self.texts.push((at, s.to_owned(), size, color));
         }
     }
 
@@ -208,7 +349,35 @@ mod tests {
         v.draw_tooltip(&mut rec, "R3: k3*S1", pt(100.0, 100.0), area);
         let rect = rec.rect.unwrap();
         assert_eq!(rect.min, spt(114.0, 114.0));
-        assert_eq!(rec.text, Some(("R3: k3*S1".to_owned(), 11.0, TOOLTIP_TEXT)));
+        assert_eq!(rec.texts.len(), 1);
+        assert_eq!(
+            (rec.texts[0].1.as_str(), rec.texts[0].2, rec.texts[0].3),
+            ("R3: k3*S1", 11.0, TOOLTIP_TEXT)
+        );
+
+        // Several lines: one below the other, each from the left, the box
+        // as wide as the longest and tall enough for all.
+        let mut rec = Rec::default();
+        v.draw_tooltip(
+            &mut rec,
+            "S1: 1\nD-Glucose 6-phosphate",
+            pt(100.0, 100.0),
+            area,
+        );
+        let rect = rec.rect.unwrap();
+        let (a, b) = (&rec.texts[0], &rec.texts[1]);
+        assert_eq!(
+            (a.1.as_str(), b.1.as_str()),
+            ("S1: 1", "D-Glucose 6-phosphate")
+        );
+        assert!(b.0.y > a.0.y + 10.0, "below: {a:?} {b:?}");
+        let left =
+            |t: &(SPt, String, f32, Rgba)| f64::from(t.0.x) - text_width(&t.1, TEXT_SIZE) / 2.0;
+        assert!((left(a) - left(b)).abs() < 0.01, "both from the left");
+        assert!((left(a) - (f64::from(rect.min.x) + PADDING_X)).abs() < 0.01);
+        let wide = text_width("D-Glucose 6-phosphate", TEXT_SIZE) + 2.0 * PADDING_X;
+        assert!((f64::from(rect.width()) - wide).abs() < 0.01);
+        assert!(f64::from(b.0.y) < f64::from(rect.max.y) - PADDING_Y);
 
         // Near the bottom-right corner it flips to stay inside.
         let mut rec = Rec::default();

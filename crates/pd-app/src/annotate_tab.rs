@@ -561,12 +561,20 @@ fn reaction_row(ui: &mut egui::Ui, i: usize, row: &mut ReactionRow) -> bool {
     let equation = c.equation.clone();
     ui.horizontal(|ui| {
         ui.add_space(20.0);
+        // Two points above egui's small text, to be read easily.
+        let size = ui
+            .style()
+            .text_styles
+            .get(&egui::TextStyle::Small)
+            .map_or(9.0, |f| f.size)
+            + 2.0;
         ui.vertical(|ui| {
             if !gives.is_empty() {
                 let gives = gives.join(" · ");
-                ui.label(RichText::new(&gives).small()).on_hover_text(gives);
+                ui.label(RichText::new(&gives).size(size))
+                    .on_hover_text(gives);
             }
-            ui.label(RichText::new(&equation).small().weak())
+            ui.label(RichText::new(&equation).size(size).weak())
                 .on_hover_text(equation);
         });
     });
