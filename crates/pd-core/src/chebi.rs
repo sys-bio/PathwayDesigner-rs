@@ -8,10 +8,14 @@
 //!
 //! 1. **BiGG**, by its name, then its id, lower case, with and without a
 //!    compartment ending (`g6p_c`): a full name, its ChEBI entries, and its
-//!    KEGG and MetaNetX links (C4). Then **OLS4** for that full name, which
+//!    KEGG and MetaNetX links (C4). If none is a BiGG id, BiGG's search for
+//!    the first, taking the result that is that word with a stereo ending
+//!    (`asp` → `asp__L`, L-aspartate). Then **OLS4** for that full name, which
 //!    names BiGG's ChEBI entries, so the one named as BiGG names it can be
 //!    proposed (C2).
-//! 2. Else **OLS4**, ChEBI searched for exactly the name.
+//! 2. Else **OLS4**, ChEBI searched for exactly the name, among molecular
+//!    entities only (CHEBI:23367): roles (`… inhibitor`) and groups
+//!    (`maleoyl group`) are left out.
 //! 3. Else **PubChem**: the name's compound, whose synonyms include its ChEBI
 //!    number.
 //!
@@ -29,6 +33,9 @@ use crate::model::{Id, Reference};
 pub const MIN_INTERVAL_MS: u64 = 100;
 
 const BIGG: &str = "https://bigg.ucsd.edu/api/v2/universal/metabolites";
+const BIGG_SEARCH: &str = "https://bigg.ucsd.edu/api/v2/search";
+/// ChEBI's molecular entities, the branch an exact search keeps to.
+const MOLECULAR_ENTITY: &str = "http://purl.obolibrary.org/obo/CHEBI_23367";
 const OLS: &str = "https://www.ebi.ac.uk/ols4/api/search";
 const PUBCHEM: &str = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name";
 
@@ -106,6 +113,8 @@ pub struct Accepted {
 enum Step {
     /// BiGG, by one of the words to try.
     Bigg(String),
+    /// BiGG's search, for a word that isn't a BiGG id.
+    BiggSearch(String),
     /// OLS4 for the names of BiGG's entries, by BiGG's full name.
     BiggNames(String),
     Exact(String),
@@ -116,9 +125,17 @@ impl Step {
     fn url(&self) -> String {
         match self {
             Step::Bigg(w) => format!("{BIGG}/{}", encode(w)),
-            Step::BiggNames(n) | Step::Exact(n) => {
+            Step::BiggSearch(w) => {
+                format!("{BIGG_SEARCH}?query={}&search_type=metabolites", encode(w))
+            }
+            Step::BiggNames(n) => {
                 format!("{OLS}?q={}&ontology=chebi&exact=true&rows=20", encode(n))
             }
+            Step::Exact(n) => format!(
+                "{OLS}?q={}&ontology=chebi&exact=true&rows=20&allChildrenOf={}",
+                encode(n),
+                encode(MOLECULAR_ENTITY)
+            ),
             Step::PubChem(n) => format!("{PUBCHEM}/{}/synonyms/JSON", encode(n)),
         }
     }
@@ -178,6 +195,9 @@ impl Search {
         let text = name.unwrap_or_else(|| q.species.clone());
         self.searched = text.clone();
         self.plan = vec![Step::PubChem(text.clone()), Step::Exact(text)];
+        if let Some(first) = words.first() {
+            self.plan.push(Step::BiggSearch(first.clone()));
+        }
         self.plan.extend(words.into_iter().rev().map(Step::Bigg));
     }
 
@@ -283,6 +303,23 @@ impl Search {
                     .collect();
                 // Their names, then this species is done.
                 self.plan = vec![Step::BiggNames(name.to_owned())];
+            }
+            Step::BiggSearch(word) => {
+                // The result that is this word with a stereo ending, in
+                // BiGG's order: `asp__L` before `asp__D`.
+                let found = json
+                    .get("results")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|r| r.get("bigg_id").and_then(Value::as_str))
+                    .find(|id| {
+                        id.split_once("__")
+                            .is_some_and(|(base, _)| base.eq_ignore_ascii_case(&word))
+                    });
+                if let Some(id) = found {
+                    self.plan.push(Step::Bigg(id.to_owned()));
+                }
             }
             Step::BiggNames(full) => {
                 let docs = ols_docs(&json);
@@ -594,11 +631,13 @@ mod tests {
                 r#"{"InformationList": {"Information": [{"Synonym": ["cori ester", "CHEBI:16077", "59-56-3"]}]}}"#,
             )],
         );
-        // BiGG by the id (the name has a space), ChEBI exactly, then PubChem.
+        // BiGG by the id (the name has a space), and searched; ChEBI
+        // exactly, then PubChem.
         assert!(asked[0].ends_with("metabolites/s2"), "{asked:?}");
-        assert!(asked[1].contains("exact=true"), "{asked:?}");
-        assert!(asked[2].contains("pubchem"), "{asked:?}");
-        assert_eq!(asked.len(), 3, "PubChem answered, so no loose search");
+        assert!(asked[1].contains("search?query=s2"), "{asked:?}");
+        assert!(asked[2].contains("exact=true"), "{asked:?}");
+        assert!(asked[3].contains("pubchem"), "{asked:?}");
+        assert_eq!(asked.len(), 4, "{asked:?}");
         let f = &s.results()[0];
         assert_eq!(f.source, Some(Source::PubChem));
         assert_eq!(f.candidates[0].chebi, "CHEBI:16077");
@@ -615,6 +654,48 @@ mod tests {
         );
         let f = &s.results()[0];
         assert_eq!((f.source, f.sure), (Some(Source::Chebi), false));
+    }
+
+    /// Improvements 1 and 2: `ASP` isn't a BiGG id, but BiGG's search finds
+    /// `asp__L`; ChEBI's exact search keeps to molecular entities.
+    #[test]
+    fn bigg_search_finds_a_stereo_form_and_chebi_keeps_to_molecules() {
+        let mut s = Search::new(vec![q("ASP", None)]);
+        let asked = run(
+            &mut s,
+            &[
+                (
+                    "search?query=asp&search_type=metabolites",
+                    r#"{"results": [{"bigg_id": "aspsa"}, {"bigg_id": "asp__L"}, {"bigg_id": "asp__D"}]}"#,
+                ),
+                (
+                    "metabolites/asp__L",
+                    r#"{"name": "L-Aspartate", "database_links": {"CHEBI": [{"id": "CHEBI:29991"}]}}"#,
+                ),
+                (
+                    "q=L-Aspartate&",
+                    r#"{"response": {"docs": [{"obo_id": "CHEBI:29991", "label": "L-aspartate(1-)"}]}}"#,
+                ),
+            ],
+        );
+        assert!(asked[0].ends_with("metabolites/asp"), "{asked:?}");
+        assert!(asked[1].contains("search?query=asp"), "{asked:?}");
+        assert!(asked[2].ends_with("metabolites/asp__L"), "{asked:?}");
+        let f = &s.results()[0];
+        assert_eq!(f.source, Some(Source::Bigg));
+        assert_eq!(f.full_name.as_deref(), Some("L-Aspartate"));
+        assert_eq!(f.candidates[0].chebi, "CHEBI:29991");
+        // Not BiGG's name exactly (an ion form): offered, not sure.
+        assert!(!f.sure);
+
+        // Nothing in BiGG: ChEBI's exact search, among molecules only.
+        let mut s = Search::new(vec![q("S1", Some("glucose"))]);
+        let asked = run(&mut s, &[]);
+        let exact = asked.iter().find(|u| u.contains("exact=true")).unwrap();
+        assert!(
+            exact.ends_with("allChildrenOf=http%3A%2F%2Fpurl.obolibrary.org%2Fobo%2FCHEBI_23367"),
+            "{exact}"
+        );
     }
 
     #[test]

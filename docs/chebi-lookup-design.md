@@ -4,7 +4,11 @@ Status: decisions C1–C9 made with the author, 2026-10-29. All four steps done
 (2026-10-29). Tried on the Millard model, OLS4's loose search gave only wrong
 matches and is not used; "sure" was made stricter (a match's name must be the
 name looked for). Added with step 3: a species' name in the review selects it
-and centres the diagram on it, and the list on the left has a Find box.
+and centres the diagram on it, and the list on the left has a Find box. Then (2026-10-30), after ASP (aspartate) was matched to
+FLAG peptide: BiGG's search is used when no word is a BiGG id, taking the
+word with a stereo ending (`asp__L`), and ChEBI's exact search keeps to
+molecular entities (CHEBI:23367). On the Millard model this put ASP, MAL,
+CYS, RU5P and GAP right; 17 ticked, all correct.
 
 ## The problem
 
