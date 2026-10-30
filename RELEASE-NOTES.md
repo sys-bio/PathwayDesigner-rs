@@ -4,6 +4,40 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.28 (2026-10-30)
+
+**New**
+
+- **Annotate Species from Names.** Edit ▸ Annotate Species from Names… (also
+  on a species' right-click menu) looks the selected species, or all of them,
+  up in BiGG, ChEBI and PubChem, and shows what it found in an *Annotate* tab:
+  the ChEBI entry for each, its full name, and BiGG's KEGG and MetaNetX links.
+  Clear matches are ticked; the others are offered to check. **Apply** adds
+  what is ticked, references and display names, in one step you can undo. On
+  the Millard *E. coli* model it ticks 17 species, all correctly.
+- **Annotate Reactions from Names.** The same for reactions (Edit menu, or a
+  reaction's right-click menu): EC numbers and Rhea, KEGG and MetaNetX
+  reactions, found by the reaction's id in BiGG or by its species in Rhea. The
+  review shows each match's equation, to compare with the reaction.
+- **Find in ChEBI**, in a species' Annotations, searches ChEBI for its name or
+  any words typed; **Add** puts an entry in.
+- **Marks on the diagram.** While a review is open, and after Apply, the
+  diagram marks what is left to check: an orange ring for an item found but
+  not ticked, a blue one for nothing found. A mark goes when its item gets a
+  ChEBI reference (a species) or an EC number or Rhea entry (a reaction).
+  **View ▸ Annotation Marks** turns each kind on or off and clears them.
+- **Annotations in the hint.** Resting the pointer on a species, reaction or
+  compartment shows its display name, SBO term, references and notes.
+- **Find in the list.** The list on the left has a Find box (Ctrl+F): type to
+  keep only the items whose id or display name hold the words; picking one
+  selects it and brings it into view.
+
+**Changed**
+
+- The SBO terms offered in an item's Annotations suit the item; the model's
+  row is *Framework (SBO)*, listing the modelling frameworks.
+- Links to database entries open in a new browser tab, never over the app.
+
 ## 0.1.27 (2026-10-28)
 
 **New**
