@@ -441,13 +441,13 @@ fn choose(f: &mut Found, searched: &str) {
 }
 
 /// The same name, case aside.
-fn same(a: &str, b: &str) -> bool {
+pub(crate) fn same(a: &str, b: &str) -> bool {
     a.trim().eq_ignore_ascii_case(b.trim())
 }
 
 /// BiGG's name without a formula it sometimes ends with: `ATP
 /// C10H12N5O13P3` → `ATP`, `H2O H2O` → `H2O`.
-fn bigg_name(name: &str) -> String {
+pub(crate) fn bigg_name(name: &str) -> String {
     let name = name.trim();
     let Some((head, last)) = name.rsplit_once(' ') else {
         return name.to_owned();
@@ -488,7 +488,7 @@ fn candidates(docs: Vec<(String, String)>) -> Vec<Candidate> {
         .collect()
 }
 
-fn link(compact: &str) -> Reference {
+pub(crate) fn link(compact: &str) -> Reference {
     Reference {
         qualifier: "bqbiol:is".into(),
         resource: format!("https://identifiers.org/{compact}"),
@@ -516,7 +516,7 @@ fn bigg_words(text: &str) -> Vec<String> {
 
 /// A name in a URL: letters, digits and `-._~` as they are, all else
 /// percent-encoded (UTF-8).
-fn encode(text: &str) -> String {
+pub(crate) fn encode(text: &str) -> String {
     let mut out = String::new();
     for b in text.trim().bytes() {
         if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {

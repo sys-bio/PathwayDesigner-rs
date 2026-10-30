@@ -1,6 +1,15 @@
 # Annotating reactions from their names: design
 
 Status: decisions R1–R8 agreed with the author as proposed, 2026-10-30.
+Step 1 done (pd-core/src/reaction_lookup.rs). Tried on the Millard model,
+after looking its species up in ChEBI: BiGG's search alone found mostly other
+reactions (threonine ammonia-lyase for a transaldolase), so a reaction it
+finds is offered only when it shares the reaction's species: all of them, or
+two and one of those not a common cofactor (ATP, NAD, CoA …). Then 31 of 68
+reactions were offered (20 from BiGG by id, 6 from Rhea, 5 from the search),
+each the right reaction or its close relative, and 7 ticked, all correct. The
+others are Millard's lumped and exchange reactions, or have species the
+species lookup didn't identify (DAP, P).
 
 ## The problem
 
