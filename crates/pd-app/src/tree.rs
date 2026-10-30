@@ -12,8 +12,14 @@
 //! Selecting never moves the diagram: stepping through the list with the
 //! arrow keys would otherwise scroll it at every step, and the selected item
 //! would be hard to follow.
+//!
+//! A Find box above the lists keeps only the items whose id or display name
+//! holds the words typed. Clicking one of those, or Enter for the first,
+//! selects it and centres the diagram on it, since finding an item is
+//! wanting to see it. Ctrl/Cmd+F puts the cursor in the box.
 
 use eframe::egui::{self, Key};
+use pd_core::geometry::Pt;
 use pd_core::view::{DiagramView, Target};
 
 /// What the tree remembers between frames.
@@ -21,6 +27,10 @@ use pd_core::view::{DiagramView, Target};
 pub struct TreeState {
     /// The item last clicked or moved to: where a Shift range starts.
     anchor: Option<Target>,
+    /// The words in the Find box.
+    pub filter: String,
+    /// Put the cursor in the Find box (Ctrl/Cmd+F).
+    pub focus_filter: bool,
 }
 
 /// One row: what it selects, its label and tooltip.
@@ -29,23 +39,44 @@ struct Row {
     label: String,
     tip: Option<String>,
     selected: bool,
+    /// What the Find box matches: its id and display name, lower case.
+    words: String,
+    /// Where it is, to centre the diagram on.
+    at: Option<Pt>,
 }
 
-pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState) {
+/// An item's label: its id, and its display name when that differs.
+fn labelled(id: &str, name: Option<&str>) -> String {
+    match name {
+        Some(n) if n != id => format!("{id} — {n}"),
+        _ => id.to_owned(),
+    }
+}
+
+/// The lists, with the Find box above them. Returns where to centre the
+/// diagram when an item was found and picked.
+pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState) -> Option<Pt> {
     let m = view.model();
     let species: Vec<Row> = m
         .species()
         .iter()
         .filter(|s| !s.is_null_node)
-        .map(|s| Row {
-            target: Target::Species(s.id.clone()),
-            label: if s.is_alias() {
-                format!("{} (alias)", s.primary_id())
-            } else {
-                s.id.clone()
-            },
-            tip: None,
-            selected: s.selected,
+        .map(|s| {
+            let name = m
+                .find_species(s.primary_id())
+                .and_then(|p| p.display_name.as_deref());
+            Row {
+                target: Target::Species(s.id.clone()),
+                label: if s.is_alias() {
+                    format!("{} (alias)", labelled(s.primary_id(), name))
+                } else {
+                    labelled(&s.id, name)
+                },
+                tip: None,
+                selected: s.selected,
+                words: format!("{} {}", s.primary_id(), name.unwrap_or("")).to_lowercase(),
+                at: Some(s.center),
+            }
         })
         .collect();
     let reactions: Vec<Row> = m
@@ -53,9 +84,11 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState) {
         .iter()
         .map(|r| Row {
             target: Target::Leg(r.id.clone()),
-            label: r.id.clone(),
+            label: labelled(&r.id, r.display_name.as_deref()),
             tip: (!r.kinetic_law.trim().is_empty()).then(|| format!("{}: {}", r.id, r.kinetic_law)),
             selected: r.selected,
+            words: format!("{} {}", r.id, r.display_name.as_deref().unwrap_or("")).to_lowercase(),
+            at: Some(pd_core::render::draw::effective_junction(m, r)),
         })
         .collect();
 
@@ -68,14 +101,48 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState) {
             label: if c.is_default() {
                 format!("{} (not drawn)", c.id)
             } else if c.hidden {
-                format!("{} (hidden)", c.id)
+                format!("{} (hidden)", labelled(&c.id, c.display_name.as_deref()))
             } else {
-                c.id.clone()
+                labelled(&c.id, c.display_name.as_deref())
             },
             tip: None,
             selected: c.selected,
+            words: format!("{} {}", c.id, c.display_name.as_deref().unwrap_or("")).to_lowercase(),
+            at: c.frame.map(|f| f.center),
         })
         .collect();
+
+    // The Find box: only the items holding the words are listed.
+    let r = ui.add(
+        egui::TextEdit::singleline(&mut state.filter)
+            .hint_text("Find (Ctrl+F)")
+            .desired_width(f32::INFINITY),
+    );
+    if std::mem::take(&mut state.focus_filter) {
+        r.request_focus();
+    }
+    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+    let words = state.filter.trim().to_lowercase();
+    let finding = !words.is_empty();
+    let keep = |rows: Vec<Row>| -> Vec<Row> {
+        rows.into_iter()
+            .filter(|r| r.words.contains(&words))
+            .collect()
+    };
+    let (species, reactions, compartments) = if finding {
+        (keep(species), keep(reactions), keep(compartments))
+    } else {
+        (species, reactions, compartments)
+    };
+    if finding && species.is_empty() && reactions.is_empty() && compartments.is_empty() {
+        ui.label(egui::RichText::new("Nothing matches").weak());
+    }
+    // Enter: the first found.
+    if enter && let Some(first) = species.iter().chain(&reactions).chain(&compartments).next() {
+        let at = first.at;
+        view.select_item(&first.target, false);
+        return at;
+    }
 
     let mut picked = None;
     for (title, rows, salt) in [
@@ -97,11 +164,22 @@ pub fn show(ui: &mut egui::Ui, view: &mut DiagramView, state: &mut TreeState) {
             );
     }
 
+    let mut centre = None;
     if let Some((targets, add)) = picked {
+        // While finding, the one picked is brought into view.
+        if finding && !add && targets.len() == 1 {
+            centre = species
+                .iter()
+                .chain(&reactions)
+                .chain(&compartments)
+                .find(|r| r.target == targets[0])
+                .and_then(|r| r.at);
+        }
         for (i, t) in targets.iter().enumerate() {
             view.select_item(t, add || i > 0);
         }
     }
+    centre
 }
 
 /// What to select (the first replaces the selection unless adding), and
@@ -207,6 +285,8 @@ mod tests {
                 label: String::new(),
                 tip: None,
                 selected: false,
+                words: String::new(),
+                at: None,
             })
             .collect()
     }

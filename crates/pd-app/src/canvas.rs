@@ -39,6 +39,9 @@ pub enum MenuAction {
     SplitIntoAliases(String),
     /// Select All Drawings: the species or alias right-clicked.
     SelectAllDrawings(String),
+    /// Annotate Species from Names, from a species' menu: the species
+    /// right-clicked (docs/chebi-lookup-design.md C7).
+    AnnotateSpecies(String),
     /// Mark as Modifier or Unmark as Modifier: the reaction, the species,
     /// and whether to mark it.
     MarkModifier(String, String, bool),
@@ -299,6 +302,11 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                     ui.add_enabled(false, egui::Button::new("Select All Drawings"))
                         .on_disabled_hover_text("Only for a species that has aliases");
                 }
+                item(
+                    ui,
+                    "Annotate Species from Names…",
+                    MenuAction::AnnotateSpecies(id.clone()),
+                );
                 style_items(ui, view, &Target::Species(id.clone()), &mut item);
             }
             alignment(ui, view, &mut item);

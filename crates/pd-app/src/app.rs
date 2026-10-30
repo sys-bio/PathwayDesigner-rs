@@ -36,6 +36,8 @@ const THIRD_PARTY_PAGE: &str = "THIRD-PARTY.html";
 #[cfg(not(target_arch = "wasm32"))]
 const THIRD_PARTY_PAGE: &str = "https://sys-bio.github.io/PathwayDesigner-rs/THIRD-PARTY.html";
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
+/// Find an item in the list on the left.
+const FIND: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::F);
 /// Ctrl+Alt (Cmd+Option), not Ctrl+Shift: Chrome keeps Ctrl+Shift+C for its
 /// developer tools (S §8.5).
 const COPY_STYLE: KeyboardShortcut =
@@ -160,6 +162,9 @@ pub(crate) enum RightTab {
     /// The network's structure: its stoichiometry matrix, flux null space and
     /// conservation laws (docs/structural-analysis-design.md).
     Structure,
+    /// Annotate Species from Names, while it searches and is reviewed
+    /// (docs/chebi-lookup-design.md C6); there only then.
+    Annotate,
 }
 
 pub struct PathwayApp {
@@ -167,6 +172,8 @@ pub struct PathwayApp {
     pub(crate) view: DiagramView,
     canvas: CanvasState,
     inspector: Inspector,
+    /// Annotate Species from Names, under way (docs/chebi-lookup-design.md).
+    pub(crate) annotate: Option<crate::annotate_tab::AnnotateTab>,
     pub(crate) antimony: AntimonyPanel,
     /// The Structure tab and the matrix panel.
     pub(crate) structure: crate::structure_panel::StructurePanel,
@@ -262,6 +269,7 @@ impl PathwayApp {
             view: DiagramView::default(),
             canvas: CanvasState::default(),
             inspector: Inspector::default(),
+            annotate: None,
             antimony: AntimonyPanel::default(),
             structure: Default::default(),
             right_tab: RightTab::default(),
@@ -457,6 +465,7 @@ impl PathwayApp {
             MenuAction::SelectAllDrawings(id) => {
                 self.view.select_all_drawings(&id);
             }
+            MenuAction::AnnotateSpecies(id) => self.start_annotating(Some(&id)),
             MenuAction::MarkModifier(id, species, true) => {
                 self.view.mark_as_modifier(&id, &species);
             }
@@ -636,6 +645,9 @@ impl PathwayApp {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&SELECT_ALL)) {
             self.view.select_all();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&FIND)) {
+            self.tree.focus_filter = true;
         }
         if ctx.input_mut(|i| i.consume_shortcut(&COPY_STYLE)) {
             self.copy_selected_style();
@@ -865,6 +877,21 @@ impl PathwayApp {
                     .clicked()
                 {
                     self.view.paste_style();
+                    ui.close();
+                }
+                ui.separator();
+                if ui
+                    .add_enabled(
+                        self.annotate.is_none() && !self.view.model().species().is_empty(),
+                        egui::Button::new("Annotate Species from Names…"),
+                    )
+                    .on_hover_text(
+                        "Look up the selected species (or all) in BiGG, ChEBI and PubChem, \
+                         and review what is found",
+                    )
+                    .clicked()
+                {
+                    self.start_annotating(None);
                     ui.close();
                 }
             });
@@ -1157,9 +1184,15 @@ impl PathwayApp {
         )
         .on_hover_text("New Bézier reactions get a smooth junction");
         ui.separator();
-        egui::ScrollArea::vertical().id_salt("tree").show(ui, |ui| {
-            crate::tree::show(ui, &mut self.view, &mut self.tree)
-        });
+        let found = egui::ScrollArea::vertical()
+            .id_salt("tree")
+            .show(ui, |ui| {
+                crate::tree::show(ui, &mut self.view, &mut self.tree)
+            })
+            .inner;
+        if let Some(at) = found {
+            self.view.centre_on(at, self.canvas_centre);
+        }
     }
 
     /// The status bar: the zoom control at the right, and the rest in the
@@ -1264,6 +1297,42 @@ impl PathwayApp {
 
     /// Zoom In (+1) or Zoom Out (−1) from a button or menu: two wheel
     /// notches about the centre of the canvas.
+    /// Annotate Species from Names (docs/chebi-lookup-design.md): the
+    /// species to look up, from a right-click on `only` or the selection,
+    /// searched while the Annotate tab shows the progress.
+    pub(crate) fn start_annotating(&mut self, only: Option<&str>) {
+        if self.annotate.is_some() {
+            return;
+        }
+        let queries = self.view.species_to_annotate(only);
+        if queries.is_empty() {
+            self.notice = Some("Each species already has a ChEBI reference".into());
+            return;
+        }
+        self.annotate = Some(crate::annotate_tab::AnnotateTab::new(queries));
+        self.right_tab = RightTab::Annotate;
+    }
+
+    fn finish_annotating(&mut self, action: crate::annotate_tab::TabAction) {
+        if let crate::annotate_tab::TabAction::Show(id) = action {
+            // Selected and brought into view; the review stays.
+            let at = self.view.model().find_species(&id).map(|s| s.center);
+            if let Some(at) = at {
+                self.view
+                    .select_item(&pd_core::view::Target::Species(id), false);
+                self.view.centre_on(at, self.canvas_centre);
+            }
+            return;
+        }
+        if let crate::annotate_tab::TabAction::Apply(items) = action {
+            let n = items.len();
+            self.view.annotate_species(&items);
+            self.notice = Some(format!("Annotated {n} species"));
+        }
+        self.annotate = None;
+        self.right_tab = RightTab::Properties;
+    }
+
     fn zoom_step(&mut self, steps: i32) {
         self.view
             .zoom_at(ZOOM_STEP.powi(2 * steps), self.canvas_centre);
@@ -1676,6 +1745,9 @@ impl eframe::App for PathwayApp {
         self.mac_menu_commands();
         self.handle_files();
         self.poll_naming(&ctx);
+        if let Some(t) = &mut self.annotate {
+            t.poll(&ctx, self.gallery.fetch);
+        }
         self.check_close();
         self.update_title();
         self.shortcuts(&ctx);
@@ -1708,6 +1780,7 @@ impl eframe::App for PathwayApp {
         let opts = self.import_options();
         let mut antimony_action = None;
         let mut styles_action = None;
+        let mut annotate_action = None;
         let mut structure_export = None;
         // Outside the inspector, at the window's right edge.
         if self.help.open {
@@ -1729,6 +1802,9 @@ impl eframe::App for PathwayApp {
                     ] {
                         ui.selectable_value(&mut self.right_tab, tab, name);
                     }
+                    if self.annotate.is_some() {
+                        ui.selectable_value(&mut self.right_tab, RightTab::Annotate, "Annotate");
+                    }
                 });
                 ui.separator();
                 egui::ScrollArea::vertical().show(ui, |ui| {
@@ -1742,6 +1818,9 @@ impl eframe::App for PathwayApp {
                         }
                         RightTab::Styles => {
                             styles_action = crate::styles_panel::show(ui, &mut self.view);
+                        }
+                        RightTab::Annotate => {
+                            annotate_action = self.annotate.as_mut().and_then(|t| t.show(ui));
                         }
                         RightTab::Structure => {
                             let stem = self
@@ -1757,6 +1836,9 @@ impl eframe::App for PathwayApp {
             });
         if let Some(e) = structure_export {
             self.export_csv(e.name, e.csv);
+        }
+        if let Some(a) = annotate_action {
+            self.finish_annotating(a);
         }
         match styles_action {
             Some(crate::styles_panel::StylesAction::Rename(kind, old)) => {
@@ -3437,6 +3519,202 @@ k = 0.1",
         assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
         // Added once: its button says so.
         assert!(labels(&h).iter().any(|l| l == "Added"));
+    }
+
+    /// BiGG knows g6p; ChEBI knows ATP exactly; nothing knows XYZ.
+    fn annotate_services(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        let answer = if url.ends_with("metabolites/g6p") {
+            Ok(r#"{"name": "D-Glucose 6-phosphate", "database_links": {
+                "CHEBI": [{"id": "CHEBI:4170"}, {"id": "CHEBI:14314"}],
+                "KEGG Compound": [{"id": "C00092"}]}}"#
+                .to_owned())
+        } else if url.contains("q=D-Glucose%206-phosphate&") {
+            Ok(r#"{"response": {"docs": [
+                {"obo_id": "CHEBI:4170", "label": "D-glucose 6-phosphate"}]}}"#
+                .to_owned())
+        } else if url.contains("ols4") && url.contains("q=ATP&") {
+            Ok(r#"{"response": {"docs": [{"obo_id": "CHEBI:15422", "label": "ATP"}]}}"#.to_owned())
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+    }
+
+    /// docs/chebi-lookup-design.md step 3: Edit ▸ Annotate Species from
+    /// Names searches every species, the Annotate tab reviews what was
+    /// found, ticking the clear matches, and Apply adds them as one step.
+    #[test]
+    fn annotate_species_from_names_reviews_then_applies() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = annotate_services;
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony(
+                "G6P -> ATP; k*G6P
+ATP -> XYZ; k*ATP
+k = 1",
+                &opts,
+            )
+            .unwrap();
+        h.run(vec![]);
+        h.click(h.widget("Edit"));
+        h.run(vec![]);
+        h.click(h.widget("Annotate Species from Names…"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Annotate);
+        h.widget("Annotate");
+        for _ in 0..120 {
+            h.run(vec![]);
+        }
+        h.text("Found 2 of 3 species; 2 ticked as clear matches.");
+        h.text("Nothing found for");
+        // A name in the review shows its species: selected, centred.
+        let centred = |h: &Harness, id: &str| {
+            let at = h.on_screen(id);
+            let c = h.app.canvas_centre;
+            (f64::from(at.x) - c.x).abs() < 1.0 && (f64::from(at.y) - c.y).abs() < 1.0
+        };
+        h.click(h.widget("XYZ"));
+        h.run(vec![]);
+        assert!(h.app.view.model().find_species("XYZ").unwrap().selected);
+        assert!(centred(&h, "XYZ"));
+        h.click(h.widget("G6P"));
+        h.run(vec![]);
+        assert!(h.app.view.model().find_species("G6P").unwrap().selected);
+        assert!(!h.app.view.model().find_species("XYZ").unwrap().selected);
+        assert!(centred(&h, "G6P"));
+        assert!(h.app.annotate.is_some(), "the review stays");
+        h.click(h.widget("Apply (2)"));
+        h.run(vec![]);
+        let m = h.app.view.model();
+        let g6p = m.find_species("G6P").unwrap();
+        let refs: Vec<&str> = g6p
+            .annotation
+            .references
+            .iter()
+            .map(|r| r.resource.as_str())
+            .collect();
+        assert_eq!(
+            refs,
+            [
+                "https://identifiers.org/CHEBI:4170",
+                "https://identifiers.org/kegg.compound:C00092"
+            ]
+        );
+        assert_eq!(g6p.display_name.as_deref(), Some("D-Glucose 6-phosphate"));
+        let atp = m.find_species("ATP").unwrap();
+        assert_eq!(
+            atp.annotation.references[0].resource,
+            "https://identifiers.org/CHEBI:15422"
+        );
+        assert!(m.find_species("XYZ").unwrap().annotation.is_empty());
+        assert_eq!(h.app.view.undo_description(), Some("Annotate Species"));
+        // The tab is gone.
+        assert!(h.app.annotate.is_none());
+        assert_eq!(h.app.right_tab, RightTab::Properties);
+    }
+
+    /// From a species' menu: just that species. With no network the tab
+    /// says so; Close, Stop and Cancel change nothing.
+    #[test]
+    fn annotate_species_can_be_stopped_or_cancelled() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = offline;
+        let id = h.app.view.model().species()[0].id.clone();
+        h.app
+            .act(MenuAction::AnnotateSpecies(id.clone()), pt(0.0, 0.0));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Annotate);
+        for _ in 0..40 {
+            h.run(vec![]);
+        }
+        h.text("BiGG, ChEBI and PubChem couldn't be reached, so nothing was found.");
+        let before = h.app.view.model().clone();
+        h.click(h.widget("Close"));
+        h.run(vec![]);
+        assert!(h.app.annotate.is_none());
+        assert_eq!(*h.app.view.model(), before);
+
+        // Stopped straight away: the review of what was found (nothing yet),
+        // and Cancel.
+        h.app.gallery.fetch = annotate_services;
+        h.app.start_annotating(None);
+        h.run(vec![]);
+        h.click(h.widget("Stop"));
+        h.run(vec![]);
+        h.click(h.widget("Cancel"));
+        h.run(vec![]);
+        assert!(h.app.annotate.is_none());
+        assert_eq!(h.app.right_tab, RightTab::Properties);
+        assert_eq!(*h.app.view.model(), before);
+    }
+
+    /// The list on the left: Ctrl+F puts the cursor in its Find box; the
+    /// words keep only the items that hold them, in their id or display
+    /// name; Enter or a click selects one and centres the diagram on it.
+    #[test]
+    fn find_in_the_list_selects_and_centres() {
+        let mut h = Harness::new();
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony(
+                "G6P -> ATP; k*G6P
+ATP -> ADP; k*ATP
+k = 1",
+                &opts,
+            )
+            .unwrap();
+        h.app.view.set_display_name("ADP", "adenosine diphosphate");
+        h.run(vec![]);
+        let centred = |h: &Harness, id: &str| {
+            let at = h.on_screen(id);
+            let c = h.app.canvas_centre;
+            (f64::from(at.x) - c.x).abs() < 1.0 && (f64::from(at.y) - c.y).abs() < 1.0
+        };
+        h.key(Key::F, Modifiers::COMMAND);
+        h.run(vec![Event::Text("atp".into())]);
+        h.run(vec![]);
+        let listed = |h: &Harness| -> Vec<String> {
+            h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .filter_map(|(_, n)| n.label().map(str::to_owned))
+                .filter(|l| ["G6P", "ATP", "ADP — adenosine diphosphate"].contains(&l.as_str()))
+                .collect()
+        };
+        assert_eq!(listed(&h), ["ATP"], "only what holds the words");
+        // Enter: the first found.
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        assert!(h.app.view.model().find_species("ATP").unwrap().selected);
+        assert!(centred(&h, "ATP"));
+        // By display name, and picked with a click.
+        let field = h.text("atp");
+        h.click(field);
+        h.key(Key::A, Modifiers::COMMAND);
+        h.run(vec![Event::Text("diphos".into())]);
+        h.run(vec![]);
+        assert_eq!(listed(&h), ["ADP — adenosine diphosphate"]);
+        h.click(h.widget("ADP — adenosine diphosphate"));
+        h.run(vec![]);
+        assert!(h.app.view.model().find_species("ADP").unwrap().selected);
+        assert!(centred(&h, "ADP"));
+        // Without words, everything again, and a click doesn't move the view.
+        let field = h.text("diphos");
+        h.click(field);
+        h.key(Key::A, Modifiers::COMMAND);
+        h.key(Key::Backspace, Modifiers::NONE);
+        h.run(vec![]);
+        assert_eq!(listed(&h).len(), 3);
+        let scroll = h.app.view.scroll();
+        h.click(h.widget("G6P"));
+        h.run(vec![]);
+        assert!(h.app.view.model().find_species("G6P").unwrap().selected);
+        assert_eq!(h.app.view.scroll(), scroll);
     }
 
     /// C9: with no network, Find in ChEBI says so and adds nothing.

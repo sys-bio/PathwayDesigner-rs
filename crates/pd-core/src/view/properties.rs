@@ -215,6 +215,71 @@ impl DiagramView {
         self.record_if_changed("Edit Annotation", before)
     }
 
+    /// The species Annotate Species from Names looks for
+    /// (docs/chebi-lookup-design.md C5, C7): `only` if it isn't selected
+    /// (a right-click on a species outside the selection), else the
+    /// selected species, else every species; primaries only, no null nodes,
+    /// and none that already has a ChEBI reference. Each with its display
+    /// name, in the model's order.
+    pub fn species_to_annotate(&self, only: Option<&str>) -> Vec<crate::chebi::Query> {
+        let m = &self.model;
+        let primary = |id: &str| m.find_species(id).map(|s| s.primary_id().to_owned());
+        let selected: Vec<Id> = m
+            .species()
+            .iter()
+            .filter(|s| s.selected)
+            .filter_map(|s| primary(&s.id))
+            .collect();
+        let wanted: Option<Vec<Id>> = match only.and_then(primary) {
+            Some(p) if !selected.contains(&p) => Some(vec![p]),
+            _ if !selected.is_empty() => Some(selected),
+            _ => None,
+        };
+        m.species()
+            .iter()
+            .filter(|s| !s.is_alias() && !s.is_null_node)
+            .filter(|s| wanted.as_ref().is_none_or(|w| w.contains(&s.id)))
+            .filter(|s| {
+                !s.annotation
+                    .references
+                    .iter()
+                    .any(|r| r.resource.to_ascii_lowercase().contains("chebi"))
+            })
+            .map(|s| crate::chebi::Query {
+                species: s.id.clone(),
+                name: s.display_name.clone(),
+            })
+            .collect()
+    }
+
+    /// Applies what the review accepted (docs/chebi-lookup-design.md): each
+    /// species' references added, those it has already left out, and its
+    /// display name set if given. One undo step, *Annotate Species*.
+    pub fn annotate_species(&mut self, items: &[crate::chebi::Accepted]) -> ViewResponse {
+        let before = self.model.clone();
+        for item in items {
+            let Some(primary) = self
+                .model
+                .find_species(&item.species)
+                .map(|s| s.primary_id().to_owned())
+            else {
+                continue;
+            };
+            let Some(s) = self.model.find_species_mut(&primary) else {
+                continue;
+            };
+            for r in &item.references {
+                if !s.annotation.references.contains(r) {
+                    s.annotation.references.push(r.clone());
+                }
+            }
+            if let Some(name) = crate::model::display_name(item.display_name.clone()) {
+                s.display_name = Some(name);
+            }
+        }
+        self.record_if_changed("Annotate Species", before)
+    }
+
     /// Whether labels show display names (View ▸ Show Display Names,
     /// docs/display-names-design.md D4). A setting of the diagram, saved in
     /// its file.
@@ -1336,6 +1401,77 @@ mod tests {
         assert_eq!(v.undo_description(), steps);
         v.undo();
         assert!(v.model().annotation.is_empty());
+    }
+
+    #[test]
+    fn the_species_to_annotate_are_the_selected_or_all_without_chebi() {
+        use crate::model::Reference;
+        let mut v = view();
+        v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        v.model.find_species_mut("S1").unwrap().display_name = Some("glucose".into());
+        v.model
+            .find_species_mut("E")
+            .unwrap()
+            .annotation
+            .references
+            .push(Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: "https://identifiers.org/CHEBI:1".into(),
+            });
+        let ids = |q: Vec<crate::chebi::Query>| -> Vec<String> {
+            q.into_iter().map(|q| q.species).collect()
+        };
+        // Nothing selected: all, the alias as its species once, E (which has
+        // ChEBI) left out.
+        v.model.clear_selection();
+        let all = v.species_to_annotate(None);
+        assert_eq!(ids(all.clone()), ["S1", "S2", "S4"]);
+        assert_eq!(all[0].name.as_deref(), Some("glucose"));
+        // Selected: those, an alias counting as its species.
+        let alias = v.model.species()[4].id.clone();
+        v.model.find_species_mut(&alias).unwrap().selected = true;
+        assert_eq!(ids(v.species_to_annotate(None)), ["S1"]);
+        // A right-click outside the selection: just that one.
+        assert_eq!(ids(v.species_to_annotate(Some("S4"))), ["S4"]);
+        assert_eq!(ids(v.species_to_annotate(Some(&alias))), ["S1"]);
+    }
+
+    #[test]
+    fn what_the_review_accepts_is_applied_in_one_step() {
+        use crate::chebi::Accepted;
+        use crate::model::Reference;
+        let mut v = view();
+        let r = |c: &str| Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: format!("https://identifiers.org/{c}"),
+        };
+        v.annotate_species(&[
+            Accepted {
+                species: "S1".into(),
+                references: vec![r("CHEBI:4170"), r("kegg.compound:C00092")],
+                display_name: Some("D-Glucose 6-phosphate".into()),
+            },
+            Accepted {
+                species: "S2".into(),
+                references: vec![r("CHEBI:15422")],
+                display_name: None,
+            },
+        ]);
+        assert_eq!(v.undo_description(), Some("Annotate Species"));
+        let s1 = v.model().find_species("S1").unwrap();
+        assert_eq!(s1.annotation.references.len(), 2);
+        assert_eq!(s1.display_name.as_deref(), Some("D-Glucose 6-phosphate"));
+        assert_eq!(v.model().find_species("S2").unwrap().display_name, None);
+        // Again: nothing doubled, so no step.
+        let before = v.model().clone();
+        v.annotate_species(&[Accepted {
+            species: "S2".into(),
+            references: vec![r("CHEBI:15422")],
+            display_name: None,
+        }]);
+        assert_eq!(*v.model(), before);
+        v.undo();
+        assert!(v.model().find_species("S1").unwrap().annotation.is_empty());
     }
 
     #[test]

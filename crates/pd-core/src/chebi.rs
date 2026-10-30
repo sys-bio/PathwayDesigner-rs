@@ -91,6 +91,16 @@ pub struct Found {
     pub other_references: Vec<Reference>,
 }
 
+/// What the review accepted for one species: the references to add (its
+/// ChEBI entry, and BiGG's KEGG and MetaNetX links, C4) and, if ticked, the
+/// display name to give it (C3).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Accepted {
+    pub species: Id,
+    pub references: Vec<Reference>,
+    pub display_name: Option<String>,
+}
+
 /// One request: what it is for, and its address.
 #[derive(Clone, Debug, PartialEq)]
 enum Step {
