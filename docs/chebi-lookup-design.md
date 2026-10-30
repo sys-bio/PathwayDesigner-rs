@@ -78,7 +78,7 @@ up (BiGG has reactions too, with EC numbers and Rhea; a later step).
 pd-core, fed answers by the tests, never the network; the app test swaps the
 fetch for one with canned answers.
 
-## Dec## Decisions (made 2026-10-29)
+## Decisions (made 2026-10-29)
 
 - **C1. Order of the services.** BiGG first, then OLS4, then PubChem: BiGG
   knows the abbreviations metabolic models use, OLS4 searches ChEBI itself,
@@ -107,7 +107,7 @@ fetch for one with canned answers.
 - **C9. Without a network.** If no service can be reached, say so and change
   nothing; if some answered, review what they found.
 
-ps
+## Steps
 
 1. The lookup (pd-core): the three services' requests and answers, the order
    and the choice (C1, C2), with tests on canned answers.

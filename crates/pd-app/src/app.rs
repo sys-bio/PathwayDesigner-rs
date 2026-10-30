@@ -1793,7 +1793,9 @@ impl eframe::App for PathwayApp {
             .resizable(true)
             .default_size(280.0)
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                // The tabs wrap onto a second row rather than hold the panel
+                // wider than it is set (with Annotate there are five).
+                ui.horizontal_wrapped(|ui| {
                     for (tab, name) in [
                         (RightTab::Properties, "Properties"),
                         (RightTab::Antimony, "Antimony"),
@@ -3613,6 +3615,94 @@ k = 1",
         // The tab is gone.
         assert!(h.app.annotate.is_none());
         assert_eq!(h.app.right_tab, RightTab::Properties);
+    }
+
+    /// ChEBI knows LONG by a name hundreds of letters long, and ATP.
+    fn long_names(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        let long = "beta-D-Glcp-(1->3)-[beta-D-Glcp-(1->6)]".repeat(10);
+        let answer = if url.contains("ols4") && url.contains("q=LONG&") {
+            Ok(format!(
+                r#"{{"response": {{"docs": [{{"obo_id": "CHEBI:146098", "label": "{long}"}}]}}}}"#
+            ))
+        } else if url.contains("ols4") && url.contains("q=ATP&") {
+            Ok(r#"{"response": {"docs": [{"obo_id": "CHEBI:15422", "label": "ATP"}]}}"#.to_owned())
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+    }
+
+    /// A very long name found is cut short, so the panel keeps its width;
+    /// and the review's Find box keeps only the species that match.
+    #[test]
+    fn the_review_keeps_its_width_and_can_be_searched() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = long_names;
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony(
+                "LONG -> ATP; k*LONG
+ATP -> XYZ; k*ATP
+k = 1",
+                &opts,
+            )
+            .unwrap();
+        h.run(vec![]);
+        let canvas = h.app.canvas_centre;
+        h.app.start_annotating(None);
+        for _ in 0..120 {
+            h.run(vec![]);
+        }
+        h.text("Found 2 of 3 species; 1 ticked as clear matches.");
+        let widest = |h: &Harness| {
+            h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .filter_map(|(_, n)| n.bounds())
+                .filter(|b| b.x0 > f64::from(h.size.x) / 2.0)
+                .map(|b| b.x1 - b.x0)
+                .fold(0.0, f64::max)
+        };
+        assert!(
+            widest(&h) < 400.0,
+            "the panel wasn't held wide: {}",
+            widest(&h)
+        );
+        assert!(
+            (h.app.canvas_centre.x - canvas.x).abs() < 20.0,
+            "the canvas wasn't squeezed"
+        );
+        // Find: "xy" keeps XYZ (in Nothing found) and hides LONG and ATP,
+        // in the review (the list on the left has them all).
+        let shown = |h: &Harness, label: &str| {
+            h.access.as_ref().unwrap().nodes.iter().any(|(_, n)| {
+                n.label() == Some(label)
+                    && n.bounds().is_some_and(|b| b.x0 > f64::from(h.size.x) / 2.0)
+            })
+        };
+        assert!(shown(&h, "LONG") && shown(&h, "ATP") && shown(&h, "XYZ"));
+        // The review's Find box: the text field just below Apply.
+        let apply = h.widget("Apply (2)");
+        let field = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.role() == egui::accesskit::Role::TextInput)
+            .filter_map(|(_, n)| n.bounds())
+            .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+            .filter(|p| p.x > apply.x - 100.0 && p.y > apply.y)
+            .min_by(|a, b| a.y.total_cmp(&b.y))
+            .expect("the Find box");
+        h.click(field);
+        h.run(vec![Event::Text("xy".into())]);
+        h.run(vec![]);
+        assert!(shown(&h, "XYZ"));
+        assert!(!shown(&h, "LONG") && !shown(&h, "ATP"));
     }
 
     /// From a species' menu: just that species. With no network the tab

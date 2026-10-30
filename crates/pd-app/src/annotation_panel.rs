@@ -313,8 +313,10 @@ impl AnnotationPanel {
             ui.label(RichText::new(note).small().weak());
         }
         let mut add = None;
+        // A long name is cut short, so it doesn't hold the panel wide.
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
         for c in &self.found {
-            ui.horizontal_wrapped(|ui| {
+            ui.horizontal(|ui| {
                 let r = c.reference();
                 let have = current.references.contains(&r);
                 if ui
@@ -329,7 +331,7 @@ impl AnnotationPanel {
                 }
                 ui.hyperlink_to(&c.chebi, resource_url(&r.resource).unwrap_or_default());
                 if let Some(name) = &c.name {
-                    ui.label(name);
+                    ui.label(name).on_hover_text(name);
                 }
             });
         }

@@ -43,6 +43,30 @@ pub struct AnnotateTab {
     /// Filled in when the searching is done (or stopped).
     rows: Option<Vec<Row>>,
     unreachable: bool,
+    /// The words in the review's Find box.
+    filter: String,
+}
+
+impl Row {
+    /// Whether the review's Find box keeps it: its name, id or what was
+    /// found holds the words, case aside.
+    fn matches(&self, words: &str) -> bool {
+        if words.is_empty() {
+            return true;
+        }
+        let f = &self.found;
+        [
+            Some(f.species.as_str()),
+            self.name.as_deref(),
+            f.full_name.as_deref(),
+            f.candidates
+                .get(self.chosen)
+                .and_then(|c| c.name.as_deref()),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|t| t.to_lowercase().contains(words))
+    }
 }
 
 impl AnnotateTab {
@@ -58,6 +82,7 @@ impl AnnotateTab {
             names,
             rows: None,
             unreachable: false,
+            filter: String::new(),
         }
     }
 
@@ -140,6 +165,10 @@ impl AnnotateTab {
             ui.label("BiGG, ChEBI and PubChem couldn't be reached, so nothing was found.");
             return ui.button("Close").clicked().then_some(TabAction::Close);
         }
+        // Long names are cut short to the panel's width, the whole shown on
+        // hover, so a ChEBI name hundreds of letters long doesn't hold the
+        // panel wide.
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
         let found = rows.iter().filter(|r| r.found.source.is_some()).count();
         let sure = rows.iter().filter(|r| r.found.sure).count();
         ui.label(format!(
@@ -167,9 +196,15 @@ impl AnnotateTab {
                 action = Some(TabAction::Close);
             }
         });
+        ui.add(
+            egui::TextEdit::singleline(&mut self.filter)
+                .hint_text("Find a species")
+                .desired_width(f32::INFINITY),
+        );
+        let words = self.filter.trim().to_lowercase();
         ui.separator();
         for (i, row) in rows.iter_mut().enumerate() {
-            if row.found.source.is_some() {
+            if row.found.source.is_some() && row.matches(&words) {
                 if found_row(ui, i, row) {
                     action = Some(TabAction::Show(row.found.species.clone()));
                 }
@@ -178,7 +213,7 @@ impl AnnotateTab {
         }
         let missing: Vec<(String, String)> = rows
             .iter()
-            .filter(|r| r.found.source.is_none())
+            .filter(|r| r.found.source.is_none() && r.matches(&words))
             .map(|r| {
                 let id = r.found.species.clone();
                 (r.name.clone().unwrap_or_else(|| id.clone()), id)
@@ -216,10 +251,10 @@ fn found_row(ui: &mut egui::Ui, i: usize, row: &mut Row) -> bool {
             .on_hover_text("Add the ChEBI entry below as what this species is");
         show = ui
             .link(RichText::new(&species).strong())
-            .on_hover_text("Show it on the diagram")
+            .on_hover_text(format!("{species}: show it on the diagram"))
             .clicked();
-        ui.label(format!("→ {full}"));
         ui.label(RichText::new(format!("({source})")).small().weak());
+        ui.label(format!("→ {full}")).on_hover_text(&full);
     });
     ui.horizontal_wrapped(|ui| {
         ui.add_space(20.0);
@@ -227,15 +262,23 @@ fn found_row(ui: &mut egui::Ui, i: usize, row: &mut Row) -> bool {
             Some(n) => format!("{}  {n}", c.chebi),
             None => c.chebi.clone(),
         };
-        let chosen = &row.found.candidates[row.chosen];
+        let chosen = text(&row.found.candidates[row.chosen]);
+        // As wide as the panel allows, leaving room for the link.
+        let width = (ui.available_width() - 50.0).max(80.0);
         egui::ComboBox::from_id_salt(("annotate-choice", i))
-            .selected_text(text(chosen))
-            .width(200.0)
+            .selected_text(chosen.clone())
+            .width(width)
+            .wrap_mode(egui::TextWrapMode::Truncate)
             .show_ui(ui, |ui| {
+                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                 for (k, c) in row.found.candidates.iter().enumerate() {
-                    ui.selectable_value(&mut row.chosen, k, text(c));
+                    let t = text(c);
+                    ui.selectable_value(&mut row.chosen, k, t.clone())
+                        .on_hover_text(t);
                 }
-            });
+            })
+            .response
+            .on_hover_text(chosen);
         let r = row.found.candidates[row.chosen].reference();
         if let Some(url) = resource_url(&r.resource) {
             ui.hyperlink_to("open", url)
@@ -245,7 +288,8 @@ fn found_row(ui: &mut egui::Ui, i: usize, row: &mut Row) -> bool {
     if !full.is_empty() {
         ui.horizontal(|ui| {
             ui.add_space(20.0);
-            ui.checkbox(&mut row.rename, format!("Display name “{full}”"));
+            ui.checkbox(&mut row.rename, format!("Display name “{full}”"))
+                .on_hover_text(format!("Give it the display name “{full}”"));
         });
     }
     show
