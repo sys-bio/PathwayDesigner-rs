@@ -1,6 +1,6 @@
 # Annotating reactions from their names: design
 
-Status: proposal, 2026-10-30; decisions R1–R8 to be made with the author.
+Status: decisions R1–R8 agreed with the author as proposed, 2026-10-30.
 
 ## The problem
 
@@ -75,7 +75,7 @@ would be a separate feature).
 **Tests.** As for species: a state machine in pd-core fed canned answers, and
 an app test with a canned fetch.
 
-## Decisions to make
+## Decisions (agreed 2026-10-30)
 
 - **R1. The services and their order.** BiGG by id, then Rhea by species,
   then BiGG's search (proposed). Rhea could come first, as it doesn't depend

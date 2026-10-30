@@ -8,7 +8,9 @@ and centres the diagram on it, and the list on the left has a Find box. Then (20
 FLAG peptide: BiGG's search is used when no word is a BiGG id, taking the
 word with a stereo ending (`asp__L`), and ChEBI's exact search keeps to
 molecular entities (CHEBI:23367). On the Millard model this put ASP, MAL,
-CYS, RU5P and GAP right; 17 ticked, all correct.
+CYS, RU5P and GAP right; 17 ticked, all correct. A BiGG match lists only
+the ChEBI entries ChEBI names (aspartate: 3, not 3 and 14 bare numbers,
+mostly retired); all are kept only when none is named.
 
 ## The problem
 

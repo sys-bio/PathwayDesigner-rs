@@ -329,8 +329,9 @@ impl Search {
                     }
                 }
                 // Entries ChEBI names exactly as BiGG names the compound,
-                // which BiGG may not list, first; then BiGG's named ones;
-                // its unnamed ones, often numbers ChEBI has retired, last.
+                // which BiGG may not list, first; then BiGG's named ones.
+                // Its unnamed ones, often numbers ChEBI has retired, are
+                // kept only when none is named.
                 let mut ordered: Vec<Candidate> = docs
                     .into_iter()
                     .filter(|(id, label)| {
@@ -346,7 +347,9 @@ impl Search {
                         .into_iter()
                         .partition(|c| c.name.is_some());
                 ordered.extend(named);
-                ordered.extend(unnamed);
+                if ordered.is_empty() {
+                    ordered = unnamed;
+                }
                 self.found.candidates = ordered;
             }
             Step::Exact(_) => {
@@ -580,13 +583,12 @@ mod tests {
         assert_eq!(f.species, "COPASI15");
         assert_eq!(f.source, Some(Source::Bigg));
         assert_eq!(f.full_name.as_deref(), Some("D-Glucose 6-phosphate"));
-        assert_eq!(f.candidates.len(), 3);
         // The one named as BiGG names it, case aside, proposed and sure; the
-        // ones ChEBI names first, the unnamed (CHEBI:14314) last.
+        // ones ChEBI names only: the unnamed CHEBI:14314 is left out.
         assert_eq!(f.candidates[f.chosen.unwrap()].chebi, "CHEBI:4170");
         assert!(f.sure);
         let order: Vec<&str> = f.candidates.iter().map(|c| c.chebi.as_str()).collect();
-        assert_eq!(order, ["CHEBI:4170", "CHEBI:61548", "CHEBI:14314"]);
+        assert_eq!(order, ["CHEBI:4170", "CHEBI:61548"]);
         // KEGG and MetaNetX (C4), not SEED.
         let other: Vec<&str> = f
             .other_references
@@ -703,10 +705,13 @@ mod tests {
         let mut s = Search::new(vec![q("X", None), q("glc_c", None)]);
         let asked = run(
             &mut s,
-            &[(
-                "metabolites/glc",
-                r#"{"name": "D-Glucose", "database_links": {"CHEBI": [{"id": "CHEBI:4167"}]}}"#,
-            )],
+            &[
+                (
+                    "metabolites/glc",
+                    r#"{"name": "D-Glucose", "database_links": {"CHEBI": [{"id": "CHEBI:4167"}]}}"#,
+                ),
+                ("q=D-Glucose&", r#"{"response": {"docs": []}}"#),
+            ],
         );
         // X: BiGG, ChEBI, PubChem; glc_c: BiGG as glc_c, then glc.
         assert!(asked.iter().any(|u| u.ends_with("metabolites/glc_c")));
@@ -714,7 +719,9 @@ mod tests {
         assert_eq!(s.results()[0].source, None);
         assert_eq!(s.results()[0].chosen, None);
         assert_eq!(s.results()[1].source, Some(Source::Bigg));
-        // One entry, but ChEBI didn't name it: not sure.
+        // One entry, but ChEBI didn't name it: kept, as none is named, but
+        // not sure.
+        assert_eq!(s.results()[1].candidates.len(), 1);
         assert!(!s.results()[1].sure);
         assert!(!s.unreachable());
     }
