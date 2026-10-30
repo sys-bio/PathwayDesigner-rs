@@ -61,8 +61,8 @@ use crate::geometry::{Pt, normalize, pt, screen_to_world, world_to_screen};
 use crate::model::{Id, Model, ReactionMode, Role};
 use crate::render::constants::{RUBBER_BAND, ZOOM_MAX, ZOOM_MIN};
 use crate::render::draw::{
-    DrawOptions, Highlight, Shown, content_bounds, draw_model_highlighted, linear_junction_t,
-    linear_line,
+    DrawOptions, Highlight, Marks, Shown, content_bounds, draw_marks, draw_model_highlighted,
+    linear_junction_t, linear_line,
 };
 use crate::render::{Renderer, SRect, Stroke, spt};
 use crate::textbox::{MIN_WRAP_WIDTH, lay_out, text_box};
@@ -142,6 +142,9 @@ pub struct DiagramView {
     /// Structure tab (docs/structural-analysis-design.md §6). A view: not
     /// saved, no undo.
     highlight: Option<Highlight>,
+    /// What an annotation lookup left to check, marked on the screen
+    /// (docs/annotation-marks-design.md).
+    marks: Marks,
     /// The undo history's version after the last change to a text's words,
     /// and which text: typing more joins that undo step (S §7.8).
     text_edited: Option<(u64, Id)>,
@@ -428,6 +431,7 @@ impl DiagramView {
             nudged: None,
             current_corner: None,
             highlight: None,
+            marks: Marks::default(),
             text_edited: None,
         }
     }
@@ -537,6 +541,7 @@ impl DiagramView {
             current_corner: self.current_corner_point(),
         };
         draw_model_highlighted(&self.model, &opts, self.highlight.as_ref(), r);
+        draw_marks(&self.model, &opts, &self.marks, r);
         self.draw_overlays(r);
         if let Gesture::NewCompartment { start, current } = &self.gesture {
             let (a, b) = corners(self.world_to_screen(*start), self.world_to_screen(*current));
@@ -600,6 +605,19 @@ impl DiagramView {
     pub fn set_highlight(&mut self, highlight: Option<Highlight>) -> bool {
         let changed = self.highlight != highlight;
         self.highlight = highlight;
+        changed
+    }
+
+    /// The items marked after an annotation lookup.
+    pub fn marks(&self) -> &Marks {
+        &self.marks
+    }
+
+    /// Marks `marks` on the diagram from now on (empty: nothing). Returns
+    /// whether they changed, so the caller can repaint.
+    pub fn set_marks(&mut self, marks: Marks) -> bool {
+        let changed = self.marks != marks;
+        self.marks = marks;
         changed
     }
 

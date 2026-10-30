@@ -687,7 +687,13 @@ exactly as §5.7 and §5.7.1 say, so existing diagrams don't change.
 - **Tooltip:** a pale-yellow (`#FFFDE7`) rounded box with a `#888866` border and
   11 px text, drawn at cursor + (14, 14) screen px. For a species it shows
   `id: initialValue` (up to 4 decimals). For a reaction it shows `id` or
-  `id: kineticLaw`. The tooltip SHOULD be kept inside the canvas.
+  `id: kineticLaw`. The tooltip SHOULD be kept inside the canvas. *(Rust
+  version, docs/annotation-marks-design.md.)* Below that first line, a line each
+  for the item's display name, its SBO term (`SBO:0000247 simple chemical`), its
+  references, one line per qualifier (`is CHEBI:4170 · kegg.compound:C00092`, a
+  fifth and more as `+ n more`), and the first line of its notes, cut at 60
+  letters (`Notes: …`); compartments too. An alias shows its species'. The lines
+  start at the box's left; the box is as wide as the longest.
 
 ---
 
@@ -1361,6 +1367,19 @@ recomputed). Without this, the mean movement could put the junction anywhere.
   screen points are left out (the fine ones first), so zooming out never turns
   the background grey. Remembered between sessions. *Not in the reference; added
   at the user's request.*
+- **Annotation Marks** (View menu, a submenu; *Rust version,
+  docs/annotation-marks-design.md*): what the annotation lookups left to check
+  (§8, the Annotate tab), marked on the screen, never in output: a ring outside
+  a species (every drawing of it), or a reaction's lines in the colour with a
+  ring around its junction; **orange** (`#E07B00`) for *not sure* (found, not
+  ticked), **blue** (`#1F6FD1`) for *nothing found*. The submenu has a tick for
+  each kind, with its count, and **Clear Marks**; the same are in the Diagram
+  group (§8.8) while marks are kept. While a review is open its own marks show;
+  after Apply, those of what wasn't applied are kept, in place of any earlier
+  marks of the items it looked up; after Cancel, none. A species' mark goes when
+  it gets a ChEBI reference, a reaction's when it gets an EC number or a Rhea
+  reference, and any mark when its item is deleted. Marks belong to the session:
+  not saved, not undoable.
 - **Snap to grid** on/off (View menu). Default **off**; it works whether the grid
   is shown or not. While it is on:
   - **Dragging** puts the point of the item grabbed on the nearest grid point
@@ -1669,7 +1688,7 @@ fields are enabled only when exactly one species is selected.
 | Control | Applies to | Behaviour |
 |---|---|---|
 | Display name (text), Label (list) | single reaction; all selected reactions | As for species (§5.14). The Compartment group has them too. Added in the Rust version. |
-| Annotations (folded part) | single species, reaction or compartment; the model, in the Diagram group shown when nothing is selected | *(Rust version, docs/annotations-design.md.)* The SBO term (a number, its name if it is a common one, a link to its definition, and a Common list of terms for that kind of item; in the Diagram group the row is *Framework (SBO)*, the modelling framework, and its list the frameworks: continuous, non-spatial continuous, discrete, logical, flux balance), the database references (each a link, opened in the browser through identifiers.org, with a button to remove it; a qualifier list and a field to add one, typed as a link or a compact identifier such as `CHEBI:15422`) and the notes, as text. Each change is one undo step, *Edit Annotation*; the SBO term and notes apply when their field loses focus, and notes not changed stay as read. The Diagram group also shows the model's history (creators, dates). A species' part also has **Find in ChEBI** (docs/chebi-lookup-design.md): a field filled in with its display name or id, and a Search button that looks the words up as Annotate Species from Names does (§13.3) and lists the ChEBI entries found, each a link to its page and an Add button that adds it as a reference (`bqbiol:is`), one undo step; it says when nothing is found or no service can be reached. |
+| Annotations (folded part) | single species, reaction or compartment; the model, in the Diagram group shown when nothing is selected | *(Rust version, docs/annotations-design.md.)* The SBO term (a number, its name if it is a common one, a link to its definition, and a Common list of terms for that kind of item; in the Diagram group the row is *Framework (SBO)*, the modelling framework, and its list the frameworks: continuous, non-spatial continuous, discrete, logical, flux balance), the database references (each a link, opened in the browser through identifiers.org, with a button to remove it; a qualifier list and a field to add one, typed as a link or a compact identifier such as `CHEBI:15422`) and the notes, as text. Each change is one undo step, *Edit Annotation*; the SBO term and notes apply when their field loses focus, and notes not changed stay as read. The Diagram group also shows the model's history (creators, dates), and, while annotation marks are kept (§7.6), their ticks and Clear Marks. A species' part also has **Find in ChEBI** (docs/chebi-lookup-design.md): a field filled in with its display name or id, and a Search button that looks the words up as Annotate Species from Names does (§13.3) and lists the ChEBI entries found, each a link to its page and an Add button that adds it as a reference (`bqbiol:is`), one undo step; it says when nothing is found or no service can be reached. |
 | Line colour swatch | all selected reactions | Sets `lineColor` and `hasCustomStyle`. |
 | Line width (number) | single reaction | Sets `lineWidth` and `hasCustomStyle`. Shows the width drawn (1.5 by default); 0 or less is refused. |
 | Show junction (checkbox) | all selected reactions | Sets `junctionVisible`. The box is ticked only if **every** selected reaction shows its junction. |
@@ -2856,7 +2875,10 @@ the Species and Reaction groups; there was no room left for more.)*
   **Apply (n)** adds the ticked ChEBI entries (`bqbiol:is`), with BiGG's KEGG and
   MetaNetX links, and the ticked display names, as one undo step, *Annotate
   Species*, and closes the tab; **Cancel** closes it and changes nothing. If no
-  service can be reached it says so. A **Find** box above the review keeps only
+  service can be reached it says so. Under the counts, **Mark on the diagram**
+  has two ticks, *Not sure (n)* and *Nothing found (n)*, which mark this
+  review's rows on the diagram (§7.6, Annotation Marks); ticking a row takes its
+  mark away. A **Find** box above the review keeps only
   the rows whose name, id or what was found holds the words typed.
 
   **Annotate Reactions from Names…** *(docs/reaction-lookup-design.md; Edit

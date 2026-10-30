@@ -8,6 +8,9 @@ use eframe::egui::{self, RichText};
 use pd_core::annotation::resource_url;
 use pd_core::chebi::{self, MIN_INTERVAL_MS};
 use pd_core::reaction_lookup as rl;
+use pd_core::render::draw::{Mark, Marks};
+
+use crate::marks::{MarkState, Review};
 
 use crate::annotation_panel::Fetch;
 use crate::gallery::{Pending, take};
@@ -288,7 +291,45 @@ impl AnnotateTab {
         });
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<TabAction> {
+    /// What the review leaves to check, for the diagram to mark
+    /// (docs/annotation-marks-design.md): an item found but not ticked is
+    /// *not sure*, one with nothing found *nothing found*. `None` while
+    /// searching.
+    pub fn review_marks(&self) -> Option<Review> {
+        self.rows.as_ref()?;
+        Some(Review {
+            reactions: matches!(self.search, Lookup::Reactions(_)),
+            looked_up: self.names.iter().map(|(id, _)| id.clone()).collect(),
+            marks: self.all_marks(),
+        })
+    }
+
+    fn all_marks(&self) -> Marks {
+        let mark = |found: bool, add: bool| match (found, add) {
+            (false, _) => Some(Mark::NothingFound),
+            (true, false) => Some(Mark::NotSure),
+            (true, true) => None,
+        };
+        let mut marks = Marks::default();
+        match &self.rows {
+            None => {}
+            Some(Rows::Species(r)) => {
+                marks.species = r
+                    .iter()
+                    .filter_map(|r| Some((r.id.clone(), mark(r.found_any(), r.add)?)))
+                    .collect();
+            }
+            Some(Rows::Reactions(r)) => {
+                marks.reactions = r
+                    .iter()
+                    .filter_map(|r| Some((r.id.clone(), mark(r.found_any(), r.add)?)))
+                    .collect();
+            }
+        }
+        marks
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui, marks: &mut MarkState) -> Option<TabAction> {
         let words = self.search.words();
         let Some(rows) = &mut self.rows else {
             let (done, total) = self.search.progress();
@@ -341,6 +382,24 @@ impl AnnotateTab {
             }
         };
         ui.label(RichText::new(hint).small().weak());
+        // M6: the marks on the diagram, each kind with this review's count,
+        // in its colour.
+        let all = self.all_marks();
+        let count = |m: Mark| {
+            all.species
+                .iter()
+                .chain(&all.reactions)
+                .filter(|(_, k)| *k == m)
+                .count()
+        };
+        let counts = (count(Mark::NotSure), count(Mark::NothingFound));
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Mark on the diagram:");
+            marks.ticks(ui, counts);
+        });
+        let Some(rows) = &mut self.rows else {
+            return None;
+        };
         // R6: Rhea needs the species' ChEBI entries.
         if let Rows::Reactions(r) = rows
             && r.iter().any(|r| r.found.species_unannotated)

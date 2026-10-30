@@ -18,6 +18,7 @@ mod kegg_names;
 mod keys_help;
 #[cfg(target_os = "macos")]
 mod macos_menu;
+mod marks;
 mod my_styles;
 mod prefs;
 #[cfg(not(target_arch = "wasm32"))]

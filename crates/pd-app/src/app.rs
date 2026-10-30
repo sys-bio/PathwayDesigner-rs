@@ -174,6 +174,9 @@ pub struct PathwayApp {
     inspector: Inspector,
     /// Annotate Species from Names, under way (docs/chebi-lookup-design.md).
     pub(crate) annotate: Option<crate::annotate_tab::AnnotateTab>,
+    /// What the annotation lookups left to check, marked on the diagram
+    /// (docs/annotation-marks-design.md); for the session only.
+    pub(crate) marks: crate::marks::MarkState,
     pub(crate) antimony: AntimonyPanel,
     /// The Structure tab and the matrix panel.
     pub(crate) structure: crate::structure_panel::StructurePanel,
@@ -270,6 +273,7 @@ impl PathwayApp {
             canvas: CanvasState::default(),
             inspector: Inspector::default(),
             annotate: None,
+            marks: crate::marks::MarkState::default(),
             antimony: AntimonyPanel::default(),
             structure: Default::default(),
             right_tab: RightTab::default(),
@@ -1010,6 +1014,9 @@ impl PathwayApp {
                     .on_hover_text(
                         "Dragged and new items land on grid points; hold Alt to place freely",
                     );
+                // What the annotation lookups left to check
+                // (docs/annotation-marks-design.md M4).
+                ui.menu_button("Annotation Marks", |ui| self.marks.controls(ui));
                 ui.separator();
                 // Restyles the whole diagram, in one undo step (S §8.7).
                 ui.menu_button("Theme", |ui| {
@@ -1359,6 +1366,13 @@ impl PathwayApp {
                 self.view.centre_on(at, self.canvas_centre);
             }
             return;
+        }
+        // What wasn't applied stays marked (M3); after Cancel, nothing new
+        // is kept (M7).
+        if action != crate::annotate_tab::TabAction::Close
+            && let Some(review) = self.annotate.as_ref().and_then(|t| t.review_marks())
+        {
+            self.marks.keep(review);
         }
         match action {
             crate::annotate_tab::TabAction::Apply(items) => {
@@ -1793,6 +1807,14 @@ impl eframe::App for PathwayApp {
         if let Some(t) = &mut self.annotate {
             t.poll(&ctx, self.gallery.fetch);
         }
+        // What the lookups left to check, marked on the diagram
+        // (docs/annotation-marks-design.md): the kept marks whose items have
+        // since been annotated go; a review under way shows its own.
+        self.marks.prune(self.view.model());
+        let review = self.annotate.as_ref().and_then(|t| t.review_marks());
+        if self.view.set_marks(self.marks.shown(review.as_ref())) {
+            ctx.request_repaint();
+        }
         self.check_close();
         self.update_title();
         self.shortcuts(&ctx);
@@ -1858,7 +1880,11 @@ impl eframe::App for PathwayApp {
                     ui.add_enabled_ui(!busy, |ui| match self.right_tab {
                         RightTab::Properties => {
                             self.inspector.fetch = Some(self.gallery.fetch);
-                            self.inspector.show(ui, &mut self.view)
+                            self.inspector.marks = Some(std::mem::take(&mut self.marks));
+                            self.inspector.show(ui, &mut self.view);
+                            if let Some(marks) = self.inspector.marks.take() {
+                                self.marks = marks;
+                            }
                         }
                         RightTab::Antimony => {
                             antimony_action = self.antimony.show(ui, &mut self.view, &opts);
@@ -1867,7 +1893,10 @@ impl eframe::App for PathwayApp {
                             styles_action = crate::styles_panel::show(ui, &mut self.view);
                         }
                         RightTab::Annotate => {
-                            annotate_action = self.annotate.as_mut().and_then(|t| t.show(ui));
+                            annotate_action = self
+                                .annotate
+                                .as_mut()
+                                .and_then(|t| t.show(ui, &mut self.marks));
                         }
                         RightTab::Structure => {
                             let stem = self
@@ -3622,11 +3651,24 @@ k = 1",
             let c = h.app.canvas_centre;
             (f64::from(at.x) - c.x).abs() < 1.0 && (f64::from(at.y) - c.y).abs() < 1.0
         };
-        h.click(h.widget("XYZ"));
+        // The name in the review, not the one in the list on the left.
+        let in_review = |h: &Harness, label: &str| {
+            h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .filter(|(_, n)| n.label() == Some(label))
+                .filter_map(|(_, n)| n.bounds())
+                .find(|b| b.x0 > f64::from(h.size.x) / 2.0)
+                .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+                .expect("in the review")
+        };
+        h.click(in_review(&h, "XYZ"));
         h.run(vec![]);
         assert!(h.app.view.model().find_species("XYZ").unwrap().selected);
         assert!(centred(&h, "XYZ"));
-        h.click(h.widget("G6P"));
+        h.click(in_review(&h, "G6P"));
         h.run(vec![]);
         assert!(h.app.view.model().find_species("G6P").unwrap().selected);
         assert!(!h.app.view.model().find_species("XYZ").unwrap().selected);
@@ -3792,6 +3834,174 @@ k = 1",
         h.run(vec![]);
         assert!(h.app.annotate.is_none());
         assert_eq!(*h.app.view.model(), before);
+    }
+
+    /// docs/annotation-marks-design.md step 2: when the review shows, what
+    /// it leaves to check is marked on the diagram, each kind turned on and
+    /// off by its tick; ticking a row takes its mark away; Cancel all.
+    #[test]
+    fn the_review_marks_what_is_left_to_check() {
+        use pd_core::render::draw::{Mark, Marks};
+        let mut h = Harness::new();
+        h.app.gallery.fetch = reaction_services;
+        let opts = h.app.import_options();
+        // PPC has ATP, which BiGG's PPC hasn't: found, not sure.
+        h.app
+            .view
+            .import_antimony(
+                "PPC: PEP -> OAA + ATP; k*PEP
+X1: OAA -> Q; k*OAA
+k = 1",
+                &opts,
+            )
+            .unwrap();
+        h.run(vec![]);
+        h.app.start_annotating_reactions(None);
+        h.run(vec![]);
+        assert!(h.app.view.marks().is_empty(), "nothing while searching");
+        for _ in 0..120 {
+            h.run(vec![]);
+        }
+        h.text("Found 1 of 2 reactions; 0 ticked as clear matches.");
+        let both = Marks {
+            species: Vec::new(),
+            reactions: vec![
+                ("PPC".into(), Mark::NotSure),
+                ("X1".into(), Mark::NothingFound),
+            ],
+        };
+        assert_eq!(*h.app.view.marks(), both);
+        // Each kind off and on by its tick.
+        h.click(h.widget("Not sure (1)"));
+        h.run(vec![]);
+        assert_eq!(
+            h.app.view.marks().reactions,
+            [("X1".to_owned(), Mark::NothingFound)]
+        );
+        h.click(h.widget("Not sure (1)"));
+        h.click(h.widget("Nothing found (1)"));
+        h.run(vec![]);
+        assert_eq!(
+            h.app.view.marks().reactions,
+            [("PPC".to_owned(), Mark::NotSure)]
+        );
+        h.click(h.widget("Nothing found (1)"));
+        h.run(vec![]);
+        assert_eq!(*h.app.view.marks(), both);
+        // Ticking PPC's row (the tick left of its name in the review):
+        // checked, so no longer marked.
+        let tree = h.access.as_ref().unwrap();
+        let half = f64::from(h.size.x) / 2.0;
+        let name = tree
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.label() == Some("PPC"))
+            .filter_map(|(_, n)| n.bounds())
+            .find(|b| b.x0 > half)
+            .expect("PPC in the review");
+        let tick = tree
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.role() == egui::accesskit::Role::CheckBox)
+            .filter_map(|(_, n)| n.bounds())
+            .filter(|b| b.x0 > half && b.x1 <= name.x0 && b.y0 < name.y1 && b.y1 > name.y0)
+            .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+            .next()
+            .expect("PPC's tick");
+        h.click(tick);
+        h.run(vec![]);
+        assert_eq!(
+            h.app.view.marks().reactions,
+            [("X1".to_owned(), Mark::NothingFound)]
+        );
+        // Cancel: no marks.
+        h.click(h.widget("Cancel"));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(h.app.view.marks().is_empty());
+    }
+
+    /// docs/annotation-marks-design.md step 3: after Apply, what wasn't
+    /// applied stays marked; the Diagram group and View ▸ Annotation Marks
+    /// turn the marks off and clear them; a mark goes when its item gets an
+    /// EC number or Rhea reference.
+    #[test]
+    fn marks_stay_after_apply_until_cleared_or_annotated() {
+        use pd_core::render::draw::Mark;
+        let mut h = Harness::new();
+        h.app.gallery.fetch = reaction_services;
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony(
+                "PPC: PEP -> OAA + ATP; k*PEP
+X1: OAA -> Q; k*OAA
+X2: Q -> PEP; k*Q
+k = 1",
+                &opts,
+            )
+            .unwrap();
+        h.run(vec![]);
+        h.app.start_annotating_reactions(None);
+        for _ in 0..160 {
+            h.run(vec![]);
+        }
+        h.text("Found 1 of 3 reactions; 0 ticked as clear matches.");
+        // PPC only renamed: Apply, then PPC (not sure), X1 and X2 (nothing
+        // found) stay marked.
+        h.click(h.widget("Apply (1)"));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(h.app.annotate.is_none());
+        let reactions = |h: &Harness| h.app.view.marks().reactions.clone();
+        assert_eq!(
+            reactions(&h),
+            [
+                ("PPC".to_owned(), Mark::NotSure),
+                ("X1".to_owned(), Mark::NothingFound),
+                ("X2".to_owned(), Mark::NothingFound)
+            ]
+        );
+        // The Diagram group (nothing selected) has their ticks.
+        assert!(h.app.view.selection().0.is_empty() && h.app.view.selection().1.is_empty());
+        h.run(vec![]);
+        h.run(vec![]);
+        h.text("Marked on the diagram:");
+        h.click(h.widget("Nothing found (2)"));
+        h.run(vec![]);
+        assert_eq!(reactions(&h), [("PPC".to_owned(), Mark::NotSure)]);
+        h.click(h.widget("Nothing found (2)"));
+        h.run(vec![]);
+        assert_eq!(reactions(&h).len(), 3);
+        // X1 given an EC number: its mark goes.
+        h.app
+            .view
+            .annotate_reactions(&[pd_core::reaction_lookup::Accepted {
+                reaction: "X1".into(),
+                references: vec![pd_core::model::Reference {
+                    qualifier: "bqbiol:isVersionOf".into(),
+                    resource: "https://identifiers.org/ec-code:1.1.1.1".into(),
+                }],
+                display_name: None,
+            }]);
+        h.run(vec![]);
+        assert_eq!(
+            reactions(&h),
+            [
+                ("PPC".to_owned(), Mark::NotSure),
+                ("X2".to_owned(), Mark::NothingFound)
+            ]
+        );
+        // View ▸ Annotation Marks ▸ Clear Marks.
+        h.click(h.widget("View"));
+        h.run(vec![]);
+        h.click(h.widget("Annotation Marks"));
+        h.run(vec![]);
+        h.click(h.widget("Clear Marks"));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(h.app.view.marks().is_empty());
+        assert!(h.app.marks.kept.is_empty());
     }
 
     /// ChEBI knows LONG by a name hundreds of letters long, and ATP.

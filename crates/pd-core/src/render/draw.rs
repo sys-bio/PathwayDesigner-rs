@@ -299,6 +299,89 @@ impl Drawer<'_> {
     }
 }
 
+/// What an annotation lookup left to check (docs/annotation-marks-design.md).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mark {
+    /// Found, but not a clear match.
+    NotSure,
+    NothingFound,
+}
+
+/// The items marked on the diagram after an annotation lookup: species by
+/// primary id (every drawing of each is marked) and reactions. Drawn on the
+/// screen only, never in a picture made of the diagram (M5).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Marks {
+    pub species: Vec<(Id, Mark)>,
+    pub reactions: Vec<(Id, Mark)>,
+}
+
+impl Marks {
+    pub fn is_empty(&self) -> bool {
+        self.species.is_empty() && self.reactions.is_empty()
+    }
+}
+
+/// A mark's colour (M6): orange for *not sure*, blue for *nothing found*, a
+/// pair that reads in colour-blind vision and is neither the selection's red
+/// nor the aliases' purple.
+pub fn mark_colour(m: Mark) -> Rgba {
+    match m {
+        Mark::NotSure => HIGHLIGHT_NEGATIVE,
+        Mark::NothingFound => HIGHLIGHT_POSITIVE,
+    }
+}
+
+/// How far a mark's halo is outside a species, beyond the selection's, so
+/// both can be seen.
+const MARK_OUTSET: f64 = HALO_OUTSET + 4.0;
+/// A mark's line width, in world units.
+const MARK_WIDTH: f64 = 3.0;
+/// The radius of the ring around a marked reaction's junction.
+const MARK_RING: f64 = 12.0;
+
+/// Draws `marks` over the diagram drawn with `opts`: a solid halo in the
+/// mark's colour around every drawing of a marked species; a marked
+/// reaction's lines in the colour and a ring around its junction.
+pub fn draw_marks(model: &Model, opts: &DrawOptions, marks: &Marks, out: &mut dyn Renderer) {
+    let d = Drawer { model, opts };
+    for (id, mark) in &marks.reactions {
+        let Some(reaction) = model.find_reaction(id) else {
+            continue;
+        };
+        let colour = mark_colour(*mark);
+        let mut shown = reaction.clone();
+        shown.selected = false;
+        shown.style.has_custom_style = true;
+        shown.style.line_color = colour;
+        d.reaction_legs(&shown, out);
+        out.circle(
+            d.to_screen(effective_junction(model, reaction)),
+            d.len(MARK_RING),
+            None,
+            Some(Stroke::solid(d.len(MARK_WIDTH), colour)),
+        );
+    }
+    for (id, mark) in &marks.species {
+        for node in model
+            .species()
+            .iter()
+            .filter(|s| s.primary_id() == id.as_str() && !s.is_null_node)
+        {
+            out.round_rect(
+                d.rect(
+                    node.center,
+                    node.width / 2.0 + MARK_OUTSET,
+                    node.height / 2.0 + MARK_OUTSET,
+                ),
+                d.len(HALO_CORNER_RADIUS + 4.0),
+                None,
+                Some(Stroke::solid(d.len(MARK_WIDTH), mark_colour(*mark))),
+            );
+        }
+    }
+}
+
 /// The colour the diagram is drawn on (S §8.8): its own, or the default.
 pub fn background_colour(model: &Model) -> Rgba {
     pick(Some(model.background), BACKGROUND)
@@ -2217,6 +2300,74 @@ mod tests {
         );
         assert_eq!(coefficient_label(0.5).as_deref(), Some("×1/2"));
         assert_eq!(coefficient_label(-1.0), None);
+    }
+
+    /// docs/annotation-marks-design.md step 2: a marked species has a solid
+    /// halo in the mark's colour, every drawing of it; a marked reaction its
+    /// lines in the colour and a ring around its junction.
+    #[test]
+    fn marks_are_drawn_in_their_colours() {
+        let mut m = uni_uni();
+        let a = m.species()[0].id.clone();
+        let b = m.species()[1].id.clone();
+        m.add_alias(&a, pt(0.0, 200.0)).unwrap();
+        let r = m.reactions()[0].id.clone();
+        let opts = DrawOptions::default();
+        let mut rec = Recorder::default();
+        draw_marks(&m, &opts, &Marks::default(), &mut rec);
+        assert!(rec.calls.is_empty(), "no marks, nothing drawn");
+
+        let marks = Marks {
+            species: vec![(a.clone(), Mark::NotSure), (b, Mark::NothingFound)],
+            reactions: vec![(r, Mark::NothingFound)],
+        };
+        let mut rec = Recorder::default();
+        draw_marks(&m, &opts, &marks, &mut rec);
+        let halos = |colour: Rgba| {
+            rec.calls
+                .iter()
+                .filter(|c| matches!(c, Call::RoundRect(_, None, Some(s)) if s.color == colour && s.dash.is_none()))
+                .count()
+        };
+        assert_eq!(
+            halos(HIGHLIGHT_NEGATIVE),
+            2,
+            "the species and its alias, orange"
+        );
+        assert_eq!(halos(HIGHLIGHT_POSITIVE), 1, "the other, blue");
+        // Outside the selection halo.
+        let node = &m.species()[0];
+        let outer = rec.calls.iter().find_map(|c| match c {
+            Call::RoundRect(rect, None, Some(s)) if s.color == HIGHLIGHT_NEGATIVE => Some(*rect),
+            _ => None,
+        });
+        let want = node.width / 2.0 + HALO_OUTSET;
+        assert!(f64::from(outer.unwrap().width()) > 2.0 * want);
+        let legs = rec
+            .calls
+            .iter()
+            .filter(|c| matches!(c, Call::Polyline(_, s) if s.color == HIGHLIGHT_POSITIVE))
+            .count();
+        assert_eq!(legs, 2, "both legs blue");
+        let junction = effective_junction(&m, &m.reactions()[0]);
+        assert!(rec.calls.iter().any(|c| matches!(c,
+            Call::Circle(at, radius, None, Some(s))
+                if s.color == HIGHLIGHT_POSITIVE
+                    && (f64::from(at.x) - junction.x).abs() < 0.01
+                    && (f64::from(at.y) - junction.y).abs() < 0.01
+                    && *radius > 10.0)));
+        // An unknown id is skipped.
+        let mut rec = Recorder::default();
+        draw_marks(
+            &m,
+            &opts,
+            &Marks {
+                species: vec![("nope".into(), Mark::NotSure)],
+                reactions: vec![("nope".into(), Mark::NotSure)],
+            },
+            &mut rec,
+        );
+        assert!(rec.calls.is_empty());
     }
 
     #[test]

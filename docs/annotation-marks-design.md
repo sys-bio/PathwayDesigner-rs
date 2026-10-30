@@ -1,6 +1,15 @@
 # Seeing annotations on the diagram: design
 
 Status: decisions M1–M7 agreed with the author as proposed, 2026-10-30.
+Step 1 done. Step 2 done; M6 changed while building it: the selection halo
+is red, not blue, and aliases are already drawn with a purple dashed border,
+so *nothing found* is blue (the Structure tab's colour-blind-safe pair,
+orange and blue) rather than purple. Step 3 done: the marks of what wasn't applied are
+kept for the session; a later lookup replaces only the marks of the items it
+looked up; a species' mark goes when it gets a ChEBI reference, a reaction's
+when it gets an EC number or a Rhea reference. Step 4 done: the
+specification (§5.9 tooltip, §7.6 Annotation Marks, the Annotate tab, the
+Diagram group) and help.
 
 ## The problem
 

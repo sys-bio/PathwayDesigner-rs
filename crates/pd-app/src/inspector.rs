@@ -87,6 +87,8 @@ pub struct Inspector {
     species_annotation: crate::annotation_panel::AnnotationPanel,
     /// How to fetch, for Find in ChEBI; set by the app.
     pub fetch: Option<crate::annotation_panel::Fetch>,
+    /// The annotation marks, lent by the app while the panel is drawn.
+    pub marks: Option<crate::marks::MarkState>,
     reaction_annotation: crate::annotation_panel::AnnotationPanel,
     compartment_annotation: crate::annotation_panel::AnnotationPanel,
     model_annotation: crate::annotation_panel::AnnotationPanel,
@@ -766,6 +768,14 @@ impl Inspector {
                 // The model's own annotation, and its history.
                 self.model_annotation.show(ui, view, None, "model");
                 history(ui, view);
+                // What the annotation lookups left to check, once kept
+                // (docs/annotation-marks-design.md M4).
+                if let Some(marks) = &mut self.marks
+                    && !marks.kept.is_empty()
+                {
+                    ui.add_space(6.0);
+                    marks.controls(ui);
+                }
             }
         }
     }

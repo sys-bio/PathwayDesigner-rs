@@ -77,6 +77,15 @@ ChEBI, PubChem and Rhea:
   Rhea. Compare the equation shown with your reaction before ticking it.
   Annotate the species first: Rhea is searched by the species' ChEBI entries.
 
+While you review, and after **Apply**, the diagram marks what is left to do:
+an **orange** ring for an item found but not ticked, a **blue** one for an
+item where nothing was found. Work through them with **Find in ChEBI** or by
+typing references; a mark goes when its species gets a ChEBI reference, or
+its reaction an EC number or Rhea entry. **View ▸ Annotation Marks** turns
+each kind on or off and clears them; marks aren't saved.
+
+Rest the pointer on an item to see its annotation in the hint.
+
 ## Finding an item
 
 The list on the left, below the tools, has every species, reaction and

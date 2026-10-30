@@ -554,3 +554,54 @@ fn the_pointer_position_is_in_diagram_coordinates() {
     v.handle(&ViewEvent::PointerLeft);
     assert_eq!(v.pointer_world(), None);
 }
+
+/// docs/annotation-marks-design.md: the marks set on the view are drawn
+/// over the diagram; setting the same again is no change.
+#[test]
+fn marks_are_drawn_on_the_screen() {
+    use crate::model::Rgba;
+    use crate::render::draw::{Mark, Marks, mark_colour};
+    #[derive(Default)]
+    struct Strokes(Vec<Rgba>);
+    impl Renderer for Strokes {
+        fn round_rect(&mut self, _: SRect, _: f32, _: Option<Rgba>, s: Option<Stroke>) {
+            self.0.extend(s.map(|s| s.color));
+        }
+        fn circle(&mut self, _: crate::render::SPt, _: f32, _: Option<Rgba>, _: Option<Stroke>) {}
+        fn polyline(&mut self, _: &[crate::render::SPt], _: Stroke) {}
+        fn cubic(
+            &mut self,
+            _: crate::render::SPt,
+            _: crate::render::SPt,
+            _: crate::render::SPt,
+            _: crate::render::SPt,
+            _: Stroke,
+        ) {
+        }
+        fn polygon(&mut self, _: &[crate::render::SPt], _: Rgba) {}
+        fn text(
+            &mut self,
+            _: crate::render::SPt,
+            _: &str,
+            _: f32,
+            _: crate::model::TextFont,
+            _: Rgba,
+        ) {
+        }
+    }
+    let mut v = view();
+    let orange = mark_colour(Mark::NotSure);
+    let mut s = Strokes::default();
+    v.draw(&mut s, SRect::default());
+    assert!(!s.0.contains(&orange));
+    let marks = Marks {
+        species: vec![("S1".into(), Mark::NotSure)],
+        reactions: Vec::new(),
+    };
+    assert!(v.set_marks(marks.clone()));
+    assert!(!v.set_marks(marks.clone()), "the same again: no change");
+    assert_eq!(*v.marks(), marks);
+    let mut s = Strokes::default();
+    v.draw(&mut s, SRect::default());
+    assert!(s.0.contains(&orange));
+}
