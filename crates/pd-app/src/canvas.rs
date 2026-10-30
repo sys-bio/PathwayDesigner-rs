@@ -42,6 +42,7 @@ pub enum MenuAction {
     /// Annotate Species from Names, from a species' menu: the species
     /// right-clicked (docs/chebi-lookup-design.md C7).
     AnnotateSpecies(String),
+    AnnotateReactions(String),
     /// Mark as Modifier or Unmark as Modifier: the reaction, the species,
     /// and whether to mark it.
     MarkModifier(String, String, bool),
@@ -481,6 +482,11 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
                 ui,
                 "Adjust Reaction (Make Nice)",
                 MenuAction::MakeNice(id.clone()),
+            );
+            item(
+                ui,
+                "Annotate Reactions from Names…",
+                MenuAction::AnnotateReactions(id.clone()),
             );
             ui.separator();
             style_items(ui, view, &Target::Leg(id.clone()), &mut item);

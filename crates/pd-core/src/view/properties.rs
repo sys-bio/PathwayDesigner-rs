@@ -280,6 +280,89 @@ impl DiagramView {
         self.record_if_changed("Annotate Species", before)
     }
 
+    /// The reactions for Annotate Reactions from Names
+    /// (docs/reaction-lookup-design.md): the one right-clicked (`only`) if it
+    /// isn't selected, else the selected ones, else all; none that already
+    /// has an EC number or a Rhea reference. Each with its reactants and
+    /// products, as their species, once each, and their ChEBI entries.
+    pub fn reactions_to_annotate(&self, only: Option<&str>) -> Vec<crate::reaction_lookup::Query> {
+        use crate::reaction_lookup::{Participant, Query};
+        let m = &self.model;
+        let selected: Vec<Id> = m
+            .reactions()
+            .iter()
+            .filter(|r| r.selected)
+            .map(|r| r.id.clone())
+            .collect();
+        let wanted: Option<Vec<Id>> = match only {
+            Some(id) if !selected.iter().any(|s| s == id) => Some(vec![id.to_owned()]),
+            _ if !selected.is_empty() => Some(selected),
+            _ => None,
+        };
+        m.reactions()
+            .iter()
+            .filter(|r| wanted.as_ref().is_none_or(|w| w.contains(&r.id)))
+            .filter(|r| {
+                !r.annotation.references.iter().any(|x| {
+                    let x = x.resource.to_ascii_lowercase();
+                    x.contains("ec-code") || x.contains("rhea")
+                })
+            })
+            .map(|r| {
+                let mut species: Vec<Participant> = Vec::new();
+                for p in r.reactants.iter().chain(&r.products) {
+                    let Some(s) = m.find_species(&p.species) else {
+                        continue;
+                    };
+                    let Some(s) = m.find_species(s.primary_id()) else {
+                        continue;
+                    };
+                    if s.is_null_node || species.iter().any(|x| x.id == s.id) {
+                        continue;
+                    }
+                    species.push(Participant {
+                        id: s.id.clone(),
+                        name: s.display_name.clone(),
+                        chebi: s
+                            .annotation
+                            .references
+                            .iter()
+                            .filter_map(|x| chebi_id(&x.resource))
+                            .collect(),
+                    });
+                }
+                Query {
+                    reaction: r.id.clone(),
+                    name: r.display_name.clone(),
+                    species,
+                }
+            })
+            .collect()
+    }
+
+    /// Applies what the reaction review accepted: as
+    /// [`Self::annotate_species`], one undo step, *Annotate Reactions*.
+    pub fn annotate_reactions(
+        &mut self,
+        items: &[crate::reaction_lookup::Accepted],
+    ) -> ViewResponse {
+        let before = self.model.clone();
+        for item in items {
+            let Some(r) = self.model.find_reaction_mut(&item.reaction) else {
+                continue;
+            };
+            for x in &item.references {
+                if !r.annotation.references.contains(x) {
+                    r.annotation.references.push(x.clone());
+                }
+            }
+            if let Some(name) = crate::model::display_name(item.display_name.clone()) {
+                r.display_name = Some(name);
+            }
+        }
+        self.record_if_changed("Annotate Reactions", before)
+    }
+
     /// Whether labels show display names (View ▸ Show Display Names,
     /// docs/display-names-design.md D4). A setting of the diagram, saved in
     /// its file.
@@ -1161,6 +1244,19 @@ impl DiagramView {
     }
 }
 
+/// The ChEBI entry a reference names, `CHEBI:4170`, from any of the ways it
+/// is written (`https://identifiers.org/CHEBI:4170`, `…/chebi/CHEBI:4170`,
+/// `urn:miriam:chebi:CHEBI%3A4170`).
+fn chebi_id(resource: &str) -> Option<String> {
+    let r = resource.replace("%3A", ":").replace("%3a", ":");
+    let at = r.to_ascii_uppercase().rfind("CHEBI:")?;
+    let digits: String = r[at + 6..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    (!digits.is_empty()).then(|| format!("CHEBI:{digits}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1472,6 +1568,130 @@ mod tests {
         assert_eq!(*v.model(), before);
         v.undo();
         assert!(v.model().find_species("S1").unwrap().annotation.is_empty());
+    }
+
+    #[test]
+    fn the_reactions_to_annotate_carry_their_species_and_chebi() {
+        use crate::model::{Participant, Reference};
+        let mut v = view();
+        let r = |c: &str| Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: c.into(),
+        };
+        // S1 has ChEBI; the product drawn as an alias of S1 counts once.
+        v.model
+            .find_species_mut("S1")
+            .unwrap()
+            .annotation
+            .references
+            .push(r("urn:miriam:chebi:CHEBI%3A4170"));
+        v.model.find_species_mut("S2").unwrap().display_name = Some("ATP".into());
+        let alias = v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        let r2 = v.model.add_reaction(pt(0.0, 300.0));
+        let rr = v.model.find_reaction_mut(&r2).unwrap();
+        rr.reactants.push(Participant::new("S1", 1.0));
+        rr.products.push(Participant::new(alias, 1.0));
+        rr.products.push(Participant::new("S2", 1.0));
+        rr.modifiers.push(Participant::new("E", 1.0));
+        v.model.find_reaction_mut(&r2).unwrap().display_name = Some("Kinase".into());
+        v.model.clear_selection();
+        let all = v.reactions_to_annotate(None);
+        assert_eq!(all.len(), 2);
+        let q = all.iter().find(|q| q.reaction == r2).unwrap();
+        assert_eq!(q.name.as_deref(), Some("Kinase"));
+        let species: Vec<(&str, Option<&str>, Vec<&str>)> = q
+            .species
+            .iter()
+            .map(|p| {
+                (
+                    p.id.as_str(),
+                    p.name.as_deref(),
+                    p.chebi.iter().map(String::as_str).collect(),
+                )
+            })
+            .collect();
+        // Modifiers left out.
+        assert_eq!(
+            species,
+            [
+                ("S1", None, vec!["CHEBI:4170"]),
+                ("S2", Some("ATP"), vec![])
+            ]
+        );
+        // Selected, or right-clicked outside the selection.
+        v.model.find_reaction_mut("R5").unwrap().selected = true;
+        let ids = |q: Vec<crate::reaction_lookup::Query>| -> Vec<String> {
+            q.into_iter().map(|q| q.reaction).collect()
+        };
+        assert_eq!(ids(v.reactions_to_annotate(None)), ["R5"]);
+        assert_eq!(
+            ids(v.reactions_to_annotate(Some(&r2))),
+            std::slice::from_ref(&r2)
+        );
+        assert_eq!(ids(v.reactions_to_annotate(Some("R5"))), ["R5"]);
+        // One with an EC number is left out.
+        v.model
+            .find_reaction_mut("R5")
+            .unwrap()
+            .annotation
+            .references
+            .push(r("https://identifiers.org/ec-code:2.7.1.1"));
+        assert!(v.reactions_to_annotate(None).is_empty());
+        v.model.clear_selection();
+        assert_eq!(ids(v.reactions_to_annotate(None)), [r2]);
+    }
+
+    #[test]
+    fn what_the_reaction_review_accepts_is_applied_in_one_step() {
+        use crate::model::Reference;
+        use crate::reaction_lookup::Accepted;
+        let mut v = view();
+        let r = |q: &str, c: &str| Reference {
+            qualifier: q.into(),
+            resource: format!("https://identifiers.org/{c}"),
+        };
+        let item = Accepted {
+            reaction: "R5".into(),
+            references: vec![
+                r("bqbiol:isVersionOf", "ec-code:4.1.1.31"),
+                r("bqbiol:is", "rhea:23072"),
+            ],
+            display_name: Some("Phosphoenolpyruvate carboxylase".into()),
+        };
+        v.annotate_reactions(std::slice::from_ref(&item));
+        assert_eq!(v.undo_description(), Some("Annotate Reactions"));
+        let x = v.model().find_reaction("R5").unwrap();
+        assert_eq!(x.annotation.references, item.references);
+        assert_eq!(
+            x.display_name.as_deref(),
+            Some("Phosphoenolpyruvate carboxylase")
+        );
+        // Again: nothing doubled, so no step.
+        let before = v.model().clone();
+        v.annotate_reactions(&[item]);
+        assert_eq!(*v.model(), before);
+        v.undo();
+        assert!(v.model().find_reaction("R5").unwrap().annotation.is_empty());
+    }
+
+    #[test]
+    fn chebi_ids_from_references() {
+        assert_eq!(
+            chebi_id("https://identifiers.org/CHEBI:4170").as_deref(),
+            Some("CHEBI:4170")
+        );
+        assert_eq!(
+            chebi_id("http://identifiers.org/chebi/CHEBI:17").as_deref(),
+            Some("CHEBI:17")
+        );
+        assert_eq!(
+            chebi_id("urn:miriam:chebi:CHEBI%3A4170").as_deref(),
+            Some("CHEBI:4170")
+        );
+        assert_eq!(
+            chebi_id("https://identifiers.org/kegg.compound:C00092"),
+            None
+        );
     }
 
     #[test]

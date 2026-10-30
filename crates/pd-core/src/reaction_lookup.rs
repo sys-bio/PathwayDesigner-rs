@@ -426,7 +426,10 @@ fn bigg_reaction(json: &Value, species: &[Participant]) -> Option<(Candidate, Sh
             continue;
         };
         let mname = m.get("name").and_then(Value::as_str).map(bigg_name);
-        let n = m.get("stoichiometry").and_then(Value::as_f64).unwrap_or(0.0);
+        let n = m
+            .get("stoichiometry")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
         let term = if n.abs() == 1.0 {
             mid.to_owned()
         } else {
@@ -619,7 +622,10 @@ mod tests {
     fn bigg_by_id_gives_its_references_and_is_sure_when_the_species_agree() {
         let mut s = Search::new(vec![q("PPC", ppc_species())]);
         let asked = run(&mut s, &[("reactions/PPC", BIGG_PPC)]);
-        assert_eq!(asked, ["https://bigg.ucsd.edu/api/v2/universal/reactions/PPC"]);
+        assert_eq!(
+            asked,
+            ["https://bigg.ucsd.edu/api/v2/universal/reactions/PPC"]
+        );
         let f = &s.results()[0];
         assert_eq!(f.source, Some(Source::Bigg));
         assert_eq!(f.chosen, Some(0));
@@ -678,7 +684,10 @@ mod tests {
         assert!(asked[1].ends_with("reactions/Ppc1"), "{asked:?}");
         // No species with ChEBI entries: no Rhea, then BiGG's search.
         assert!(!asked.iter().any(|u| u.contains("rhea-db")), "{asked:?}");
-        assert!(asked[2].contains("search?query=R1&search_type=reactions"), "{asked:?}");
+        assert!(
+            asked[2].contains("search?query=R1&search_type=reactions"),
+            "{asked:?}"
+        );
         assert_eq!(s.results()[0].source, None);
     }
 
@@ -708,10 +717,16 @@ mod tests {
         assert_eq!(f.source, Some(Source::Rhea));
         assert!(f.sure, "one match, H+ aside no more participants");
         let c = &f.candidates[0];
-        assert_eq!((c.id.as_str(), c.rhea.as_deref()), ("RHEA:28370", Some("28370")));
+        assert_eq!(
+            (c.id.as_str(), c.rhea.as_deref()),
+            ("RHEA:28370", Some("28370"))
+        );
         assert_eq!(c.ec, ["4.1.1.31"]);
         assert_eq!(c.page(), "https://www.rhea-db.org/rhea/28370");
-        assert_eq!(c.references()[1].resource, "https://identifiers.org/rhea:28370");
+        assert_eq!(
+            c.references()[1].resource,
+            "https://identifiers.org/rhea:28370"
+        );
 
         // One match, but with a participant the reaction hasn't (diphosphate).
         let row = "RHEA:22356\toxaloacetate + diphosphate = phosphoenolpyruvate + CO2 + phosphate\tEC:4.1.1.38\tCHEBI:16452;CHEBI:33019;CHEBI:58702;CHEBI:16526;CHEBI:43474\n";
@@ -722,7 +737,10 @@ mod tests {
 
         // Two matches: the one that agrees proposed, not sure.
         let mut s = Search::new(vec![q("X1", species())]);
-        run(&mut s, &[("rhea-db", &format!("{RHEA_HEAD}{row}{ppc_row}"))]);
+        run(
+            &mut s,
+            &[("rhea-db", &format!("{RHEA_HEAD}{row}{ppc_row}"))],
+        );
         let f = &s.results()[0];
         assert_eq!(f.chosen, Some(1));
         assert!(!f.sure);
@@ -789,8 +807,16 @@ mod tests {
             ("reactions/SKK", skk),
             ("reactions/ADK1", adk),
         ];
-        let sk = vec![sp("ATP", None, &[]), sp("ADP", None, &[]), sp("SUC", None, &[])];
-        let adk_species = vec![sp("ATP", None, &[]), sp("AMP", None, &[]), sp("ADP", None, &[])];
+        let sk = vec![
+            sp("ATP", None, &[]),
+            sp("ADP", None, &[]),
+            sp("SUC", None, &[]),
+        ];
+        let adk_species = vec![
+            sp("ATP", None, &[]),
+            sp("AMP", None, &[]),
+            sp("ADP", None, &[]),
+        ];
         let mut s = Search::new(vec![q("SK", sk), q("ADK", adk_species)]);
         run(&mut s, &answers);
         assert_eq!(s.results()[0].source, None);

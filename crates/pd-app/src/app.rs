@@ -466,6 +466,7 @@ impl PathwayApp {
                 self.view.select_all_drawings(&id);
             }
             MenuAction::AnnotateSpecies(id) => self.start_annotating(Some(&id)),
+            MenuAction::AnnotateReactions(id) => self.start_annotating_reactions(Some(&id)),
             MenuAction::MarkModifier(id, species, true) => {
                 self.view.mark_as_modifier(&id, &species);
             }
@@ -894,6 +895,20 @@ impl PathwayApp {
                     self.start_annotating(None);
                     ui.close();
                 }
+                if ui
+                    .add_enabled(
+                        self.annotate.is_none() && !self.view.model().reactions().is_empty(),
+                        egui::Button::new("Annotate Reactions from Names…"),
+                    )
+                    .on_hover_text(
+                        "Look up the selected reactions (or all) in BiGG and Rhea, \
+                         and review what is found",
+                    )
+                    .clicked()
+                {
+                    self.start_annotating_reactions(None);
+                    ui.close();
+                }
             });
             // Align and distribute, also in the context menu (SPEC-Rust §6.3).
             ui.menu_button("Arrange", |ui| {
@@ -1313,21 +1328,51 @@ impl PathwayApp {
         self.right_tab = RightTab::Annotate;
     }
 
+    /// Annotate Reactions from Names (docs/reaction-lookup-design.md): as
+    /// [`Self::start_annotating`], for reactions.
+    pub(crate) fn start_annotating_reactions(&mut self, only: Option<&str>) {
+        if self.annotate.is_some() {
+            return;
+        }
+        let queries = self.view.reactions_to_annotate(only);
+        if queries.is_empty() {
+            self.notice = Some("Each reaction already has an EC number or a Rhea reference".into());
+            return;
+        }
+        self.annotate = Some(crate::annotate_tab::AnnotateTab::reactions(queries));
+        self.right_tab = RightTab::Annotate;
+    }
+
     fn finish_annotating(&mut self, action: crate::annotate_tab::TabAction) {
         if let crate::annotate_tab::TabAction::Show(id) = action {
             // Selected and brought into view; the review stays.
-            let at = self.view.model().find_species(&id).map(|s| s.center);
-            if let Some(at) = at {
-                self.view
-                    .select_item(&pd_core::view::Target::Species(id), false);
+            let m = self.view.model();
+            let found = match m.find_species(&id) {
+                Some(s) => Some((pd_core::view::Target::Species(id), s.center)),
+                None => m.find_reaction(&id).map(|r| {
+                    let at = pd_core::render::draw::effective_junction(m, r);
+                    (pd_core::view::Target::Leg(id), at)
+                }),
+            };
+            if let Some((target, at)) = found {
+                self.view.select_item(&target, false);
                 self.view.centre_on(at, self.canvas_centre);
             }
             return;
         }
-        if let crate::annotate_tab::TabAction::Apply(items) = action {
-            let n = items.len();
-            self.view.annotate_species(&items);
-            self.notice = Some(format!("Annotated {n} species"));
+        match action {
+            crate::annotate_tab::TabAction::Apply(items) => {
+                let n = items.len();
+                self.view.annotate_species(&items);
+                self.notice = Some(format!("Annotated {n} species"));
+            }
+            crate::annotate_tab::TabAction::ApplyReactions(items) => {
+                let n = items.len();
+                self.view.annotate_reactions(&items);
+                let s = if n == 1 { "" } else { "s" };
+                self.notice = Some(format!("Annotated {n} reaction{s}"));
+            }
+            _ => {}
         }
         self.annotate = None;
         self.right_tab = RightTab::Properties;
@@ -3615,6 +3660,138 @@ k = 1",
         // The tab is gone.
         assert!(h.app.annotate.is_none());
         assert_eq!(h.app.right_tab, RightTab::Properties);
+    }
+
+    /// BiGG knows PPC.
+    fn reaction_services(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        let answer = if url.ends_with("universal/reactions/PPC") {
+            Ok(
+                r#"{"bigg_id": "PPC", "name": "Phosphoenolpyruvate carboxylase",
+                "metabolites": [
+                    {"bigg_id": "pep", "name": "Phosphoenolpyruvate", "stoichiometry": -1.0},
+                    {"bigg_id": "oaa", "name": "Oxaloacetate", "stoichiometry": 1.0}],
+                "database_links": {"RHEA": [{"id": "23072"}],
+                    "EC Number": [{"id": "4.1.1.31"}]}}"#
+                    .to_owned(),
+            )
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+    }
+
+    /// docs/reaction-lookup-design.md step 2: Edit ▸ Annotate Reactions
+    /// from Names, the review in the Annotate tab, Apply as one step.
+    #[test]
+    fn annotate_reactions_from_names_reviews_then_applies() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = reaction_services;
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony(
+                "PPC: PEP -> OAA; k*PEP
+X1: OAA -> Q; k*OAA
+k = 1",
+                &opts,
+            )
+            .unwrap();
+        h.run(vec![]);
+        h.click(h.widget("Edit"));
+        h.run(vec![]);
+        h.click(h.widget("Annotate Reactions from Names…"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Annotate);
+        for _ in 0..120 {
+            h.run(vec![]);
+        }
+        h.text("Found 1 of 2 reactions; 1 ticked as clear matches.");
+        h.text("EC 4.1.1.31 · Rhea 23072");
+        h.text("pep ⇌ oaa");
+        // R6: no species has a ChEBI entry, so Rhea couldn't be asked.
+        h.text(
+            "Some reactions have species without a ChEBI entry; annotate the species first (Annotate Species from Names) to find more in Rhea.",
+        );
+        h.text("Nothing found for");
+        // A reaction's name in the review (not the list on the left) shows
+        // it: selected, the diagram centred on it, the review staying.
+        let link = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.label() == Some("X1"))
+            .filter_map(|(_, n)| n.bounds())
+            .find(|b| b.x0 > f64::from(h.size.x) / 2.0)
+            .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+            .expect("X1 in the review");
+        h.click(link);
+        h.run(vec![]);
+        let m = h.app.view.model();
+        let x1 = m.find_reaction("X1").unwrap();
+        assert!(x1.selected);
+        let at = h
+            .app
+            .view
+            .world_to_screen(pd_core::render::draw::effective_junction(m, x1));
+        let c = h.app.canvas_centre;
+        assert!(
+            (at.x - c.x).abs() < 1.0 && (at.y - c.y).abs() < 1.0,
+            "centred on X1"
+        );
+        assert!(h.app.annotate.is_some());
+        h.click(h.widget("Apply (1)"));
+        h.run(vec![]);
+        let r = h.app.view.model().find_reaction("PPC").unwrap();
+        let refs: Vec<String> = r
+            .annotation
+            .references
+            .iter()
+            .map(|x| format!("{} {}", x.qualifier, x.resource))
+            .collect();
+        assert_eq!(
+            refs,
+            [
+                "bqbiol:isVersionOf https://identifiers.org/ec-code:4.1.1.31",
+                "bqbiol:is https://identifiers.org/rhea:23072"
+            ]
+        );
+        assert_eq!(
+            r.display_name.as_deref(),
+            Some("Phosphoenolpyruvate carboxylase")
+        );
+        assert!(
+            h.app
+                .view
+                .model()
+                .find_reaction("X1")
+                .unwrap()
+                .annotation
+                .is_empty()
+        );
+        assert_eq!(h.app.view.undo_description(), Some("Annotate Reactions"));
+        assert!(h.app.annotate.is_none());
+
+        // Again from the reaction's menu: PPC has an EC number now, so
+        // there is nothing to look up.
+        h.app
+            .act(MenuAction::AnnotateReactions("PPC".into()), pt(0.0, 0.0));
+        h.run(vec![]);
+        assert!(h.app.annotate.is_none());
+        // X1 alone, from its menu: offline, said so; Close changes nothing.
+        h.app.gallery.fetch = offline;
+        h.app
+            .act(MenuAction::AnnotateReactions("X1".into()), pt(0.0, 0.0));
+        for _ in 0..40 {
+            h.run(vec![]);
+        }
+        h.text("BiGG and Rhea couldn't be reached, so nothing was found.");
+        let before = h.app.view.model().clone();
+        h.click(h.widget("Close"));
+        h.run(vec![]);
+        assert!(h.app.annotate.is_none());
+        assert_eq!(*h.app.view.model(), before);
     }
 
     /// ChEBI knows LONG by a name hundreds of letters long, and ATP.
