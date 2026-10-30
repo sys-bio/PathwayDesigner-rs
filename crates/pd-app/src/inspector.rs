@@ -85,6 +85,8 @@ pub struct Inspector {
     rename_error: Option<String>,
     /// The Annotations parts (docs/annotations-design.md, step 4).
     species_annotation: crate::annotation_panel::AnnotationPanel,
+    /// How to fetch, for Find in ChEBI; set by the app.
+    pub fetch: Option<crate::annotation_panel::Fetch>,
     reaction_annotation: crate::annotation_panel::AnnotationPanel,
     compartment_annotation: crate::annotation_panel::AnnotationPanel,
     model_annotation: crate::annotation_panel::AnnotationPanel,
@@ -420,6 +422,7 @@ impl Inspector {
                     });
             });
             if !look_only && let Some(id) = &one_species {
+                self.species_annotation.fetch = self.fetch;
                 self.species_annotation.show(ui, view, Some(id), "species");
             }
         }

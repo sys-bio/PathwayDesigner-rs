@@ -1733,7 +1733,10 @@ impl eframe::App for PathwayApp {
                 ui.separator();
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.add_enabled_ui(!busy, |ui| match self.right_tab {
-                        RightTab::Properties => self.inspector.show(ui, &mut self.view),
+                        RightTab::Properties => {
+                            self.inspector.fetch = Some(self.gallery.fetch);
+                            self.inspector.show(ui, &mut self.view)
+                        }
                         RightTab::Antimony => {
                             antimony_action = self.antimony.show(ui, &mut self.view, &opts);
                         }
@@ -3361,6 +3364,98 @@ k = 0.1",
         assert_eq!(h.opened.len(), 1, "{:?}", h.opened);
         assert_eq!(h.opened[0].url, "https://identifiers.org/CHEBI:17234");
         assert!(h.opened[0].new_tab);
+    }
+
+    /// docs/chebi-lookup-design.md step 2: Find in ChEBI lists what a name
+    /// finds, and Add makes one a reference. BiGG knows no "glucose"; ChEBI
+    /// does, exactly.
+    fn chebi(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        let answer = if url.contains("ols4") && url.contains("q=glucose&") {
+            Ok(r#"{"response": {"docs": [
+                {"obo_id": "CHEBI:17234", "label": "glucose"},
+                {"obo_id": "CHEBI:4167", "label": "D-glucopyranose"}]}}"#
+                .to_owned())
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+    }
+
+    #[test]
+    fn find_in_chebi_adds_what_a_name_finds() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = chebi;
+        let id = h.app.view.model().species()[0].id.clone();
+        // The words to find start as the species' display name.
+        h.app.view.set_display_name(&id, "glucose");
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        h.click(h.widget("Annotations"));
+        h.run(vec![]);
+        h.click(h.widget("Search"));
+        for _ in 0..80 {
+            h.run(vec![]);
+        }
+        let labels = |h: &Harness| -> Vec<String> {
+            h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .filter_map(|(_, n)| n.label().or(n.value()).map(str::to_owned))
+                .collect()
+        };
+        let shown = labels(&h);
+        assert!(shown.iter().any(|l| l == "CHEBI:17234"), "{shown:?}");
+        assert!(shown.iter().any(|l| l == "D-glucopyranose"), "{shown:?}");
+        // The first found's Add: the lowest "Add" but one (the references'
+        // own Add is above them).
+        let mut adds: Vec<Pos2> = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.label() == Some("Add"))
+            .filter_map(|(_, n)| n.bounds())
+            .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+            .collect();
+        adds.sort_by(|a, b| a.y.total_cmp(&b.y));
+        assert_eq!(adds.len(), 3, "the references' Add and one per entry");
+        h.click(adds[1]);
+        h.run(vec![]);
+        let refs = &h
+            .app
+            .view
+            .model()
+            .find_species(&id)
+            .unwrap()
+            .annotation
+            .references;
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].resource, "https://identifiers.org/CHEBI:17234");
+        assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
+        // Added once: its button says so.
+        assert!(labels(&h).iter().any(|l| l == "Added"));
+    }
+
+    /// C9: with no network, Find in ChEBI says so and adds nothing.
+    #[test]
+    fn find_in_chebi_without_a_network_says_so() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = offline;
+        let id = h.app.view.model().species()[0].id.clone();
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        h.click(h.widget("Annotations"));
+        h.run(vec![]);
+        h.click(h.widget("Search"));
+        for _ in 0..80 {
+            h.run(vec![]);
+        }
+        h.text("BiGG, ChEBI and PubChem couldn't be reached");
+        let a = &h.app.view.model().find_species(&id).unwrap().annotation;
+        assert!(a.references.is_empty());
     }
 
     /// A4: notes the user only looks at stay as they were read.

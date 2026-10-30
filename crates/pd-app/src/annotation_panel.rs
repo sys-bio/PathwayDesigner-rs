@@ -3,14 +3,24 @@
 //! references and its notes, shown and edited. Folded until opened. Each
 //! change is one undo step; the SBO term and the notes are applied when
 //! their field loses focus, as the inspector's other fields are.
+//!
+//! A species' part can also find its ChEBI entry by name
+//! (docs/chebi-lookup-design.md, step 2): BiGG, ChEBI and PubChem searched
+//! a request at a time through the app's fetch, the matches listed to add.
 
 use eframe::egui::{self, RichText};
 use pd_core::annotation::{
     ITEM_QUALIFIERS, MODEL_QUALIFIERS, SboKind, notes_text, notes_xhtml, qualifier_text,
     resource_from_typed, resource_text, resource_url, sbo_id, sbo_name, sbo_url,
 };
+use pd_core::chebi::{Candidate, Query, Search};
 use pd_core::model::{Annotation, Reference};
 use pd_core::view::DiagramView;
+
+use crate::gallery::{Pending, take};
+
+/// How the app fetches an address (the Gallery's, swapped in tests).
+pub type Fetch = fn(&egui::Context, String) -> Pending;
 
 const ERROR: egui::Color32 = egui::Color32::from_rgb(0xC6, 0x28, 0x28);
 
@@ -26,6 +36,23 @@ pub struct AnnotationPanel {
     qualifier: String,
     resource: String,
     error: Option<String>,
+    /// How to fetch, set by the inspector; without it there is no search.
+    pub fetch: Option<Fetch>,
+    /// The words to find in ChEBI.
+    find: String,
+    /// A search under way.
+    finder: Option<Finder>,
+    /// The entries the last search found, and what it said.
+    found: Vec<Candidate>,
+    find_note: Option<String>,
+}
+
+/// A Find in ChEBI under way: the search, the request waiting, and when the
+/// last one was made (at most one every `MIN_INTERVAL_MS`, C8).
+struct Finder {
+    search: Search,
+    waiting: Option<Pending>,
+    last: f64,
 }
 
 impl AnnotationPanel {
@@ -42,11 +69,25 @@ impl AnnotationPanel {
         if self.target.as_ref() != Some(&target) {
             // What was typed for the item shown before goes to it first.
             self.commit(view);
+            // The words to find: the species' display name, else its id.
+            let find = id
+                .and_then(|i| view.model().find_species(i))
+                .map(|s| {
+                    let primary = view.model().find_species(s.primary_id()).unwrap_or(s);
+                    primary
+                        .display_name
+                        .clone()
+                        .unwrap_or_else(|| primary.id.clone())
+                })
+                .unwrap_or_default();
             *self = AnnotationPanel {
                 target: Some(target),
+                fetch: self.fetch,
+                find,
                 ..AnnotationPanel::default()
             };
         }
+        self.poll(ui.ctx());
         let Some(current) = view.annotation(id).cloned() else {
             return;
         };
@@ -210,6 +251,9 @@ impl AnnotationPanel {
         if let Some(e) = &self.error {
             ui.label(RichText::new(e).color(ERROR).small());
         }
+        if kind == SboKind::Species && self.fetch.is_some() {
+            self.find_in_chebi(ui, view, id, current);
+        }
 
         // Notes, as text.
         ui.add_space(4.0);
@@ -225,6 +269,116 @@ impl AnnotationPanel {
         if r.lost_focus() {
             self.commit_notes(view);
         }
+    }
+
+    /// Find in ChEBI: words, a Search button, and the entries found, each
+    /// a link to its page and an Add button.
+    fn find_in_chebi(
+        &mut self,
+        ui: &mut egui::Ui,
+        view: &mut DiagramView,
+        id: Option<&str>,
+        current: &Annotation,
+    ) {
+        ui.add_space(4.0);
+        ui.label("Find in ChEBI");
+        let searching = self.finder.is_some();
+        ui.horizontal(|ui| {
+            let r = ui.add(
+                egui::TextEdit::singleline(&mut self.find)
+                    .desired_width(150.0)
+                    .hint_text("a name, such as glucose"),
+            );
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let search = ui
+                .add_enabled(!searching, egui::Button::new("Search"))
+                .on_hover_text("Look the name up in BiGG, ChEBI and PubChem");
+            if (search.clicked() || enter) && !searching && !self.find.trim().is_empty() {
+                self.found.clear();
+                self.find_note = None;
+                self.finder = Some(Finder {
+                    search: Search::new(vec![Query {
+                        species: id.unwrap_or_default().to_owned(),
+                        name: Some(self.find.trim().to_owned()),
+                    }]),
+                    waiting: None,
+                    last: f64::NEG_INFINITY,
+                });
+            }
+            if searching {
+                ui.spinner();
+            }
+        });
+        if let Some(note) = &self.find_note {
+            ui.label(RichText::new(note).small().weak());
+        }
+        let mut add = None;
+        for c in &self.found {
+            ui.horizontal_wrapped(|ui| {
+                let r = c.reference();
+                let have = current.references.contains(&r);
+                if ui
+                    .add_enabled(
+                        !have,
+                        egui::Button::new(if have { "Added" } else { "Add" }).small(),
+                    )
+                    .on_hover_text("Add as what this species is (bqbiol:is)")
+                    .clicked()
+                {
+                    add = Some(r.clone());
+                }
+                ui.hyperlink_to(&c.chebi, resource_url(&r.resource).unwrap_or_default());
+                if let Some(name) = &c.name {
+                    ui.label(name);
+                }
+            });
+        }
+        if let Some(r) = add {
+            let mut a = current.clone();
+            a.references.push(r);
+            view.set_annotation(id, a);
+        }
+    }
+
+    /// Takes a search a step further: hands it an answer that has come, and
+    /// asks for the next address when the interval has passed.
+    fn poll(&mut self, ctx: &egui::Context) {
+        let (Some(fetch), Some(f)) = (self.fetch, self.finder.as_mut()) else {
+            return;
+        };
+        if let Some(waiting) = &f.waiting {
+            let Some(result) = take(waiting) else {
+                return;
+            };
+            f.waiting = None;
+            f.search.answer(result);
+        }
+        let now = ctx.input(|i| i.time);
+        let wait = pd_core::chebi::MIN_INTERVAL_MS as f64 / 1000.0;
+        if now - f.last < wait {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait));
+            return;
+        }
+        match f.search.next_url() {
+            Some(url) => {
+                f.last = now;
+                f.waiting = Some(fetch(ctx, url));
+            }
+            None => {
+                let unreachable = f.search.unreachable();
+                let result = f.search.results().first().cloned();
+                self.finder = None;
+                self.found = result.map(|r| r.candidates).unwrap_or_default();
+                self.find_note = if unreachable {
+                    Some("BiGG, ChEBI and PubChem couldn't be reached".into())
+                } else if self.found.is_empty() {
+                    Some("Nothing found: try another name".into())
+                } else {
+                    None
+                };
+            }
+        }
+        ctx.request_repaint();
     }
 
     /// Applies what was typed into the SBO term and notes fields.
