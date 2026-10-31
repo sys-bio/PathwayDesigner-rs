@@ -12,7 +12,7 @@ runs in the browser and as a desktop app for Windows, macOS and Linux.
 
 ### AI Assistance 
 
-This was developed with the assistance of claude. Stop here if you aren't comfortable with AI assisted code generation.
+This software was developed with the assistance of the AI Claude. Stop here if you aren't comfortable with AI assisted code generation.
 
 
 ![PathwayDesigner in the browser](docs/screenshot.png)
