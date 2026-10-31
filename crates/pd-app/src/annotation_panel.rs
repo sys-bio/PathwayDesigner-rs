@@ -51,6 +51,16 @@ pub struct AnnotationPanel {
     /// Find in Rhea: the request waiting, and the reactions it found.
     rhea_waiting: Option<Pending>,
     rhea_found: Vec<rl::Candidate>,
+    /// Search by Species under way.
+    by_species: Option<BySpecies>,
+}
+
+/// Search by Species under way: Rhea asked for the reaction's species,
+/// those without a ChEBI entry looked up first.
+struct BySpecies {
+    search: rl::Search,
+    waiting: Option<Pending>,
+    last: f64,
 }
 
 /// A Find in ChEBI under way: the search, the request waiting, and when the
@@ -86,7 +96,11 @@ impl AnnotationPanel {
                         .clone()
                         .unwrap_or_else(|| primary.id.clone())
                 })
-                .or_else(|| id.and_then(|i| view.rhea_words(i)))
+                .or_else(|| {
+                    // A reaction's: its display name, often its enzyme's.
+                    id.and_then(|i| view.model().find_reaction(i))
+                        .and_then(|r| r.display_name.clone())
+                })
                 .unwrap_or_default();
             *self = AnnotationPanel {
                 target: Some(target),
@@ -97,6 +111,7 @@ impl AnnotationPanel {
         }
         self.poll(ui.ctx());
         self.poll_rhea(ui.ctx());
+        self.poll_by_species(ui.ctx());
         let Some(current) = view.annotation(id).cloned() else {
             return;
         };
@@ -403,7 +418,30 @@ impl AnnotationPanel {
     ) {
         ui.add_space(4.0);
         ui.label("Find in Rhea");
-        let searching = self.rhea_waiting.is_some();
+        let searching = self.rhea_waiting.is_some() || self.by_species.is_some();
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(!searching, egui::Button::new("Search by Species"))
+                .on_hover_text(
+                    "Find the Rhea reactions that have this reaction's reactants and \
+                     products; species without a ChEBI entry are looked up by name first",
+                )
+                .clicked()
+                && let Some(query) = id.and_then(|i| view.reaction_lookup_query(i))
+            {
+                self.rhea_found.clear();
+                self.find_note = None;
+                self.by_species = Some(BySpecies {
+                    search: rl::Search::rhea_by_species(query),
+                    waiting: None,
+                    last: f64::NEG_INFINITY,
+                });
+            }
+            if self.by_species.is_some() {
+                ui.spinner();
+                ui.label(RichText::new("Looking up its species…").weak());
+            }
+        });
         ui.horizontal(|ui| {
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.find)
@@ -432,9 +470,8 @@ impl AnnotationPanel {
         });
         ui.label(
             RichText::new(
-                "Search by an enzyme name (pyruvate kinase), an EC number (2.7.1.40), \
-                 or the ChEBI entries of the reaction's species (CHEBI:58702 CHEBI:15361), \
-                 which find the reactions with all of them.",
+                "Search by Species finds the reactions with this reaction's species; \
+                 or type an enzyme name (pyruvate kinase) or an EC number (2.7.1.40).",
             )
             .weak(),
         );
@@ -479,6 +516,57 @@ impl AnnotationPanel {
             }
             view.set_annotation(id, a);
         }
+    }
+
+    /// Takes Search by Species a step further; when it is done, lists what
+    /// Rhea found, or says why nothing was.
+    fn poll_by_species(&mut self, ctx: &egui::Context) {
+        let (Some(fetch), Some(b)) = (self.fetch, self.by_species.as_mut()) else {
+            return;
+        };
+        if let Some(waiting) = &b.waiting {
+            let Some(result) = take(waiting) else {
+                ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                return;
+            };
+            b.waiting = None;
+            b.search.answer(result);
+        }
+        let now = ctx.input(|i| i.time);
+        let wait = pd_core::chebi::MIN_INTERVAL_MS as f64 / 1000.0;
+        if now - b.last < wait {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait));
+            return;
+        }
+        if let Some(url) = b.search.next_url() {
+            b.last = now;
+            b.waiting = Some(fetch(ctx, url));
+            ctx.request_repaint();
+            return;
+        }
+        let unreachable = b.search.unreachable();
+        let found = b.search.results().first().cloned();
+        self.by_species = None;
+        let Some(f) = found else {
+            return;
+        };
+        self.rhea_found = f.candidates;
+        self.find_note = if unreachable {
+            Some("ChEBI and Rhea couldn't be reached".into())
+        } else if f.searched.len() < 2 {
+            Some("Fewer than two of its species could be found in ChEBI: try an enzyme name".into())
+        } else if self.rhea_found.is_empty() {
+            Some("Rhea has no reaction with all of its species: try an enzyme name".into())
+        } else if f.species_unannotated {
+            Some(
+                "Some of its species were found by name, which can be wrong: check each \
+                 equation"
+                    .into(),
+            )
+        } else {
+            None
+        };
+        ctx.request_repaint();
     }
 
     /// Hands Find in Rhea its answer when it has come.

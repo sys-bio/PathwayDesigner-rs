@@ -177,6 +177,8 @@ pub struct PathwayApp {
     /// What the annotation lookups left to check, marked on the diagram
     /// (docs/annotation-marks-design.md); for the session only.
     pub(crate) marks: crate::marks::MarkState,
+    /// Fetches the names of references' entries as they are wanted.
+    names: crate::entry_names::NameFetcher,
     pub(crate) antimony: AntimonyPanel,
     /// The Structure tab and the matrix panel.
     pub(crate) structure: crate::structure_panel::StructurePanel,
@@ -274,6 +276,7 @@ impl PathwayApp {
             inspector: Inspector::default(),
             annotate: None,
             marks: crate::marks::MarkState::default(),
+            names: crate::entry_names::NameFetcher::default(),
             antimony: AntimonyPanel::default(),
             structure: Default::default(),
             right_tab: RightTab::default(),
@@ -1807,6 +1810,11 @@ impl eframe::App for PathwayApp {
         if let Some(t) = &mut self.annotate {
             t.poll(&ctx, self.gallery.fetch);
         }
+        // The names of the entries the hovered and selected items' references
+        // point to, fetched when not known.
+        let wanted = self.view.references_to_name(self.canvas.tooltip());
+        self.names
+            .poll(&ctx, &mut self.view, self.gallery.fetch, &wanted);
         // What the lookups left to check, marked on the diagram
         // (docs/annotation-marks-design.md): the kept marks whose items have
         // since been annotated go; a review under way shows its own.
@@ -3788,9 +3796,8 @@ k = 0.1",
     /// Rhea knows the reactions with PEP and OAA; it is asked for the
     /// species' ChEBI entries.
     fn rhea(_: &egui::Context, url: String) -> crate::gallery::Pending {
-        let answer = if url.contains("rhea-db")
-            && url.contains("query=CHEBI%3A58702%20CHEBI%3A16452&")
-        {
+        // By the species (Search by Species), or the same typed.
+        let answer = if url.contains("rhea-db") && url.contains("58702") && url.contains("16452") {
             Ok("Reaction identifier\tEquation\tEC number\tChEBI identifier\n\
                 RHEA:28370\toxaloacetate + phosphate = phosphoenolpyruvate + hydrogencarbonate\tEC:4.1.1.31\tCHEBI:16452\n\
                 RHEA:18617\toxaloacetate + ATP = phosphoenolpyruvate + ADP + CO2\tEC:4.1.1.49\tCHEBI:16452\n"
@@ -3831,8 +3838,7 @@ k = 0.1",
         h.click(h.widget("Annotations"));
         h.run(vec![]);
         h.text("Find in Rhea");
-        h.text("CHEBI:58702 CHEBI:16452");
-        h.click(h.widget("Search"));
+        h.click(h.widget("Search by Species"));
         for _ in 0..10 {
             h.run(vec![]);
         }
@@ -3852,7 +3858,7 @@ k = 0.1",
         assert_eq!(adds.len(), 3, "the references' Add and one per reaction");
         // What to search for, said under the field.
         h.text(
-            "Search by an enzyme name (pyruvate kinase), an EC number (2.7.1.40), or the ChEBI entries of the reaction's species (CHEBI:58702 CHEBI:15361), which find the reactions with all of them.",
+            "Search by Species finds the reactions with this reaction's species; or type an enzyme name (pyruvate kinase) or an EC number (2.7.1.40).",
         );
         // The references' field is wide enough for a reaction's example.
         let field = h
@@ -3916,16 +3922,136 @@ k = 0.1",
         assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
         h.run(vec![]);
         h.widget("Added");
-        // Words that find nothing say so.
-        let field = h.text("CHEBI:58702 CHEBI:16452");
-        h.click(field);
-        h.key(Key::A, Modifiers::COMMAND);
+        // Words that find nothing say so (the field, left of Search).
+        h.click(h.widget("Search") - egui::vec2(110.0, 0.0));
         h.run(vec![Event::Text("zzz".into())]);
         h.click(h.widget("Search"));
         for _ in 0..10 {
             h.run(vec![]);
         }
         h.text("Nothing found: try other words");
+    }
+
+    /// Search by Species when the species have no ChEBI entry: they are
+    /// looked up by name first; when fewer than two are found, it says so.
+    #[test]
+    fn search_by_species_looks_the_species_up() {
+        let mut h = Harness::new();
+        // ChEBI knows PEP and OAA by those names; Rhea as `rhea` does.
+        fn services(ctx: &egui::Context, url: String) -> crate::gallery::Pending {
+            let doc = |id: &str, label: &str| {
+                Ok(format!(
+                    r#"{{"response": {{"docs": [{{"obo_id": "{id}", "label": "{label}"}}]}}}}"#
+                ))
+            };
+            let answer = if url.contains("ols4") && url.contains("q=PEP&") {
+                doc("CHEBI:58702", "PEP")
+            } else if url.contains("ols4") && url.contains("q=OAA&") {
+                doc("CHEBI:16452", "OAA")
+            } else if url.contains("rhea-db") {
+                return rhea(ctx, url);
+            } else {
+                Err("not found (404)".to_owned())
+            };
+            std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+        }
+        h.app.gallery.fetch = services;
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("PPC: PEP -> OAA; k*PEP\nX: Q -> Z; k*Q\nk = 1", &opts)
+            .unwrap();
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg("PPC".into()), false);
+        h.run(vec![]);
+        h.click(h.widget("Annotations"));
+        h.run(vec![]);
+        h.click(h.widget("Search by Species"));
+        for _ in 0..60 {
+            h.run(vec![]);
+        }
+        h.widget("RHEA:28370");
+        h.text("Some of its species were found by name, which can be wrong: check each equation");
+        // Neither of X's species is known.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg("X".into()), false);
+        h.run(vec![]);
+        h.run(vec![]);
+        h.click(h.widget("Search by Species"));
+        for _ in 0..60 {
+            h.run(vec![]);
+        }
+        h.text("Fewer than two of its species could be found in ChEBI: try an enzyme name");
+    }
+
+    /// How many names have been asked for.
+    static NAME_REQUESTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    /// OLS names CHEBI:16452; nothing else is known.
+    fn names(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        NAME_REQUESTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let answer = if url.contains("ols4") && url.contains("obo_id=CHEBI%3A16452") {
+            Ok(r#"{"_embedded": {"terms": [{"label": "oxaloacetate(2-)"}]}}"#.to_owned())
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+    }
+
+    /// Step 2: a selected species' unnamed references are named from their
+    /// databases, each asked about once; the name shows in its panel.
+    #[test]
+    fn missing_names_are_fetched_once() {
+        use pd_core::model::Reference;
+        let mut h = Harness::new();
+        h.app.gallery.fetch = names;
+        let id = h.app.view.model().species()[0].id.clone();
+        let mut a = h.app.view.annotation(Some(&id)).unwrap().clone();
+        for x in ["CHEBI:16452", "CHEBI:999", "kegg.compound:C00036"] {
+            a.references.push(Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: format!("https://identifiers.org/{x}"),
+            });
+        }
+        h.app.view.set_annotation(Some(&id), a);
+        h.run(vec![]);
+        let before = NAME_REQUESTS.load(std::sync::atomic::Ordering::SeqCst);
+        // Nothing selected, so nothing asked about the species.
+        for _ in 0..10 {
+            h.run(vec![]);
+        }
+        assert_eq!(
+            NAME_REQUESTS.load(std::sync::atomic::Ordering::SeqCst),
+            before
+        );
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        h.click(h.widget("Annotations (3)"));
+        for _ in 0..20 {
+            h.run(vec![]);
+        }
+        assert_eq!(
+            h.app
+                .view
+                .reference_name("https://identifiers.org/CHEBI:16452"),
+            Some("oxaloacetate(2-)")
+        );
+        h.text("oxaloacetate(2-)");
+        // CHEBI:999 asked about once, not found; KEGG never (no service).
+        assert_eq!(
+            NAME_REQUESTS.load(std::sync::atomic::Ordering::SeqCst) - before,
+            2
+        );
+        for _ in 0..20 {
+            h.run(vec![]);
+        }
+        assert_eq!(
+            NAME_REQUESTS.load(std::sync::atomic::Ordering::SeqCst) - before,
+            2,
+            "each once"
+        );
     }
 
     /// BiGG knows g6p; ChEBI knows ATP exactly; nothing knows XYZ.
@@ -4096,7 +4222,7 @@ k = 1",
         h.text("pep ⇌ oaa");
         // R6: no species has a ChEBI entry, so Rhea couldn't be asked.
         h.text(
-            "Some reactions have species without a ChEBI entry; annotate the species first (Annotate Species from Names) to find more in Rhea.",
+            "Species without a ChEBI entry were looked up by name to search Rhea; what Rhea found that way isn't ticked: check each equation.",
         );
         h.text("Nothing found for");
         // A reaction's name in the review (not the list on the left) shows

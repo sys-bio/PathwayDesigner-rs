@@ -636,6 +636,63 @@ impl DiagramView {
         changed
     }
 
+    /// The references whose entries' names are wanted and not known, and a
+    /// service can give: those of the item `hovered` (its tooltip is on
+    /// show) and of the selected items, or of the model when nothing is
+    /// selected (their Annotations parts are shown). Each once.
+    pub fn references_to_name(&self, hovered: Option<&Target>) -> Vec<String> {
+        let m = &self.model;
+        let mut annotations: Vec<&crate::model::Annotation> = Vec::new();
+        let species = |id: &str| {
+            m.find_species(id)
+                .and_then(|s| m.find_species(s.primary_id()))
+                .map(|s| &s.annotation)
+        };
+        match hovered {
+            Some(Target::Species(id) | Target::SpeciesLabel(id)) => {
+                annotations.extend(species(id));
+            }
+            Some(
+                Target::Junction(id)
+                | Target::Leg(id)
+                | Target::ReactionLabel(id)
+                | Target::StemEnd(id, _)
+                | Target::ModifierLine(id, ..)
+                | Target::CornerPoint(id, ..),
+            ) => annotations.extend(m.find_reaction(id).map(|r| &r.annotation)),
+            Some(Target::Compartment(id) | Target::CompartmentCorner(id, _)) => {
+                annotations.extend(m.find_compartment(id).map(|c| &c.annotation));
+            }
+            _ => {}
+        }
+        let mut any = false;
+        for s in m.species().iter().filter(|s| s.selected) {
+            any = true;
+            annotations.extend(species(&s.id));
+        }
+        for r in m.reactions().iter().filter(|r| r.selected) {
+            any = true;
+            annotations.push(&r.annotation);
+        }
+        for c in m.compartments.iter().filter(|c| c.selected) {
+            any = true;
+            annotations.push(&c.annotation);
+        }
+        if !any {
+            annotations.push(&m.annotation);
+        }
+        let mut wanted: Vec<String> = Vec::new();
+        for r in annotations.iter().flat_map(|a| &a.references) {
+            if !m.reference_names.contains_key(&r.resource)
+                && crate::entry_names::name_url(&r.resource).is_some()
+                && !wanted.contains(&r.resource)
+            {
+                wanted.push(r.resource.clone());
+            }
+        }
+        wanted
+    }
+
     /// The items marked after an annotation lookup.
     pub fn marks(&self) -> &Marks {
         &self.marks

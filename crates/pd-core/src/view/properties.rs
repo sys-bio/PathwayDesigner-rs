@@ -314,23 +314,12 @@ impl DiagramView {
             .collect()
     }
 
-    /// The words Find in Rhea starts with for reaction `id`: its species'
-    /// ChEBI entries when every one has one (Rhea finds the reactions with
-    /// all of them); else its display name. `None` otherwise: species' ids
-    /// and abbreviations rarely find anything in Rhea, so the user is left
-    /// to type an enzyme name or EC number.
-    pub fn rhea_words(&self, id: &str) -> Option<String> {
+    /// Reaction `id` as the lookups see it: its reactants and products, as
+    /// their species, with their ChEBI entries (Find in Rhea's Search by
+    /// Species).
+    pub fn reaction_lookup_query(&self, id: &str) -> Option<crate::reaction_lookup::Query> {
         let r = self.model.find_reaction(id)?;
-        let q = reaction_query(&self.model, r);
-        let chebi: Vec<&str> = q
-            .species
-            .iter()
-            .filter_map(|s| s.chebi.first().map(String::as_str))
-            .collect();
-        if !chebi.is_empty() && chebi.len() == q.species.len() {
-            return Some(chebi.join(" "));
-        }
-        q.name.filter(|n| !n.trim().is_empty())
+        Some(reaction_query(&self.model, r))
     }
 
     /// Applies what the reaction review accepted: as
@@ -1690,37 +1679,30 @@ mod tests {
     }
 
     #[test]
-    fn find_in_rhea_starts_with_the_chebi_entries_else_the_names() {
+    fn a_reaction_as_the_lookups_see_it() {
         use crate::model::Reference;
         let mut v = view();
-        let chebi = |c: &str| Reference {
-            qualifier: "bqbiol:is".into(),
-            resource: format!("https://identifiers.org/{c}"),
-        };
-        // No ChEBI, no display name: nothing, even with the species' names.
-        v.model.find_species_mut("S2").unwrap().display_name = Some("ATP".into());
-        assert_eq!(v.rhea_words("R5"), None);
-        // One species with ChEBI isn't enough; the reaction's name is used.
         v.model
             .find_species_mut("S1")
             .unwrap()
             .annotation
             .references
-            .push(chebi("CHEBI:58702"));
-        v.model.find_reaction_mut("R5").unwrap().display_name = Some("Pyruvate kinase".into());
-        assert_eq!(v.rhea_words("R5").as_deref(), Some("Pyruvate kinase"));
-        // Every species with ChEBI: their entries.
-        v.model
-            .find_species_mut("S2")
-            .unwrap()
-            .annotation
-            .references
-            .push(chebi("CHEBI:16452"));
+            .push(Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: "https://identifiers.org/CHEBI:58702".into(),
+            });
+        let q = v.reaction_lookup_query("R5").unwrap();
+        assert_eq!(q.reaction, "R5");
+        let species: Vec<(&str, Vec<String>)> = q
+            .species
+            .iter()
+            .map(|s| (s.id.as_str(), s.chebi.clone()))
+            .collect();
         assert_eq!(
-            v.rhea_words("R5").as_deref(),
-            Some("CHEBI:58702 CHEBI:16452")
+            species,
+            [("S1", vec!["CHEBI:58702".to_owned()]), ("S2", Vec::new())]
         );
-        assert_eq!(v.rhea_words("nope"), None);
+        assert_eq!(v.reaction_lookup_query("nope"), None);
     }
 
     #[test]
@@ -1772,6 +1754,59 @@ mod tests {
         assert_eq!(v.rename_reaction("PFK", "2x"), Err(RenameError::InvalidId));
         v.undo();
         assert!(v.model().find_reaction("R5").is_some());
+    }
+
+    /// The references whose names are wanted: the hovered item's and the
+    /// selected items' (an alias as its species), else the model's; not
+    /// those named already or that no service names; each once.
+    #[test]
+    fn the_references_to_name() {
+        use crate::model::Reference;
+        let mut v = view();
+        let r = |x: &str| Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: format!("https://identifiers.org/{x}"),
+        };
+        let alias = v.model.add_alias("S1", pt(0.0, 100.0)).unwrap();
+        v.model
+            .find_species_mut("S1")
+            .unwrap()
+            .annotation
+            .references = vec![r("CHEBI:1"), r("kegg.compound:C1"), r("CHEBI:2")];
+        v.model
+            .find_species_mut("S2")
+            .unwrap()
+            .annotation
+            .references = vec![r("CHEBI:3")];
+        v.model
+            .find_reaction_mut("R5")
+            .unwrap()
+            .annotation
+            .references = vec![r("rhea:4"), r("CHEBI:1")];
+        v.model.annotation.references = vec![r("pubmed:5")];
+        v.model
+            .reference_names
+            .insert("https://identifiers.org/CHEBI:2".into(), "two".into());
+        let short = |w: Vec<String>| -> Vec<String> {
+            w.into_iter()
+                .map(|x| x.trim_start_matches("https://identifiers.org/").to_owned())
+                .collect()
+        };
+        // R5 is selected in the fixture.
+        assert_eq!(short(v.references_to_name(None)), ["rhea:4", "CHEBI:1"]);
+        v.model.clear_selection();
+        assert_eq!(short(v.references_to_name(None)), ["pubmed:5"]);
+        // Hovering the alias: its species'; KEGG left out (no service).
+        let hovered = Target::Species(alias.clone());
+        assert_eq!(
+            short(v.references_to_name(Some(&hovered))),
+            ["CHEBI:1", "pubmed:5"]
+        );
+        v.model.find_species_mut("S2").unwrap().selected = true;
+        assert_eq!(
+            short(v.references_to_name(Some(&hovered))),
+            ["CHEBI:1", "CHEBI:3"]
+        );
     }
 
     /// Names are kept, not edited: no undo step, and an undo leaves them.

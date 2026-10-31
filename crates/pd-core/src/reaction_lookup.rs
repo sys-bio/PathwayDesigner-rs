@@ -8,8 +8,11 @@
 //! 1. **BiGG**, by the reaction's id, as it is and upper case, then its
 //!    display name: a name, its metabolites, EC numbers, Rhea, KEGG and
 //!    MetaNetX reactions.
-//! 2. Else **Rhea**, when two or more of the reaction's species have ChEBI
-//!    entries: the Rhea reactions that have all of them.
+//! 2. Else **Rhea**, by the ChEBI entries of the reaction's species, when two
+//!    or more have or are given one: the Rhea reactions that have all of
+//!    them. A species without one is first looked up by its name or id, as
+//!    Annotate Species from Names does ([`crate::chebi`]), once for all the
+//!    reactions it is in; what Rhea finds that way is never sure.
 //! 3. Else **BiGG's search** for the id, the first few reactions it finds.
 //!
 //! A match is *sure*, and ticked in the review (R4), when the reaction's
@@ -157,9 +160,11 @@ pub struct Found {
     pub chosen: Option<usize>,
     /// One clear match: the review ticks it (R4).
     pub sure: bool,
-    /// Some of its species have no ChEBI entry, so Rhea couldn't be asked
-    /// for all of them (R6).
+    /// Some of its species have no ChEBI entry, so they were looked up by
+    /// name to ask Rhea (R6).
     pub species_unannotated: bool,
+    /// The ChEBI entries Rhea was asked for, if it was.
+    pub searched: Vec<String>,
 }
 
 /// What the review accepted for one reaction: the references to add, what
@@ -180,6 +185,9 @@ enum Step {
     Bigg(String),
     /// Rhea, by the species' ChEBI entries.
     Rhea(Vec<String>),
+    /// Rhea by the species, once those without a ChEBI entry are looked up:
+    /// becomes [`Step::Rhea`].
+    RheaBySpecies,
     /// BiGG's search for the id.
     BiggSearch(String),
     /// One of the reactions BiGG's search found.
@@ -197,6 +205,7 @@ impl Step {
             Step::BiggSearch(w) => {
                 format!("{BIGG_SEARCH}?query={}&search_type=reactions", encode(w))
             }
+            Step::RheaBySpecies => unreachable!("resolved before it is asked"),
         }
     }
 }
@@ -213,10 +222,27 @@ pub struct Search {
     results: Vec<Found>,
     answered: usize,
     failed: usize,
+    /// Only Rhea by the species (Find in Rhea's Search by Species).
+    rhea_only: bool,
+    /// The species looked up by name, and the ChEBI entry each was given.
+    identified: std::collections::HashMap<Id, Option<String>>,
+    /// A species lookup under way, and whether the last address was its.
+    species: Option<crate::chebi::Search>,
+    asked_species: bool,
 }
 
 impl Search {
     pub fn new(queries: Vec<Query>) -> Self {
+        Self::with(queries, false)
+    }
+
+    /// Only Rhea, by the reaction's species, those without a ChEBI entry
+    /// looked up first.
+    pub fn rhea_by_species(query: Query) -> Self {
+        Self::with(vec![query], true)
+    }
+
+    fn with(queries: Vec<Query>, rhea_only: bool) -> Self {
         let mut s = Search {
             queries,
             current: 0,
@@ -226,6 +252,10 @@ impl Search {
             results: Vec::new(),
             answered: 0,
             failed: 0,
+            rhea_only,
+            identified: std::collections::HashMap::new(),
+            species: None,
+            asked_species: false,
         };
         s.start();
         s
@@ -252,16 +282,15 @@ impl Search {
                 words.push(w);
             }
         }
-        let chebi: Vec<String> = q
-            .species
-            .iter()
-            .filter_map(|s| s.chebi.first().cloned())
-            .collect();
         self.found.species_unannotated = q.species.iter().any(|s| s.chebi.is_empty());
+        if self.rhea_only {
+            self.plan = vec![Step::RheaBySpecies];
+            return;
+        }
         // Reversed: steps are popped off the end.
         self.plan = vec![Step::BiggSearch(q.reaction.trim().to_owned())];
-        if chebi.len() >= 2 {
-            self.plan.push(Step::Rhea(chebi));
+        if q.species.len() >= 2 {
+            self.plan.push(Step::RheaBySpecies);
         }
         self.plan.extend(words.into_iter().rev().map(Step::Bigg));
     }
@@ -269,12 +298,61 @@ impl Search {
     /// The next address to fetch, or `None` when the search is over.
     pub fn next_url(&mut self) -> Option<String> {
         while self.current < self.queries.len() {
-            if let Some(step) = self.plan.pop() {
-                let url = step.url();
-                self.asked = Some(step);
-                return Some(url);
+            // A species lookup under way asks first; when it is done, each
+            // species it looked up keeps the ChEBI entry proposed for it.
+            if let Some(species) = &mut self.species {
+                if let Some(url) = species.next_url() {
+                    self.asked_species = true;
+                    return Some(url);
+                }
+                for f in species.results() {
+                    let chebi = f.chosen.map(|i| f.candidates[i].chebi.clone());
+                    self.identified.insert(f.species.clone(), chebi);
+                }
+                self.species = None;
             }
-            self.finish();
+            let Some(step) = self.plan.pop() else {
+                self.finish();
+                continue;
+            };
+            let step = match step {
+                Step::RheaBySpecies => {
+                    let q = &self.queries[self.current];
+                    let missing: Vec<crate::chebi::Query> = q
+                        .species
+                        .iter()
+                        .filter(|s| s.chebi.is_empty() && !self.identified.contains_key(&s.id))
+                        .map(|s| crate::chebi::Query {
+                            species: s.id.clone(),
+                            name: s.name.clone(),
+                        })
+                        .collect();
+                    if !missing.is_empty() {
+                        self.species = Some(crate::chebi::Search::new(missing));
+                        self.plan.push(Step::RheaBySpecies);
+                        continue;
+                    }
+                    let chebi: Vec<String> = q
+                        .species
+                        .iter()
+                        .filter_map(|s| {
+                            s.chebi
+                                .first()
+                                .cloned()
+                                .or_else(|| self.identified.get(&s.id).cloned().flatten())
+                        })
+                        .collect();
+                    if chebi.len() < 2 {
+                        continue;
+                    }
+                    self.found.searched = chebi.clone();
+                    Step::Rhea(chebi)
+                }
+                step => step,
+            };
+            let url = step.url();
+            self.asked = Some(step);
+            return Some(url);
         }
         None
     }
@@ -287,7 +365,10 @@ impl Search {
             found.chosen = Some(found.candidates.iter().position(|c| c.agrees).unwrap_or(0));
             found.sure = match found.source {
                 Some(Source::Bigg) => found.candidates[0].agrees,
-                Some(Source::Rhea) => found.candidates.len() == 1 && agreeing == 1,
+                // Species looked up by name may be wrong: never sure then.
+                Some(Source::Rhea) => {
+                    found.candidates.len() == 1 && agreeing == 1 && !found.species_unannotated
+                }
                 _ => false,
             };
         }
@@ -299,6 +380,17 @@ impl Search {
     /// The answer to the last address: its body, or why it failed (a
     /// not-found counts as an answer, with nothing in it).
     pub fn answer(&mut self, result: Result<String, String>) {
+        if std::mem::take(&mut self.asked_species) {
+            match &result {
+                Ok(_) => self.answered += 1,
+                Err(why) if why.contains("404") || why.contains("400") => self.answered += 1,
+                Err(_) => self.failed += 1,
+            }
+            if let Some(species) = &mut self.species {
+                species.answer(result);
+            }
+            return;
+        }
         let Some(step) = self.asked.take() else {
             return;
         };
@@ -318,6 +410,8 @@ impl Search {
         };
         let species = &self.queries[self.current].species;
         match step {
+            // Never asked: it becomes Step::Rhea first.
+            Step::RheaBySpecies => {}
             Step::Rhea(_) => {
                 let candidates = rhea_rows(&body, species);
                 if !candidates.is_empty() {
@@ -403,6 +497,7 @@ fn nothing(reaction: &str) -> Found {
         chosen: None,
         sure: false,
         species_unannotated: false,
+        searched: Vec::new(),
     }
 }
 
@@ -903,6 +998,57 @@ mod tests {
         }
         assert!(s.unreachable());
         assert_eq!(s.results()[0].source, None);
+    }
+
+    /// Species without a ChEBI entry are looked up by name first, each once
+    /// for all the reactions it is in; Rhea is then asked for them, and what
+    /// it finds isn't sure.
+    #[test]
+    fn species_are_looked_up_to_ask_rhea() {
+        // ChEBI names PEP and OAA exactly; nothing else is known.
+        let answers = [
+            (
+                "q=PEP&ontology=chebi&exact=true",
+                r#"{"response": {"docs": [{"obo_id": "CHEBI:58702", "label": "PEP"}]}}"#,
+            ),
+            (
+                "q=OAA&ontology=chebi&exact=true",
+                r#"{"response": {"docs": [{"obo_id": "CHEBI:16452", "label": "OAA"}]}}"#,
+            ),
+            (
+                "rhea-db",
+                "Reaction identifier\tEquation\tEC number\tChEBI identifier\n\
+                 RHEA:28370\toxaloacetate + phosphate = phosphoenolpyruvate + hydrogencarbonate\tEC:4.1.1.31\tCHEBI:16452;CHEBI:58702\n",
+            ),
+        ];
+        let x = || vec![sp("PEP", None, &[]), sp("OAA", None, &[])];
+        let mut s = Search::new(vec![q("X1", x()), q("X2", x())]);
+        let asked = run(&mut s, &answers);
+        let f = &s.results()[0];
+        assert_eq!(f.source, Some(Source::Rhea));
+        assert_eq!(f.searched, ["CHEBI:58702", "CHEBI:16452"]);
+        assert_eq!(f.candidates[0].id, "RHEA:28370");
+        assert!(f.species_unannotated);
+        assert!(!f.sure, "species looked up by name may be wrong");
+        // PEP looked up for X1 only; X2 used what was found.
+        let pep = asked.iter().filter(|u| u.contains("q=PEP&")).count();
+        assert_eq!(pep, 1, "{asked:?}");
+        assert_eq!(s.results()[1].searched, ["CHEBI:58702", "CHEBI:16452"]);
+        // Only one identified: Rhea isn't asked.
+        let mut s = Search::new(vec![q(
+            "X3",
+            vec![sp("PEP", None, &[]), sp("Q", None, &[])],
+        )]);
+        let asked = run(&mut s, &answers);
+        assert!(!asked.iter().any(|u| u.contains("rhea-db")), "{asked:?}");
+        assert!(s.results()[0].searched.is_empty());
+
+        // Search by Species: ChEBI and Rhea only, no BiGG.
+        let mut s = Search::rhea_by_species(q("PPC", x()));
+        let asked = run(&mut s, &answers);
+        assert!(asked.iter().all(|u| !u.contains("universal/reactions") && !u.contains("search_type=reactions")), "{asked:?}");
+        assert!(asked.last().unwrap().contains("rhea-db"));
+        assert_eq!(s.results()[0].candidates[0].id, "RHEA:28370");
     }
 
     #[test]

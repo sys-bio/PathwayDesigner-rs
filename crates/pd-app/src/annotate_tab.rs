@@ -31,8 +31,8 @@ pub enum TabAction {
 
 /// The search under way: for species or for reactions.
 enum Lookup {
-    Species(chebi::Search),
-    Reactions(rl::Search),
+    Species(Box<chebi::Search>),
+    Reactions(Box<rl::Search>),
 }
 
 impl Lookup {
@@ -189,7 +189,7 @@ impl AnnotateTab {
             .iter()
             .map(|q| (q.species.clone(), q.name.clone()))
             .collect();
-        Self::with(Lookup::Species(chebi::Search::new(queries)), names)
+        Self::with(Lookup::Species(Box::new(chebi::Search::new(queries))), names)
     }
 
     /// Annotate Reactions from Names.
@@ -198,7 +198,7 @@ impl AnnotateTab {
             .iter()
             .map(|q| (q.reaction.clone(), q.name.clone()))
             .collect();
-        Self::with(Lookup::Reactions(rl::Search::new(queries)), names)
+        Self::with(Lookup::Reactions(Box::new(rl::Search::new(queries))), names)
     }
 
     fn with(search: Lookup, names: Vec<(String, Option<String>)>) -> Self {
@@ -406,8 +406,8 @@ impl AnnotateTab {
         {
             ui.label(
                 RichText::new(
-                    "Some reactions have species without a ChEBI entry; annotate the \
-                     species first (Annotate Species from Names) to find more in Rhea.",
+                    "Species without a ChEBI entry were looked up by name to search \
+                     Rhea; what Rhea found that way isn't ticked: check each equation.",
                 )
                 .weak(),
             )

@@ -67,9 +67,9 @@ ChEBI, PubChem and Rhea:
 - **Find in ChEBI**, in a species' Annotations, searches for its name (or any
   words you type) and lists what it finds; **Add** puts one in.
 - **Find in Rhea**, in a reaction's Annotations, does the same for reactions:
-  it starts with the ChEBI entries of the reaction's species, and also takes
-  names (`pyruvate kinase`) or an EC number; **Add** puts in the Rhea entry and
-  its EC numbers.
+  **Search by Species** finds the Rhea reactions with its reactants and
+  products, with no typing, or type an enzyme name (`pyruvate kinase`) or an EC
+  number; **Add** puts in the Rhea entry and its EC numbers.
 - **Edit ▸ Annotate Species from Names…** (also on a species' right-click
   menu) looks up the selected species, or all of them, and shows what it found
   in an **Annotate** tab. Clear matches are ticked; check the others, since a
@@ -79,7 +79,8 @@ ChEBI, PubChem and Rhea:
   menu) does the same for reactions: it finds their EC numbers and their Rhea,
   KEGG and MetaNetX entries, by the reaction's id in BiGG or by its species in
   Rhea. Compare the equation shown with your reaction before ticking it.
-  Annotate the species first: Rhea is searched by the species' ChEBI entries.
+  Species without a ChEBI entry are looked up by name for this, but annotating
+  the species first gives better matches.
 
 While you review, and after **Apply**, the diagram marks what is left to do:
 an **orange** ring for an item found but not ticked, a **blue** one for an
@@ -88,7 +89,10 @@ typing references; a mark goes when its species gets a ChEBI reference, or
 its reaction an EC number or Rhea entry. **View ▸ Annotation Marks** turns
 each kind on or off and clears them; marks aren't saved.
 
-Rest the pointer on an item to see its annotation in the hint.
+Rest the pointer on an item to see its annotation in the hint. References show
+what their entries are called (`CHEBI:16452 — oxaloacetate`): names found by the
+lookups are kept, and missing ones are fetched the first time you look, when
+there is a network.
 
 ## Finding an item
 

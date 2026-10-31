@@ -31,6 +31,13 @@ pub struct CanvasState {
     tooltip: Option<Target>,
 }
 
+impl CanvasState {
+    /// What the tooltip on show is about, if one is.
+    pub fn tooltip(&self) -> Option<&Target> {
+        self.tooltip.as_ref()
+    }
+}
+
 /// A command chosen from the context menu (S §13.4). The app carries it out,
 /// because some need a dialog.
 #[derive(Clone, Debug, PartialEq)]

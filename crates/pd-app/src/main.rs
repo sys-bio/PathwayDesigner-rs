@@ -8,6 +8,7 @@ mod app;
 mod autosave;
 mod canvas;
 mod document;
+mod entry_names;
 mod export;
 mod files;
 mod fonts;

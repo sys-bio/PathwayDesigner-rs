@@ -15,6 +15,7 @@ pub mod bezier;
 pub mod chebi;
 pub mod compartments;
 pub mod diagram_format;
+pub mod entry_names;
 pub mod escher;
 pub mod expr;
 pub mod generate;
