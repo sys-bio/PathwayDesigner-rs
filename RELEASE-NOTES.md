@@ -4,6 +4,27 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.30 (2026-10-31)
+
+**New**
+
+- **References say what they point to.** Each reference in an item's
+  Annotations, and in its hint, shows what its entry is called:
+  `CHEBI:16452 — oxaloacetate(2-)`. Names come from the lookups, or are fetched
+  from the database the first time the item is looked at (ChEBI, GO, NCBI
+  Taxonomy, Rhea, UniProt, PubMed and others), and are saved with the diagram.
+- **Search by Species** in a reaction's *Find in Rhea*: finds the Rhea
+  reactions with the reaction's reactants and products, with no typing; species
+  without a ChEBI entry are looked up by name first.
+
+**Changed**
+
+- *Annotate Reactions from Names* no longer needs the species annotated first:
+  species without a ChEBI entry are looked up by name to search Rhea, once for
+  all the reactions they are in. What Rhea finds that way is offered, not
+  ticked.
+- The README has a section on how to annotate a model.
+
 ## 0.1.29 (2026-10-31)
 
 **New**
