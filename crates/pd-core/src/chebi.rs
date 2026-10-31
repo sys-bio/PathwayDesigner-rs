@@ -98,13 +98,35 @@ pub struct Found {
     pub other_references: Vec<Reference>,
 }
 
+impl Found {
+    /// What its references' entries are called, as far as the search knows,
+    /// with candidate `chosen` the ChEBI entry: ChEBI's name for it (else
+    /// the full name found), and the full name for BiGG's KEGG and MetaNetX
+    /// links, which are the same compound.
+    pub fn reference_names(&self, chosen: usize) -> Vec<(String, String)> {
+        let mut names = Vec::new();
+        if let Some(c) = self.candidates.get(chosen)
+            && let Some(name) = c.name.clone().or_else(|| self.full_name.clone())
+        {
+            names.push((c.reference().resource, name));
+        }
+        if let Some(full) = &self.full_name {
+            for r in &self.other_references {
+                names.push((r.resource.clone(), full.clone()));
+            }
+        }
+        names
+    }
+}
+
 /// What the review accepted for one species: the references to add (its
-/// ChEBI entry, and BiGG's KEGG and MetaNetX links, C4) and, if ticked, the
-/// display name to give it (C3).
+/// ChEBI entry, and BiGG's KEGG and MetaNetX links, C4), what their entries
+/// are called, and, if ticked, the display name to give it (C3).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Accepted {
     pub species: Id,
     pub references: Vec<Reference>,
+    pub names: Vec<(String, String)>,
     pub display_name: Option<String>,
 }
 
@@ -605,6 +627,25 @@ mod tests {
         assert_eq!(
             f.candidates[0].reference().resource,
             "https://identifiers.org/CHEBI:4170"
+        );
+        // The names their entries go by: ChEBI's, and BiGG's full name for
+        // its links.
+        assert_eq!(
+            f.reference_names(0),
+            [
+                (
+                    "https://identifiers.org/CHEBI:4170".to_owned(),
+                    "D-glucose 6-phosphate".to_owned()
+                ),
+                (
+                    "https://identifiers.org/kegg.compound:C00092".to_owned(),
+                    "D-Glucose 6-phosphate".to_owned()
+                ),
+                (
+                    "https://identifiers.org/metanetx.chemical:MNXM160".to_owned(),
+                    "D-Glucose 6-phosphate".to_owned()
+                ),
+            ]
         );
         assert_eq!(s.progress(), (1, 1));
     }

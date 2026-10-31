@@ -57,7 +57,7 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
             ),
             (
                 "Rest the pointer on an item",
-                "A tooltip: a species' value, a reaction's rate law, a compartment's volume",
+                "A tooltip: a species' value, a reaction's rate law, a compartment's volume, and its display name and annotation",
             ),
         ],
     ),
@@ -112,6 +112,10 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
                 "↑ / ↓, Shift + ↑ / ↓",
                 "Move through the list; extend the selection",
             ),
+            (
+                "Ctrl+F, then type",
+                "Keep only the items whose id or display name holds the words; Enter, or a click, selects one and brings it into view",
+            ),
         ],
     ),
     (
@@ -133,6 +137,7 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
                 "Move that point instead, by the same steps; a click elsewhere or Esc goes back to the selection",
             ),
             ("Ctrl+Alt+C, Ctrl+Alt+V", "Copy Style, Paste Style"),
+            ("Ctrl+F", "Find in the model tree"),
             (
                 "Enter",
                 "With A+… → B+…: on to the products, then make the reaction",

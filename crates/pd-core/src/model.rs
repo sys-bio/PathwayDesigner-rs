@@ -1127,6 +1127,12 @@ pub struct Model {
     pub annotation: Annotation,
     /// Who made the model and when.
     pub history: History,
+    /// What the entries the references point to are called, by reference
+    /// (`https://identifiers.org/CHEBI:16452` → `oxaloacetate(2-)`), as the
+    /// lookups found them or fetched since; shown beside the references.
+    /// Saved in PathwayDesigner's files only. Never undone: names are only
+    /// ever added.
+    pub reference_names: std::collections::BTreeMap<String, String>,
     species: Vec<SpeciesNode>,
     reactions: Vec<Reaction>,
     /// Free text, in z-order. Drawn above everything else.
@@ -1152,6 +1158,7 @@ impl Default for Model {
             show_display_names: false,
             annotation: Annotation::default(),
             history: History::default(),
+            reference_names: std::collections::BTreeMap::new(),
             species: Vec::new(),
             reactions: Vec::new(),
             texts: Vec::new(),

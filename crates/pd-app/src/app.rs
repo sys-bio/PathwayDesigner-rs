@@ -3750,8 +3750,20 @@ k = 0.1",
             .collect();
         adds.sort_by(|a, b| a.y.total_cmp(&b.y));
         assert_eq!(adds.len(), 3, "the references' Add and one per entry");
+        let glucose = |h: &Harness| {
+            h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .filter(|(_, n)| n.label().or(n.value()) == Some("glucose"))
+                .count()
+        };
+        let before = glucose(&h);
         h.click(adds[1]);
         h.run(vec![]);
+        h.run(vec![]);
+        assert_eq!(glucose(&h), before + 1, "its name beside the new reference");
         let refs = &h
             .app
             .view
@@ -3763,6 +3775,12 @@ k = 0.1",
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0].resource, "https://identifiers.org/CHEBI:17234");
         assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
+        assert_eq!(
+            h.app
+                .view
+                .reference_name("https://identifiers.org/CHEBI:17234"),
+            Some("glucose")
+        );
         // Added once: its button says so.
         assert!(labels(&h).iter().any(|l| l == "Added"));
     }
@@ -3888,6 +3906,13 @@ k = 0.1",
                 "bqbiol:is https://identifiers.org/rhea:28370"
             ]
         );
+        // Rhea's entry is named by its equation, shown beside it.
+        assert_eq!(
+            h.app
+                .view
+                .reference_name("https://identifiers.org/rhea:28370"),
+            Some("oxaloacetate + phosphate = phosphoenolpyruvate + hydrogencarbonate")
+        );
         assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
         h.run(vec![]);
         h.widget("Added");
@@ -3998,6 +4023,19 @@ k = 1",
             ]
         );
         assert_eq!(g6p.display_name.as_deref(), Some("D-Glucose 6-phosphate"));
+        // The entries' names are kept, for the hint and the panel.
+        assert!(
+            h.app
+                .view
+                .reference_name("https://identifiers.org/CHEBI:4170")
+                .is_some()
+        );
+        assert_eq!(
+            h.app
+                .view
+                .reference_name("https://identifiers.org/kegg.compound:C00092"),
+            Some("D-Glucose 6-phosphate")
+        );
         let atp = m.find_species("ATP").unwrap();
         assert_eq!(
             atp.annotation.references[0].resource,
@@ -4288,6 +4326,7 @@ k = 1",
                     qualifier: "bqbiol:isVersionOf".into(),
                     resource: "https://identifiers.org/ec-code:1.1.1.1".into(),
                 }],
+                names: Vec::new(),
                 display_name: None,
             }]);
         h.run(vec![]);

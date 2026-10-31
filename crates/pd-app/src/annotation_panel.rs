@@ -192,6 +192,10 @@ impl AnnotationPanel {
                         ui.label(text).on_hover_text(&r.resource);
                     }
                 }
+                // What the entry is called, if known.
+                if let Some(name) = view.reference_name(&r.resource) {
+                    ui.label(RichText::new(name).weak()).on_hover_text(name);
+                }
                 if ui
                     .small_button("✕")
                     .on_hover_text("Remove this reference")
@@ -368,7 +372,7 @@ impl AnnotationPanel {
                     .on_hover_text("Add as what this species is (bqbiol:is)")
                     .clicked()
                 {
-                    add = Some(r.clone());
+                    add = Some((r.clone(), c.name.clone()));
                 }
                 ui.hyperlink_to(&c.chebi, resource_url(&r.resource).unwrap_or_default());
                 if let Some(name) = &c.name {
@@ -376,7 +380,10 @@ impl AnnotationPanel {
                 }
             });
         }
-        if let Some(r) = add {
+        if let Some((r, name)) = add {
+            if let Some(name) = name {
+                view.name_references([(r.resource.clone(), name)]);
+            }
             let mut a = current.clone();
             a.references.push(r);
             view.set_annotation(id, a);
@@ -449,7 +456,7 @@ impl AnnotationPanel {
                     )
                     .clicked()
                 {
-                    add = Some(refs.clone());
+                    add = Some((refs.clone(), c.reference_names()));
                 }
                 ui.hyperlink_to(&c.id, c.page());
                 if !c.ec.is_empty() {
@@ -462,7 +469,8 @@ impl AnnotationPanel {
                     .on_hover_text(&c.equation);
             });
         }
-        if let Some(refs) = add {
+        if let Some((refs, names)) = add {
+            view.name_references(names);
             let mut a = current.clone();
             for r in refs {
                 if !a.references.contains(&r) {

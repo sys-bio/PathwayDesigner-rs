@@ -120,6 +120,23 @@ impl Candidate {
         out
     }
 
+    /// What the entries of its references are called: Rhea's entry by its
+    /// equation, the others by BiGG's name when there is one (a reaction
+    /// Rhea found has none, so its EC numbers go unnamed).
+    pub fn reference_names(&self) -> Vec<(String, String)> {
+        self.references()
+            .into_iter()
+            .filter_map(|r| {
+                let name = if r.resource.contains("/rhea:") {
+                    Some(self.equation.clone()).filter(|e| !e.is_empty())
+                } else {
+                    self.name.clone()
+                }?;
+                Some((r.resource, name))
+            })
+            .collect()
+    }
+
     /// The page to check it on.
     pub fn page(&self) -> String {
         match self.id.strip_prefix("RHEA:") {
@@ -145,12 +162,14 @@ pub struct Found {
     pub species_unannotated: bool,
 }
 
-/// What the review accepted for one reaction: the references to add and,
-/// if ticked, the display name to give it (R5).
+/// What the review accepted for one reaction: the references to add, what
+/// their entries are called, and, if ticked, the display name to give it
+/// (R5).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Accepted {
     pub reaction: Id,
     pub references: Vec<Reference>,
+    pub names: Vec<(String, String)>,
     pub display_name: Option<String>,
 }
 
@@ -663,6 +682,17 @@ mod tests {
             ]
         );
         assert_eq!(c.page(), "http://bigg.ucsd.edu/universal/reactions/PPC");
+        // Rhea's entry named by its equation, the rest by BiGG's name.
+        let names = c.reference_names();
+        assert_eq!(names.len(), 4);
+        assert_eq!(names[0].1, "Phosphoenolpyruvate carboxylase");
+        assert_eq!(
+            names[1],
+            (
+                "https://identifiers.org/rhea:23072".to_owned(),
+                "co2 + h2o + pep ⇌ h + oaa + pi".to_owned()
+            )
+        );
 
         // A species BiGG doesn't have: found, not sure.
         let mut species = ppc_species();
@@ -740,6 +770,14 @@ mod tests {
         assert_eq!(
             c.references()[1].resource,
             "https://identifiers.org/rhea:28370"
+        );
+        // From Rhea: no name for its EC number, its equation for itself.
+        assert_eq!(
+            c.reference_names(),
+            [(
+                "https://identifiers.org/rhea:28370".to_owned(),
+                "oxaloacetate + phosphate = phosphoenolpyruvate + hydrogencarbonate".to_owned()
+            )]
         );
 
         // One match, but with a participant the reaction hasn't (diphosphate).

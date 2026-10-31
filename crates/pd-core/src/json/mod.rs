@@ -22,10 +22,14 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought annotations: SBO terms, database references and notes on
-/// species, reactions, compartments, parameters and the model, and the
-/// model's history (docs/annotations-design.md).
-pub const FORMAT_VERSION: u32 = 18;
+/// one that brought the names of the entries references point to
+/// (`referenceNames`).
+pub const FORMAT_VERSION: u32 = 19;
+
+/// The version that brought annotations: SBO terms, database references and
+/// notes on species, reactions, compartments, parameters and the model, and
+/// the model's history (docs/annotations-design.md).
+pub const ANNOTATION_VERSION: u32 = 18;
 
 /// The version that brought display names on species, reactions and
 /// compartments (docs/display-names-design.md D1).
@@ -78,8 +82,31 @@ pub const TEXT_VERSION: u32 = 4;
 /// is needed.
 pub const DELPHI_VERSION: u32 = 3;
 
+/// The names of the references the model still has: a name kept for a
+/// reference since removed isn't saved.
+fn used_reference_names(m: &Model) -> std::collections::BTreeMap<String, String> {
+    let mut used = std::collections::BTreeSet::new();
+    let mut add = |a: &crate::model::Annotation| {
+        for r in &a.references {
+            used.insert(r.resource.clone());
+        }
+    };
+    add(&m.annotation);
+    m.species().iter().for_each(|s| add(&s.annotation));
+    m.reactions().iter().for_each(|r| add(&r.annotation));
+    m.compartments.iter().for_each(|c| add(&c.annotation));
+    m.parameters.iter().for_each(|p| add(&p.annotation));
+    m.assignment_rules.iter().for_each(|r| add(&r.annotation));
+    m.reference_names
+        .iter()
+        .filter(|(k, _)| used.contains(*k))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect()
+}
+
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 18 if anything has an annotation or the model a history,
+/// (SPEC-Rust §4.2): 19 if it keeps names for its references, 18 if anything
+/// has an annotation or the model a history,
 /// 17 if a species, reaction or compartment has a display
 /// name or its own label choice, or the diagram shows display names, 16 if the diagram names colors (from a diagram's
 /// `color gold = #FFD54F`) or a species style has a size with the name
@@ -156,8 +183,10 @@ pub fn needed_version(model: &Model) -> u32 {
             .assignment_rules
             .iter()
             .any(|r| !r.annotation.is_empty());
-    if annotations {
+    if !used_reference_names(model).is_empty() {
         FORMAT_VERSION
+    } else if annotations {
+        ANNOTATION_VERSION
     } else if display_names {
         DISPLAY_NAME_VERSION
     } else if !model.color_names.is_empty() || sized_inside {
@@ -354,6 +383,10 @@ struct FileModel {
     /// Version 18: who made the model and when.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     history: Option<FileHistory>,
+    /// Version 19: the names of the entries references point to, by
+    /// reference.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    reference_names: std::collections::BTreeMap<String, String>,
 }
 
 /// An annotation (version 18): an SBO term's number, database references
@@ -1104,6 +1137,7 @@ impl FileModel {
             .collect();
         model.show_display_names = self.display_names;
         model.annotation = annotation_from_file(self.annotation);
+        model.reference_names = self.reference_names;
         model.history = self
             .history
             .map(|h| History {
@@ -1509,6 +1543,7 @@ impl FileModel {
             modifier_lines: m.hide_modifier_lines.then_some(false),
             display_names: m.show_display_names,
             annotation: annotation_to_file(&m.annotation),
+            reference_names: used_reference_names(m),
             history: (!m.history.is_empty()).then(|| FileHistory {
                 creators: m
                     .history
@@ -1744,6 +1779,39 @@ mod tests {
 
     /// docs/annotations-design.md: annotations and the model's history are
     /// saved in version 18 and read back; an alias's is dropped.
+    /// The names of the references' entries are saved in version 19, only
+    /// for references the model still has.
+    #[test]
+    fn reference_names_are_kept_in_version_19() {
+        use crate::model::Reference;
+        let mut m = Model::default();
+        let s = m.add_species(Pt::ZERO, 60.0, 30.0);
+        let chebi = "https://identifiers.org/CHEBI:16452".to_owned();
+        m.find_species_mut(&s)
+            .unwrap()
+            .annotation
+            .references
+            .push(Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: chebi.clone(),
+            });
+        m.reference_names
+            .insert("https://identifiers.org/CHEBI:1".into(), "gone".into());
+        assert_eq!(
+            needed_version(&m),
+            ANNOTATION_VERSION,
+            "a name for nothing isn't kept"
+        );
+        m.reference_names
+            .insert(chebi.clone(), "oxaloacetate(2-)".into());
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let text = to_json(&m);
+        assert!(text.contains("\"referenceNames\""), "{text}");
+        let back = from_json(&text).unwrap().model;
+        assert_eq!(back.reference_names.len(), 1);
+        assert_eq!(back.reference_names[&chebi], "oxaloacetate(2-)");
+    }
+
     #[test]
     fn annotations_are_kept_in_version_18() {
         use crate::model::{Annotation, Creator, Reference};
@@ -1786,7 +1854,7 @@ mod tests {
             ..Creator::default()
         });
         m.history.created = Some("2026-10-28T00:00:00Z".into());
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), ANNOTATION_VERSION);
         let back = from_json(&to_json(&m)).unwrap().model;
         assert_eq!(back.find_species(&s).unwrap().annotation, a);
         assert!(back.find_species(&alias).unwrap().annotation.is_empty());

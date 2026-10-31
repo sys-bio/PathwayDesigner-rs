@@ -26,6 +26,8 @@ const LINE_SPACING: f64 = 1.25;
 const MAX_REFERENCES: usize = 4;
 /// How many letters of the notes' first line are shown.
 const NOTES_LETTERS: usize = 60;
+/// How many letters of an entry's name are shown.
+const NAME_LETTERS: usize = 50;
 
 impl DiagramView {
     /// What the tooltip says for `target`: `id: initialValue` for a species
@@ -44,6 +46,7 @@ impl DiagramView {
                 let primary = self.model.find_species(node.primary_id()).unwrap_or(node);
                 let first = format!("{}: {}", primary.id, format_value(primary.initial_value));
                 Some(with_annotation(
+                    &self.model.reference_names,
                     first,
                     primary.display_name.as_deref(),
                     &primary.annotation,
@@ -64,6 +67,7 @@ impl DiagramView {
                     format!("{}: {}", r.id, r.kinetic_law)
                 };
                 Some(with_annotation(
+                    &self.model.reference_names,
                     first,
                     r.display_name.as_deref(),
                     &r.annotation,
@@ -74,6 +78,7 @@ impl DiagramView {
                 let c = self.model.find_compartment(id)?;
                 let first = format!("{}: volume {}", c.id, format_value(c.size));
                 Some(with_annotation(
+                    &self.model.reference_names,
                     first,
                     c.display_name.as_deref(),
                     &c.annotation,
@@ -138,7 +143,12 @@ impl DiagramView {
 /// its SBO term, its references a line per qualifier (`is CHEBI:4170 ·
 /// kegg.compound:C00092`, the fifth on as "+ n more"), and its notes' first
 /// line, cut short.
-fn with_annotation(first: String, display_name: Option<&str>, a: &Annotation) -> String {
+fn with_annotation(
+    names: &std::collections::BTreeMap<String, String>,
+    first: String,
+    display_name: Option<&str>,
+    a: &Annotation,
+) -> String {
     let mut lines = vec![first];
     if let Some(name) = display_name.map(str::trim).filter(|n| !n.is_empty()) {
         lines.push(name.to_owned());
@@ -156,17 +166,38 @@ fn with_annotation(first: String, display_name: Option<&str>, a: &Annotation) ->
         }
     }
     for q in qualifiers {
-        let all: Vec<String> = a
-            .references
-            .iter()
-            .filter(|r| r.qualifier == q)
-            .map(|r| resource_text(&r.resource))
-            .collect();
-        let mut shown = all[..all.len().min(MAX_REFERENCES)].join(" · ");
-        if all.len() > MAX_REFERENCES {
-            shown.push_str(&format!(" + {} more", all.len() - MAX_REFERENCES));
+        let refs: Vec<&crate::model::Reference> =
+            a.references.iter().filter(|r| r.qualifier == q).collect();
+        let more = refs.len().saturating_sub(MAX_REFERENCES);
+        let refs = &refs[..refs.len().min(MAX_REFERENCES)];
+        // Named entries a line each, with their names; the rest together.
+        let mut unnamed = Vec::new();
+        for r in refs {
+            match names.get(&r.resource) {
+                Some(name) => {
+                    let mut cut: String = name.chars().take(NAME_LETTERS).collect();
+                    if name.chars().count() > NAME_LETTERS {
+                        cut.push('…');
+                    }
+                    lines.push(format!(
+                        "{} {} — {cut}",
+                        qualifier_text(q),
+                        resource_text(&r.resource)
+                    ));
+                }
+                None => unnamed.push(resource_text(&r.resource)),
+            }
         }
-        lines.push(format!("{} {shown}", qualifier_text(q)));
+        let mut shown = unnamed.join(" · ");
+        if more > 0 {
+            if !shown.is_empty() {
+                shown.push(' ');
+            }
+            shown.push_str(&format!("+ {more} more"));
+        }
+        if !shown.is_empty() {
+            lines.push(format!("{} {shown}", qualifier_text(q)));
+        }
     }
     if let Some(notes) = &a.notes {
         let text = notes_text(notes);
@@ -295,6 +326,37 @@ mod tests {
         assert!(t(Target::Compartment(c)).ends_with("\nSBO:9999999"));
         // Nothing to add: one line, as before.
         assert_eq!(t(Target::Species("S2".into())), "S2: 0");
+    }
+
+    /// A reference whose entry's name is known shows it, on a line of its
+    /// own; the others as before.
+    #[test]
+    fn reference_names_are_shown() {
+        use crate::model::Reference;
+        let mut v = view();
+        let mut m = v.model().clone();
+        let r = |x: &str| Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: format!("https://identifiers.org/{x}"),
+        };
+        m.find_species_mut("S1").unwrap().annotation.references =
+            vec![r("CHEBI:16452"), r("kegg.compound:C00036")];
+        m.reference_names.insert(
+            "https://identifiers.org/CHEBI:16452".into(),
+            "oxaloacetate(2-)".into(),
+        );
+        m.reference_names
+            .insert("https://identifiers.org/nothing:1".into(), "x".repeat(80));
+        m.find_species_mut("S2").unwrap().annotation.references = vec![r("nothing:1")];
+        v.set_model(m);
+        assert_eq!(
+            v.tooltip_text(&Target::Species("S1".into())).unwrap(),
+            "S1: 0.3333\nis CHEBI:16452 — oxaloacetate(2-)\nis kegg.compound:C00036"
+        );
+        assert_eq!(
+            v.tooltip_text(&Target::Species("S2".into())).unwrap(),
+            format!("S2: 0\nis nothing:1 — {}…", "x".repeat(50))
+        );
     }
 
     #[test]

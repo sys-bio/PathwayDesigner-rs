@@ -276,6 +276,9 @@ impl DiagramView {
             if let Some(name) = crate::model::display_name(item.display_name.clone()) {
                 s.display_name = Some(name);
             }
+            self.model
+                .reference_names
+                .extend(item.names.iter().cloned());
         }
         self.record_if_changed("Annotate Species", before)
     }
@@ -349,6 +352,9 @@ impl DiagramView {
             if let Some(name) = crate::model::display_name(item.display_name.clone()) {
                 r.display_name = Some(name);
             }
+            self.model
+                .reference_names
+                .extend(item.names.iter().cloned());
         }
         self.record_if_changed("Annotate Reactions", before)
     }
@@ -1577,11 +1583,16 @@ mod tests {
             Accepted {
                 species: "S1".into(),
                 references: vec![r("CHEBI:4170"), r("kegg.compound:C00092")],
+                names: vec![(
+                    "https://identifiers.org/CHEBI:4170".into(),
+                    "D-glucose 6-phosphate".into(),
+                )],
                 display_name: Some("D-Glucose 6-phosphate".into()),
             },
             Accepted {
                 species: "S2".into(),
                 references: vec![r("CHEBI:15422")],
+                names: Vec::new(),
                 display_name: None,
             },
         ]);
@@ -1589,12 +1600,17 @@ mod tests {
         let s1 = v.model().find_species("S1").unwrap();
         assert_eq!(s1.annotation.references.len(), 2);
         assert_eq!(s1.display_name.as_deref(), Some("D-Glucose 6-phosphate"));
+        assert_eq!(
+            v.reference_name("https://identifiers.org/CHEBI:4170"),
+            Some("D-glucose 6-phosphate")
+        );
         assert_eq!(v.model().find_species("S2").unwrap().display_name, None);
         // Again: nothing doubled, so no step.
         let before = v.model().clone();
         v.annotate_species(&[Accepted {
             species: "S2".into(),
             references: vec![r("CHEBI:15422")],
+            names: Vec::new(),
             display_name: None,
         }]);
         assert_eq!(*v.model(), before);
@@ -1722,6 +1738,10 @@ mod tests {
                 r("bqbiol:isVersionOf", "ec-code:4.1.1.31"),
                 r("bqbiol:is", "rhea:23072"),
             ],
+            names: vec![(
+                "https://identifiers.org/rhea:23072".into(),
+                "pep + co2 = oaa + pi".into(),
+            )],
             display_name: Some("Phosphoenolpyruvate carboxylase".into()),
         };
         v.annotate_reactions(std::slice::from_ref(&item));
@@ -1752,6 +1772,31 @@ mod tests {
         assert_eq!(v.rename_reaction("PFK", "2x"), Err(RenameError::InvalidId));
         v.undo();
         assert!(v.model().find_reaction("R5").is_some());
+    }
+
+    /// Names are kept, not edited: no undo step, and an undo leaves them.
+    #[test]
+    fn reference_names_survive_undo() {
+        let mut v = view();
+        v.set_kinetic_law("R5", "k*S1");
+        let steps = v.undo_description();
+        assert!(
+            v.name_references([("https://identifiers.org/CHEBI:1".to_owned(), "a".to_owned())])
+        );
+        assert!(
+            !v.name_references([("https://identifiers.org/CHEBI:1".to_owned(), "a".to_owned())])
+        );
+        assert_eq!(v.undo_description(), steps, "no step of its own");
+        v.undo();
+        assert_eq!(
+            v.reference_name("https://identifiers.org/CHEBI:1"),
+            Some("a")
+        );
+        v.redo();
+        assert_eq!(
+            v.reference_name("https://identifiers.org/CHEBI:1"),
+            Some("a")
+        );
     }
 
     #[test]

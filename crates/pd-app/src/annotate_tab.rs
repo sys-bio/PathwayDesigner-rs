@@ -647,6 +647,11 @@ fn accepted_species(rows: &[SpeciesRow]) -> Vec<chebi::Accepted> {
             }
             chebi::Accepted {
                 species: r.id.clone(),
+                names: if r.add {
+                    r.found.reference_names(r.chosen)
+                } else {
+                    Vec::new()
+                },
                 references,
                 display_name: r.rename.then(|| r.found.full_name.clone()).flatten(),
             }
@@ -662,6 +667,11 @@ fn accepted_reactions(rows: &[ReactionRow]) -> Vec<rl::Accepted> {
             reaction: r.id.clone(),
             references: if r.add {
                 r.found.candidates[r.chosen].references()
+            } else {
+                Vec::new()
+            },
+            names: if r.add {
+                r.found.candidates[r.chosen].reference_names()
             } else {
                 Vec::new()
             },

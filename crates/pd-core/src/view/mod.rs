@@ -608,6 +608,34 @@ impl DiagramView {
         changed
     }
 
+    /// What the entry `resource` points to is called, if known.
+    pub fn reference_name(&self, resource: &str) -> Option<&str> {
+        self.model.reference_names.get(resource).map(String::as_str)
+    }
+
+    /// Keeps names for references' entries, not as an edit: no undo step,
+    /// and an undo doesn't take them away. Returns whether any was new.
+    pub fn name_references(&mut self, names: impl IntoIterator<Item = (String, String)>) -> bool {
+        let mut changed = false;
+        for (resource, name) in names {
+            let name = name.trim();
+            if name.is_empty() {
+                continue;
+            }
+            if self
+                .model
+                .reference_names
+                .get(&resource)
+                .map(String::as_str)
+                != Some(name)
+            {
+                self.model.reference_names.insert(resource, name.to_owned());
+                changed = true;
+            }
+        }
+        changed
+    }
+
     /// The items marked after an annotation lookup.
     pub fn marks(&self) -> &Marks {
         &self.marks
@@ -2251,11 +2279,16 @@ impl DiagramView {
         self.cancel_gesture();
         // Typing after an undo or redo starts a new step.
         self.text_edited = None;
+        // Names found for references aren't edits: they stay.
+        let names = self.model.reference_names.clone();
         let done = if undo {
             self.undo.undo(&mut self.model)
         } else {
             self.undo.redo(&mut self.model)
         };
+        for (k, v) in names {
+            self.model.reference_names.entry(k).or_insert(v);
+        }
         if done.is_none() {
             return ViewResponse::default();
         }
