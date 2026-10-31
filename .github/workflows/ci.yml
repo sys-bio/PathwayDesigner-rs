@@ -8,6 +8,12 @@ name: CI
 
 on:
   push:
+    # A push that changes only these needs no build: nothing is compiled
+    # from them. (The README's Mouse and keyboard table is checked against
+    # the app by a test; run it locally after changing that table.)
+    paths-ignore:
+      - README.md
+      - RELEASE-NOTES.md
   pull_request:
   workflow_dispatch:
 
