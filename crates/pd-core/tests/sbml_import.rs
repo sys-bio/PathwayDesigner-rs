@@ -574,3 +574,63 @@ fn a_stoichiometry_set_by_a_rule_is_reported() {
         "{w:?}"
     );
 }
+
+/// SBML's constant avogadro beside a parameter called `avogadro` (allowed,
+/// as the constant is a symbol): the constant becomes its Level 3 Version 1
+/// value and the name stays the parameter's, both ways (found by the SBML
+/// Test Suite round trip). Without such a parameter, the constant is kept.
+#[test]
+fn avogadro_beside_a_parameter_of_that_name() {
+    let law = |inner: &str| {
+        format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="m">
+    <listOfCompartments><compartment id="c" size="1" constant="true"/></listOfCompartments>
+    <listOfSpecies>
+      <species id="S1" compartment="c" initialAmount="1" hasOnlySubstanceUnits="true" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfReactions>
+      <reaction id="J0" reversible="false">
+        <listOfProducts><speciesReference species="S1" stoichiometry="1" constant="true"/></listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><divide/>
+            <csymbol encoding="text" definitionURL="http://www.sbml.org/sbml/symbols/avogadro">avogadro</csymbol>
+            {inner}</apply></math>
+          {locals}
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>"#,
+            inner = inner,
+            locals = if inner.contains("avogadro") {
+                r#"<listOfLocalParameters><localParameter id="avogadro" value="1e24"/></listOfLocalParameters>"#
+            } else {
+                ""
+            }
+        )
+    };
+    // With a parameter called avogadro.
+    let m = sbml::import(&law("<ci>avogadro</ci>"), &OPTS)
+        .unwrap()
+        .model;
+    assert_eq!(
+        m.find_reaction("J0").unwrap().kinetic_law,
+        "6.02214179e23/avogadro"
+    );
+    let xml = sbml::export(&m).xml;
+    assert!(
+        !xml.contains("symbols/avogadro"),
+        "the name is the parameter's"
+    );
+    let back = sbml::import(&xml, &OPTS).unwrap().model;
+    assert_eq!(
+        back.find_reaction("J0").unwrap().kinetic_law,
+        "6.02214179e23/avogadro"
+    );
+    // Without one: the constant is kept as itself.
+    let m = sbml::import(&law("<cn>2</cn>"), &OPTS).unwrap().model;
+    assert_eq!(m.find_reaction("J0").unwrap().kinetic_law, "avogadro/2");
+    assert!(sbml::export(&m).xml.contains("symbols/avogadro"));
+}

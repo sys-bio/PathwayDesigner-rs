@@ -294,7 +294,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 |---|---|---|---|
 | PathwayDesigner diagram | `.json` | yes | yes |
 | Antimony | `.ant`, `.txt` | yes | yes |
-| SBML Level 2 and 3, with Layout and Render | `.xml` | yes | Level 3 Version 1 |
+| SBML Level 2 and 3, with Layout and Render | `.xml` | yes | Level 3 Version 1 (Version 2 for a model that needs it) |
 | Escher map | `.json` | yes | |
 | SVG, PNG, PDF | `.svg`, `.png`, `.pdf` | | yes |
 

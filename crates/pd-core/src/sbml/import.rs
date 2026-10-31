@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use sbml_io as sb;
 
-use super::math::from_math;
+use super::math::from_math_with;
 use super::render_in::Target;
 use crate::antimony::ImportOptions;
 use crate::expr::{self, Ast};
@@ -19,6 +19,21 @@ use crate::passes::{self, NullPlace};
 
 /// Species without a glyph go at random in [0, 600)², as for Antimony.
 const PLACEMENT: f64 = 600.0;
+
+/// Whether the model has anything with id `id`: a compartment, species,
+/// parameter, reaction, function, or a reaction's local parameter.
+fn uses_id(m: &sb::Model, id: &str) -> bool {
+    m.compartments.iter().any(|c| c.id == id)
+        || m.species.iter().any(|s| s.id == id)
+        || m.parameters.iter().any(|p| p.id == id)
+        || m.function_definitions.iter().any(|f| f.id == id)
+        || m.reactions.iter().any(|r| {
+            r.id == id
+                || r.kinetic_law
+                    .as_ref()
+                    .is_some_and(|k| k.parameters.iter().any(|p| p.id == id))
+        })
+}
 
 /// The value `name` has at the start, for working out an initial
 /// assignment: a parameter's (its number, or its expression worked out), a
@@ -83,6 +98,7 @@ pub fn import(xml: &str, opts: &ImportOptions) -> Result<Imported, Vec<sb::Diagn
         functions: HashMap::new(),
         broken_functions: HashMap::new(),
         targets: Vec::new(),
+        avogadro_free: !uses_id(m, "avogadro"),
         namespaces: read.document.namespaces.clone(),
     };
     let (had_layout, unplaced) = b.build(m, opts);
@@ -106,6 +122,9 @@ struct Builder {
     broken_functions: HashMap<String, String>,
     /// Each glyph and what it draws, for its look from Render.
     targets: Vec<(String, Target)>,
+    /// No id in the model is `avogadro`, so the name can stand for SBML's
+    /// constant.
+    avogadro_free: bool,
     /// Those declared on `<sbml>`, which an annotation may use.
     namespaces: Vec<(Option<String>, String)>,
 }
@@ -163,7 +182,7 @@ impl Builder {
         rename: &HashMap<String, String>,
         what: &str,
     ) -> Option<Ast> {
-        let expanded = from_math(math?, rename).and_then(|ast| {
+        let expanded = from_math_with(math?, rename, self.avogadro_free).and_then(|ast| {
             if let Some((f, why)) = first_call(&ast, &self.broken_functions) {
                 return Err(format!("the function {f}, which {why}"));
             }
@@ -182,12 +201,14 @@ impl Builder {
     fn read_functions(&mut self, m: &sb::Model) {
         for f in &m.function_definitions {
             let def = match &f.math {
-                Some(sb::Math::Lambda { args, body }) => from_math(body, &HashMap::new())
-                    .map(|body| expr::FunctionDef {
-                        params: args.clone(),
-                        body,
-                    })
-                    .map_err(|why| format!("uses {why}")),
+                Some(sb::Math::Lambda { args, body }) => {
+                    from_math_with(body, &HashMap::new(), self.avogadro_free)
+                        .map(|body| expr::FunctionDef {
+                            params: args.clone(),
+                            body,
+                        })
+                        .map_err(|why| format!("uses {why}"))
+                }
                 _ => Err("has no lambda".to_owned()),
             };
             match def {
@@ -854,7 +875,7 @@ impl Builder {
                 }
                 let mut n = sr.stoichiometry.unwrap_or(1.0);
                 if let Some(math) = &sr.stoichiometry_math {
-                    match from_math(math, &HashMap::new())
+                    match from_math_with(math, &HashMap::new(), self.avogadro_free)
                         .map(|a| expr::to_infix(&a).parse::<f64>())
                     {
                         Ok(Ok(v)) => n = v,

@@ -13,11 +13,18 @@ const NO_SPAN: Span = Span { start: 0, end: 0 };
 /// which operators are allowed: `max` and `min` exist only from Level 3
 /// Version 2, and are written as a `piecewise` before that.
 pub fn to_math(ast: &Ast, level: u32, version: u32) -> Math {
-    let me = |a: &Ast| to_math(a, level, version);
+    to_math_with(ast, level, version, true)
+}
+
+/// [`to_math`], saying whether the name `avogadro` is SBML's constant: not
+/// when the model has something of its own called that, which SBML allows
+/// (found by the SBML Test Suite round trip).
+pub fn to_math_with(ast: &Ast, level: u32, version: u32, avogadro_free: bool) -> Math {
+    let me = |a: &Ast| to_math_with(a, level, version, avogadro_free);
     match ast {
         Ast::Number(text, _) => number(text),
         Ast::Ident(name, _) if name == "time" => Math::Symbol(Symbol::new(Symbol::TIME, "time")),
-        Ast::Ident(name, _) if name == "avogadro" => {
+        Ast::Ident(name, _) if name == "avogadro" && avogadro_free => {
             Math::Symbol(Symbol::new(Symbol::AVOGADRO, "avogadro"))
         }
         Ast::Ident(name, _) => Math::Ident(name.clone()),
@@ -132,7 +139,18 @@ fn min_max(max: bool, mut args: Vec<Math>) -> Math {
 /// model (local parameters made global). Fails, with the reason, on MathML
 /// the expression language can't say.
 pub fn from_math(m: &Math, rename: &HashMap<String, String>) -> Result<Ast, String> {
-    let me = |m: &Math| from_math(m, rename);
+    from_math_with(m, rename, true)
+}
+
+/// [`from_math`], saying whether the name `avogadro` is free to stand for
+/// SBML's constant; if the model has something of its own called that, the
+/// constant becomes its Level 3 Version 1 value, 6.02214179e23.
+pub fn from_math_with(
+    m: &Math,
+    rename: &HashMap<String, String>,
+    avogadro_free: bool,
+) -> Result<Ast, String> {
+    let me = |m: &Math| from_math_with(m, rename, avogadro_free);
     let all = |args: &[Math]| args.iter().map(me).collect::<Result<Vec<_>, _>>();
     Ok(match m {
         Math::Number { value, .. } => num_ast(value.value()),
@@ -141,7 +159,13 @@ pub fn from_math(m: &Math, rename: &HashMap<String, String>) -> Result<Ast, Stri
         // Kept as SBML's own constant, not a number: libSBML and its
         // simulators use Level 3 Version 1's value, 6.02214179e23, not the
         // newer exact one (found by the SBML Test Suite round trip).
-        Math::Symbol(s) if s.url == Symbol::AVOGADRO => ident("avogadro"),
+        Math::Symbol(s) if s.url == Symbol::AVOGADRO => {
+            if avogadro_free {
+                ident("avogadro")
+            } else {
+                num_ast(6.02214179e23)
+            }
+        }
         Math::Symbol(s) => return Err(format!("the symbol {}", s.url)),
         Math::Constant(c) => match c {
             Constant::True => num_ast(1.0),

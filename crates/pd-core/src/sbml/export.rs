@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use sbml_io as sb;
 
-use super::math::to_math;
+use super::math::to_math_with;
 use crate::bezier::leg_curve;
 use crate::expr;
 use crate::geometry::Pt;
@@ -128,6 +128,16 @@ fn sid(text: &str) -> String {
 
 fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) -> sb::Document {
     let version = version_for(model);
+    // `avogadro` is SBML's constant unless the model has something of its
+    // own called that.
+    let avogadro_free = !(model.species().iter().any(|s| s.id == "avogadro")
+        || model.reactions().iter().any(|r| r.id == "avogadro")
+        || model.compartments.iter().any(|c| c.id == "avogadro")
+        || model.parameters.iter().any(|p| p.variable == "avogadro")
+        || model
+            .assignment_rules
+            .iter()
+            .any(|r| r.variable == "avogadro"));
     let mut ids = Ids(HashSet::new());
     // Every id the model uses is taken before any is generated.
     for s in model.species() {
@@ -153,7 +163,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             return None;
         }
         match expr::parse(text) {
-            Ok(ast) => Some(to_math(&ast, LEVEL, version)),
+            Ok(ast) => Some(to_math_with(&ast, LEVEL, version, avogadro_free)),
             Err(e) => {
                 problems.push(format!("{what} doesn't parse, so it was left out: {e}"));
                 None

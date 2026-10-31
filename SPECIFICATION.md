@@ -2461,7 +2461,7 @@ A multi-line text editor beside the canvas, with two buttons:
 The application remembers the last imported Antimony text, so it can re-import it
 when the catalytic-conversion preference changes (§12).
 
-### 11.5 SBML export (Level 3 Version 1 + Layout)
+### 11.5 SBML export (Level 3 Version 1, or Version 2 when needed, + Layout)
 
 File ▸ *Save to SBML* writes a UTF-8 `.xml` file. A re-implementation MAY use
 libSBML. The reference writes the XML itself.
@@ -2480,7 +2480,7 @@ libSBML. The reference writes the XML itself.
 | Element | Content |
 |---|---|
 | compartments | Add `defaultCompartment` (size 1, 3-D, constant) if it is missing, then every model compartment (`constant="true"`). |
-| species | One per **primary** species. Null nodes SHOULD be left out. Attributes: `name` (its display name, §5.14, when it has one; Rust version), `compartment` (defaults to `defaultCompartment`), `initialConcentration`, `hasOnlySubstanceUnits="false"`, `boundaryCondition`, `constant`. |
+| species | One per **primary** species. Null nodes SHOULD be left out. Attributes: `name` (its display name, §5.14, when it has one; Rust version), `compartment` (defaults to `defaultCompartment`), `initialConcentration`, `hasOnlySubstanceUnits="false"`, `boundaryCondition`, `constant`. *Rust version:* `initialAmount` instead when the species' value is an amount, and `hasOnlySubstanceUnits="true"` for a species in amounts, as read (SPEC-Rust §8.3); a model that uses `rateOf` is written as Level 3 Version 2. |
 | parameters | One per parameter whose expression is a number, with `constant="true"`. Parameters with non-numeric expressions SHOULD become an `initialAssignment`. |
 | reactions | `reversible`, `fast="false"`. Reactants and products as `speciesReference` elements with `stoichiometry` and `constant="true"`. Modifiers SHOULD be written as `modifierSpeciesReference` (§15, D-10). |
 | kineticLaw | The rate law converted to Content MathML (table below). If the law is empty or cannot be parsed, leave out the `<kineticLaw>` element entirely. |

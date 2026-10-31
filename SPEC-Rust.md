@@ -348,6 +348,18 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 20: species in amounts.** A species object may have `"inAmounts":
+true` (it stands for its amount in rate laws, SBML's `hasOnlySubstanceUnits`,
+Antimony's `substanceOnly`) and `"initialAmount": true` (its `initialValue` is an
+amount, not a concentration), each left out when false. A document with either is
+version 20.
+
+**Version 19: names of references' entries.** The model may have
+`"referenceNames"`: `{"https://identifiers.org/CHEBI:16452": "oxaloacetate(2-)"}`,
+what the entries the references point to are called, from the lookups or fetched
+(docs/annotation-marks-design.md); only names of references the model still has
+are written. A document with any is version 19.
+
 **Version 18: annotations (docs/annotations-design.md).** A species,
 reaction, compartment, parameter or assignment rule object, and the model, may
 have `"annotation"`: `{"sbo": 247, "references": [{"qualifier": "bqbiol:is",
@@ -977,9 +989,18 @@ replace `sbml-io` behind the same bridge.
   theme is not written.
 
 **Import** (S §16.2 F-1), of Level 2 and Level 3 files:
-- **Core:** compartments, parameters, species (using `initialConcentration`, or
-  `initialAmount` if it is missing or 0), reactions with stoichiometry and modifiers,
-  rate laws through `pd-core::sbml::math` and `to_infix`, and assignment rules.
+- **Core:** compartments, parameters, species, reactions with stoichiometry and
+  modifiers, rate laws through `pd-core::sbml::math` and `to_infix`, and assignment
+  rules (read before initial assignments, which may use their values). Ids are
+  matched exactly, as SBML does: `R1` and `r1` are two things.
+- **Species' values:** `initialConcentration`, or `initialAmount` if that is missing
+  or 0, kept as given: a species remembers whether its value is an amount, and
+  whether it stands for its amount in rate laws (`hasOnlySubstanceUnits`).
+- **Initial assignments:** to a parameter, kept as its expression; to a species or
+  compartment, the value worked out from the values at the start (numbers,
+  parameters, assignment rules, other species and compartments; the common
+  functions and `piecewise`), in the species' own units. One that can't be worked
+  out, using `time` for example, is left out, with a warning.
 - **Layout, when the file has it:**
   - species-glyph boxes give the position and size;
   - the reaction glyph gives the junction;
@@ -1047,18 +1068,31 @@ replace `sbml-io` behind the same bridge.
   junction then goes halfway between the reaction's species. A layout in which
   no species glyph has a position counts as no layout, so the model is laid out
   automatically.
-- **Local parameters** become model parameters. A name already taken becomes
-  `<reaction>_<name>`, and the rate law is rewritten to match.
+- **Local parameters** become model parameters. A name already taken, including
+  one an assignment rule sets, becomes `<reaction>_<name>`, and the rate law is
+  rewritten to match.
 - **Function definitions** are expanded into the expressions that call them
   (S §11.2), with one warning saying how many. A function whose body can't be
   read leaves out each expression calling it, with a warning saying why.
-- **What a diagram can't hold** gives a warning: events,
-  rate and algebraic rules, constraints, and initial assignments to anything but
-  parameters. MathML the expression language can't say (`infinity`, `notanumber`,
+- **What a diagram can't hold** gives a warning: events, rate and algebraic
+  rules, constraints, conversion factors, stoichiometry used or set in maths by a
+  species reference's id (read as its starting value), and initial assignments
+  that can't be worked out. A rule with no maths is left out but its parameter
+  stays. MathML the expression language can't say (`infinity`, `notanumber`,
   MathML outside SBML's subset) leaves that expression out, with a warning. `pi`,
-  `true`, `false` and Avogadro become numbers, `exponentiale` becomes `exp(1)`,
-  `log` with another base becomes `ln(x)/ln(b)`, and `piecewise`, `delay` and
-  `rateOf` become calls of those names.
+  `true` and `false` become numbers, `exponentiale` becomes `exp(1)`, `log` with
+  another base becomes `ln(x)/ln(b)`, and `piecewise`, `delay` and `rateOf` become
+  calls of those names, written back as SBML's own forms. Avogadro's constant
+  becomes the name `avogadro`, written back as SBML's symbol; in a model with
+  something of its own called `avogadro` it becomes Level 3 Version 1's value,
+  6.02214179e23, instead.
+- **The SBML version written.** Level 3 Version 1, which more tools read, unless
+  the model uses `rateOf`, which only Version 2 can say; then Level 3 Version 2.
+  A species' `initialAmount` or `initialConcentration` and `hasOnlySubstanceUnits`
+  are written as read.
+- **Render styles** name at most 100 glyphs each; more with the same look go in
+  another style like it. libSBML crashes reading a large file whose styles list
+  hundreds of glyphs each.
 - **Export of `max` and `min`.** These exist in MathML only from Level 3
   Version 2. In the Level 3 Version 1 export they are written as nested
   `piecewise`.

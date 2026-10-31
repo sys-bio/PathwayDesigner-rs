@@ -116,4 +116,9 @@ diagram looks like.
 - **File ▸ Save to SBML…** writes SBML, with the drawing in SBML's Layout and
   Render parts, for other tools such as COPASI.
 
+When you open an SBML file, PathwayDesigner keeps the model as it is, but a
+diagram can't hold everything SBML can. Events, rate and algebraic rules,
+constraints and conversion factors are left out, and a message says so; save
+to a new name if you need the original.
+
 Back to the [contents](contents.md).
