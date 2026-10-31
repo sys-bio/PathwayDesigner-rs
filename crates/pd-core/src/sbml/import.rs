@@ -284,6 +284,28 @@ impl Builder {
                 });
             }
         }
+        // Assignment rules first: an initial assignment may use the value
+        // one gives (found by the SBML Test Suite round trip).
+        for r in &m.rules {
+            if let sb::Rule::Assignment { variable, math, .. } = r {
+                let what = format!("The rule for {variable}");
+                if let Some(ast) = self.expression(math.as_ref(), &none, &what) {
+                    // The parameter it sets, which is kept as the rule.
+                    let annotation = m
+                        .parameters
+                        .iter()
+                        .find(|p| p.id == *variable)
+                        .map(|p| self.annotation(&p.meta))
+                        .unwrap_or_default();
+                    self.model.assignment_rules.push(AssignmentRule {
+                        variable: variable.clone(),
+                        expression: expr::to_infix(&ast),
+                        annotation,
+                    });
+                }
+            }
+        }
+
         // Initial assignments: a parameter keeps its expression; a species
         // or compartment, which holds only a number, gets the expression's
         // value at the start, worked out from the other values then (found
@@ -375,26 +397,6 @@ impl Builder {
                 self.warn(format!("{what} was left out: only parameters can have one"));
             }
         }
-        for r in &m.rules {
-            if let sb::Rule::Assignment { variable, math, .. } = r {
-                let what = format!("The rule for {variable}");
-                if let Some(ast) = self.expression(math.as_ref(), &none, &what) {
-                    // The parameter it sets, which is kept as the rule.
-                    let annotation = m
-                        .parameters
-                        .iter()
-                        .find(|p| p.id == *variable)
-                        .map(|p| self.annotation(&p.meta))
-                        .unwrap_or_default();
-                    self.model.assignment_rules.push(AssignmentRule {
-                        variable: variable.clone(),
-                        expression: expr::to_infix(&ast),
-                        annotation,
-                    });
-                }
-            }
-        }
-
         // The layout: species first, so reactions can use their aliases. A
         // layout where no species glyph has a position counts as none.
         let layout = m.layouts.first().filter(|l| {
@@ -529,6 +531,49 @@ impl Builder {
                 0 => {}
                 1 => self.warn(format!("1 {one} was left out")),
                 n => self.warn(format!("{n} {many} were left out")),
+            }
+        }
+        // Conversion factors, and species references named so that maths
+        // can use them, have nowhere to go in a diagram: say so rather than
+        // lose them unannounced (found by the SBML Test Suite round trip).
+        let factors = usize::from(m.conversion_factor.is_some())
+            + m.species
+                .iter()
+                .filter(|s| s.conversion_factor.is_some())
+                .count();
+        match factors {
+            0 => {}
+            1 => self.warn("1 conversion factor was left out".into()),
+            n => self.warn(format!("{n} conversion factors were left out")),
+        }
+        let named: Vec<&str> = m
+            .reactions
+            .iter()
+            .flat_map(|r| r.reactants.iter().chain(&r.products))
+            .filter_map(|sr| sr.id.as_deref())
+            .collect();
+        if !named.is_empty() {
+            let used = |math: Option<&sb::Math>| {
+                math.is_some_and(|math| {
+                    let mut found = false;
+                    math.visit_idents(&mut |id| found |= named.contains(&id));
+                    found
+                })
+            };
+            let in_math = m.rules.iter().any(|r| used(r.math()))
+                || m.initial_assignments
+                    .iter()
+                    .any(|ia| used(ia.math.as_ref()))
+                || m.reactions.iter().any(|r| {
+                    r.kinetic_law
+                        .as_ref()
+                        .is_some_and(|k| used(k.math.as_ref()))
+                });
+            if in_math {
+                self.warn(
+                    "maths that uses a reaction's stoichiometry by its id was read with the                      stoichiometry it starts with"
+                        .into(),
+                );
             }
         }
         if m.layouts.len() > 1 {

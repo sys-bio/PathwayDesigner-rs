@@ -460,3 +460,70 @@ fn what_the_biomodels_round_trip_found_is_kept() {
     assert!(written.xml.contains(r#"initialAmount="2""#));
     check(&sbml::import(&written.xml, &OPTS).unwrap().model);
 }
+
+/// Conversion factors, and a reaction's stoichiometry used in maths by its
+/// id, have nowhere to go in a diagram: the import says so (found by the
+/// SBML Test Suite round trip, where they went unannounced).
+#[test]
+fn what_a_diagram_cannot_hold_is_reported() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="m" conversionFactor="f">
+    <listOfCompartments><compartment id="c" size="1" constant="true"/></listOfCompartments>
+    <listOfSpecies>
+      <species id="A" compartment="c" initialAmount="1" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" conversionFactor="f"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="f" value="2" constant="true"/>
+      <parameter id="p" constant="false"/>
+    </listOfParameters>
+    <listOfRules>
+      <assignmentRule variable="p"><math xmlns="http://www.w3.org/1998/Math/MathML"><ci>sr</ci></math></assignmentRule>
+    </listOfRules>
+    <listOfReactions>
+      <reaction id="R" reversible="false">
+        <listOfReactants><speciesReference id="sr" species="A" stoichiometry="2" constant="true"/></listOfReactants>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>"#;
+    let w = sbml::import(xml, &OPTS).unwrap().warnings;
+    assert!(
+        w.iter().any(|w| w == "2 conversion factors were left out"),
+        "{w:?}"
+    );
+    assert!(
+        w.iter().any(|w| w.contains("stoichiometry by its id")),
+        "{w:?}"
+    );
+}
+
+/// An initial assignment may use a value an assignment rule gives
+/// (`S1 = 2*k1`, `k1 := 0.75`): rules are read first (found by the SBML Test
+/// Suite round trip, where these were left out).
+#[test]
+fn an_initial_assignment_can_use_a_rule() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="m">
+    <listOfCompartments><compartment id="c" size="1" constant="true"/></listOfCompartments>
+    <listOfSpecies>
+      <species id="S1" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters><parameter id="k1" constant="false"/></listOfParameters>
+    <listOfInitialAssignments>
+      <initialAssignment symbol="S1"><math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><cn>2</cn><ci>k1</ci></apply></math></initialAssignment>
+    </listOfInitialAssignments>
+    <listOfRules>
+      <assignmentRule variable="k1"><math xmlns="http://www.w3.org/1998/Math/MathML"><cn>0.75</cn></math></assignmentRule>
+    </listOfRules>
+  </model>
+</sbml>"#;
+    let i = sbml::import(xml, &OPTS).unwrap();
+    assert!(
+        !i.warnings.iter().any(|w| w.contains("left out")),
+        "{:?}",
+        i.warnings
+    );
+    assert_eq!(i.model.find_species("S1").unwrap().initial_value, 1.5);
+}

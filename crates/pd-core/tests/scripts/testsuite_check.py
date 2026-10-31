@@ -167,8 +167,11 @@ def check(semantic, out_dir, report):
             results.append(res)
             if i % 200 == 0:
                 print(f"{i} of {len(jobs)} checked", flush=True)
+    said = ("left out", "was read as", "read with the stoichiometry")
     for r in results:
         r["left_out"] = sorted({LEFT_OUT[t] for t in tags(os.path.join(semantic, r["case"]), r["case"]) if t in LEFT_OUT})
+        # What the import itself said it left out or changed.
+        r["left_out"] += [w for w in log.get(r["case"], {}).get("warnings", []) if any(x in w for x in said)]
     with open(report.replace(".md", ".json"), "w", encoding="utf-8") as fh:
         json.dump(results, fh, indent=1)
     write_report(report, log, results)
@@ -200,7 +203,7 @@ def write_report(path, log, results):
         "|---|---|",
         f"| Original and round trip both match the published results | {len(g['both'])} |",
         f"| **Original matches, round trip doesn't, with nothing left out** | **{len(g['lost'])}** |",
-        f"| Original matches, round trip doesn't: it uses what PathwayDesigner leaves out (expected) | {len(g['lost_expected'])} |",
+        f"| Original matches, round trip doesn't: it uses what PathwayDesigner leaves out, as the import says (expected) | {len(g['lost_expected'])} |",
         f"| Original doesn't match in libRoadRunner either | {len(g['neither']) + len(g['gained'])} |",
         f"| Not read by PathwayDesigner | {len(g['notread'])} |",
         f"| Total | {n} |",
