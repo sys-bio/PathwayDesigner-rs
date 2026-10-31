@@ -55,6 +55,26 @@ fn number(text: &str) -> Math {
 
 fn call(name: &str, mut args: Vec<Math>, level: u32, version: u32) -> Math {
     let one = |args: &mut Vec<Math>| (args.len() == 1).then(|| Box::new(args.remove(0)));
+    // What import turned into calls goes back to MathML's own forms:
+    // `piecewise(v1, c1, v2, c2, …, otherwise)`, and SBML's `delay(x, d)`.
+    match name {
+        "piecewise" if !args.is_empty() => {
+            let otherwise = (args.len() % 2 == 1).then(|| Box::new(args.pop().unwrap()));
+            let mut pieces = Vec::new();
+            let mut it = args.into_iter();
+            while let (Some(v), Some(c)) = (it.next(), it.next()) {
+                pieces.push((v, c));
+            }
+            return Math::Piecewise { pieces, otherwise };
+        }
+        "delay" if args.len() == 2 => {
+            return Math::CallSymbol(Symbol::new(Symbol::DELAY, "delay"), args);
+        }
+        "rate" if args.len() == 1 && level >= 3 && version >= 2 => {
+            return Math::CallSymbol(Symbol::new(Symbol::RATE_OF, "rateOf"), args);
+        }
+        _ => {}
+    }
     let op = match name {
         "asin" => Some(Op::ArcSin),
         "acos" => Some(Op::ArcCos),
@@ -298,6 +318,31 @@ mod tests {
             to_math(&parse("max(a, b, c)").unwrap(), 3, 1),
             Math::Piecewise { .. }
         ));
+    }
+
+    /// What import makes a call, `piecewise` and `delay`, is written back as
+    /// MathML's `<piecewise>` and SBML's delay symbol, not as a call to a
+    /// function the file doesn't define (found by the BioModels round trip).
+    #[test]
+    fn piecewise_and_delay_go_back_to_mathml() {
+        let ast = crate::expr::parse("piecewise(1, x > 2, 3) + delay(y, 5)").unwrap();
+        let math = to_math(&ast, 3, 1);
+        let text = format!("{math:?}");
+        assert!(text.contains("Piecewise"), "{text}");
+        assert!(text.contains(Symbol::DELAY), "{text}");
+        assert!(!text.contains("Call(\"piecewise\""), "{text}");
+        assert!(!text.contains("Call(\"delay\""), "{text}");
+        // And back again, the same.
+        assert_eq!(
+            to_infix(&from_math(&math, &HashMap::new()).unwrap()),
+            "piecewise(1, x > 2, 3) + delay(y, 5)"
+        );
+        // Without an otherwise, and with two pieces.
+        let ast = crate::expr::parse("piecewise(1, x > 2, 4, x > 1)").unwrap();
+        assert_eq!(
+            to_infix(&from_math(&to_math(&ast, 3, 1), &HashMap::new()).unwrap()),
+            "piecewise(1, x > 2, 4, x > 1)"
+        );
     }
 
     #[test]

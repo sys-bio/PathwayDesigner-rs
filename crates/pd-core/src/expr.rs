@@ -601,9 +601,99 @@ fn wrap(a: &Ast, parens: bool) -> String {
     }
 }
 
+/// The value of `ast`, each name's from `value`; `None` if a name has no
+/// value or the expression uses something this doesn't compute (an unknown
+/// function, `delay`, `time`). Comparisons and logic give 1 or 0, as SBML's
+/// `piecewise` reads them.
+pub fn evaluate(ast: &Ast, value: &dyn Fn(&str) -> Option<f64>) -> Option<f64> {
+    let ev = |a: &Ast| evaluate(a, value);
+    let truth = |b: bool| if b { 1.0 } else { 0.0 };
+    Some(match ast {
+        Ast::Number(n, _) => n.parse().ok()?,
+        Ast::Ident(id, _) => match id.as_str() {
+            "pi" => std::f64::consts::PI,
+            "exponentiale" => std::f64::consts::E,
+            "true" => 1.0,
+            "false" => 0.0,
+            _ => value(id)?,
+        },
+        Ast::Unary(UnOp::Neg, a, _) => -ev(a)?,
+        Ast::Unary(UnOp::Not, a, _) => truth(ev(a)? == 0.0),
+        Ast::Binary(op, a, b, _) => {
+            let (a, b) = (ev(a)?, ev(b)?);
+            match op {
+                BinOp::Add => a + b,
+                BinOp::Sub => a - b,
+                BinOp::Mul => a * b,
+                BinOp::Div => a / b,
+                BinOp::Pow => a.powf(b),
+                BinOp::Eq => truth(a == b),
+                BinOp::Ne => truth(a != b),
+                BinOp::Lt => truth(a < b),
+                BinOp::Le => truth(a <= b),
+                BinOp::Gt => truth(a > b),
+                BinOp::Ge => truth(a >= b),
+                BinOp::And => truth(a != 0.0 && b != 0.0),
+                BinOp::Or => truth(a != 0.0 || b != 0.0),
+            }
+        }
+        Ast::Call(f, args, _) => {
+            if f == "piecewise" {
+                let mut i = 0;
+                while i + 1 < args.len() {
+                    if ev(&args[i + 1])? != 0.0 {
+                        return ev(&args[i]);
+                    }
+                    i += 2;
+                }
+                return if i < args.len() { ev(&args[i]) } else { None };
+            }
+            let a: Vec<f64> = args.iter().map(ev).collect::<Option<_>>()?;
+            let one = || (a.len() == 1).then(|| a[0]);
+            match f.as_str() {
+                "exp" => one()?.exp(),
+                "ln" => one()?.ln(),
+                "log10" | "log" => one()?.log10(),
+                "sqrt" => one()?.sqrt(),
+                "abs" => one()?.abs(),
+                "floor" => one()?.floor(),
+                "ceil" | "ceiling" => one()?.ceil(),
+                "sin" => one()?.sin(),
+                "cos" => one()?.cos(),
+                "tan" => one()?.tan(),
+                "pow" if a.len() == 2 => a[0].powf(a[1]),
+                "max" if !a.is_empty() => a.iter().copied().fold(f64::MIN, f64::max),
+                "min" if !a.is_empty() => a.iter().copied().fold(f64::MAX, f64::min),
+                _ => return None,
+            }
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expressions_are_evaluated() {
+        let v = |name: &str| match name {
+            "k" => Some(2.0),
+            "V" => Some(0.5),
+            _ => None,
+        };
+        let e = |t: &str| evaluate(&parse(t).unwrap(), &v);
+        assert_eq!(e("k*3 + V^2"), Some(6.25));
+        assert_eq!(e("-k/V"), Some(-4.0));
+        assert_eq!(e("exp(0) + sqrt(16) + pow(k, 3)"), Some(13.0));
+        assert_eq!(e("piecewise(10, k > 5, 20, k > 1, 30)"), Some(20.0));
+        assert_eq!(e("piecewise(10, k > 5, 30)"), Some(30.0));
+        assert_eq!(e("max(1, k, V)"), Some(2.0));
+        assert_eq!(e("k > 1 && V < 1"), Some(1.0));
+        // A name without a value, or a function this doesn't know.
+        assert_eq!(e("k*unknown"), None);
+        assert_eq!(e("f(k)"), None);
+        assert_eq!(e("delay(k, 1)"), None);
+    }
 
     fn infix(src: &str) -> String {
         to_infix(&parse(src).unwrap_or_else(|e| panic!("{src}: {e}")))

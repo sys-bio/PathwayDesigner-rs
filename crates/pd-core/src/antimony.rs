@@ -575,7 +575,7 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
     // model's order. `const` makes a species constant, and a boundary species
     // with it, so only a constant boundary species is written so (S §11.3);
     // since it is said once for a line, those go on lines of their own.
-    let declared: Vec<(bool, String)> = primaries
+    let declared: Vec<((bool, bool), String)> = primaries
         .iter()
         .map(|s| {
             let boundary = if s.is_boundary { "$" } else { "" };
@@ -584,12 +584,18 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
             {
                 let _ = write!(one, " in {}", s.compartment);
             }
-            (s.is_constant && s.is_boundary, one)
+            ((s.is_constant && s.is_boundary, s.in_amounts), one)
         })
         .collect();
     let mut species: Vec<String> = Vec::new();
     for run in declared.chunk_by(|a, b| a.0 == b.0) {
-        let constant = if run[0].0 { "const " } else { "" };
+        // `substanceOnly`: it stands for its amount, and its value is one.
+        let constant = match run[0].0 {
+            (true, true) => "const substanceOnly ",
+            (true, false) => "const ",
+            (false, true) => "substanceOnly ",
+            (false, false) => "",
+        };
         for four in run.chunks(SPECIES_PER_LINE) {
             let names: Vec<&str> = four.iter().map(|(_, n)| n.as_str()).collect();
             species.push(format!("{constant}species {};", names.join(", ")));
@@ -643,7 +649,25 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         .collect();
     let initial: Vec<String> = primaries
         .iter()
-        .map(|s| format!("{} = {};", s.id, number(s.initial_value)))
+        .map(|s| {
+            // Antimony gives an ordinary species a concentration: an amount
+            // is divided by the size of its compartment.
+            let value = if s.initial_is_amount && !s.in_amounts {
+                let size = model
+                    .compartments
+                    .iter()
+                    .find(|c| c.id == s.compartment)
+                    .map_or(1.0, |c| c.size);
+                if size > 0.0 {
+                    s.initial_value / size
+                } else {
+                    s.initial_value
+                }
+            } else {
+                s.initial_value
+            };
+            format!("{} = {};", s.id, number(value))
+        })
         .collect();
     let rules: Vec<String> = model
         .assignment_rules
@@ -882,6 +906,9 @@ struct SpeciesInfo {
     constant: bool,
     compartment: String,
     initial: f64,
+    /// Declared `substanceOnly`: it stands for its amount, and its value is
+    /// an amount.
+    substance_only: bool,
 }
 
 struct Builder<'a> {
@@ -989,6 +1016,7 @@ impl Builder<'_> {
                     constant: false,
                     compartment: String::new(),
                     initial: 0.0,
+                    substance_only: false,
                 });
                 species.len() - 1
             });
@@ -1007,6 +1035,7 @@ impl Builder<'_> {
                 .find(|x| x.id == id)
                 .expect("just resolved");
             info.constant |= s.constness == antimony::model::Constness::Const;
+            info.substance_only |= s.is_substance_only;
             if let Some(c) = &s.compartment {
                 info.compartment = c.clone();
             }
@@ -1132,6 +1161,8 @@ impl Builder<'_> {
             node.is_constant = s.constant;
             node.compartment = s.compartment.clone();
             node.initial_value = s.initial;
+            node.in_amounts = s.substance_only;
+            node.initial_is_amount = s.substance_only;
             node.display_name = display_name_of(module, &s.id);
             if model.push_species(node).is_err() {
                 // Unreachable: names were made unique above.

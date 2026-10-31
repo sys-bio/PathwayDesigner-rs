@@ -18,7 +18,32 @@ use crate::textbox::lay_out;
 use super::appearance::Item;
 
 const LEVEL: u32 = 3;
-const VERSION: u32 = 1;
+
+/// The SBML version a model is written in: Level 3 Version 1, which more
+/// tools read, unless the model uses what only Version 2 can say (`rateOf`,
+/// the rate a species or parameter changes at). `max` and `min`, also new
+/// in Version 2, are written as `piecewise` in Version 1, which is the same.
+fn version_for(model: &Model) -> u32 {
+    fn uses_rate(ast: &expr::Ast) -> bool {
+        match ast {
+            expr::Ast::Call(f, args, _) => f == "rate" || args.iter().any(uses_rate),
+            expr::Ast::Unary(_, a, _) => uses_rate(a),
+            expr::Ast::Binary(_, a, b, _) => uses_rate(a) || uses_rate(b),
+            _ => false,
+        }
+    }
+    let texts = model
+        .reactions()
+        .iter()
+        .map(|r| r.kinetic_law.as_str())
+        .chain(model.parameters.iter().map(|p| p.expression.as_str()))
+        .chain(model.assignment_rules.iter().map(|r| r.expression.as_str()));
+    let needs_2 = texts
+        .filter(|t| t.contains("rate"))
+        .filter_map(|t| expr::parse(t).ok())
+        .any(|ast| uses_rate(&ast));
+    if needs_2 { 2 } else { 1 }
+}
 /// The layout is this much bigger than the right- and bottom-most node edges.
 const LAYOUT_MARGIN: f64 = 80.0;
 
@@ -102,6 +127,7 @@ fn sid(text: &str) -> String {
 }
 
 fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) -> sb::Document {
+    let version = version_for(model);
     let mut ids = Ids(HashSet::new());
     // Every id the model uses is taken before any is generated.
     for s in model.species() {
@@ -127,7 +153,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             return None;
         }
         match expr::parse(text) {
-            Ok(ast) => Some(to_math(&ast, LEVEL, VERSION)),
+            Ok(ast) => Some(to_math(&ast, LEVEL, version)),
             Err(e) => {
                 problems.push(format!("{what} doesn't parse, so it was left out: {e}"));
                 None
@@ -180,8 +206,9 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             } else {
                 s.compartment.clone()
             },
-            initial_concentration: Some(s.initial_value),
-            has_only_substance_units: Some(false),
+            initial_concentration: (!s.initial_is_amount).then_some(s.initial_value),
+            initial_amount: s.initial_is_amount.then_some(s.initial_value),
+            has_only_substance_units: Some(s.in_amounts),
             boundary_condition: Some(s.is_boundary),
             constant: Some(s.is_constant),
             ..Default::default()
@@ -217,9 +244,11 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     // Assignment rules (D-10). A variable that is nothing else needs a
     // parameter to set.
     for r in &model.assignment_rules {
+        // Exactly: a compartment `d` doesn't declare a rule's `D` (found by
+        // the BioModels round trip).
         let declared = model.find_species(&r.variable).is_some()
-            || model.find_compartment(&r.variable).is_some()
-            || model.find_parameter(&r.variable).is_some();
+            || model.compartments.iter().any(|c| c.id == r.variable)
+            || model.parameters.iter().any(|p| p.variable == r.variable);
         if !declared && !m.parameters.iter().any(|p| p.id == r.variable) {
             m.parameters.push(sb::Parameter {
                 id: r.variable.clone(),
@@ -363,7 +392,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
 
     m.layouts.push(layout(model, &legs, &mut ids));
     m.global_render = Some(super::appearance::global_render(model));
-    let mut doc = sb::Document::new(LEVEL, VERSION);
+    let mut doc = sb::Document::new(LEVEL, version);
     doc.model = Some(m);
     doc
 }
@@ -786,6 +815,90 @@ fn meta(id: &str, a: &crate::model::Annotation, history: &History) -> sb::Meta {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Level 3 Version 1, unless the model uses `rateOf`, which only
+    /// Version 2 can say; then Version 2, with `rateOf` written as SBML's
+    /// symbol, and the file has no problems.
+    #[test]
+    fn version_2_only_when_needed() {
+        let mut m = Model::new();
+        m.parameters.push(crate::model::Parameter {
+            variable: "k".into(),
+            expression: "2".into(),
+            annotation: Default::default(),
+        });
+        let plain = export(&m);
+        assert!(plain.xml.contains(r#"level="3" version="1""#));
+        m.assignment_rules.push(crate::model::AssignmentRule {
+            variable: "p".into(),
+            expression: "2*rate(k) + max(k, 1)".into(),
+            annotation: Default::default(),
+        });
+        let v2 = export(&m);
+        assert!(
+            v2.xml.contains(r#"level="3" version="2""#),
+            "{}",
+            &v2.xml[..300]
+        );
+        assert!(v2.xml.contains("level3/version2/core"));
+        assert!(v2.xml.contains("rateOf"));
+        assert!(v2.problems.is_empty(), "{:?}", v2.problems);
+        // And back: the same rule.
+        let back = crate::sbml::import(
+            &v2.xml,
+            &crate::antimony::ImportOptions {
+                convert_catalytic: false,
+                seed: 1,
+            },
+        )
+        .unwrap()
+        .model;
+        assert_eq!(back.assignment_rules[0].expression, "2*rate(k) + max(k, 1)");
+    }
+
+    /// A style names at most 100 glyphs; a model with 250 species of one
+    /// look gets three styles like it, and comes back with that look.
+    /// libSBML crashes on a large model whose styles name hundreds of
+    /// glyphs each (found by the BioModels round trip).
+    #[test]
+    fn styles_name_at_most_a_hundred_glyphs() {
+        let mut m = Model::new();
+        for i in 0..250 {
+            let id = m.add_species(
+                crate::geometry::pt(f64::from(i % 25) * 100.0, f64::from(i / 25) * 60.0),
+                80.0,
+                36.0,
+            );
+            let s = m.find_species_mut(&id).unwrap();
+            s.style.has_custom_style = true;
+            s.style.fill_color = crate::model::Rgba([0x12, 0x34, 0x56, 0xFF]);
+        }
+        let xml = export(&m).xml;
+        let lists: Vec<usize> = xml
+            .split("idList=\"")
+            .skip(1)
+            .map(|rest| rest[..rest.find('"').unwrap()].split_whitespace().count())
+            .collect();
+        assert!(lists.iter().all(|&n| n <= 100), "{lists:?}");
+        assert!(
+            lists.iter().filter(|&&n| n == 100).count() >= 2,
+            "{lists:?}"
+        );
+        let back = crate::sbml::import(
+            &xml,
+            &crate::antimony::ImportOptions {
+                convert_catalytic: false,
+                seed: 1,
+            },
+        )
+        .unwrap()
+        .model;
+        assert!(
+            back.species()
+                .iter()
+                .all(|s| s.style.fill_color == crate::model::Rgba([0x12, 0x34, 0x56, 0xFF]))
+        );
+    }
 
     #[test]
     fn ids_are_valid_and_unique() {

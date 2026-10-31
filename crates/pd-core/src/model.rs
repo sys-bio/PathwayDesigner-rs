@@ -249,6 +249,13 @@ pub struct SpeciesNode {
     /// usual. It moves with the node.
     pub label_offset: Option<Pt>,
     pub initial_value: f64,
+    /// The species stands for its amount, not its concentration, in rate
+    /// laws and rules (SBML's `hasOnlySubstanceUnits`, Antimony's
+    /// `substanceOnly`).
+    pub in_amounts: bool,
+    /// `initial_value` is an amount (SBML's `initialAmount`), not a
+    /// concentration.
+    pub initial_is_amount: bool,
     pub is_boundary: bool,
     pub is_constant: bool,
     /// Compartment id. Empty means the default compartment.
@@ -426,6 +433,8 @@ impl SpeciesNode {
             border_dash: BorderDash::default(),
             label_offset: None,
             initial_value: 0.0,
+            in_amounts: false,
+            initial_is_amount: false,
             is_boundary: false,
             is_constant: false,
             compartment: String::new(),
@@ -1610,7 +1619,7 @@ impl Model {
         if !is_valid_sid(new) {
             return Err(RenameError::InvalidId);
         }
-        if self.is_id_used(new) {
+        if self.is_id_taken_for_rename(new) {
             return Err(RenameError::InUse);
         }
 
@@ -1651,7 +1660,7 @@ impl Model {
         if !is_valid_sid(new) {
             return Err(RenameError::InvalidId);
         }
-        if self.is_id_used(new) {
+        if self.is_id_taken_for_rename(new) {
             return Err(RenameError::InUse);
         }
         for r in &mut self.reactions {
@@ -1674,11 +1683,26 @@ impl Model {
     /// `id`. Species, reactions and texts match exactly; parameters and
     /// compartments ignore case, as the reference's lookups do.
     pub fn is_id_used(&self, id: &str) -> bool {
+        // Exactly: SBML ids are case-sensitive, so a parameter `r1` and a
+        // reaction `R1` are two things (found by the BioModels round trip).
         self.species_index.contains_key(id)
             || self.reaction_index.contains_key(id)
             || self.find_text(id).is_some()
-            || self.find_parameter(id).is_some()
-            || self.find_compartment(id).is_some()
+            || self.parameters.iter().any(|p| p.variable == id)
+            || self.compartments.iter().any(|c| c.id == id)
+    }
+
+    /// Whether renaming something to `id` would clash: an exact match, or,
+    /// so that the user isn't left with two ids that differ only in case,
+    /// one in another case. (Reading a file goes by [`Self::is_id_used`],
+    /// exactly, as SBML does.)
+    fn is_id_taken_for_rename(&self, id: &str) -> bool {
+        let same = |other: &str| other.eq_ignore_ascii_case(id);
+        self.is_id_used(id)
+            || self.species.iter().any(|s| same(&s.id))
+            || self.reactions.iter().any(|r| same(&r.id))
+            || self.parameters.iter().any(|p| same(&p.variable))
+            || self.compartments.iter().any(|c| same(&c.id))
     }
 
     fn rebuild_indexes(&mut self) {

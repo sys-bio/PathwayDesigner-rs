@@ -53,6 +53,9 @@ pub(super) fn global_render(model: &Model) -> sr::RenderList {
     }
 }
 
+/// The most glyphs one style names.
+const MAX_STYLE_IDS: usize = 100;
+
 /// The render list for the glyphs of a layout, each named by its glyph id.
 pub(super) fn render_list(model: &Model, glyphs: &[(String, Item)]) -> sr::RenderList {
     let mut w = Writer {
@@ -64,11 +67,13 @@ pub(super) fn render_list(model: &Model, glyphs: &[(String, Item)]) -> sr::Rende
     for (id, item) in glyphs {
         let (mut group, name) = w.look(item);
         fill_rules(&mut group);
-        match w
-            .styles
-            .iter_mut()
-            .find(|s| s.group.as_ref() == Some(&group) && s.name == name)
-        {
+        // A style names at most MAX_STYLE_IDS glyphs; more of the same look
+        // go in another style like it. libSBML crashes reading a large
+        // model whose styles list hundreds of glyphs each (found by the
+        // BioModels round trip).
+        match w.styles.iter_mut().find(|s| {
+            s.group.as_ref() == Some(&group) && s.name == name && s.id_list.len() < MAX_STYLE_IDS
+        }) {
             Some(s) => s.id_list.push(id.clone()),
             None => {
                 let n = w.styles.len() + 1;

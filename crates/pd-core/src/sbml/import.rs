@@ -20,6 +20,37 @@ use crate::passes::{self, NullPlace};
 /// Species without a glyph go at random in [0, 600)², as for Antimony.
 const PLACEMENT: f64 = 600.0;
 
+/// The value `name` has at the start, for working out an initial
+/// assignment: a parameter's (its number, or its expression worked out), a
+/// species' initial value, a compartment's size, or an assignment rule's
+/// value. `None` for one that is itself still to be assigned, or unknown.
+fn start_value(model: &Model, name: &str, assigned: &[&str]) -> Option<f64> {
+    fn value(model: &Model, name: &str, assigned: &[&str], depth: usize) -> Option<f64> {
+        if depth > 20 || assigned.contains(&name) {
+            return None;
+        }
+        let ev = |text: &str| {
+            let ast = expr::parse(text).ok()?;
+            expr::evaluate(&ast, &|n: &str| value(model, n, assigned, depth + 1))
+        };
+        if let Some(r) = model.assignment_rules.iter().find(|r| r.variable == name) {
+            return ev(&r.expression);
+        }
+        if let Some(p) = model.parameters.iter().find(|p| p.variable == name) {
+            return p.expression.parse().ok().or_else(|| ev(&p.expression));
+        }
+        if let Some(s) = model.find_species(name) {
+            return Some(s.initial_value);
+        }
+        model
+            .compartments
+            .iter()
+            .find(|c| c.id == name)
+            .map(|c| c.size)
+    }
+    value(model, name, assigned, 0)
+}
+
 /// A successful import.
 #[derive(Clone, Debug)]
 pub struct Imported {
@@ -207,15 +238,20 @@ impl Builder {
             }
         }
 
-        // Species: initialConcentration, or initialAmount if that is missing
-        // or 0 (SPEC-Rust §8.3).
+        // Species: the initial concentration, or amount, as given; whether
+        // it stands for its amount in rate laws (found by the BioModels
+        // round trip: these were all read as concentrations).
         for s in &m.species {
             let mut node = SpeciesNode::new(s.id.clone(), Pt::ZERO);
-            node.initial_value = match (s.initial_concentration, s.initial_amount) {
-                (Some(c), _) if c != 0.0 => c,
-                (_, Some(a)) => a,
-                (c, None) => c.unwrap_or(0.0),
-            };
+            node.in_amounts = s.has_only_substance_units.unwrap_or(false);
+            (node.initial_value, node.initial_is_amount) =
+                // A concentration of 0 beside an amount is the amount
+                // (SPEC-Rust §8.3).
+                match (s.initial_concentration, s.initial_amount) {
+                    (Some(c), _) if c != 0.0 => (c, false),
+                    (_, Some(a)) => (a, true),
+                    (c, None) => (c.unwrap_or(0.0), c.is_none() && node.in_amounts),
+                };
             node.is_boundary = s.boundary_condition.unwrap_or(false);
             node.is_constant = s.constant.unwrap_or(false);
             node.display_name = crate::model::display_name(s.name.clone());
@@ -248,11 +284,74 @@ impl Builder {
                 });
             }
         }
+        // Initial assignments: a parameter keeps its expression; a species
+        // or compartment, which holds only a number, gets the expression's
+        // value at the start, worked out from the other values then (found
+        // by the BioModels round trip: these were left out). Those that use
+        // another's assigned value are worked out after it.
+        let mut pending: Vec<(&sb::InitialAssignment, expr::Ast)> = Vec::new();
         for ia in &m.initial_assignments {
             let what = format!("The initial assignment to {}", ia.symbol);
-            let Some(ast) = self.expression(ia.math.as_ref(), &none, &what) else {
-                continue;
-            };
+            if let Some(ast) = self.expression(ia.math.as_ref(), &none, &what) {
+                pending.push((ia, ast));
+            }
+        }
+        // Parameters first, as expressions, as before.
+        pending.retain(|(ia, ast)| {
+            match self
+                .model
+                .parameters
+                .iter_mut()
+                .find(|p| p.variable == ia.symbol)
+            {
+                Some(p) => {
+                    p.expression = expr::to_infix(ast);
+                    false
+                }
+                None => true,
+            }
+        });
+        loop {
+            let before = pending.len();
+            let mut i = 0;
+            while i < pending.len() {
+                let value = {
+                    let model = &self.model;
+                    let assigned: Vec<&str> =
+                        pending.iter().map(|(ia, _)| ia.symbol.as_str()).collect();
+                    expr::evaluate(&pending[i].1, &|name: &str| {
+                        start_value(model, name, &assigned)
+                    })
+                };
+                let symbol = pending[i].0.symbol.clone();
+                let set = match value {
+                    Some(v) => {
+                        if let Some(s) = self.model.find_species_mut(&symbol) {
+                            s.initial_value = v;
+                            true
+                        } else if let Some(c) =
+                            self.model.compartments.iter_mut().find(|c| c.id == symbol)
+                        {
+                            c.size = v;
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    None => false,
+                };
+                if set {
+                    pending.remove(i);
+                } else {
+                    i += 1;
+                }
+            }
+            if pending.len() == before {
+                break;
+            }
+        }
+        for (ia, ast) in pending {
+            let what = format!("The initial assignment to {}", ia.symbol);
             let text = expr::to_infix(&ast);
             let number = text.parse::<f64>().ok();
             if let Some(p) = self
@@ -726,10 +825,15 @@ impl Builder {
         let mut law = None;
         if let Some(kl) = &r.kinetic_law {
             for lp in &kl.parameters {
+                // A name a rule sets is taken too: a local `KUI` beside a
+                // global `KUI` that a rule computes (found by the BioModels
+                // round trip) is renamed, not merged with it.
                 let taken = |id: &str, b: &Builder| {
                     b.model.is_id_used(id)
                         || b.model.find_parameter(id).is_some()
                         || b.model.find_compartment(id).is_some()
+                        || b.model.assignment_rules.iter().any(|r| r.variable == id)
+                        || m.parameters.iter().any(|p| p.id == id)
                         || m.reactions.iter().any(|x| x.id == id)
                 };
                 let mut name = lp.id.clone();

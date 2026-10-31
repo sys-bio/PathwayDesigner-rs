@@ -22,9 +22,13 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought the names of the entries references point to
+/// one that brought species in amounts (`inAmounts`) and initial values
+/// that are amounts (`initialAmount`).
+pub const FORMAT_VERSION: u32 = 20;
+
+/// The version that brought the names of the entries references point to
 /// (`referenceNames`).
-pub const FORMAT_VERSION: u32 = 19;
+pub const REFERENCE_NAMES_VERSION: u32 = 19;
 
 /// The version that brought annotations: SBO terms, database references and
 /// notes on species, reactions, compartments, parameters and the model, and
@@ -183,8 +187,14 @@ pub fn needed_version(model: &Model) -> u32 {
             .assignment_rules
             .iter()
             .any(|r| !r.annotation.is_empty());
-    if !used_reference_names(model).is_empty() {
+    if model
+        .species()
+        .iter()
+        .any(|s| s.in_amounts || s.initial_is_amount)
+    {
         FORMAT_VERSION
+    } else if !used_reference_names(model).is_empty() {
+        REFERENCE_NAMES_VERSION
     } else if annotations {
         ANNOTATION_VERSION
     } else if display_names {
@@ -677,6 +687,12 @@ struct FileSpecies {
     /// only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     annotation: Option<FileAnnotation>,
+    /// Version 20: it stands for its amount in rate laws.
+    #[serde(default, skip_serializing_if = "is_false")]
+    in_amounts: bool,
+    /// Version 20: its initial value is an amount.
+    #[serde(default, skip_serializing_if = "is_false")]
+    initial_amount: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -977,6 +993,8 @@ impl FileModel {
                 border_dash,
                 label_offset,
                 initial_value: s.initial_value,
+                in_amounts: s.in_amounts,
+                initial_is_amount: s.initial_amount,
                 is_boundary: s.is_boundary,
                 is_constant: s.is_constant,
                 compartment: s.compartment,
@@ -1502,6 +1520,8 @@ impl FileModel {
                     display_name: s.display_name.clone(),
                     label: s.label_choice.key().map(str::to_owned),
                     annotation: annotation_to_file(&s.annotation),
+                    in_amounts: s.in_amounts,
+                    initial_amount: s.initial_is_amount,
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -1779,6 +1799,29 @@ mod tests {
 
     /// docs/annotations-design.md: annotations and the model's history are
     /// saved in version 18 and read back; an alias's is dropped.
+    /// Species in amounts, and initial values that are amounts, are saved in
+    /// version 20 and read back.
+    #[test]
+    fn amounts_are_kept_in_version_20() {
+        let mut m = Model::default();
+        let a = m.add_species(Pt::ZERO, 60.0, 30.0);
+        let b = m.add_species(pt(100.0, 0.0), 60.0, 30.0);
+        assert!(needed_version(&m) < FORMAT_VERSION);
+        m.find_species_mut(&a).unwrap().in_amounts = true;
+        m.find_species_mut(&a).unwrap().initial_is_amount = true;
+        m.find_species_mut(&b).unwrap().initial_is_amount = true;
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let text = to_json(&m);
+        assert!(text.contains("\"inAmounts\": true"), "{text}");
+        let back = from_json(&text).unwrap().model;
+        let (sa, sb) = (
+            back.find_species(&a).unwrap(),
+            back.find_species(&b).unwrap(),
+        );
+        assert!(sa.in_amounts && sa.initial_is_amount);
+        assert!(!sb.in_amounts && sb.initial_is_amount);
+    }
+
     /// The names of the references' entries are saved in version 19, only
     /// for references the model still has.
     #[test]
@@ -1804,7 +1847,7 @@ mod tests {
         );
         m.reference_names
             .insert(chebi.clone(), "oxaloacetate(2-)".into());
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), REFERENCE_NAMES_VERSION);
         let text = to_json(&m);
         assert!(text.contains("\"referenceNames\""), "{text}");
         let back = from_json(&text).unwrap().model;

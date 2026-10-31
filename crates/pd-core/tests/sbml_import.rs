@@ -359,3 +359,104 @@ fn function_definitions_are_written_into_the_rate_laws() {
     assert!(exported.problems.is_empty(), "{:?}", exported.problems);
     assert!(!exported.xml.contains("<ci> mm </ci>") && !exported.xml.contains(">mm<"));
 }
+
+/// What the curated BioModels round trip found (docs: the BioModels report):
+/// ids that differ only in case, species in amounts, initial amounts,
+/// initial assignments to species, a rule's parameter beside a compartment
+/// of the same name in another case, and `piecewise`. Read, written, read
+/// again: nothing lost, and the written file has no problems.
+const BIOMODELS_CASES: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="cases">
+    <listOfCompartments>
+      <compartment id="d" size="0.5" constant="true"/>
+    </listOfCompartments>
+    <listOfSpecies>
+      <species id="A" compartment="d" initialAmount="5" hasOnlySubstanceUnits="true" boundaryCondition="false" constant="false"/>
+      <species id="B" compartment="d" initialAmount="2" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="C" compartment="d" initialConcentration="1" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="r1" value="0.3" constant="true"/>
+      <parameter id="k" value="4" constant="true"/>
+      <parameter id="D" constant="false"/>
+      <parameter id="F" constant="false"/>
+    </listOfParameters>
+    <listOfInitialAssignments>
+      <initialAssignment symbol="C">
+        <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><ci>k</ci><cn>2</cn></apply></math>
+      </initialAssignment>
+    </listOfInitialAssignments>
+    <listOfRules>
+      <assignmentRule variable="D">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <piecewise>
+            <piece><cn>1</cn><apply><gt/><ci>A</ci><cn>3</cn></apply></piece>
+            <otherwise><cn>0</cn></otherwise>
+          </piecewise>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="F">
+        <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><ci>k</ci><cn>3</cn></apply></math>
+      </assignmentRule>
+    </listOfRules>
+    <listOfReactions>
+      <reaction id="R1" reversible="false">
+        <listOfReactants><speciesReference species="A" stoichiometry="1" constant="true"/></listOfReactants>
+        <listOfProducts><speciesReference species="B" stoichiometry="1" constant="true"/></listOfProducts>
+        <kineticLaw><math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><ci>r1</ci><ci>A</ci><ci>D</ci></apply></math></kineticLaw>
+      </reaction>
+      <reaction id="R2" reversible="false">
+        <listOfReactants><speciesReference species="B" stoichiometry="1" constant="true"/></listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><ci>F</ci><ci>B</ci></apply></math>
+          <listOfLocalParameters><localParameter id="F" value="0.01"/></listOfLocalParameters>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>"#;
+
+#[test]
+fn what_the_biomodels_round_trip_found_is_kept() {
+    let check = |m: &pd_core::model::Model| {
+        // R1 and r1 are two things.
+        assert!(m.find_reaction("R1").is_some(), "the reaction R1 kept");
+        assert!(m.parameters.iter().any(|p| p.variable == "r1"));
+        let a = m.find_species("A").unwrap();
+        assert!(a.in_amounts && a.initial_is_amount);
+        assert_eq!(a.initial_value, 5.0);
+        let b = m.find_species("B").unwrap();
+        assert!(!b.in_amounts && b.initial_is_amount);
+        assert_eq!(b.initial_value, 2.0);
+        // k*2, worked out at the start.
+        let c = m.find_species("C").unwrap();
+        assert!(!c.initial_is_amount);
+        assert_eq!(c.initial_value, 8.0);
+        assert_eq!(m.assignment_rules[0].variable, "D");
+        // R2's own F, renamed, not merged with the F a rule computes.
+        assert_eq!(m.find_reaction("R2").unwrap().kinetic_law, "R2_F*B");
+        assert!(
+            m.parameters
+                .iter()
+                .any(|p| p.variable == "R2_F" && p.expression == "0.01")
+        );
+        assert!(!m.parameters.iter().any(|p| p.variable == "F"));
+        assert_eq!(m.assignment_rules[0].expression, "piecewise(1, A > 3, 0)");
+    };
+    let first = sbml::import(BIOMODELS_CASES, &OPTS).unwrap();
+    assert!(
+        !first.warnings.iter().any(|w| w.contains("left out")),
+        "{:?}",
+        first.warnings
+    );
+    check(&first.model);
+    let written = sbml::export(&first.model);
+    assert!(written.problems.is_empty(), "{:?}", written.problems);
+    // Nothing had to be declared to make the file whole.
+    assert!(written.notes.is_empty(), "{:?}", written.notes);
+    assert!(written.xml.contains("<piecewise>"));
+    assert!(written.xml.contains(r#"hasOnlySubstanceUnits="true""#));
+    assert!(written.xml.contains(r#"initialAmount="2""#));
+    check(&sbml::import(&written.xml, &OPTS).unwrap().model);
+}
