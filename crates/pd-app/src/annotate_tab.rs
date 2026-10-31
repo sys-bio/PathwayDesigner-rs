@@ -189,7 +189,10 @@ impl AnnotateTab {
             .iter()
             .map(|q| (q.species.clone(), q.name.clone()))
             .collect();
-        Self::with(Lookup::Species(Box::new(chebi::Search::new(queries))), names)
+        Self::with(
+            Lookup::Species(Box::new(chebi::Search::new(queries))),
+            names,
+        )
     }
 
     /// Annotate Reactions from Names.
