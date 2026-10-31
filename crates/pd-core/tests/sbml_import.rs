@@ -508,7 +508,7 @@ fn an_initial_assignment_can_use_a_rule() {
   <model id="m">
     <listOfCompartments><compartment id="c" size="1" constant="true"/></listOfCompartments>
     <listOfSpecies>
-      <species id="S1" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="S1" compartment="c" initialAmount="10" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters><parameter id="k1" constant="false"/></listOfParameters>
     <listOfInitialAssignments>
@@ -525,5 +525,52 @@ fn an_initial_assignment_can_use_a_rule() {
         "{:?}",
         i.warnings
     );
-    assert_eq!(i.model.find_species("S1").unwrap().initial_value, 1.5);
+    // The assigned value is a concentration, as S1 isn't in amounts,
+    // though S1 was given an initial amount too.
+    let s1 = i.model.find_species("S1").unwrap();
+    assert_eq!(s1.initial_value, 1.5);
+    assert!(!s1.initial_is_amount);
+}
+
+/// A rule with no maths is left out, but the parameter it would set stays,
+/// with its value (found by the SBML Test Suite round trip).
+#[test]
+fn a_rule_without_maths_keeps_its_parameter() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="m">
+    <listOfParameters><parameter id="p" value="3" constant="false"/></listOfParameters>
+    <listOfRules><assignmentRule variable="p"/></listOfRules>
+  </model>
+</sbml>"#;
+    let m = sbml::import(xml, &OPTS).unwrap().model;
+    assert!(m.assignment_rules.is_empty());
+    assert_eq!(m.find_parameter("p").unwrap().expression, "3");
+}
+
+/// A rule that sets a reaction's stoichiometry by its id is reported too.
+#[test]
+fn a_stoichiometry_set_by_a_rule_is_reported() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="m">
+    <listOfCompartments><compartment id="c" size="1" constant="true"/></listOfCompartments>
+    <listOfSpecies>
+      <species id="A" compartment="c" initialAmount="1" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfRules>
+      <assignmentRule variable="sr"><math xmlns="http://www.w3.org/1998/Math/MathML"><cn>3</cn></math></assignmentRule>
+    </listOfRules>
+    <listOfReactions>
+      <reaction id="R" reversible="false">
+        <listOfReactants><speciesReference id="sr" species="A" constant="false"/></listOfReactants>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>"#;
+    let w = sbml::import(xml, &OPTS).unwrap().warnings;
+    assert!(
+        w.iter().any(|w| w.contains("stoichiometry by its id")),
+        "{w:?}"
+    );
 }

@@ -17,6 +17,9 @@ pub fn to_math(ast: &Ast, level: u32, version: u32) -> Math {
     match ast {
         Ast::Number(text, _) => number(text),
         Ast::Ident(name, _) if name == "time" => Math::Symbol(Symbol::new(Symbol::TIME, "time")),
+        Ast::Ident(name, _) if name == "avogadro" => {
+            Math::Symbol(Symbol::new(Symbol::AVOGADRO, "avogadro"))
+        }
         Ast::Ident(name, _) => Math::Ident(name.clone()),
         Ast::Unary(UnOp::Neg, e, _) => Math::Apply(Op::Minus, vec![me(e)]),
         Ast::Unary(UnOp::Not, e, _) => Math::Apply(Op::Not, vec![me(e)]),
@@ -135,7 +138,10 @@ pub fn from_math(m: &Math, rename: &HashMap<String, String>) -> Result<Ast, Stri
         Math::Number { value, .. } => num_ast(value.value()),
         Math::Ident(id) => ident(rename.get(id).unwrap_or(id)),
         Math::Symbol(s) if s.url == Symbol::TIME => ident("time"),
-        Math::Symbol(s) if s.url == Symbol::AVOGADRO => num_ast(6.02214076e23),
+        // Kept as SBML's own constant, not a number: libSBML and its
+        // simulators use Level 3 Version 1's value, 6.02214179e23, not the
+        // newer exact one (found by the SBML Test Suite round trip).
+        Math::Symbol(s) if s.url == Symbol::AVOGADRO => ident("avogadro"),
         Math::Symbol(s) => return Err(format!("the symbol {}", s.url)),
         Math::Constant(c) => match c {
             Constant::True => num_ast(1.0),
@@ -342,6 +348,18 @@ mod tests {
         assert_eq!(
             to_infix(&from_math(&to_math(&ast, 3, 1), &HashMap::new()).unwrap()),
             "piecewise(1, x > 2, 4, x > 1)"
+        );
+    }
+
+    /// SBML's `avogadro` comes back as itself, not a number.
+    #[test]
+    fn avogadro_is_kept() {
+        let ast = crate::expr::parse("avogadro*2").unwrap();
+        let math = to_math(&ast, 3, 1);
+        assert!(format!("{math:?}").contains(Symbol::AVOGADRO));
+        assert_eq!(
+            to_infix(&from_math(&math, &HashMap::new()).unwrap()),
+            "avogadro*2"
         );
     }
 

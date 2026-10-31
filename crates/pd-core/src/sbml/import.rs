@@ -302,6 +302,17 @@ impl Builder {
                         expression: expr::to_infix(&ast),
                         annotation,
                     });
+                } else if let Some(p) = m.parameters.iter().find(|p| p.id == *variable) {
+                    // A rule with no maths, or maths that can't be read, is
+                    // left out; the parameter it would set stays, with its
+                    // value (found by the SBML Test Suite round trip, where
+                    // it vanished with the rule).
+                    let annotation = self.annotation(&p.meta);
+                    self.model.parameters.push(Parameter {
+                        variable: p.id.clone(),
+                        expression: sb::fmt_f64(p.value.unwrap_or(0.0)),
+                        annotation,
+                    });
                 }
             }
         }
@@ -349,7 +360,11 @@ impl Builder {
                 let set = match value {
                     Some(v) => {
                         if let Some(s) = self.model.find_species_mut(&symbol) {
+                            // In the species' own units: an amount if it is
+                            // in amounts, else a concentration, whatever it
+                            // was given before (found by the SBML Test Suite).
                             s.initial_value = v;
+                            s.initial_is_amount = s.in_amounts;
                             true
                         } else if let Some(c) =
                             self.model.compartments.iter_mut().find(|c| c.id == symbol)
@@ -560,7 +575,16 @@ impl Builder {
                     found
                 })
             };
-            let in_math = m.rules.iter().any(|r| used(r.math()))
+            // Used in maths, or set by a rule or initial assignment.
+            let targeted = m
+                .rules
+                .iter()
+                .any(|r| r.variable().is_some_and(|v| named.contains(&v)))
+                || m.initial_assignments
+                    .iter()
+                    .any(|ia| named.contains(&ia.symbol.as_str()));
+            let in_math = targeted
+                || m.rules.iter().any(|r| used(r.math()))
                 || m.initial_assignments
                     .iter()
                     .any(|ia| used(ia.math.as_ref()))
@@ -571,7 +595,7 @@ impl Builder {
                 });
             if in_math {
                 self.warn(
-                    "maths that uses a reaction's stoichiometry by its id was read with the                      stoichiometry it starts with"
+                    "maths that uses or sets a reaction's stoichiometry by its id was read with the stoichiometry it starts with"
                         .into(),
                 );
             }
