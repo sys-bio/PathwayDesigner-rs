@@ -37,6 +37,9 @@ Delphi version does, and some more (see [Status](#status)).
   *More info ▸ Run anyway*, and on macOS you right-click the app and choose *Open*.
 - **On your own web server:** copy the website, a folder of plain files, as
   described in [Host your own copy](#host-your-own-copy).
+- **What's new:** what changed in each version is in
+  [RELEASE-NOTES.md](RELEASE-NOTES.md), and with each download on the
+  [Releases](https://github.com/sys-bio/PathwayDesigner-rs/releases) page.
 
 ## Features
 
@@ -297,7 +300,7 @@ ones directly, even in the browser. `ExampleModels/` holds more example models;
 the tests don't use it. `Escher/` holds an Escher map of *E. coli* core metabolism.
 Both are in the Gallery.
 
-### How to annotate a model
+## How to annotate a model
 
 An annotation says what an item *is*: that the species `G6P` is
 D-glucose 6-phosphate (ChEBI entry `CHEBI:4170`), or that the reaction `PPC` is
@@ -395,6 +398,42 @@ To try a Gallery before pushing it, build the app with `PD_GALLERY_URL` set to
 another address that serves the same files, ending in `/`, for example
 `PD_GALLERY_URL=http://127.0.0.1:8080/ trunk serve` from `crates/pd-app` with the
 repository served on port 8080.
+
+## Status
+
+Version 0.1.30 (what changed: [RELEASE-NOTES.md](RELEASE-NOTES.md)). All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
+browser version (R0 to R12) and the desktop version (D1). The conformance checklist
+and its evidence are in [docs/release-checklist.md](docs/release-checklist.md).
+
+Still to do: try the macOS and Linux packages on those systems, and run the
+checklist there. So far they have been built and tested in CI, and the Windows
+installer has been tried by hand.
+
+Beyond the Delphi version, this one adds SBML import, SVG export, a drawing-sized
+PDF page, the model tree, animated auto-layout, keyboard nudging, aligning
+junctions, Arrange in Circle, more alias commands, drawn compartments, free text,
+species shapes and resizing, names outside the node, Copy and Paste Style, saved
+styles, the grid and Snap to grid, themes, reaction names and stems, reactions with
+any number of species, corner points on reaction lines, Escher maps, SBML Render,
+Antimony layouts, the network's structure (conservation laws and flux null space)
+drawn on the network, transparent fills, a background colour, KEGG maps, display
+names, annotations and their lookup in BiGG, ChEBI, PubChem and Rhea, offline use and autosave, and fixes the defects
+listed in SPECIFICATION.md §15.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE). The bundled Noto Sans and Noto Serif fonts are under the SIL Open
+Font Licence ([assets/fonts/NotoSans-OFL.txt](assets/fonts/NotoSans-OFL.txt)). The bundled Hack
+font, for fixed-width text, is under the MIT and Bitstream Vera licences
+([assets/fonts/Hack-LICENSE.txt](assets/fonts/Hack-LICENSE.txt)).
+The licences of the open-source crates PathwayDesigner is built from are in
+[THIRD-PARTY.html](THIRD-PARTY.html), which the app also links to from its About box.
+
+---
+
+# For developers
+
+How the code is organised, built and tested.
 
 ## Project layout
 
@@ -514,27 +553,6 @@ node scripts/run_wasi.mjs target/wasm32-wasip1/release/examples/consistency_dump
 diff -r native wasm
 ```
 
-## Status
-
-Version 0.1.30 (what changed: [RELEASE-NOTES.md](RELEASE-NOTES.md)). All the milestones of [SPEC-Rust.md](SPEC-Rust.md) are done: the
-browser version (R0 to R12) and the desktop version (D1). The conformance checklist
-and its evidence are in [docs/release-checklist.md](docs/release-checklist.md).
-
-Still to do: try the macOS and Linux packages on those systems, and run the
-checklist there. So far they have been built and tested in CI, and the Windows
-installer has been tried by hand.
-
-Beyond the Delphi version, this one adds SBML import, SVG export, a drawing-sized
-PDF page, the model tree, animated auto-layout, keyboard nudging, aligning
-junctions, Arrange in Circle, more alias commands, drawn compartments, free text,
-species shapes and resizing, names outside the node, Copy and Paste Style, saved
-styles, the grid and Snap to grid, themes, reaction names and stems, reactions with
-any number of species, corner points on reaction lines, Escher maps, SBML Render,
-Antimony layouts, the network's structure (conservation laws and flux null space)
-drawn on the network, transparent fills, a background colour, KEGG maps, display
-names, annotations and their lookup in BiGG, ChEBI, PubChem and Rhea, offline use and autosave, and fixes the defects
-listed in SPECIFICATION.md §15.
-
 ## Documents
 
 - [SPECIFICATION.md](SPECIFICATION.md): what the application does, written from
@@ -542,15 +560,6 @@ listed in SPECIFICATION.md §15.
 - [SPEC-Rust.md](SPEC-Rust.md): how it is built in Rust, the decisions taken, and
   the milestone plan.
 - [docs/release-checklist.md](docs/release-checklist.md): the release checklist.
-
-## Licence
-
-MIT, see [LICENSE](LICENSE). The bundled Noto Sans and Noto Serif fonts are under the SIL Open
-Font Licence ([assets/fonts/NotoSans-OFL.txt](assets/fonts/NotoSans-OFL.txt)). The bundled Hack
-font, for fixed-width text, is under the MIT and Bitstream Vera licences
-([assets/fonts/Hack-LICENSE.txt](assets/fonts/Hack-LICENSE.txt)).
-The licences of the open-source crates PathwayDesigner is built from are in
-[THIRD-PARTY.html](THIRD-PARTY.html), which the app also links to from its About box.
 
 ## Host your own copy
 
