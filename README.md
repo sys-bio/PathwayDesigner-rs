@@ -12,7 +12,7 @@ runs in the browser and as a desktop app for Windows, macOS and Linux.
 
 ### AI Assistance 
 
-This software was developed with the assistance of the AI Claude. Stop here if you aren't comfortable with AI assisted code generation.
+This software was developed with the assistance of Anthropic's Claude, an AI model, through Claude Code. Stop here if you aren't comfortable with AI assisted code generation.
 
 ### Screen-shots from the web-based version
 
