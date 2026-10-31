@@ -4,6 +4,30 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.29 (2026-10-31)
+
+**New**
+
+- **Find in Rhea.** A reaction's Annotations can search Rhea by an enzyme
+  name (*pyruvate kinase*), an EC number, or the ChEBI entries of the
+  reaction's species, which find the reactions with all of them; **Add** puts
+  in the Rhea entry and its EC numbers.
+- **Ids can be typed in the panel.** A species' or reaction's Id field renames
+  it, in every rate law (and, for a reaction, parameter and rule) too, as one
+  step you can undo. An id already used, or not valid, is refused: the panel
+  says why under the field, which keeps what was typed so it can be corrected.
+
+**Changed**
+
+- The model's references list the usual qualifiers first (the paper, the
+  organism, the process modelled), each explained with an example to type,
+  such as `pubmed:8983160` or `taxonomy:562`.
+- Each item's reference field has an example suited to it (`ec-code:4.1.1.31`
+  for a reaction, `CHEBI:15422` for a species, `GO:0005737` for a
+  compartment) and a line saying what to type, and is wider.
+- Text in the annotation parts and the Annotate tab that was very small is now
+  the panel's ordinary size.
+
 ## 0.1.28 (2026-10-30)
 
 **New**
