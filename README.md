@@ -14,7 +14,7 @@ runs in the browser and as a desktop app for Windows, macOS and Linux.
 
 This software was developed with the assistance of the AI Claude. Stop here if you aren't comfortable with AI assisted code generation.
 
-### Screen-shots 
+### Screen-shots from the web-based version
 
 ![PathwayDesigner in the browser](docs/screenshot.png)
 
