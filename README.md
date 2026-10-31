@@ -208,57 +208,6 @@ for more: aliases, renaming, locking, alignment, styles. The View menu has the
 grid, Snap to grid, zoom, and switches for the alias indicator and modifier
 lines.
 
-### How to annotate a model
-
-An annotation says what an item *is*: that the species `G6P` is
-D-glucose 6-phosphate (ChEBI entry `CHEBI:4170`), or that the reaction `PPC` is
-phosphoenolpyruvate carboxylase (EC number 4.1.1.31, Rhea entry 23072).
-Annotations travel with the model in SBML and Antimony, and other tools and
-databases read them. Select an item and open **Annotations** in its
-**Properties** to see them; rest the pointer on it for a summary.
-
-**Species, all at once.** Choose **Edit ▸ Annotate Species from Names…** (or
-right-click a species). PathwayDesigner looks each species up by its display
-name or id, in BiGG (which knows the abbreviations metabolic models use, such as
-`g6p` and `accoa`), then ChEBI, then PubChem, and shows what it found in an
-**Annotate** tab:
-
-- Clear matches are ticked. The others are offered, unticked, with the
-  alternatives in a list: check them, since a short name can find the wrong
-  thing (`ASP` is aspartate, but also the name of a peptide).
-- Click a species' name in the list to see it on the diagram, and the **open**
-  link to see the entry's page.
-- A second tick gives the species the full name found as its display name.
-- **Apply** adds what is ticked, in one step you can undo. Nothing is changed
-  before that.
-
-Select some species first to look up only those.
-
-**Reactions, all at once.** **Edit ▸ Annotate Reactions from Names…** works the
-same way. It looks each reaction up in BiGG by its id, which gives its EC
-numbers and its Rhea, KEGG and MetaNetX entries; failing that, it asks Rhea for
-the reactions that have all of its reactants and products (species without a
-ChEBI entry are looked up by name for this); failing that, it tries BiGG's
-search. Each match shows its equation: compare it with your reaction before
-ticking it. Annotating the species first gives better reaction matches.
-
-**One item at a time.** In a species' Annotations, **Find in ChEBI** searches
-for its name, or any words you type, and **Add** puts in the entry you choose.
-In a reaction's, **Search by Species** finds the Rhea reactions with its
-reactants and products, with no typing; or type an enzyme name (*pyruvate
-kinase*) or an EC number and press **Search**. **Add** puts in the Rhea entry
-and its EC numbers. A reference can also be typed directly, as a short
-identifier such as `CHEBI:15422` or `ec-code:2.7.1.40`.
-
-**What is left to do.** After a lookup, the diagram marks the items still to
-check: an **orange** ring for one found but not ticked, a **blue** one for one
-where nothing was found. A mark goes as soon as its species gets a ChEBI
-reference, or its reaction an EC number or Rhea entry. **View ▸ Annotation
-Marks** turns each kind on or off, or clears them.
-
-The lookups need a network connection; everything else works offline. On the
-Millard *E. coli* model in the Gallery, the species lookup ticks 17 of its 77
-species, all correctly; most of the rest use abbreviations of the model's own.
 
 ## Mouse and keyboard
 
@@ -347,6 +296,58 @@ so a model added there needs a stored image. File ▸ Open sample opens the JSON
 ones directly, even in the browser. `ExampleModels/` holds more example models;
 the tests don't use it. `Escher/` holds an Escher map of *E. coli* core metabolism.
 Both are in the Gallery.
+
+### How to annotate a model
+
+An annotation says what an item *is*: that the species `G6P` is
+D-glucose 6-phosphate (ChEBI entry `CHEBI:4170`), or that the reaction `PPC` is
+phosphoenolpyruvate carboxylase (EC number 4.1.1.31, Rhea entry 23072).
+Annotations travel with the model in SBML and Antimony, and other tools and
+databases read them. Select an item and open **Annotations** in its
+**Properties** to see them; rest the pointer on it for a summary.
+
+**Species, all at once.** Choose **Edit ▸ Annotate Species from Names…** (or
+right-click a species). PathwayDesigner looks each species up by its display
+name or id, in BiGG (which knows the abbreviations metabolic models use, such as
+`g6p` and `accoa`), then ChEBI, then PubChem, and shows what it found in an
+**Annotate** tab:
+
+- Clear matches are ticked. The others are offered, unticked, with the
+  alternatives in a list: check them, since a short name can find the wrong
+  thing (`ASP` is aspartate, but also the name of a peptide).
+- Click a species' name in the list to see it on the diagram, and the **open**
+  link to see the entry's page.
+- A second tick gives the species the full name found as its display name.
+- **Apply** adds what is ticked, in one step you can undo. Nothing is changed
+  before that.
+
+Select some species first to look up only those.
+
+**Reactions, all at once.** **Edit ▸ Annotate Reactions from Names…** works the
+same way. It looks each reaction up in BiGG by its id, which gives its EC
+numbers and its Rhea, KEGG and MetaNetX entries; failing that, it asks Rhea for
+the reactions that have all of its reactants and products (species without a
+ChEBI entry are looked up by name for this); failing that, it tries BiGG's
+search. Each match shows its equation: compare it with your reaction before
+ticking it. Annotating the species first gives better reaction matches.
+
+**One item at a time.** In a species' Annotations, **Find in ChEBI** searches
+for its name, or any words you type, and **Add** puts in the entry you choose.
+In a reaction's, **Search by Species** finds the Rhea reactions with its
+reactants and products, with no typing; or type an enzyme name (*pyruvate
+kinase*) or an EC number and press **Search**. **Add** puts in the Rhea entry
+and its EC numbers. A reference can also be typed directly, as a short
+identifier such as `CHEBI:15422` or `ec-code:2.7.1.40`.
+
+**What is left to do.** After a lookup, the diagram marks the items still to
+check: an **orange** ring for one found but not ticked, a **blue** one for one
+where nothing was found. A mark goes as soon as its species gets a ChEBI
+reference, or its reaction an EC number or Rhea entry. **View ▸ Annotation
+Marks** turns each kind on or off, or clears them.
+
+The lookups need a network connection; everything else works offline. On the
+Millard *E. coli* model in the Gallery, the species lookup ticks 17 of its 77
+species, all correctly; most of the rest use abbreviations of the model's own.
 
 ## The Gallery
 
