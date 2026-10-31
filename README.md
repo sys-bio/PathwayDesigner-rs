@@ -69,8 +69,35 @@ Delphi version does, and some more (see [Status](#status)).
   border widths, values, boundary species, rate laws, with errors in a rate law
   shown as you type), the live **Antimony** text, and the saved **Styles**.
 - A model tree listing every species, reaction and compartment, usable from the
-  keyboard.
+  keyboard, with a **Find** box (Ctrl+F) that keeps only the items whose id or
+  display name holds the words typed.
+- **Ids and display names**: each species, reaction and compartment has an id,
+  which can be typed in its Properties to rename it (rate laws follow), and can
+  have a display name, a readable name such as *D-Glucose 6-phosphate*.
+  **View ▸ Display names** labels the diagram with display names instead of
+  ids; each item's **Label** setting can override that.
 - Undo and redo for every change.
+
+**Annotations**
+- What each item *is*, as curated models say it: an SBO term, references to
+  database entries (ChEBI, UniProt, Rhea, EC numbers, KEGG, PubMed and others)
+  and notes, on species, reactions, compartments, parameters and the model.
+  They are kept when a model is read from and written to SBML, Antimony and
+  PathwayDesigner's files, and shown and edited in each item's **Annotations**
+  part, where a reference opens its entry in the browser. Resting the pointer on
+  an item shows its annotation.
+- **Annotate Species from Names** and **Annotate Reactions from Names** (Edit
+  menu, or an item's right-click menu) look the selected items, or all, up in
+  [BiGG](http://bigg.ucsd.edu), [ChEBI](https://www.ebi.ac.uk/chebi/),
+  [PubChem](https://pubchem.ncbi.nlm.nih.gov) and [Rhea](https://www.rhea-db.org),
+  and list what they find in an *Annotate* tab to check: clear matches ticked,
+  the others offered with alternatives. **Apply** adds what is ticked, in one
+  step you can undo.
+- **Find in ChEBI** (a species' Annotations) and **Find in Rhea** (a reaction's)
+  search for one item by name, ChEBI entries or EC number.
+- After a lookup, the diagram marks what is left to check: an orange ring for an
+  item found but not ticked, a blue one for nothing found, until each is
+  annotated (**View ▸ Annotation Marks** turns them off or clears them).
 
 **How things look**
 - Species **shapes**: rounded rectangle, rectangle, ellipse, circle or hexagon;
@@ -206,7 +233,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Double-click a text | Edit its words |
 | Double-click a modifier line, or a reactant's or product's line | Add a corner point there, so the line can turn a corner; drag the small square to move it, right-click it to remove it |
 | Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more) |
-| Rest the pointer on an item | A tooltip: a species' value, a reaction's rate law, a compartment's volume |
+| Rest the pointer on an item | A tooltip: a species' value, a reaction's rate law, a compartment's volume, and its display name and annotation |
 
 **Adding things**
 
@@ -236,6 +263,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Ctrl-click | Add to or take from the selection |
 | Shift-click | Select everything from the last item clicked |
 | ↑ / ↓, Shift + ↑ / ↓ | Move through the list; extend the selection |
+| Ctrl+F, then type | Keep only the items whose id or display name holds the words; Enter, or a click, selects one and brings it into view |
 
 **Keys**
 
@@ -248,6 +276,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Arrow keys, Shift + arrow keys | Nudge the selection 1 unit, 10 units; with Snap to grid, one grid line, five (Alt for 1 and 10) |
 | Arrow keys after clicking a corner point | Move that point instead, by the same steps; a click elsewhere or Esc goes back to the selection |
 | Ctrl+Alt+C, Ctrl+Alt+V | Copy Style, Paste Style |
+| Ctrl+F | Find in the model tree |
 | Enter | With A+… → B+…: on to the products, then make the reaction |
 | Esc | Cancel what is in progress (a drag, a reaction being picked, a layout) and go back to the Select tool |
 | Ctrl+S, Ctrl+Shift+S | Save, Save As |
@@ -452,7 +481,8 @@ species shapes and resizing, names outside the node, Copy and Paste Style, saved
 styles, the grid and Snap to grid, themes, reaction names and stems, reactions with
 any number of species, corner points on reaction lines, Escher maps, SBML Render,
 Antimony layouts, the network's structure (conservation laws and flux null space)
-drawn on the network, transparent fills, a background colour, offline use and autosave, and fixes the defects
+drawn on the network, transparent fills, a background colour, KEGG maps, display
+names, annotations and their lookup in BiGG, ChEBI, PubChem and Rhea, offline use and autosave, and fixes the defects
 listed in SPECIFICATION.md §15.
 
 ## Documents
