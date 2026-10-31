@@ -8,11 +8,12 @@ biology world as Antimony or SBML with layout.
 It is written in Rust with [egui](https://github.com/emilk/egui). The same code
 runs in the browser and as a desktop app for Windows, macOS and Linux.
 
+**Try it:** https://sys-bio.github.io/PathwayDesigner-rs/
+
 ### AI Assistance 
 
 This was developed with the assistance of claude. Stop here if you aren't comfortable with AI assisted code generation.
 
-**Try it:** https://sys-bio.github.io/PathwayDesigner-rs/
 
 ![PathwayDesigner in the browser](docs/screenshot.png)
 
