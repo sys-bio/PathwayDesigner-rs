@@ -2151,6 +2151,31 @@ mod tests {
             self.app.view.model().find_species(id).unwrap().center
         }
 
+        /// The Annotations part's notes field, the right-hand panel scrolled
+        /// down to it if it is below the window.
+        fn notes_field(&mut self) -> Pos2 {
+            let below = self.text("Notes").y + 60.0 > self.size.y;
+            if below {
+                let over = self.text("Notes") - egui::vec2(0.0, 300.0);
+                self.run(vec![
+                    Event::PointerMoved(over),
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(0.0, -200.0),
+                        phase: egui::TouchPhase::Move,
+                        source: egui::MouseWheelSource::Wheel,
+                        modifiers: Modifiers::NONE,
+                    },
+                ]);
+                for _ in 0..10 {
+                    self.run(vec![]);
+                }
+            }
+            let notes = self.text("Notes") + egui::vec2(0.0, 30.0);
+            assert!(notes.y < self.size.y - 20.0, "in view: {notes:?}");
+            notes
+        }
+
         fn on_screen(&self, id: &str) -> Pos2 {
             let p = self.app.view.world_to_screen(self.centre(id));
             Pos2::new(p.x as f32, p.y as f32)
@@ -3458,8 +3483,42 @@ k = 0.1",
         h.run(vec![]);
         assert!(a(&h).references.is_empty());
         assert_eq!(a(&h).sbo, Some(247));
+        // A species' qualifiers have no model hints, even one the model
+        // shares (isVersionOf).
+        let combo = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.role() == egui::accesskit::Role::ComboBox)
+            .filter_map(|(_, n)| n.bounds())
+            .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+            .find(|p| {
+                let above = h.widget("Add").y - p.y;
+                above > 10.0 && above < 40.0
+            })
+            .expect("the qualifier list, the line above Add");
+        h.click(combo);
+        h.run(vec![]);
+        h.click(h.widget("isVersionOf"));
+        h.run(vec![]);
+        assert!(
+            !h.access.as_ref().unwrap().nodes.iter().any(|(_, n)| n
+                .value()
+                .is_some_and(|v| v.starts_with("The biological process"))),
+            "no model hint for a species"
+        );
+        // It was chosen: a reference added now has it.
+        h.click(h.widget("Add") - egui::vec2(90.0, 0.0));
+        h.run(vec![Event::Text("GO:0006096".into())]);
+        h.click(h.widget("Add"));
+        h.run(vec![]);
+        assert_eq!(a(&h).references[0].qualifier, "bqbiol:isVersionOf");
+        h.click(h.widget("✕"));
+        h.run(vec![]);
         // Notes, typed as text, applied when the field loses focus.
-        let notes = h.text("Notes") + egui::vec2(0.0, 30.0);
+        let notes = h.notes_field();
         h.click(notes);
         h.run(vec![Event::Text("From yeast.".into())]);
         h.click(h.text("Notes"));
@@ -3495,6 +3554,117 @@ k = 0.1",
         h.click(h.widget("62  continuous framework"));
         h.run(vec![]);
         assert_eq!(h.app.view.model().annotation.sbo, Some(62));
+        // The model's references: the paper first, each qualifier saying
+        // what it is for, with an example to type.
+        h.text("The paper that describes the model, such as pubmed:8983160");
+        h.click(h.text("model isDescribedBy"));
+        h.run(vec![]);
+        h.click(h.widget("hasTaxon"));
+        h.run(vec![]);
+        h.text("The organism (here E. coli), such as taxonomy:562");
+        // Add with nothing typed: the message's example suits the choice.
+        h.click(h.widget("Add"));
+        h.run(vec![]);
+        h.text("Type a link, or an identifier such as taxonomy:562");
+    }
+
+    /// A species' or reaction's Id field renames it, in its rate laws too;
+    /// an id already used is refused, and the panel says so.
+    #[test]
+    fn ids_are_renamed_in_the_panel() {
+        let mut h = Harness::new();
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("J1: A -> B; k*A\nk = 1", &opts)
+            .unwrap();
+        h.run(vec![]);
+        // The Id field showing `id`, in the right-hand panel.
+        let field = |h: &Harness, id: &str| {
+            h.access
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .filter(|(_, n)| {
+                    n.role() == egui::accesskit::Role::TextInput && n.value() == Some(id)
+                })
+                .filter_map(|(_, n)| n.bounds())
+                .find(|b| b.x0 > f64::from(h.size.x) / 2.0)
+                .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+                .unwrap_or_else(|| panic!("an Id field showing {id}"))
+        };
+        let retype = |h: &mut Harness, at: Pos2, text: &str| {
+            h.click(at);
+            h.key(Key::A, Modifiers::COMMAND);
+            h.run(vec![Event::Text(text.into())]);
+            h.key(Key::Enter, Modifiers::NONE);
+            h.run(vec![]);
+        };
+        // A species.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Species("A".into()), false);
+        h.run(vec![]);
+        let at = field(&h, "A");
+        retype(&mut h, at, "glucose");
+        let m = h.app.view.model();
+        assert!(m.find_species("A").is_none());
+        assert!(m.find_species("glucose").is_some());
+        assert_eq!(m.find_reaction("J1").unwrap().kinetic_law, "k*glucose");
+        // A reaction; then an id in use, refused.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg("J1".into()), false);
+        h.run(vec![]);
+        let at = field(&h, "J1");
+        retype(&mut h, at, "PFK");
+        assert!(h.app.view.model().find_reaction("PFK").is_some());
+        assert_eq!(h.app.view.undo_description(), Some("Rename Reaction"));
+        let at = field(&h, "PFK");
+        retype(&mut h, at, "B");
+        h.run(vec![]);
+        assert!(h.app.view.model().find_reaction("PFK").is_some());
+        // Said right under the field, which keeps what was typed (not the
+        // old id back, which would look like nothing happened).
+        let said = h.text("Not renamed: that id is already used");
+        let kept = field(&h, "B");
+        assert!(
+            said.y > kept.y && said.y - kept.y < 40.0,
+            "under the field: {kept:?} {said:?}"
+        );
+        // Typing again clears it.
+        h.click(kept);
+        h.run(vec![Event::Text("X".into())]);
+        h.run(vec![]);
+        let shown = |h: &Harness| {
+            h.access.as_ref().unwrap().nodes.iter().any(|(_, n)| {
+                n.value() == Some("Not renamed: that id is already used")
+                    || n.label() == Some("Not renamed: that id is already used")
+            })
+        };
+        assert!(!shown(&h));
+        // A species refused the same way; selecting another item clears it.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Species("glucose".into()), false);
+        h.run(vec![]);
+        let at = field(&h, "glucose");
+        retype(&mut h, at, "B");
+        h.run(vec![]);
+        assert!(h.app.view.model().find_species("glucose").is_some());
+        let said = h.text("Not renamed: that id is already used");
+        let kept = field(&h, "B");
+        assert!(
+            said.y > kept.y && said.y - kept.y < 40.0,
+            "{kept:?} {said:?}"
+        );
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Species("B".into()), false);
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(!shown(&h));
     }
 
     /// A link clicked in the app opens in a new tab, never over the app
@@ -3595,6 +3765,142 @@ k = 0.1",
         assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
         // Added once: its button says so.
         assert!(labels(&h).iter().any(|l| l == "Added"));
+    }
+
+    /// Rhea knows the reactions with PEP and OAA; it is asked for the
+    /// species' ChEBI entries.
+    fn rhea(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        let answer = if url.contains("rhea-db")
+            && url.contains("query=CHEBI%3A58702%20CHEBI%3A16452&")
+        {
+            Ok("Reaction identifier\tEquation\tEC number\tChEBI identifier\n\
+                RHEA:28370\toxaloacetate + phosphate = phosphoenolpyruvate + hydrogencarbonate\tEC:4.1.1.31\tCHEBI:16452\n\
+                RHEA:18617\toxaloacetate + ATP = phosphoenolpyruvate + ADP + CO2\tEC:4.1.1.49\tCHEBI:16452\n"
+                .to_owned())
+        } else if url.contains("rhea-db") {
+            Ok("Reaction identifier\tEquation\tEC number\tChEBI identifier\n".to_owned())
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+    }
+
+    /// Find in Rhea, in a reaction's Annotations: the words start as its
+    /// species' ChEBI entries; Search lists Rhea's reactions; Add makes one
+    /// the reaction's Rhea entry, with its EC number.
+    #[test]
+    fn find_in_rhea_adds_what_the_species_find() {
+        use pd_core::model::Reference;
+        let mut h = Harness::new();
+        h.app.gallery.fetch = rhea;
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("PPC: PEP -> OAA; k*PEP\nk = 1", &opts)
+            .unwrap();
+        for (s, c) in [("PEP", "CHEBI:58702"), ("OAA", "CHEBI:16452")] {
+            let mut a = h.app.view.annotation(Some(s)).unwrap().clone();
+            a.references.push(Reference {
+                qualifier: "bqbiol:is".into(),
+                resource: format!("https://identifiers.org/{c}"),
+            });
+            h.app.view.set_annotation(Some(s), a);
+        }
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg("PPC".into()), false);
+        h.run(vec![]);
+        h.click(h.widget("Annotations"));
+        h.run(vec![]);
+        h.text("Find in Rhea");
+        h.text("CHEBI:58702 CHEBI:16452");
+        h.click(h.widget("Search"));
+        for _ in 0..10 {
+            h.run(vec![]);
+        }
+        h.text("oxaloacetate + phosphate = phosphoenolpyruvate + hydrogencarbonate");
+        h.widget("RHEA:18617");
+        let mut adds: Vec<Pos2> = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.label() == Some("Add"))
+            .filter_map(|(_, n)| n.bounds())
+            .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+            .collect();
+        adds.sort_by(|a, b| a.y.total_cmp(&b.y));
+        assert_eq!(adds.len(), 3, "the references' Add and one per reaction");
+        // What to search for, said under the field.
+        h.text(
+            "Search by an enzyme name (pyruvate kinase), an EC number (2.7.1.40), or the ChEBI entries of the reaction's species (CHEBI:58702 CHEBI:15361), which find the reactions with all of them.",
+        );
+        // The references' field is wide enough for a reaction's example.
+        let field = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.role() == egui::accesskit::Role::TextInput)
+            .filter_map(|(_, n)| n.bounds())
+            .find(|b| {
+                (b.y0 + b.y1) / 2.0 > f64::from(adds[0].y) - 8.0
+                    && (b.y0 + b.y1) / 2.0 < f64::from(adds[0].y) + 8.0
+            })
+            .expect("the references' field");
+        assert!(field.x1 - field.x0 > 180.0, "{field:?}");
+        h.text("An EC number (ec-code:4.1.1.31) or a Rhea entry (rhea:28370), or a link");
+        // The references' own Add with nothing typed: a reaction's example.
+        h.click(adds[0]);
+        h.run(vec![]);
+        h.text("Type a link, or an identifier such as ec-code:4.1.1.31");
+        // The message moved the list down.
+        let mut adds: Vec<Pos2> = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.label() == Some("Add"))
+            .filter_map(|(_, n)| n.bounds())
+            .map(|b| Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+            .collect();
+        adds.sort_by(|a, b| a.y.total_cmp(&b.y));
+        h.click(adds[1]);
+        h.run(vec![]);
+        let refs: Vec<String> = h
+            .app
+            .view
+            .model()
+            .find_reaction("PPC")
+            .unwrap()
+            .annotation
+            .references
+            .iter()
+            .map(|r| format!("{} {}", r.qualifier, r.resource))
+            .collect();
+        assert_eq!(
+            refs,
+            [
+                "bqbiol:isVersionOf https://identifiers.org/ec-code:4.1.1.31",
+                "bqbiol:is https://identifiers.org/rhea:28370"
+            ]
+        );
+        assert_eq!(h.app.view.undo_description(), Some("Edit Annotation"));
+        h.run(vec![]);
+        h.widget("Added");
+        // Words that find nothing say so.
+        let field = h.text("CHEBI:58702 CHEBI:16452");
+        h.click(field);
+        h.key(Key::A, Modifiers::COMMAND);
+        h.run(vec![Event::Text("zzz".into())]);
+        h.click(h.widget("Search"));
+        for _ in 0..10 {
+            h.run(vec![]);
+        }
+        h.text("Nothing found: try other words");
     }
 
     /// BiGG knows g6p; ChEBI knows ATP exactly; nothing knows XYZ.
@@ -4229,7 +4535,7 @@ k = 1",
         // Titled with how many it holds.
         h.click(h.widget("Annotations (1)"));
         h.run(vec![]);
-        let notes = h.text("Notes") + egui::vec2(0.0, 30.0);
+        let notes = h.notes_field();
         h.click(notes);
         // Typed and taken back: the same words, so the notes stay as read.
         h.run(vec![Event::Text("x".into())]);

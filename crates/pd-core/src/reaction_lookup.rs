@@ -362,6 +362,20 @@ impl Search {
     }
 }
 
+/// Find in Rhea: Rhea's search for `words`, which may be names, ChEBI
+/// entries or EC numbers.
+pub fn rhea_find_url(words: &str) -> String {
+    format!(
+        "{RHEA}?query={}&columns=rhea-id,equation,ec,chebi-id&format=tsv&limit={RHEA_ROWS}",
+        encode(words)
+    )
+}
+
+/// The reactions in the answer to [`rhea_find_url`], in Rhea's order.
+pub fn rhea_found(tsv: &str) -> Vec<Candidate> {
+    rhea_rows(tsv, &[])
+}
+
 fn nothing(reaction: &str) -> Found {
     Found {
         reaction: reaction.to_owned(),
@@ -851,6 +865,26 @@ mod tests {
         }
         assert!(s.unreachable());
         assert_eq!(s.results()[0].source, None);
+    }
+
+    #[test]
+    fn find_in_rhea() {
+        assert_eq!(
+            rhea_find_url("CHEBI:58702 pyruvate"),
+            "https://www.rhea-db.org/rhea?query=CHEBI%3A58702%20pyruvate&columns=rhea-id,equation,ec,chebi-id&format=tsv&limit=20"
+        );
+        let tsv = format!(
+            "{RHEA_HEAD}RHEA:18157\tpyruvate + ATP = phosphoenolpyruvate + ADP + H(+)\tEC:2.7.1.40\tCHEBI:15361\n"
+        );
+        let found = rhea_found(&tsv);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, "RHEA:18157");
+        assert_eq!(found[0].ec, ["2.7.1.40"]);
+        assert_eq!(
+            found[0].equation,
+            "pyruvate + ATP = phosphoenolpyruvate + ADP + H(+)"
+        );
+        assert!(rhea_found(RHEA_HEAD).is_empty());
     }
 
     #[test]

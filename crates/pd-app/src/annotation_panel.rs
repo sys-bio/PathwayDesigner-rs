@@ -7,14 +7,17 @@
 //! A species' part can also find its ChEBI entry by name
 //! (docs/chebi-lookup-design.md, step 2): BiGG, ChEBI and PubChem searched
 //! a request at a time through the app's fetch, the matches listed to add.
+//! A reaction's part can find its Rhea entry in the same way: Rhea's search
+//! for names, ChEBI entries or EC numbers, one request.
 
 use eframe::egui::{self, RichText};
 use pd_core::annotation::{
-    ITEM_QUALIFIERS, MODEL_QUALIFIERS, SboKind, notes_text, notes_xhtml, qualifier_text,
-    resource_from_typed, resource_text, resource_url, sbo_id, sbo_name, sbo_url,
+    ITEM_QUALIFIERS, MODEL_QUALIFIERS, SboKind, model_qualifier_hint, notes_text, notes_xhtml,
+    qualifier_text, resource_from_typed, resource_text, resource_url, sbo_id, sbo_name, sbo_url,
 };
 use pd_core::chebi::{Candidate, Query, Search};
 use pd_core::model::{Annotation, Reference};
+use pd_core::reaction_lookup as rl;
 use pd_core::view::DiagramView;
 
 use crate::gallery::{Pending, take};
@@ -45,6 +48,9 @@ pub struct AnnotationPanel {
     /// The entries the last search found, and what it said.
     found: Vec<Candidate>,
     find_note: Option<String>,
+    /// Find in Rhea: the request waiting, and the reactions it found.
+    rhea_waiting: Option<Pending>,
+    rhea_found: Vec<rl::Candidate>,
 }
 
 /// A Find in ChEBI under way: the search, the request waiting, and when the
@@ -69,7 +75,8 @@ impl AnnotationPanel {
         if self.target.as_ref() != Some(&target) {
             // What was typed for the item shown before goes to it first.
             self.commit(view);
-            // The words to find: the species' display name, else its id.
+            // The words to find: the species' display name, else its id; a
+            // reaction's ChEBI entries or names.
             let find = id
                 .and_then(|i| view.model().find_species(i))
                 .map(|s| {
@@ -79,6 +86,7 @@ impl AnnotationPanel {
                         .clone()
                         .unwrap_or_else(|| primary.id.clone())
                 })
+                .or_else(|| id.and_then(|i| view.rhea_words(i)))
                 .unwrap_or_default();
             *self = AnnotationPanel {
                 target: Some(target),
@@ -88,6 +96,7 @@ impl AnnotationPanel {
             };
         }
         self.poll(ui.ctx());
+        self.poll_rhea(ui.ctx());
         let Some(current) = view.annotation(id).cloned() else {
             return;
         };
@@ -163,11 +172,8 @@ impl AnnotationPanel {
         });
         if let Some(n) = current.sbo {
             let name = sbo_name(n).unwrap_or("");
-            ui.hyperlink_to(
-                RichText::new(format!("{} {name}", sbo_id(n))).small(),
-                sbo_url(n),
-            )
-            .on_hover_text("Open the term's definition");
+            ui.hyperlink_to(RichText::new(format!("{} {name}", sbo_id(n))), sbo_url(n))
+                .on_hover_text("Open the term's definition");
         }
 
         // References: each a link, with a way to remove it.
@@ -209,22 +215,54 @@ impl AnnotationPanel {
         if !qualifiers.contains(&self.qualifier.as_str()) {
             self.qualifier = qualifiers[0].to_owned();
         }
+        // For the model, what each qualifier is for and an example to type.
+        let hint = if id.is_none() {
+            model_qualifier_hint(&self.qualifier)
+        } else {
+            None
+        };
+        // An identifier of the kind this item's references usually are.
+        // A short one in the field, and a line under it on what to type.
+        let (example, what) = match (hint, kind) {
+            (Some((what, e)), _) => (e, what),
+            (None, SboKind::Reaction) => (
+                "ec-code:4.1.1.31",
+                "An EC number (ec-code:4.1.1.31) or a Rhea entry (rhea:28370)",
+            ),
+            (None, SboKind::Compartment) => (
+                "GO:0005737",
+                "A Gene Ontology cellular component (GO:0005737, cytoplasm)",
+            ),
+            (None, _) => (
+                "CHEBI:15422",
+                "A ChEBI entry (CHEBI:15422) or, for a protein, UniProt (uniprot:P12345)",
+            ),
+        };
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt(("annotation-qualifier", id.unwrap_or("")))
                 .selected_text(qualifier_text(&self.qualifier))
                 .show_ui(ui, |ui| {
                     for q in qualifiers {
-                        ui.selectable_value(
+                        let r = ui.selectable_value(
                             &mut self.qualifier,
                             (*q).to_owned(),
                             qualifier_text(q),
                         );
+                        if id.is_none()
+                            && let Some((what, _)) = model_qualifier_hint(q)
+                        {
+                            r.on_hover_text(what);
+                        }
                     }
                 });
+        });
+        // The entry on a line of its own, as wide as the panel allows beside
+        // Add, so a long example (a reaction's) can be read.
+        ui.horizontal(|ui| {
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.resource)
-                    .desired_width(130.0)
-                    .hint_text("CHEBI:15422 or a link"),
+                    .desired_width((ui.available_width() - 50.0).max(130.0))
+                    .hint_text(example),
             );
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.button("Add").clicked() || enter {
@@ -240,16 +278,22 @@ impl AnnotationPanel {
                         self.error = None;
                     }
                     None => {
-                        self.error = Some(
-                            "Type a link, or an identifier such as CHEBI:15422 or uniprot:P12345"
-                                .into(),
-                        )
+                        self.error =
+                            Some(format!("Type a link, or an identifier such as {example}"))
                     }
                 }
             }
         });
+        if hint.is_some() {
+            ui.label(RichText::new(format!("{what}, such as {example}")).weak());
+        } else {
+            ui.label(RichText::new(format!("{what}, or a link")).weak());
+        }
         if let Some(e) = &self.error {
-            ui.label(RichText::new(e).color(ERROR).small());
+            ui.label(RichText::new(e).color(ERROR));
+        }
+        if kind == SboKind::Reaction && self.fetch.is_some() {
+            self.find_in_rhea(ui, view, id, current);
         }
         if kind == SboKind::Species && self.fetch.is_some() {
             self.find_in_chebi(ui, view, id, current);
@@ -310,7 +354,7 @@ impl AnnotationPanel {
             }
         });
         if let Some(note) = &self.find_note {
-            ui.label(RichText::new(note).small().weak());
+            ui.label(RichText::new(note).weak());
         }
         let mut add = None;
         // A long name is cut short, so it doesn't hold the panel wide.
@@ -320,10 +364,7 @@ impl AnnotationPanel {
                 let r = c.reference();
                 let have = current.references.contains(&r);
                 if ui
-                    .add_enabled(
-                        !have,
-                        egui::Button::new(if have { "Added" } else { "Add" }).small(),
-                    )
+                    .add_enabled(!have, egui::Button::new(if have { "Added" } else { "Add" }))
                     .on_hover_text("Add as what this species is (bqbiol:is)")
                     .clicked()
                 {
@@ -340,6 +381,118 @@ impl AnnotationPanel {
             a.references.push(r);
             view.set_annotation(id, a);
         }
+    }
+
+    /// Find in Rhea: words (a reaction's ChEBI entries or names to begin
+    /// with), a Search button, and the Rhea reactions found, each a link to
+    /// its page, its equation and EC numbers, and an Add button that adds
+    /// its Rhea entry and EC numbers.
+    fn find_in_rhea(
+        &mut self,
+        ui: &mut egui::Ui,
+        view: &mut DiagramView,
+        id: Option<&str>,
+        current: &Annotation,
+    ) {
+        ui.add_space(4.0);
+        ui.label("Find in Rhea");
+        let searching = self.rhea_waiting.is_some();
+        ui.horizontal(|ui| {
+            let r = ui.add(
+                egui::TextEdit::singleline(&mut self.find)
+                    .desired_width(150.0)
+                    .hint_text("pyruvate kinase, or an EC number"),
+            );
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let search = ui
+                .add_enabled(!searching, egui::Button::new("Search"))
+                .on_hover_text(
+                    "Look the words up in Rhea: the reactions with these compounds \
+                     (names or ChEBI entries), or with this EC number",
+                );
+            if (search.clicked() || enter)
+                && !searching
+                && !self.find.trim().is_empty()
+                && let Some(fetch) = self.fetch
+            {
+                self.rhea_found.clear();
+                self.find_note = None;
+                self.rhea_waiting = Some(fetch(ui.ctx(), rl::rhea_find_url(self.find.trim())));
+            }
+            if searching {
+                ui.spinner();
+            }
+        });
+        ui.label(
+            RichText::new(
+                "Search by an enzyme name (pyruvate kinase), an EC number (2.7.1.40), \
+                 or the ChEBI entries of the reaction's species (CHEBI:58702 CHEBI:15361), \
+                 which find the reactions with all of them.",
+            )
+            .weak(),
+        );
+        if let Some(note) = &self.find_note {
+            ui.label(RichText::new(note).weak());
+        }
+        let mut add = None;
+        // A long equation is cut short, so it doesn't hold the panel wide.
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+        for c in &self.rhea_found {
+            let refs = c.references();
+            let have = refs.iter().all(|r| current.references.contains(r));
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(!have, egui::Button::new(if have { "Added" } else { "Add" }))
+                    .on_hover_text(
+                        "Add as what this reaction is (bqbiol:is), with its EC numbers \
+                         (bqbiol:isVersionOf)",
+                    )
+                    .clicked()
+                {
+                    add = Some(refs.clone());
+                }
+                ui.hyperlink_to(&c.id, c.page());
+                if !c.ec.is_empty() {
+                    ui.label(RichText::new(format!("EC {}", c.ec.join(", "))));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(20.0);
+                ui.label(RichText::new(&c.equation).weak())
+                    .on_hover_text(&c.equation);
+            });
+        }
+        if let Some(refs) = add {
+            let mut a = current.clone();
+            for r in refs {
+                if !a.references.contains(&r) {
+                    a.references.push(r);
+                }
+            }
+            view.set_annotation(id, a);
+        }
+    }
+
+    /// Hands Find in Rhea its answer when it has come.
+    fn poll_rhea(&mut self, ctx: &egui::Context) {
+        let Some(waiting) = &self.rhea_waiting else {
+            return;
+        };
+        let Some(result) = take(waiting) else {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+            return;
+        };
+        self.rhea_waiting = None;
+        self.find_note = match result {
+            Ok(tsv) => {
+                self.rhea_found = rl::rhea_found(&tsv);
+                self.rhea_found
+                    .is_empty()
+                    .then(|| "Nothing found: try other words".to_owned())
+            }
+            Err(_) => Some("Rhea couldn't be reached".into()),
+        };
+        ctx.request_repaint();
     }
 
     /// Takes a search a step further: hands it an answer that has come, and

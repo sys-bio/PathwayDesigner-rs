@@ -286,7 +286,6 @@ impl DiagramView {
     /// has an EC number or a Rhea reference. Each with its reactants and
     /// products, as their species, once each, and their ChEBI entries.
     pub fn reactions_to_annotate(&self, only: Option<&str>) -> Vec<crate::reaction_lookup::Query> {
-        use crate::reaction_lookup::{Participant, Query};
         let m = &self.model;
         let selected: Vec<Id> = m
             .reactions()
@@ -308,36 +307,27 @@ impl DiagramView {
                     x.contains("ec-code") || x.contains("rhea")
                 })
             })
-            .map(|r| {
-                let mut species: Vec<Participant> = Vec::new();
-                for p in r.reactants.iter().chain(&r.products) {
-                    let Some(s) = m.find_species(&p.species) else {
-                        continue;
-                    };
-                    let Some(s) = m.find_species(s.primary_id()) else {
-                        continue;
-                    };
-                    if s.is_null_node || species.iter().any(|x| x.id == s.id) {
-                        continue;
-                    }
-                    species.push(Participant {
-                        id: s.id.clone(),
-                        name: s.display_name.clone(),
-                        chebi: s
-                            .annotation
-                            .references
-                            .iter()
-                            .filter_map(|x| chebi_id(&x.resource))
-                            .collect(),
-                    });
-                }
-                Query {
-                    reaction: r.id.clone(),
-                    name: r.display_name.clone(),
-                    species,
-                }
-            })
+            .map(|r| reaction_query(m, r))
             .collect()
+    }
+
+    /// The words Find in Rhea starts with for reaction `id`: its species'
+    /// ChEBI entries when every one has one (Rhea finds the reactions with
+    /// all of them); else its display name. `None` otherwise: species' ids
+    /// and abbreviations rarely find anything in Rhea, so the user is left
+    /// to type an enzyme name or EC number.
+    pub fn rhea_words(&self, id: &str) -> Option<String> {
+        let r = self.model.find_reaction(id)?;
+        let q = reaction_query(&self.model, r);
+        let chebi: Vec<&str> = q
+            .species
+            .iter()
+            .filter_map(|s| s.chebi.first().map(String::as_str))
+            .collect();
+        if !chebi.is_empty() && chebi.len() == q.species.len() {
+            return Some(chebi.join(" "));
+        }
+        q.name.filter(|n| !n.trim().is_empty())
     }
 
     /// Applies what the reaction review accepted: as
@@ -961,6 +951,14 @@ impl DiagramView {
         })
     }
 
+    /// Renames a reaction, and every use of its id in a rate law, parameter
+    /// or rule. One undo step.
+    pub fn rename_reaction(&mut self, id: &str, new: &str) -> Result<ViewResponse, RenameError> {
+        let before = self.model.clone();
+        self.model.rename_reaction(id, new)?;
+        Ok(self.record_if_changed("Rename Reaction", before))
+    }
+
     /// Renames a compartment, and every reference to it (S §7.9). One undo
     /// step.
     pub fn rename_compartment(&mut self, id: &str, new: &str) -> Result<ViewResponse, RenameError> {
@@ -1241,6 +1239,40 @@ impl DiagramView {
             return ViewResponse::default();
         }
         self.record(desc, before)
+    }
+}
+
+/// A reaction as the lookup sees it: its reactants and products, as their
+/// species (primaries, once each, null nodes left out), with their ChEBI
+/// entries.
+fn reaction_query(m: &Model, r: &crate::model::Reaction) -> crate::reaction_lookup::Query {
+    use crate::reaction_lookup::{Participant, Query};
+    let mut species: Vec<Participant> = Vec::new();
+    for p in r.reactants.iter().chain(&r.products) {
+        let Some(s) = m.find_species(&p.species) else {
+            continue;
+        };
+        let Some(s) = m.find_species(s.primary_id()) else {
+            continue;
+        };
+        if s.is_null_node || species.iter().any(|x| x.id == s.id) {
+            continue;
+        }
+        species.push(Participant {
+            id: s.id.clone(),
+            name: s.display_name.clone(),
+            chebi: s
+                .annotation
+                .references
+                .iter()
+                .filter_map(|x| chebi_id(&x.resource))
+                .collect(),
+        });
+    }
+    Query {
+        reaction: r.id.clone(),
+        name: r.display_name.clone(),
+        species,
     }
 }
 
@@ -1642,6 +1674,40 @@ mod tests {
     }
 
     #[test]
+    fn find_in_rhea_starts_with_the_chebi_entries_else_the_names() {
+        use crate::model::Reference;
+        let mut v = view();
+        let chebi = |c: &str| Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: format!("https://identifiers.org/{c}"),
+        };
+        // No ChEBI, no display name: nothing, even with the species' names.
+        v.model.find_species_mut("S2").unwrap().display_name = Some("ATP".into());
+        assert_eq!(v.rhea_words("R5"), None);
+        // One species with ChEBI isn't enough; the reaction's name is used.
+        v.model
+            .find_species_mut("S1")
+            .unwrap()
+            .annotation
+            .references
+            .push(chebi("CHEBI:58702"));
+        v.model.find_reaction_mut("R5").unwrap().display_name = Some("Pyruvate kinase".into());
+        assert_eq!(v.rhea_words("R5").as_deref(), Some("Pyruvate kinase"));
+        // Every species with ChEBI: their entries.
+        v.model
+            .find_species_mut("S2")
+            .unwrap()
+            .annotation
+            .references
+            .push(chebi("CHEBI:16452"));
+        assert_eq!(
+            v.rhea_words("R5").as_deref(),
+            Some("CHEBI:58702 CHEBI:16452")
+        );
+        assert_eq!(v.rhea_words("nope"), None);
+    }
+
+    #[test]
     fn what_the_reaction_review_accepts_is_applied_in_one_step() {
         use crate::model::Reference;
         use crate::reaction_lookup::Accepted;
@@ -1672,6 +1738,20 @@ mod tests {
         assert_eq!(*v.model(), before);
         v.undo();
         assert!(v.model().find_reaction("R5").unwrap().annotation.is_empty());
+    }
+
+    #[test]
+    fn a_reaction_is_renamed_in_one_step() {
+        let mut v = view();
+        v.set_kinetic_law("R5", "k*S1");
+        v.rename_reaction("R5", "PFK").unwrap();
+        assert!(v.model().find_reaction("R5").is_none());
+        assert_eq!(v.model().find_reaction("PFK").unwrap().kinetic_law, "k*S1");
+        assert_eq!(v.undo_description(), Some("Rename Reaction"));
+        assert_eq!(v.rename_reaction("PFK", "S1"), Err(RenameError::InUse));
+        assert_eq!(v.rename_reaction("PFK", "2x"), Err(RenameError::InvalidId));
+        v.undo();
+        assert!(v.model().find_reaction("R5").is_some());
     }
 
     #[test]

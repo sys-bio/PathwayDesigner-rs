@@ -114,17 +114,50 @@ pub const ITEM_QUALIFIERS: &[&str] = &[
     "bqbiol:hasTaxon",
 ];
 
-/// The qualifiers for the model's references: the model ones first.
+/// The qualifiers for the model's references, the most used first: its
+/// paper, its organism and the process it models, as curated models give
+/// them; then its own entry in a repository, once it has one, and the rest.
 pub const MODEL_QUALIFIERS: &[&str] = &[
-    "bqmodel:is",
     "bqmodel:isDescribedBy",
-    "bqmodel:isDerivedFrom",
-    "bqbiol:isVersionOf",
     "bqbiol:hasTaxon",
-    "bqbiol:hasProperty",
+    "bqbiol:isVersionOf",
+    "bqmodel:is",
+    "bqmodel:isDerivedFrom",
     "bqbiol:isHomologTo",
+    "bqbiol:hasProperty",
     "bqbiol:hasVersion",
 ];
+
+/// What a model qualifier links the model to, and an identifier of that
+/// kind to type, as BioModels' curated models use them.
+pub fn model_qualifier_hint(q: &str) -> Option<(&'static str, &'static str)> {
+    Some(match q {
+        "bqmodel:isDescribedBy" => ("The paper that describes the model", "pubmed:8983160"),
+        "bqbiol:hasTaxon" => ("The organism (here E. coli)", "taxonomy:562"),
+        "bqbiol:isVersionOf" => (
+            "The biological process or pathway it models (here glycolysis)",
+            "GO:0006096",
+        ),
+        "bqmodel:is" => (
+            "The model's own entry in a repository, once it has one",
+            "biomodels.db:BIOMD0000000012",
+        ),
+        "bqmodel:isDerivedFrom" => (
+            "A model this one was built from",
+            "biomodels.db:BIOMD0000000012",
+        ),
+        "bqbiol:isHomologTo" => (
+            "The same pathway in another organism or database (here Reactome's glycolysis)",
+            "reactome:R-HSA-70171",
+        ),
+        "bqbiol:hasProperty" => (
+            "What kind of model it is (here an ordinary differential equation model)",
+            "mamo:MAMO_0000046",
+        ),
+        "bqbiol:hasVersion" => ("A narrower process it also covers", "GO:0006096"),
+        _ => return None,
+    })
+}
 
 /// A qualifier as the panel shows it: `is`, `isVersionOf`, and, for a model
 /// qualifier, `model is`.
@@ -248,6 +281,25 @@ pub fn notes_xhtml(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every model qualifier says what it is for, with an example that can
+    /// be typed as it is.
+    #[test]
+    fn model_qualifiers_have_hints() {
+        assert_eq!(
+            MODEL_QUALIFIERS[0], "bqmodel:isDescribedBy",
+            "the paper first"
+        );
+        for q in MODEL_QUALIFIERS {
+            let (what, example) = model_qualifier_hint(q).unwrap_or_else(|| panic!("{q}"));
+            assert!(!what.is_empty());
+            assert_eq!(
+                resource_from_typed(example),
+                Some(format!("https://identifiers.org/{example}"))
+            );
+        }
+        assert_eq!(model_qualifier_hint("bqbiol:is"), None);
+    }
 
     #[test]
     fn sbo_terms_have_names_and_links() {

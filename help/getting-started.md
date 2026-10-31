@@ -66,6 +66,10 @@ ChEBI, PubChem and Rhea:
 
 - **Find in ChEBI**, in a species' Annotations, searches for its name (or any
   words you type) and lists what it finds; **Add** puts one in.
+- **Find in Rhea**, in a reaction's Annotations, does the same for reactions:
+  it starts with the ChEBI entries of the reaction's species, and also takes
+  names (`pyruvate kinase`) or an EC number; **Add** puts in the Rhea entry and
+  its EC numbers.
 - **Edit ▸ Annotate Species from Names…** (also on a species' right-click
   menu) looks up the selected species, or all of them, and shows what it found
   in an **Annotate** tab. Clear matches are ticked; check the others, since a

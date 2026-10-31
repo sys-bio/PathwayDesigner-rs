@@ -31,6 +31,9 @@ enum Field {
     KineticLaw,
     TextSize,
     TextWrap,
+    /// Ids: typing one renames the item, everywhere it is used.
+    SpeciesId,
+    ReactionId,
     CompartmentId,
     Volume,
     CompartmentBorderWidth,
@@ -46,7 +49,9 @@ impl Field {
     fn is_words(self) -> bool {
         matches!(
             self,
-            Field::CompartmentId
+            Field::SpeciesId
+                | Field::ReactionId
+                | Field::CompartmentId
                 | Field::SpeciesName
                 | Field::ReactionName
                 | Field::CompartmentName
@@ -74,6 +79,8 @@ pub struct Inspector {
     law: Draft,
     text_size: Draft,
     text_wrap: Draft,
+    species_id: Draft,
+    reaction_id: Draft,
     compartment_id: Draft,
     volume: Draft,
     compartment_border: Draft,
@@ -81,8 +88,8 @@ pub struct Inspector {
     species_name: Draft,
     reaction_name: Draft,
     compartment_name: Draft,
-    /// Why the last compartment rename was refused.
-    rename_error: Option<String>,
+    /// Why the last rename was refused, and of which id field.
+    rename_error: Option<(Field, String)>,
     /// The Annotations parts (docs/annotations-design.md, step 4).
     species_annotation: crate::annotation_panel::AnnotationPanel,
     /// How to fetch, for Find in ChEBI; set by the app.
@@ -218,6 +225,8 @@ impl Inspector {
             (Field::KineticLaw, &one_reaction),
             (Field::TextSize, &first_text),
             (Field::TextWrap, &one_text),
+            (Field::SpeciesId, &one_species),
+            (Field::ReactionId, &one_reaction),
             (Field::CompartmentId, &one_compartment),
             (Field::Volume, &one_compartment),
             (Field::CompartmentBorderWidth, &one_compartment),
@@ -231,11 +240,23 @@ impl Inspector {
                 let d = self.draft_mut(field);
                 d.target = target.clone();
                 d.dirty = false;
+                // Another item: a refusal was about the one before.
+                if matches!(&self.rename_error, Some((f, _)) if *f == field) {
+                    self.rename_error = None;
+                }
             }
         }
 
-        if one_compartment.is_none() {
-            self.rename_error = None;
+        // A refusal stays shown while its item is the one selected.
+        if let Some((field, _)) = &self.rename_error {
+            let target = match field {
+                Field::SpeciesId => &one_species,
+                Field::ReactionId => &one_reaction,
+                _ => &one_compartment,
+            };
+            if target.is_none() {
+                self.rename_error = None;
+            }
         }
 
         let mut shown = false;
@@ -251,12 +272,19 @@ impl Inspector {
                     .show(ui, |ui| {
                         if !look_only {
                             ui.label("Id");
-                            ui.label(match &one_species {
-                                Some(id) => view.rename_initial(id).unwrap_or_default(),
-                                None if species.is_empty() => String::new(),
-                                None => format!("{} selected", species.len()),
-                            });
+                            if one_species.is_some() {
+                                self.number(ui, view, Field::SpeciesId, true, "")
+                                    .on_hover_text(
+                                        "Type a new id to rename the species, in every rate \
+                                         law too",
+                                    );
+                            } else if species.is_empty() {
+                                ui.label("");
+                            } else {
+                                ui.label(format!("{} selected", species.len()));
+                            }
                             ui.end_row();
+                            self.rename_refused(ui, Field::SpeciesId);
                             ui.label("Display name");
                             self.name_field(ui, view, Field::SpeciesName, one_species.is_some());
                             ui.end_row();
@@ -441,12 +469,19 @@ impl Inspector {
                     .show(ui, |ui| {
                         if !look_only {
                             ui.label("Id");
-                            ui.label(match &one_reaction {
-                                Some(id) => id.clone(),
-                                None if reactions.is_empty() => String::new(),
-                                None => format!("{} selected", reactions.len()),
-                            });
+                            if one_reaction.is_some() {
+                                self.number(ui, view, Field::ReactionId, true, "")
+                                    .on_hover_text(
+                                        "Type a new id to rename the reaction, in every rate \
+                                         law and rule too",
+                                    );
+                            } else if reactions.is_empty() {
+                                ui.label("");
+                            } else {
+                                ui.label(format!("{} selected", reactions.len()));
+                            }
                             ui.end_row();
+                            self.rename_refused(ui, Field::ReactionId);
                             ui.label("Display name");
                             self.name_field(ui, view, Field::ReactionName, one_reaction.is_some());
                             ui.end_row();
@@ -536,6 +571,8 @@ impl Inspector {
                 }
             });
             if !look_only && let Some(id) = &one_reaction {
+                // Find in Rhea needs the app's fetch.
+                self.reaction_annotation.fetch = self.fetch;
                 self.reaction_annotation
                     .show(ui, view, Some(id), "reaction");
             }
@@ -561,6 +598,7 @@ impl Inspector {
                                 ui.label(format!("{} selected", compartments.len()));
                             }
                             ui.end_row();
+                            self.rename_refused(ui, Field::CompartmentId);
                             ui.label("Display name");
                             self.name_field(
                                 ui,
@@ -623,9 +661,6 @@ impl Inspector {
                             ui.end_row();
                         }
                     });
-                if let Some(e) = &self.rename_error {
-                    ui.label(RichText::new(e).color(ERROR).small());
-                }
             });
             if !look_only && let Some(id) = &one_compartment {
                 self.compartment_annotation
@@ -840,6 +875,8 @@ impl Inspector {
             Field::KineticLaw => &self.law,
             Field::TextSize => &self.text_size,
             Field::TextWrap => &self.text_wrap,
+            Field::SpeciesId => &self.species_id,
+            Field::ReactionId => &self.reaction_id,
             Field::CompartmentId => &self.compartment_id,
             Field::Volume => &self.volume,
             Field::CompartmentBorderWidth => &self.compartment_border,
@@ -862,6 +899,8 @@ impl Inspector {
             Field::KineticLaw => &mut self.law,
             Field::TextSize => &mut self.text_size,
             Field::TextWrap => &mut self.text_wrap,
+            Field::SpeciesId => &mut self.species_id,
+            Field::ReactionId => &mut self.reaction_id,
             Field::CompartmentId => &mut self.compartment_id,
             Field::Volume => &mut self.volume,
             Field::CompartmentBorderWidth => &mut self.compartment_border,
@@ -899,6 +938,8 @@ impl Inspector {
             Field::KineticLaw => m.find_reaction(target).map(|r| r.kinetic_law.clone()),
             Field::TextSize => m.find_text(target).map(|t| t.size.to_string()),
             Field::TextWrap => m.find_text(target).map(|t| t.wrap_width.to_string()),
+            Field::SpeciesId => species().map(|s| s.id.clone()),
+            Field::ReactionId => m.find_reaction(target).map(|r| r.id.clone()),
             Field::CompartmentId => m.find_compartment(target).map(|c| c.id.clone()),
             Field::Volume => m.find_compartment(target).map(|c| c.size.to_string()),
             Field::CompartmentBorderWidth => m
@@ -966,11 +1007,19 @@ impl Inspector {
             (Field::TextWrap, Some(v)) => {
                 view.set_text_wrap(&target, v);
             }
-            (Field::CompartmentId, _) => {
-                self.rename_error = view
-                    .rename_compartment(&target, &text)
-                    .err()
-                    .map(|e| format!("Not renamed: {e}"));
+            (Field::SpeciesId | Field::ReactionId | Field::CompartmentId, _) => {
+                let text = text.trim();
+                let done = match field {
+                    Field::SpeciesId => view.rename(&target, text).map(|_| ()),
+                    Field::ReactionId => view.rename_reaction(&target, text).map(|_| ()),
+                    _ => view.rename_compartment(&target, text).map(|_| ()),
+                };
+                self.rename_error = done.err().map(|e| (field, format!("Not renamed: {e}")));
+                // Refused: what was typed stays in the field, in red, to be
+                // corrected, rather than the old id coming back.
+                if self.rename_error.is_some() {
+                    self.draft_mut(field).dirty = true;
+                }
             }
             (Field::Volume, Some(v)) => {
                 view.set_compartment_volume(&target, v);
@@ -986,6 +1035,18 @@ impl Inspector {
                 view.set_display_name(&target, &text);
             }
             _ => {}
+        }
+    }
+
+    /// Why a rename in `field` was refused, if it was: a row of the grid,
+    /// right under the Id field.
+    fn rename_refused(&self, ui: &mut egui::Ui, field: Field) {
+        if let Some((f, e)) = &self.rename_error
+            && *f == field
+        {
+            ui.label("");
+            ui.label(RichText::new(e).color(ERROR));
+            ui.end_row();
         }
     }
 
@@ -1010,10 +1071,14 @@ impl Inspector {
         hint: &str,
     ) -> egui::Response {
         self.refresh(field, view);
+        let refused = matches!(&self.rename_error, Some((f, _)) if *f == field);
         let d = self.draft_mut(field);
-        // Ids and names are words; the other fields are numbers.
-        let valid =
-            field.is_words() || !d.dirty || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite);
+        // Ids and names are words; the other fields are numbers. A refused
+        // id is shown in red until it is changed.
+        let valid = !refused
+            && (field.is_words()
+                || !d.dirty
+                || d.text.trim().parse::<f64>().is_ok_and(f64::is_finite));
         // An id or a name can be long; a number is short.
         let width = if field.is_words() {
             f32::INFINITY
@@ -1027,6 +1092,10 @@ impl Inspector {
         let r = ui.add_enabled(enabled, edit);
         if r.changed() {
             d.dirty = true;
+            // Typing again: the refusal was about what was there before.
+            if refused {
+                self.rename_error = None;
+            }
         }
         if r.lost_focus() {
             self.commit(field, view);

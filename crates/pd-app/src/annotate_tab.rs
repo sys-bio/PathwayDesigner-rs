@@ -335,7 +335,7 @@ impl AnnotateTab {
             let (done, total) = self.search.progress();
             ui.label(format!("Searching {} of {total}…", (done + 1).min(total)));
             ui.add(egui::ProgressBar::new(done as f32 / total.max(1) as f32));
-            ui.label(RichText::new(words.services).small().weak());
+            ui.label(RichText::new(words.services).weak());
             if ui
                 .button("Stop")
                 .on_hover_text("Review what has been found so far")
@@ -381,7 +381,7 @@ impl AnnotateTab {
                  reaction. Nothing changes until Apply."
             }
         };
-        ui.label(RichText::new(hint).small().weak());
+        ui.label(RichText::new(hint).weak());
         // M6: the marks on the diagram, each kind with this review's count,
         // in its colour.
         let all = self.all_marks();
@@ -409,7 +409,6 @@ impl AnnotateTab {
                     "Some reactions have species without a ChEBI entry; annotate the \
                      species first (Annotate Species from Names) to find more in Rhea.",
                 )
-                .small()
                 .weak(),
             )
             .on_hover_text("Rhea is searched by the reaction's species' ChEBI entries");
@@ -502,7 +501,7 @@ fn heading(
             .link(RichText::new(label).strong())
             .on_hover_text(format!("{label}: show it on the diagram"))
             .clicked();
-        ui.label(RichText::new(format!("({source})")).small().weak());
+        ui.label(RichText::new(format!("({source})")).weak());
         ui.label(format!("→ {what}")).on_hover_text(what);
     });
     show
@@ -620,20 +619,13 @@ fn reaction_row(ui: &mut egui::Ui, i: usize, row: &mut ReactionRow) -> bool {
     let equation = c.equation.clone();
     ui.horizontal(|ui| {
         ui.add_space(20.0);
-        // Two points above egui's small text, to be read easily.
-        let size = ui
-            .style()
-            .text_styles
-            .get(&egui::TextStyle::Small)
-            .map_or(9.0, |f| f.size)
-            + 2.0;
+        // The panel's ordinary text size, to be read easily.
         ui.vertical(|ui| {
             if !gives.is_empty() {
                 let gives = gives.join(" · ");
-                ui.label(RichText::new(&gives).size(size))
-                    .on_hover_text(gives);
+                ui.label(&gives).on_hover_text(gives);
             }
-            ui.label(RichText::new(&equation).size(size).weak())
+            ui.label(RichText::new(&equation).weak())
                 .on_hover_text(equation);
         });
     });
