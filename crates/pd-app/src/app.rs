@@ -35,6 +35,11 @@ const REDO_Y: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Y);
 const THIRD_PARTY_PAGE: &str = "THIRD-PARTY.html";
 #[cfg(not(target_arch = "wasm32"))]
 const THIRD_PARTY_PAGE: &str = "https://sys-bio.github.io/PathwayDesigner-rs/THIRD-PARTY.html";
+/// The funding acknowledgement in the About box, then its centre's site.
+const FUNDING: &str = "This work was supported by NIH Biomedical Imaging and Bioengineering \
+     award P41 EB023912 through HMS at the Center for Reproducible Biomedical Modeling";
+const FUNDING_SITE: &str = "reproduciblebiomodels.org";
+const FUNDING_URL: &str = "https://reproduciblebiomodels.org/";
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
 /// Find an item in the list on the left.
 const FIND: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::F);
@@ -1759,6 +1764,16 @@ impl PathwayApp {
                         )
                         .small(),
                     );
+                    ui.add_space(4.0);
+                    // Funding, wrapped to the box's width.
+                    ui.set_max_width(420.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(FUNDING);
+                        ui.add(
+                            egui::Hyperlink::from_label_and_url(FUNDING_SITE, FUNDING_URL)
+                                .open_in_new_tab(true),
+                        );
+                    });
                     ui.add_space(4.0);
                     close |= ui.button("Close").clicked();
                 });
@@ -3673,6 +3688,25 @@ k = 0.1",
         h.run(vec![]);
         h.run(vec![]);
         assert!(!shown(&h));
+    }
+
+    /// The About box acknowledges the funding, with a link to the centre.
+    #[test]
+    fn the_about_box_acknowledges_the_funding() {
+        let mut h = Harness::new();
+        h.app.dialog = Some(Dialog::About);
+        h.run(vec![]);
+        h.run(vec![]);
+        h.text(FUNDING);
+        let link = h.widget(FUNDING_SITE);
+        h.pointer(link, None);
+        h.pointer(link, Some(true));
+        h.pointer(link, Some(false));
+        assert!(
+            h.opened.iter().any(|o| o.url == FUNDING_URL && o.new_tab),
+            "{:?}",
+            h.opened
+        );
     }
 
     /// A link clicked in the app opens in a new tab, never over the app

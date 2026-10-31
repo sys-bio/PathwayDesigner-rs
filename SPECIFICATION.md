@@ -2813,7 +2813,7 @@ file name when a file is open).
 |---|---|
 | **File** | New · Open… · Open from Gallery… (§11.8) · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
 | **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Annotate Species from Names… · Annotate Reactions from Names… (§13.3; Rust version) · *(separator)* · Preferences… |
-| **Help** | Mouse and Keyboard (added in the Rust version: a window, not modal, listing the mouse actions and keyboard shortcuts as the README does; on the macOS desktop app it names Cmd and Option, elsewhere it notes them) · About (shows the version and build date) |
+| **Help** | Mouse and Keyboard (added in the Rust version: a window, not modal, listing the mouse actions and keyboard shortcuts as the README does; on the macOS desktop app it names Cmd and Option, elsewhere it notes them) · About (shows the version and build date, and the funding acknowledgement: NIH Biomedical Imaging and Bioengineering award P41 EB023912, through HMS at the Center for Reproducible Biomedical Modeling, with a link to https://reproduciblebiomodels.org/) |
 
 File dialogs: Open and Save use `*.json`. Antimony uses `*.ant` and `*.txt`. SBML
 uses `*.xml`. Export offers `diagram.png` and `diagram.pdf` and asks before

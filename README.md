@@ -424,6 +424,12 @@ drawn on the network, transparent fills, a background colour, KEGG maps, display
 names, annotations and their lookup in BiGG, ChEBI, PubChem and Rhea, offline use and autosave, and fixes the defects
 listed in SPECIFICATION.md §15.
 
+## Acknowledgements
+
+This work was supported by NIH Biomedical Imaging and Bioengineering award
+P41 EB023912 through HMS at the
+[Center for Reproducible Biomedical Modeling](https://reproduciblebiomodels.org/).
+
 ## Licence
 
 MIT, see [LICENSE](LICENSE). The bundled Noto Sans and Noto Serif fonts are under the SIL Open
