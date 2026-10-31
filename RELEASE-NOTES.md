@@ -4,6 +4,37 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.31 (2026-10-31)
+
+**Fixed: SBML models come back as they went in**
+
+Every curated BioModels model (1,062) and every case of the SBML Test Suite
+(1,823) was read and saved back by PathwayDesigner and simulated before and
+after. That found, and these fix:
+
+- A reaction whose id differed from a parameter's only in case (`R1`, `r1`)
+  was dropped when the file was opened.
+- `piecewise` (if-then-else) and `delay` were lost when the model was saved.
+- Initial assignments to species and compartments were dropped; their values
+  are now worked out when the file is opened, including from rules.
+- Species declared in amounts, and initial amounts, were read as
+  concentrations; both are now kept (also in Antimony, as `substanceOnly`).
+- Large models saved by PathwayDesigner could crash libSBML (and COPASI and
+  libRoadRunner, which use it).
+- A model using `rateOf` is saved as SBML Level 3 Version 2, others as
+  Version 1 as before.
+- Smaller fixes: Avogadro's constant, a parameter set by a rule with no
+  maths, a local parameter named like a rule's parameter.
+
+Now 883 of the curated models behave exactly as before after a round trip;
+the others use what a diagram can't hold (events, rate rules), and the
+message on opening says so, as it now does for conversion factors too. The
+details are in `docs/sbml-roundtrip-report.md`.
+
+**Changed**
+
+- PathwayDesigner's files are version 20 when a species is in amounts.
+
 ## 0.1.30 (2026-10-31)
 
 **New**
