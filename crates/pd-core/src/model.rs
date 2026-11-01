@@ -1696,7 +1696,7 @@ impl Model {
     /// so that the user isn't left with two ids that differ only in case,
     /// one in another case. (Reading a file goes by [`Self::is_id_used`],
     /// exactly, as SBML does.)
-    fn is_id_taken_for_rename(&self, id: &str) -> bool {
+    pub(crate) fn is_id_taken_for_rename(&self, id: &str) -> bool {
         let same = |other: &str| other.eq_ignore_ascii_case(id);
         self.is_id_used(id)
             || self.species.iter().any(|s| same(&s.id))

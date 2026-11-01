@@ -135,6 +135,9 @@ pub struct DiagramView {
     /// The undo history's version and the selection after the last keyboard
     /// nudge, so the next one can join its undo step.
     nudged: Option<(u64, SelectionState)>,
+    /// The clipboard text last pasted without a place, and how many times
+    /// in a row: each paste lands a step further from the originals.
+    pasted: Option<(String, u32)>,
     /// The corner point last clicked or dragged, which the arrow keys move
     /// (S §5.7.1): the reaction, the modifier's index and the point's.
     current_corner: Option<(Id, modifier_lines::LineRef, usize)>,
@@ -429,6 +432,7 @@ impl DiagramView {
             hover: None,
             layout: None,
             nudged: None,
+            pasted: None,
             current_corner: None,
             highlight: None,
             marks: Marks::default(),
@@ -2199,6 +2203,76 @@ impl DiagramView {
     /// Deletes the selected species, with the cascade of S §3.7, then any
     /// selected reactions and texts that are left. One undo step (S §7.2).
     pub fn delete_selection(&mut self) -> ViewResponse {
+        self.delete_selection_as("Delete")
+    }
+
+    /// The selection as clipboard text (docs/cut-copy-paste-design.md), with
+    /// the species its reactions join and what their rate laws use; `None`
+    /// with nothing selected.
+    pub fn copy_selection(&self) -> Option<String> {
+        crate::clipboard::copy(&self.model).map(|f| crate::clipboard::to_text(&f))
+    }
+
+    /// Copy, then Delete, as one undo step.
+    pub fn cut_selection(&mut self) -> (Option<String>, ViewResponse) {
+        if self.is_busy() || self.layout.is_some() {
+            return (None, ViewResponse::default());
+        }
+        let Some(text) = self.copy_selection() else {
+            return (None, ViewResponse::default());
+        };
+        (Some(text), self.delete_selection_as("Cut"))
+    }
+
+    /// True if `text` is something Paste can add.
+    pub fn can_paste(text: &str) -> bool {
+        crate::clipboard::from_text(text).is_some()
+    }
+
+    /// Adds what `text` holds (a copy from [`Self::copy_selection`]) as one
+    /// undo step, leaving it selected. With `at`, a point on the screen, it
+    /// is centred there; otherwise it lands a step below and right of where
+    /// it was copied from, a step further at each paste in a row. Text that
+    /// isn't a copy does nothing.
+    pub fn paste(&mut self, text: &str, at: Option<Pt>) -> ViewResponse {
+        if self.is_busy() || self.layout.is_some() {
+            return ViewResponse::default();
+        }
+        let Some(fragment) = crate::clipboard::from_text(text) else {
+            return ViewResponse::default();
+        };
+        let offset = match (at, fragment.bounds()) {
+            (Some(p), Some(b)) => self.screen_to_world(p) - b.center,
+            _ => {
+                let times = match &self.pasted {
+                    Some((last, n)) if last == text => n + 1,
+                    _ => 1,
+                };
+                self.pasted = Some((text.to_owned(), times));
+                Pt {
+                    x: PASTE_STEP,
+                    y: PASTE_STEP,
+                } * times as f64
+            }
+        };
+        self.current_corner = None;
+        let before = self.model.clone();
+        crate::clipboard::paste(&mut self.model, &fragment, offset);
+        crate::compartments::place_unplaced(&mut self.model);
+        self.undo.push(Command::Snapshot {
+            desc: "Paste",
+            before: Box::new(before),
+            after: Box::new(self.model.clone()),
+        });
+        ViewResponse {
+            repaint: true,
+            selection_changed: true,
+            model_changed: true,
+            request: None,
+        }
+    }
+
+    fn delete_selection_as(&mut self, desc: &'static str) -> ViewResponse {
         if self.is_busy() || self.layout.is_some() || !self.has_selection() {
             return ViewResponse::default();
         }
@@ -2217,7 +2291,7 @@ impl DiagramView {
             self.model.delete_compartment(&id);
         }
         self.undo.push(Command::Snapshot {
-            desc: "Delete",
+            desc,
             before: Box::new(before),
             after: Box::new(self.model.clone()),
         });
@@ -2358,6 +2432,10 @@ impl DiagramView {
         }
     }
 }
+
+/// How far each paste without a place lands from the last, right and down,
+/// in world units.
+const PASTE_STEP: f64 = 20.0;
 
 /// `(id, from, to)` for items that moved by `delta` from their originals.
 fn moved(items: &[(Id, Pt)], delta: Pt) -> Vec<(Id, Pt, Pt)> {
