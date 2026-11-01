@@ -808,6 +808,37 @@ Make Nice for a single reaction (S §7.4.5) runs immediately. It is quick.
 
 ---
 
+### 7.3 Cut, copy and paste
+
+Edit ▸ Cut, Copy and Paste (Ctrl+X, Ctrl+C, Ctrl+V) work on the selection,
+through the system clipboard (docs/cut-copy-paste-design.md). The copy is a
+native JSON document (§4) of the copied items, inside
+`{"pathwayDesignerClipboard": 1, "fromAliases": [...], "compartmentsUsed":
+[...], "model": {...}}`; Paste ignores any other text.
+
+- **Copy** (`pd-core::clipboard::copy`) takes the selected items, the species
+  the selected reactions join, and the parameters and assignment rules their
+  rate laws use, followed through the parameters' and rules' expressions, with
+  the rules that set copied species. Compartments the copied species are in, or
+  the expressions use, come unselected (`compartmentsUsed`). An alias copied
+  without its primary stands for it, under the primary's id, with the
+  primary's values (`fromAliases`).
+- **Paste** (`clipboard::paste`) keeps an id that is free and gives one used,
+  in any letter case, the first free `_2`, `_3`, …; expressions are rewritten
+  in one pass, so a new name is never renamed again. A `fromAliases` species
+  becomes an alias of the model's species of that id if it has one. A
+  `compartmentsUsed` compartment is the model's own if it has one; otherwise it
+  is added, and kept only if something is in it or uses it. Species take the
+  compartment they land in (S §7.9). Only the pasted items are left selected.
+- Paste is centred on a point (the pointer for Ctrl+V, the click for a
+  right-click menu), or, from Edit ▸ Paste, 20 units right and down of where
+  it was copied, 20 more at each paste of the same copy in a row. Cut and Paste
+  are one undo step each.
+- The keys arrive as egui's Cut, Copy and Paste events, and are left to a text
+  field that has the keyboard. Edit ▸ Paste asks eframe to read the clipboard
+  on the desktop, and reads it through the browser on the web, using the app's
+  own last copy if the browser refuses.
+
 ## 8. Import and export
 
 **Decision: pure Rust.** The Antimony parser, the expression parser, the SBML writer

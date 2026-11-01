@@ -7,6 +7,7 @@ mod antimony_panel;
 mod app;
 mod autosave;
 mod canvas;
+mod clipboard;
 mod document;
 mod entry_names;
 mod export;

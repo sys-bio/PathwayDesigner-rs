@@ -514,8 +514,8 @@ impl DiagramView {
 
     /// A right click asks for the context menu of what is under it (S §13.4).
     /// An item that isn't selected becomes the only selection, so the menu's
-    /// commands act on what the user sees highlighted. Nothing happens on
-    /// empty canvas.
+    /// commands act on what the user sees highlighted. On empty canvas the
+    /// selection stays as it is, for Paste.
     pub(super) fn context_click(&mut self, pos: Pt, _modifiers: Modifiers) -> ViewResponse {
         if self.tool != Tool::Select || self.is_busy() {
             return ViewResponse::default();
@@ -571,10 +571,10 @@ impl DiagramView {
             | Target::SpeciesLabel(_)
             | Target::ReactionLabel(_)
             | Target::StemEnd(..)
-            | Target::AddLine(_)
-            | Target::Empty => {
+            | Target::AddLine(_) => {
                 return ViewResponse::default();
             }
+            Target::Empty => {}
         }
         ViewResponse {
             repaint: true,

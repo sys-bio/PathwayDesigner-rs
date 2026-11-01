@@ -42,6 +42,10 @@ impl CanvasState {
 /// because some need a dialog.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MenuAction {
+    Cut,
+    Copy,
+    /// Paste, centred on this point on the screen.
+    Paste(Option<pd_core::geometry::Pt>),
     CreateAlias(String),
     SplitIntoAliases(String),
     /// Select All Drawings: the species or alias right-clicked.
@@ -240,6 +244,20 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
             ui.close();
         }
     };
+    if matches!(
+        target,
+        Target::Species(_)
+            | Target::Junction(_)
+            | Target::Leg(_)
+            | Target::Text(_)
+            | Target::Compartment(_)
+            | Target::Empty
+    ) {
+        clipboard_items(ui, view, &mut item);
+        if *target != Target::Empty {
+            ui.separator();
+        }
+    }
     match target {
         Target::Species(id) => {
             let Some(node) = view.model().find_species(id) else {
@@ -586,10 +604,30 @@ fn context_menu(ui: &mut egui::Ui, view: &DiagramView, target: &Target) -> Optio
         | Target::SpeciesLabel(_)
         | Target::ReactionLabel(_)
         | Target::StemEnd(..)
-        | Target::AddLine(_)
-        | Target::Empty => ui.close(),
+        | Target::AddLine(_) => ui.close(),
+        Target::Empty => {}
     }
     chosen.or(item_chosen)
+}
+
+/// Cut, Copy and Paste (docs/cut-copy-paste-design.md): Paste puts the copy
+/// where the menu was asked for.
+fn clipboard_items(
+    ui: &mut egui::Ui,
+    view: &DiagramView,
+    item: &mut impl FnMut(&mut egui::Ui, &str, MenuAction),
+) {
+    if view.has_selection() {
+        item(ui, "Cut", MenuAction::Cut);
+        item(ui, "Copy", MenuAction::Copy);
+    } else {
+        for label in ["Cut", "Copy"] {
+            ui.add_enabled(false, egui::Button::new(label))
+                .on_disabled_hover_text("Select something first");
+        }
+    }
+    let at = view.context_point().map(|p| view.world_to_screen(p));
+    item(ui, "Paste", MenuAction::Paste(at));
 }
 
 /// Copy Style and Paste Style (S §8.5), Save Style…, Apply Style and

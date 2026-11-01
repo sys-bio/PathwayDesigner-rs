@@ -41,6 +41,11 @@ const FUNDING: &str = "This work was supported by NIH Biomedical Imaging and Bio
 const FUNDING_SITE: &str = "reproduciblebiomodels.org";
 const FUNDING_URL: &str = "https://reproduciblebiomodels.org/";
 const SELECT_ALL: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
+/// Shown in the menus only: the keys arrive as egui's Cut, Copy and Paste
+/// events (crate::clipboard).
+const CUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::X);
+const COPY: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::C);
+const PASTE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::V);
 /// Find an item in the list on the left.
 const FIND: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::F);
 /// Ctrl+Alt (Cmd+Option), not Ctrl+Shift: Chrome keeps Ctrl+Shift+C for its
@@ -226,6 +231,8 @@ pub struct PathwayApp {
     pub(crate) mac_menu: Option<crate::macos_menu::MacMenu>,
     /// What the last operation did, shown in the status bar.
     pub(crate) notice: Option<String>,
+    /// Cut, Copy and Paste of the diagram (docs/cut-copy-paste-design.md).
+    clipboard: crate::clipboard::Clipboard,
     /// Zoom to fit on the next frame, once the canvas size is known.
     pub(crate) fit_pending: bool,
     /// The canvas the last zoom to fit was for, while the fit is kept up to
@@ -306,6 +313,7 @@ impl PathwayApp {
             #[cfg(target_os = "macos")]
             mac_menu: None,
             notice: None,
+            clipboard: crate::clipboard::Clipboard::new(),
             fit_pending: false,
             fit: None,
             canvas_centre: Pt::ZERO,
@@ -458,6 +466,49 @@ impl PathwayApp {
         self.needed_version = needed;
     }
 
+    /// Edit ▸ Copy: the selection, with what it needs, on the clipboard.
+    fn copy(&mut self, ctx: &egui::Context) {
+        if let Some(text) = self.view.copy_selection() {
+            self.clipboard.put(ctx, text);
+            self.notice = Some("Copied".to_owned());
+        }
+    }
+
+    /// Edit ▸ Cut: Copy, then Delete.
+    fn cut(&mut self, ctx: &egui::Context) {
+        if let (Some(text), _) = self.view.cut_selection() {
+            self.clipboard.put(ctx, text);
+            self.notice = Some("Cut".to_owned());
+        }
+    }
+
+    /// Pastes clipboard text: at `at` on the screen, or a step from where it
+    /// was copied.
+    fn paste(&mut self, text: &str, at: Option<Pt>) {
+        if pd_core::view::DiagramView::can_paste(text) {
+            self.view.paste(text, at);
+            self.notice = Some("Pasted".to_owned());
+        } else {
+            self.notice = Some("The clipboard holds no part of a diagram".to_owned());
+        }
+    }
+
+    /// The clipboard's commands this frame: Ctrl+X, Ctrl+C and Ctrl+V when no
+    /// text field or dialog has the keyboard, and a menu's Paste once the
+    /// clipboard's text comes.
+    fn clipboard_commands(&mut self, ctx: &egui::Context) {
+        let keys =
+            self.dialog.is_none() && !ctx.egui_wants_keyboard_input() && !self.view.is_laying_out();
+        let pointer = self.view.pointer();
+        for command in self.clipboard.commands(ctx, keys, pointer) {
+            match command {
+                crate::clipboard::Command::Cut => self.cut(ctx),
+                crate::clipboard::Command::Copy => self.copy(ctx),
+                crate::clipboard::Command::Paste { text, at } => self.paste(&text, at),
+            }
+        }
+    }
+
     /// Copy Style for the one selected item, with a word in the status bar.
     fn copy_selected_style(&mut self) {
         if let Some(id) = self.view.copy_selected_style() {
@@ -468,6 +519,9 @@ impl PathwayApp {
     /// Carries out a context-menu command.
     fn act(&mut self, action: MenuAction, canvas_centre: pd_core::geometry::Pt) {
         match action {
+            // These need the egui context: carried out where the menu's
+            // choice comes back, in `ui`.
+            MenuAction::Cut | MenuAction::Copy | MenuAction::Paste(_) => {}
             MenuAction::CreateAlias(id) => {
                 self.view.create_alias(&id);
             }
@@ -851,6 +905,22 @@ impl PathwayApp {
                     ui.close();
                 }
                 ui.separator();
+                let selected = self.view.has_selection();
+                let cut = egui::Button::new("Cut").shortcut_text(ctx.format_shortcut(&CUT));
+                if ui.add_enabled(selected, cut).clicked() {
+                    self.cut(&ctx);
+                    ui.close();
+                }
+                let copy = egui::Button::new("Copy").shortcut_text(ctx.format_shortcut(&COPY));
+                if ui.add_enabled(selected, copy).clicked() {
+                    self.copy(&ctx);
+                    ui.close();
+                }
+                let paste = egui::Button::new("Paste").shortcut_text(ctx.format_shortcut(&PASTE));
+                if ui.add(paste).clicked() {
+                    self.clipboard.request_paste(&ctx, None);
+                    ui.close();
+                }
                 let delete = egui::Button::new("Delete").shortcut_text("Del");
                 if ui.add_enabled(self.view.has_selection(), delete).clicked() {
                     self.view.delete_selection();
@@ -1841,6 +1911,7 @@ impl eframe::App for PathwayApp {
         self.check_close();
         self.update_title();
         self.shortcuts(&ctx);
+        self.clipboard_commands(&ctx);
         self.run_layout(&ctx);
         let busy = self.view.is_laying_out();
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
@@ -1999,7 +2070,12 @@ impl eframe::App for PathwayApp {
                 _ => {}
             }
             if let Some(action) = out.action {
-                self.act(action, out.centre);
+                match action {
+                    MenuAction::Cut => self.cut(&ctx),
+                    MenuAction::Copy => self.copy(&ctx),
+                    MenuAction::Paste(at) => self.clipboard.request_paste(&ctx, at),
+                    action => self.act(action, out.centre),
+                }
             }
         }
         self.note_version_change();
@@ -2068,6 +2144,8 @@ mod tests {
         cursor: egui::CursorIcon,
         /// The links the last frame opened.
         opened: Vec<egui::OpenUrl>,
+        /// The text the last frame put on the clipboard.
+        copied: Option<String>,
     }
 
     impl Harness {
@@ -2082,6 +2160,7 @@ mod tests {
                 size: egui::vec2(1400.0, 900.0),
                 cursor: egui::CursorIcon::Default,
                 opened: Vec::new(),
+                copied: None,
             };
             h.run(vec![]);
             h
@@ -2111,6 +2190,10 @@ mod tests {
                     _ => None,
                 })
                 .collect();
+            self.copied = out.platform_output.commands.iter().find_map(|c| match c {
+                egui::OutputCommand::CopyText(t) => Some(t.clone()),
+                _ => None,
+            });
         }
 
         /// The centre of the widget labelled `label`, from the accessibility
@@ -2122,7 +2205,10 @@ mod tests {
                 .iter()
                 .map(|(_, n)| n)
                 .find(|n| n.label() == Some(label))
-                .unwrap_or_else(|| panic!("no widget labelled {label:?}"));
+                .unwrap_or_else(|| {
+                    let all: Vec<_> = tree.nodes.iter().filter_map(|(_, n)| n.label()).collect();
+                    panic!("no widget labelled {label:?} in {all:?}")
+                });
             let b = node.bounds().expect("laid out");
             Pos2::new(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
         }
@@ -3348,6 +3434,7 @@ end */
             size: egui::vec2(1400.0, 900.0),
             cursor: egui::CursorIcon::Default,
             opened: Vec::new(),
+            copied: None,
         };
         // The first frames see a small canvas, as a new browser tab can.
         h.size = egui::vec2(300.0, 150.0);
@@ -5177,5 +5264,138 @@ k = 0.1"
         );
         // Exporting is not saving: the document keeps its own name.
         assert_ne!(h.app.doc.name, "model.ant");
+    }
+
+    // ----- Cut, Copy and Paste (docs/cut-copy-paste-design.md) -------------
+
+    /// `A -> B` by `R1`, with only `R1` selected.
+    fn clipboard_harness() -> Harness {
+        use pd_core::model::{Model, Participant, Reaction, SpeciesNode};
+        let mut m = Model::new();
+        for (id, x) in [("A", 0.0), ("B", 300.0)] {
+            m.push_species(SpeciesNode::new(id, pt(x, 0.0))).unwrap();
+        }
+        let mut r = Reaction::new("R1", pt(150.0, 0.0));
+        r.reactants.push(Participant::new("A", 1.0));
+        r.products.push(Participant::new("B", 1.0));
+        r.kinetic_law = "k1*A".into();
+        r.selected = true;
+        m.push_reaction(r).unwrap();
+        let mut h = Harness::new();
+        h.app.view.set_model(m);
+        h.run(vec![]);
+        h
+    }
+
+    fn species_ids(h: &Harness) -> Vec<String> {
+        h.app
+            .view
+            .model()
+            .species()
+            .iter()
+            .map(|s| s.id.clone())
+            .collect()
+    }
+
+    #[test]
+    fn ctrl_c_and_ctrl_v_copy_and_paste_at_the_pointer() {
+        let mut h = clipboard_harness();
+        h.run(vec![Event::Copy]);
+        let text = h.copied.clone().expect("copied");
+        assert!(pd_core::view::DiagramView::can_paste(&text));
+        // Pasted under the pointer.
+        let at = h.app.view.world_to_screen(pt(150.0, 400.0));
+        let at = Pos2::new(at.x as f32, at.y as f32);
+        h.pointer(at, None);
+        h.run(vec![Event::Paste(text)]);
+        assert_eq!(species_ids(&h), ["A", "B", "A_2", "B_2"]);
+        let r = h.app.view.model().find_reaction("R1_2").unwrap();
+        assert!(
+            (r.junction - pt(150.0, 400.0)).length() < 1.0,
+            "{:?}",
+            r.junction
+        );
+        assert_eq!(h.app.view.undo_description(), Some("Paste"));
+    }
+
+    #[test]
+    fn ctrl_x_cuts() {
+        let mut h = clipboard_harness();
+        h.run(vec![Event::Cut]);
+        assert!(h.copied.is_some());
+        assert!(h.app.view.model().reactions().is_empty());
+        assert_eq!(h.app.view.undo_description(), Some("Cut"));
+    }
+
+    #[test]
+    fn the_keys_leave_a_text_field_alone() {
+        let mut h = clipboard_harness();
+        let text = h.app.view.copy_selection().unwrap();
+        h.key(Key::F, Modifiers::COMMAND);
+        h.run(vec![]);
+        assert!(h.app.ctx.egui_wants_keyboard_input());
+        h.run(vec![Event::Copy]);
+        assert!(h.copied.is_none());
+        h.run(vec![Event::Cut]);
+        assert_eq!(h.app.view.model().reactions().len(), 1);
+        h.run(vec![Event::Paste(text)]);
+        assert_eq!(species_ids(&h), ["A", "B"]);
+    }
+
+    #[test]
+    fn the_edit_menu_cuts_copies_and_pastes() {
+        let mut h = clipboard_harness();
+        h.click(h.widget("Edit"));
+        h.run(vec![]);
+        h.click(h.widget("Copy Ctrl+C"));
+        let text = h.copied.clone().expect("copied");
+        // Paste asks for the clipboard; its text comes as a Paste event, and
+        // lands a step from the originals, wherever the pointer is.
+        h.click(h.widget("Edit"));
+        h.run(vec![]);
+        h.click(h.widget("Paste Ctrl+V"));
+        h.run(vec![Event::Paste(text)]);
+        assert_eq!(h.centre("A_2"), pt(20.0, 20.0));
+        h.click(h.widget("Edit"));
+        h.run(vec![]);
+        h.click(h.widget("Cut Ctrl+X"));
+        assert!(h.app.view.model().find_reaction("R1_2").is_none());
+    }
+
+    #[test]
+    fn paste_from_a_right_click_on_empty_canvas_puts_it_there() {
+        let mut h = clipboard_harness();
+        h.run(vec![Event::Copy]);
+        let text = h.copied.clone().unwrap();
+        let world = pt(500.0, 300.0);
+        let at = h.app.view.world_to_screen(world);
+        let at = Pos2::new(at.x as f32, at.y as f32);
+        h.pointer(at, None);
+        for pressed in [true, false] {
+            h.run(vec![Event::PointerButton {
+                pos: at,
+                button: PointerButton::Secondary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            }]);
+        }
+        h.run(vec![]);
+        h.click(h.widget("Paste"));
+        h.pointer(Pos2::new(5.0, 5.0), None);
+        h.run(vec![Event::Paste(text)]);
+        let r = h.app.view.model().find_reaction("R1_2").unwrap();
+        assert!((r.junction - world).length() < 1.0, "{:?}", r.junction);
+    }
+
+    #[test]
+    fn pasting_other_text_says_so() {
+        let mut h = clipboard_harness();
+        h.pointer(Pos2::new(700.0, 500.0), None);
+        h.run(vec![Event::Paste("hello".into())]);
+        assert_eq!(species_ids(&h), ["A", "B"]);
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("The clipboard holds no part of a diagram")
+        );
     }
 }

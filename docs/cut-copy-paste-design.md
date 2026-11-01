@@ -1,7 +1,7 @@
 # Cut, Copy and Paste of parts of a network
 
 2026-11-01. Design; decisions C1–C4 settled (C1 and C2 as recommended, C3 and
-C4 later).
+C4 later). Built: SPEC-Rust §7.3 describes what was made.
 
 PathwayDesigner can copy and paste a *style* (Ctrl+Alt+C, Ctrl+Alt+V) but not
 the things themselves. This adds Cut, Copy and Paste for the selection:

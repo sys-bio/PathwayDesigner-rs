@@ -53,7 +53,7 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
             ),
             (
                 "Right-click",
-                "The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more)",
+                "The menu for what is under the pointer (Cut, Copy and Paste, aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more); on empty canvas, Paste puts the copy there",
             ),
             (
                 "Rest the pointer on an item",
@@ -128,6 +128,10 @@ pub const SECTIONS: &[(&str, &[(&str, &str)])] = &[
                 "Select all (Edit also has Select All Species and Select All Reactions)",
             ),
             ("Delete, Backspace", "Delete the selection"),
+            (
+                "Ctrl+X, Ctrl+C, Ctrl+V",
+                "Cut, Copy, Paste the selection, between models and windows too; Ctrl+V pastes under the pointer",
+            ),
             (
                 "Arrow keys, Shift + arrow keys",
                 "Nudge the selection 1 unit, 10 units; with Snap to grid, one grid line, five (Alt for 1 and 10)",

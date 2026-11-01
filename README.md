@@ -83,6 +83,11 @@ Delphi version does, and some more (see [Status](#status)).
   have a display name, a readable name such as *D-Glucose 6-phosphate*.
   **View ▸ Display names** labels the diagram with display names instead of
   ids; each item's **Label** setting can override that.
+- **Cut, Copy and Paste** (Ctrl+X, Ctrl+C, Ctrl+V) parts of a network, within a
+  model or into another, in the same window or another one. A copied reaction
+  brings its species, and rate laws bring the parameters and rules they use. Ids
+  already in the model get `_2`, `_3`, …, and the rate laws follow; display
+  names stay as they were.
 - Undo and redo for every change.
 
 **Annotations**
@@ -237,7 +242,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Double-click a species | Rename it |
 | Double-click a text | Edit its words |
 | Double-click a modifier line, or a reactant's or product's line | Add a corner point there, so the line can turn a corner; drag the small square to move it, right-click it to remove it |
-| Right-click | The menu for what is under the pointer (aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more) |
+| Right-click | The menu for what is under the pointer (Cut, Copy and Paste, aliases, Add Reactant…, Add Product…, Remove from Reaction, Add, Straighten or Remove Stem, Modifier Kind, corner points, styles, alignment, locking and more); on empty canvas, Paste puts the copy there |
 | Rest the pointer on an item | A tooltip: a species' value, a reaction's rate law, a compartment's volume, and its display name and annotation |
 
 **Adding things**
@@ -278,6 +283,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 | Ctrl+Shift+Z, Ctrl+Y | Redo |
 | Ctrl+A | Select all (Edit also has Select All Species and Select All Reactions) |
 | Delete, Backspace | Delete the selection |
+| Ctrl+X, Ctrl+C, Ctrl+V | Cut, Copy, Paste the selection, between models and windows too; Ctrl+V pastes under the pointer |
 | Arrow keys, Shift + arrow keys | Nudge the selection 1 unit, 10 units; with Snap to grid, one grid line, five (Alt for 1 and 10) |
 | Arrow keys after clicking a corner point | Move that point instead, by the same steps; a click elsewhere or Esc goes back to the selection |
 | Ctrl+Alt+C, Ctrl+Alt+V | Copy Style, Paste Style |

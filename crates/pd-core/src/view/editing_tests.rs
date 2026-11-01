@@ -422,8 +422,12 @@ fn right_click_selects_and_asks_for_a_menu() {
     v.select_all();
     right_click(&mut v, 0.0, 0.0);
     assert_eq!(v.selection().0.len(), 4);
-    // Nothing on empty canvas.
-    assert_eq!(right_click(&mut v, 900.0, 900.0).request, None);
+    // On empty canvas, a menu for Paste; the selection stays.
+    assert_eq!(
+        right_click(&mut v, 900.0, 900.0).request,
+        Some(Request::ContextMenu(Target::Empty))
+    );
+    assert_eq!(v.selection().0.len(), 4);
 }
 
 #[test]

@@ -2224,6 +2224,12 @@ impl DiagramView {
         (Some(text), self.delete_selection_as("Cut"))
     }
 
+    /// Where the pointer is over the canvas, in screen coordinates; `None`
+    /// when it isn't over it.
+    pub fn pointer(&self) -> Option<Pt> {
+        self.hover
+    }
+
     /// True if `text` is something Paste can add.
     pub fn can_paste(text: &str) -> bool {
         crate::clipboard::from_text(text).is_some()

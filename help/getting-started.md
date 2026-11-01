@@ -32,6 +32,22 @@ loads without errors.
    **Properties** tab on the right shows what is selected, and right-clicking
    an item gives a menu of what can be done to it.
 
+## Copy part of a diagram
+
+Select what to copy and choose **Edit ▸ Copy** (Ctrl+C), or **Cut** (Ctrl+X)
+to take it away. **Edit ▸ Paste** (Ctrl+V) adds a copy, selected so that it
+can be dragged into place; Ctrl+V, or Paste from a right-click menu, puts it
+where the pointer is. It can be pasted into another model, or into
+PathwayDesigner in another window or browser tab.
+
+- A copied reaction brings its reactants, products and modifiers, even if they
+  weren't selected, and its rate law brings the parameters and rules it uses.
+- An id the model already has gets `_2`, `_3`, …: a copy of `ATP` pasted
+  beside it is `ATP_2`, and the copied rate laws use the new ids. Display
+  names are copied as they are.
+- An alias copied without its species becomes an alias of the species of that
+  id where it is pasted, if there is one.
+
 ## See the drawing as Antimony
 
 Press **Get Antimony** in the Antimony tab to see the network you have drawn
