@@ -520,10 +520,12 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
                 None => bbox(s),
             };
             let tid = ids.unique(format!("tg_{}", s.id));
+            let (text, origin_of_text) = words(&s.label_text, s.primary_id());
             l.text_glyphs.push(sb::TextGlyph {
                 id: tid.clone(),
                 graphical_object: Some(id),
-                origin_of_text: Some(s.primary_id().to_owned()),
+                text,
+                origin_of_text,
                 bounding_box: Some(text_box),
                 ..Default::default()
             });
@@ -551,10 +553,12 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         // Its name, in the box the app draws it in (S §7.9).
         let (a, b) = crate::render::draw::compartment_label_box(c, &f);
         let tid = ids.unique(format!("tg_{}", c.id));
+        let (text, origin_of_text) = words(&c.label_text, &c.id);
         l.text_glyphs.push(sb::TextGlyph {
             id: tid.clone(),
             graphical_object: Some(g.id.clone()),
-            origin_of_text: Some(c.id.clone()),
+            text,
+            origin_of_text,
             bounding_box: Some(sb::BoundingBox::new(a.x, a.y, b.x - a.x, b.y - a.y)),
             ..Default::default()
         });
@@ -657,10 +661,12 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
         if let Some((a, b)) = crate::render::draw::reaction_label_box(model, r) {
             let tid = ids.unique(format!("tg_{}", r.id));
             glyphs.push((tid.clone(), Item::ReactionName(r)));
+            let (text, origin_of_text) = words(&r.label_text, &r.id);
             l.text_glyphs.push(sb::TextGlyph {
                 id: tid,
                 graphical_object: Some(g.id.clone()),
-                origin_of_text: Some(r.id.clone()),
+                text,
+                origin_of_text,
                 bounding_box: Some(sb::BoundingBox::new(a.x, a.y, b.x - a.x, b.y - a.y)),
                 ..Default::default()
             });
@@ -670,6 +676,16 @@ fn layout(model: &Model, legs: &[Leg], ids: &mut Ids) -> sb::Layout {
     // How it all looks (docs/render-design.md).
     l.render = Some(super::appearance::render_list(model, &glyphs));
     l
+}
+
+/// What a name's text glyph says: the drawing's label text as its own words,
+/// as Reactome writes its short labels, or else the item's name, by its id
+/// (docs/layout-labels-design.md L5).
+fn words(label_text: &Option<String>, id: &str) -> (Option<String>, Option<String>) {
+    match label_text {
+        Some(t) => (Some(t.clone()), None),
+        None => (None, Some(id.to_owned())),
+    }
 }
 
 /// A participant's line as SBML curve segments, in the direction of flow: a

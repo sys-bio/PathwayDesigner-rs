@@ -280,9 +280,13 @@ pub struct SpeciesNode {
     pub annotation: Annotation,
     /// What its label shows (D4); each drawing, alias or not, has its own.
     pub label_choice: LabelChoice,
-    /// Transient, kept by [`Model::refresh_labels`]: the display name its
-    /// label shows, or `None` for its species' id. Read it through
-    /// [`SpeciesNode::label`].
+    /// This drawing's own words for its label, shown in place of the display
+    /// name (docs/layout-labels-design.md): Reactome's `G6P` for
+    /// `G6P [cytosol]`. `None` when it has none.
+    pub label_text: Option<String>,
+    /// Transient, kept by [`Model::refresh_labels`]: the label text or
+    /// display name its label shows, or `None` for its species' id. Read it
+    /// through [`SpeciesNode::label`].
     pub shown_name: Option<String>,
 }
 
@@ -447,6 +451,7 @@ impl SpeciesNode {
             display_name: None,
             annotation: Annotation::default(),
             label_choice: LabelChoice::Diagram,
+            label_text: None,
             shown_name: None,
         }
     }
@@ -733,6 +738,9 @@ pub struct Reaction {
     pub annotation: Annotation,
     /// What its label shows (D4).
     pub label_choice: LabelChoice,
+    /// Its own words for its label, shown in place of the display name
+    /// (docs/layout-labels-design.md).
+    pub label_text: Option<String>,
     /// Transient, kept by [`Model::refresh_labels`]; read it through
     /// [`Reaction::label`].
     pub shown_name: Option<String>,
@@ -780,11 +788,12 @@ impl Reaction {
             display_name: None,
             annotation: Annotation::default(),
             label_choice: LabelChoice::Diagram,
+            label_text: None,
             shown_name: None,
         }
     }
 
-    /// The words its label shows: its display name or id (D4).
+    /// The words its label shows: its label text, display name or id (D4).
     pub fn label(&self) -> &str {
         self.shown_name.as_deref().unwrap_or(&self.id)
     }
@@ -958,6 +967,9 @@ pub struct Compartment {
     pub annotation: Annotation,
     /// What its label shows (D4).
     pub label_choice: LabelChoice,
+    /// Its own words for its label, shown in place of the display name
+    /// (docs/layout-labels-design.md).
+    pub label_text: Option<String>,
     /// Transient, kept by [`Model::refresh_labels`]; read it through
     /// [`Compartment::label`].
     pub shown_name: Option<String>,
@@ -977,11 +989,12 @@ impl Compartment {
             display_name: None,
             annotation: Annotation::default(),
             label_choice: LabelChoice::Diagram,
+            label_text: None,
             shown_name: None,
         }
     }
 
-    /// The words its label shows: its display name or id (D4).
+    /// The words its label shows: its label text, display name or id (D4).
     pub fn label(&self) -> &str {
         self.shown_name.as_deref().unwrap_or(&self.id)
     }
@@ -1195,21 +1208,20 @@ impl Model {
             .filter(|s| s.alias_of.is_none())
             .map(|s| (s.id.clone(), s.display_name.clone()))
             .collect();
+        // Label text stands in for the display name, where a name is shown
+        // (docs/layout-labels-design.md L2).
+        let shown = |text: &Option<String>, name: Option<String>, choice: LabelChoice| {
+            text.clone().or(name).filter(|_| choice.shows_name(diagram))
+        };
         for s in &mut self.species {
             let name = names.get(s.primary_id()).cloned().flatten();
-            s.shown_name = name.filter(|_| s.label_choice.shows_name(diagram));
+            s.shown_name = shown(&s.label_text, name, s.label_choice);
         }
         for r in &mut self.reactions {
-            r.shown_name = r
-                .display_name
-                .clone()
-                .filter(|_| r.label_choice.shows_name(diagram));
+            r.shown_name = shown(&r.label_text, r.display_name.clone(), r.label_choice);
         }
         for c in &mut self.compartments {
-            c.shown_name = c
-                .display_name
-                .clone()
-                .filter(|_| c.label_choice.shows_name(diagram));
+            c.shown_name = shown(&c.label_text, c.display_name.clone(), c.label_choice);
         }
     }
 
@@ -1457,13 +1469,21 @@ impl Model {
     pub fn add_alias(&mut self, primary: &str, center: Pt) -> Option<Id> {
         let source = self.find_species(primary)?;
         let primary_id = source.primary_id().to_owned();
-        let (width, height, shape, label_offset) = match self.find_species(&primary_id) {
-            Some(p) => (p.width, p.height, p.shape, p.label_offset),
+        let (width, height, shape, label_offset, label_text) = match self.find_species(&primary_id)
+        {
+            Some(p) => (
+                p.width,
+                p.height,
+                p.shape,
+                p.label_offset,
+                p.label_text.clone(),
+            ),
             None => (
                 source.width,
                 source.height,
                 source.shape,
                 source.label_offset,
+                source.label_text.clone(),
             ),
         };
         let id = self.generate_id('S');
@@ -1472,6 +1492,8 @@ impl Model {
         node.height = height;
         node.shape = shape;
         node.label_offset = label_offset;
+        // A new drawing starts with its primary's words (L3).
+        node.label_text = label_text;
         node.alias_of = Some(primary_id);
         self.push_species(node).expect("generated ids are unused");
         Some(id)

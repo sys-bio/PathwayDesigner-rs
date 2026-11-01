@@ -22,9 +22,13 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought species in amounts (`inAmounts`) and initial values
-/// that are amounts (`initialAmount`).
-pub const FORMAT_VERSION: u32 = 20;
+/// one that brought label text on species, reactions and compartments
+/// (`labelText`, docs/layout-labels-design.md).
+pub const FORMAT_VERSION: u32 = 21;
+
+/// The version that brought species in amounts (`inAmounts`) and initial
+/// values that are amounts (`initialAmount`).
+pub const IN_AMOUNTS_VERSION: u32 = 20;
 
 /// The version that brought the names of the entries references point to
 /// (`referenceNames`).
@@ -187,12 +191,17 @@ pub fn needed_version(model: &Model) -> u32 {
             .assignment_rules
             .iter()
             .any(|r| !r.annotation.is_empty());
-    if model
+    let label_text = model.species().iter().any(|s| s.label_text.is_some())
+        || model.reactions().iter().any(|r| r.label_text.is_some())
+        || model.compartments.iter().any(|c| c.label_text.is_some());
+    if label_text {
+        FORMAT_VERSION
+    } else if model
         .species()
         .iter()
         .any(|s| s.in_amounts || s.initial_is_amount)
     {
-        FORMAT_VERSION
+        IN_AMOUNTS_VERSION
     } else if !used_reference_names(model).is_empty() {
         REFERENCE_NAMES_VERSION
     } else if annotations {
@@ -610,6 +619,11 @@ struct FileCompartment {
     /// Left out when it is as the diagram says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    /// Version 21: its own words for its label, shown in place of the
+    /// display name (docs/layout-labels-design.md); on a species, each
+    /// drawing's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_text: Option<String>,
     /// Version 18 (docs/annotations-design.md); on a species, a primary's
     /// only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -683,6 +697,11 @@ struct FileSpecies {
     /// Left out when it is as the diagram says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    /// Version 21: its own words for its label, shown in place of the
+    /// display name (docs/layout-labels-design.md); on a species, each
+    /// drawing's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_text: Option<String>,
     /// Version 18 (docs/annotations-design.md); on a species, a primary's
     /// only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -747,6 +766,11 @@ struct FileReaction {
     /// Left out when it is as the diagram says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    /// Version 21: its own words for its label, shown in place of the
+    /// display name (docs/layout-labels-design.md); on a species, each
+    /// drawing's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_text: Option<String>,
     /// Version 18 (docs/annotations-design.md); on a species, a primary's
     /// only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -925,6 +949,7 @@ impl FileModel {
                 selected: false,
                 style_name: c.style_name,
                 display_name: crate::model::display_name(c.display_name),
+                label_text: crate::model::display_name(c.label_text),
                 annotation: annotation_from_file(c.annotation),
                 shown_name: None,
             })
@@ -1008,6 +1033,7 @@ impl FileModel {
                 },
                 style_name: s.style_name,
                 display_name: crate::model::display_name(s.display_name),
+                label_text: crate::model::display_name(s.label_text),
                 annotation: annotation_from_file(s.annotation),
                 shown_name: None,
             };
@@ -1041,6 +1067,7 @@ impl FileModel {
             reaction.style = style_from_file(r.style);
             reaction.style_name = r.style_name;
             reaction.display_name = crate::model::display_name(r.display_name);
+            reaction.label_text = crate::model::display_name(r.label_text);
             reaction.annotation = annotation_from_file(r.annotation);
             reaction.label_choice = label_choice(r.label.as_deref(), &reaction.id, &mut warnings);
             reaction.stem = match r.stem.as_deref() {
@@ -1472,6 +1499,7 @@ impl FileModel {
                     no_border: c.style.no_border,
                     display_name: c.display_name.clone(),
                     label: c.label_choice.key().map(str::to_owned),
+                    label_text: c.label_text.clone(),
                     annotation: annotation_to_file(&c.annotation),
                 })
                 .collect(),
@@ -1519,6 +1547,7 @@ impl FileModel {
                     no_border: s.style.no_border,
                     display_name: s.display_name.clone(),
                     label: s.label_choice.key().map(str::to_owned),
+                    label_text: s.label_text.clone(),
                     annotation: annotation_to_file(&s.annotation),
                     in_amounts: s.in_amounts,
                     initial_amount: s.initial_is_amount,
@@ -1724,6 +1753,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         stem_straight: needs_stem_straight(r).then_some(false),
         display_name: r.display_name.clone(),
         label: r.label_choice.key().map(str::to_owned),
+        label_text: r.label_text.clone(),
         annotation: annotation_to_file(&r.annotation),
     }
 }
@@ -1806,11 +1836,11 @@ mod tests {
         let mut m = Model::default();
         let a = m.add_species(Pt::ZERO, 60.0, 30.0);
         let b = m.add_species(pt(100.0, 0.0), 60.0, 30.0);
-        assert!(needed_version(&m) < FORMAT_VERSION);
+        assert!(needed_version(&m) < IN_AMOUNTS_VERSION);
         m.find_species_mut(&a).unwrap().in_amounts = true;
         m.find_species_mut(&a).unwrap().initial_is_amount = true;
         m.find_species_mut(&b).unwrap().initial_is_amount = true;
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), IN_AMOUNTS_VERSION);
         let text = to_json(&m);
         assert!(text.contains("\"inAmounts\": true"), "{text}");
         let back = from_json(&text).unwrap().model;
@@ -1820,6 +1850,44 @@ mod tests {
         );
         assert!(sa.in_amounts && sa.initial_is_amount);
         assert!(!sb.in_amounts && sb.initial_is_amount);
+    }
+
+    /// Label text (docs/layout-labels-design.md L6) is saved in version 21,
+    /// each drawing's own, and read back; a blank one is none.
+    #[test]
+    fn label_text_is_kept_in_version_21() {
+        let mut m = Model::default();
+        let a = m.add_species(Pt::ZERO, 60.0, 30.0);
+        let r = m.add_reaction(pt(100.0, 0.0));
+        m.compartments.push(Compartment::new("cell"));
+        m.find_species_mut(&a).unwrap().display_name = Some("GPI dimer [cytosol]".into());
+        let alias = m.add_alias(&a, pt(0.0, 100.0)).unwrap();
+        assert!(needed_version(&m) < FORMAT_VERSION);
+        m.find_species_mut(&a).unwrap().label_text = Some("GPI dimer".into());
+        m.find_species_mut(&alias).unwrap().label_text = Some("GPI".into());
+        m.find_reaction_mut(&r).unwrap().label_text = Some("isomerisation".into());
+        m.compartments[0].label_text = Some("cytosol".into());
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let text = to_json(&m);
+        assert!(text.contains("\"labelText\": \"GPI dimer\""), "{text}");
+        let back = from_json(&text).unwrap().model;
+        let words = |s: &SpeciesNode| s.label_text.clone();
+        assert_eq!(
+            words(back.find_species(&a).unwrap()).as_deref(),
+            Some("GPI dimer")
+        );
+        assert_eq!(
+            words(back.find_species(&alias).unwrap()).as_deref(),
+            Some("GPI")
+        );
+        assert_eq!(
+            back.find_reaction(&r).unwrap().label_text.as_deref(),
+            Some("isomerisation")
+        );
+        assert_eq!(back.compartments[0].label_text.as_deref(), Some("cytosol"));
+        let blank = text.replace("\"GPI dimer\"", "\"  \"");
+        let back = from_json(&blank).unwrap().model;
+        assert_eq!(back.find_species(&a).unwrap().label_text, None);
     }
 
     /// The names of the references' entries are saved in version 19, only

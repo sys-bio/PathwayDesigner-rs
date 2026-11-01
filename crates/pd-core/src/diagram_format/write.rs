@@ -361,6 +361,7 @@ impl<'m> Writer<'m> {
         }
         let mut props = compartment_style_props(&self.model.color_names, c.style, base_style);
         props.extend(label_prop(c.label_choice));
+        props.extend(label_text_prop(&c.label_text));
         (!clauses.is_empty() || !props.is_empty())
             .then(|| statement(format!("compartment {}", c.id), clauses, props))
     }
@@ -479,6 +480,7 @@ impl<'m> Writer<'m> {
             }),
         }
         props.extend(label_prop(s.label_choice));
+        props.extend(label_text_prop(&s.label_text));
         statement(self.drawing(&s.id), clauses, props)
     }
 
@@ -582,6 +584,7 @@ impl<'m> Writer<'m> {
             ),
         }
         props.extend(label_prop(r.label_choice));
+        props.extend(label_text_prop(&r.label_text));
         (!clauses.is_empty() || !props.is_empty()).then(|| statement(r.id.clone(), clauses, props))
     }
 
@@ -1088,6 +1091,12 @@ fn statement(head: String, clauses: Vec<String>, props: Vec<String>) -> String {
 /// (docs/display-names-design.md D4); nothing when it is as the diagram says.
 fn label_prop(choice: crate::model::LabelChoice) -> Option<String> {
     choice.key().map(|k| format!("label {k}"))
+}
+
+/// A drawing's own words for its label, `labelText "G6P"`
+/// (docs/layout-labels-design.md L7).
+fn label_text_prop(text: &Option<String>) -> Option<String> {
+    text.as_ref().map(|t| format!("labelText {}", string(t)))
 }
 
 fn block(props: &[String]) -> String {

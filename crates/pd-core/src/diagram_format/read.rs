@@ -715,6 +715,27 @@ impl Reader<'_> {
     }
 
     /// The edit an item's styles and own braces make to `start`.
+    /// An item's own `labelText "…"` (docs/layout-labels-design.md L7), and
+    /// its other properties. `None` when it has none; a blank one is none.
+    fn own_label_text(&mut self, props: &[Property]) -> (Option<Option<String>>, Vec<Property>) {
+        let mut words = None;
+        let mut rest = Vec::new();
+        for p in props {
+            if p.name != "labelText" {
+                rest.push(p.clone());
+                continue;
+            }
+            match p.values.as_slice() {
+                [Value::Str(s)] => words = Some(crate::model::display_name(Some(s.clone()))),
+                _ => self.warn(
+                    p.pos,
+                    "'labelText' needs its words in quotes, as labelText \"G6P\"; skipped",
+                ),
+            }
+        }
+        (words, rest)
+    }
+
     fn edit(&mut self, kind: &str, start: Edit, names: &[String], own: &[Property]) -> Edit {
         let mut e = start;
         for n in names {
@@ -781,9 +802,13 @@ impl Reader<'_> {
         self.check_clauses("a compartment", clauses, &["at", "size", "hidden", "style"]);
         let start = Edit::of_style(c.style);
         let names = self.named_styles("compartment", clauses);
-        let e = self.edit("compartment", start, &names, props);
+        let (words, props) = self.own_label_text(props);
+        let e = self.edit("compartment", start, &names, &props);
         let c = model.find_compartment_mut(id).expect("found above");
         c.style = e.style;
+        if let Some(words) = words {
+            c.label_text = words;
+        }
         if let Some(l) = e.label {
             c.label_choice = l;
         }
@@ -872,8 +897,12 @@ impl Reader<'_> {
             ..Edit::of_style(s.style)
         };
         let names = self.named_styles("species", clauses);
-        let e = self.edit("species", start, &names, props);
+        let (words, props) = self.own_label_text(props);
+        let e = self.edit("species", start, &names, &props);
         let s = model.find_species_mut(node).expect("a node");
+        if let Some(words) = words {
+            s.label_text = words;
+        }
         s.style = VisualStyle {
             junction_visible: s.style.junction_visible,
             ..e.style
@@ -959,8 +988,12 @@ impl Reader<'_> {
         let r = model.find_reaction(id).expect("a reaction");
         let start = Edit::of_style(r.style);
         let names = self.named_styles("reaction", clauses);
-        let e = self.edit("reaction", start, &names, props);
+        let (words, props) = self.own_label_text(props);
+        let e = self.edit("reaction", start, &names, &props);
         let r = model.find_reaction_mut(id).expect("a reaction");
+        if let Some(words) = words {
+            r.label_text = words;
+        }
         for c in clauses {
             match c.kind {
                 ClauseKind::Shape(Shape::Straight) => r.mode = ReactionMode::Straight,
@@ -1194,6 +1227,14 @@ impl Reader<'_> {
                 .map(|d| e.border_dash = d),
             ("species", "id") => species_id(v).map(|i| e.id = Some(i)),
             ("reaction", "id") => reaction_id(v).map(|i| e.id = Some(i)),
+            // Read by the item's own statement (`own_label_text`).
+            ("species" | "reaction" | "compartment", "labelText") => {
+                self.warn(
+                    p.pos,
+                    "'labelText' belongs to one drawing, not to a style or the defaults; skipped",
+                );
+                return;
+            }
             ("species" | "reaction" | "compartment", "label") => match word(v) {
                 Some("id") => Some(LabelChoice::Id),
                 Some("displayName") => Some(LabelChoice::DisplayName),

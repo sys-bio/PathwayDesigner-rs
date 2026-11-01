@@ -479,6 +479,7 @@ impl Builder {
                     {
                         self.targets
                             .push((t.id.clone(), Target::CompartmentName(id.clone())));
+                        c.label_text = own_words(t, c.display_name.as_deref(), &c.id);
                     }
                     c.frame = Some(crate::model::Frame {
                         center: pt(b.position.x + w / 2.0, b.position.y + h / 2.0),
@@ -741,14 +742,24 @@ impl Builder {
         // its text glyph's centre is outside the node's box, as other tools
         // write it (S §5.11). The name is drawn at that centre.
         for t in &l.text_glyphs {
-            let (Some(gid), Some(bb)) = (&t.graphical_object, positioned(t.bounding_box.as_ref()))
-            else {
+            let Some(gid) = &t.graphical_object else {
                 continue;
             };
-            let Some(node) = glyph_node
-                .get(gid)
-                .and_then(|id| self.model.find_species_mut(id))
-            else {
+            let Some(id) = glyph_node.get(gid).cloned() else {
+                continue;
+            };
+            // Its own words, as Reactome gives its short labels
+            // (docs/layout-labels-design.md L4).
+            let name = self
+                .model
+                .find_species(&id)
+                .and_then(|n| self.model.find_species(n.primary_id()))
+                .and_then(|p| p.display_name.clone());
+            let Some(node) = self.model.find_species_mut(&id) else {
+                continue;
+            };
+            node.label_text = own_words(t, name.as_deref(), node.primary_id());
+            let Some(bb) = positioned(t.bounding_box.as_ref()) else {
                 continue;
             };
             self.targets
@@ -783,9 +794,11 @@ impl Builder {
             else {
                 continue;
             };
-            let Some(r) = self.model.find_reaction(&id) else {
+            let Some(r) = self.model.find_reaction_mut(&id) else {
                 continue;
             };
+            r.label_text = own_words(t, r.display_name.as_deref(), &id);
+            let r = self.model.find_reaction(&id).expect("found above");
             self.targets
                 .push((t.id.clone(), Target::ReactionName(id.clone())));
             let c = pt(
@@ -1401,4 +1414,10 @@ fn find_participant(
 /// `SBO:0000247` → 247; `None` for anything else.
 fn sbo_number(term: &str) -> Option<u32> {
     term.trim().strip_prefix("SBO:")?.parse().ok()
+}
+
+/// A text glyph's own words, unless they are the item's display name or id,
+/// which need nothing kept (docs/layout-labels-design.md L4).
+fn own_words(t: &sb::TextGlyph, name: Option<&str>, id: &str) -> Option<String> {
+    crate::model::display_name(t.text.clone()).filter(|w| Some(w.as_str()) != name && w != id)
 }
