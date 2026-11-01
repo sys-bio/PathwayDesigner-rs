@@ -3510,6 +3510,78 @@ k = 0.1",
         h.text(&id);
     }
 
+    /// docs/layout-labels-design.md: a drawing's label text is typed in its
+    /// panel, as one undo step, and shown in place of its display name when
+    /// names are shown; an alias has its own, and clearing it shows the
+    /// display name again.
+    #[test]
+    fn label_text_is_typed_in_the_panel() {
+        let mut h = Harness::new();
+        let id = h.app.view.model().species()[0].id.clone();
+        h.app.view.set_display_name(&id, "glucose [cytosol]");
+        h.app.view.set_show_display_names(true);
+        h.run(vec![]);
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        let field = h.text("Label text") + egui::vec2(140.0, 0.0);
+        h.click(field);
+        h.run(vec![Event::Text("glucose".into())]);
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        let s = h.app.view.model().find_species(&id).unwrap();
+        assert_eq!(s.label_text.as_deref(), Some("glucose"));
+        assert_eq!(s.display_name.as_deref(), Some("glucose [cytosol]"));
+        assert_eq!(s.label(), "glucose");
+        assert_eq!(h.app.view.undo_description(), Some("Edit Label Text"));
+
+        // An alias starts with the same words and can have its own.
+        h.app.view.create_alias(&id);
+        h.run(vec![]);
+        let alias = h
+            .app
+            .view
+            .model()
+            .species()
+            .iter()
+            .find(|s| s.alias_of.as_deref() == Some(id.as_str()))
+            .unwrap()
+            .id
+            .clone();
+        assert_eq!(
+            h.app.view.model().find_species(&alias).unwrap().label(),
+            "glucose"
+        );
+        h.key(Key::Escape, Modifiers::NONE);
+        h.click(h.on_screen(&alias));
+        h.run(vec![]);
+        let field = h.text("Label text") + egui::vec2(140.0, 0.0);
+        h.click(field);
+        h.key(Key::A, Modifiers::COMMAND);
+        h.run(vec![Event::Text("Glc".into())]);
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        let m = h.app.view.model();
+        assert_eq!(m.find_species(&alias).unwrap().label(), "Glc");
+        assert_eq!(m.find_species(&id).unwrap().label(), "glucose");
+        // Selected again, its field shows its own words, not its species'.
+        h.key(Key::Escape, Modifiers::NONE);
+        h.click(h.on_screen(&id));
+        h.run(vec![]);
+        h.click(h.on_screen(&alias));
+        h.run(vec![]);
+        h.text("Glc");
+
+        // Cleared: the display name again.
+        h.click(field);
+        h.key(Key::A, Modifiers::COMMAND);
+        h.key(Key::Delete, Modifiers::NONE);
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        let a = h.app.view.model().find_species(&alias).unwrap();
+        assert_eq!(a.label_text, None);
+        assert_eq!(a.label(), "glucose [cytosol]");
+    }
+
     /// docs/display-names-design.md D4: View ▸ Display names labels the
     /// diagram with names, and each panel's Label choice overrides it.
     #[test]
@@ -3841,6 +3913,11 @@ k = 0.1",
     #[test]
     fn find_in_chebi_adds_what_a_name_finds() {
         let mut h = Harness::new();
+        // Tall enough for the results under the species' panel.
+        h.size.y = 1100.0;
+        for _ in 0..20 {
+            h.run(vec![]);
+        }
         h.app.gallery.fetch = chebi;
         let id = h.app.view.model().species()[0].id.clone();
         // The words to find start as the species' display name.
@@ -3879,14 +3956,21 @@ k = 0.1",
             .collect();
         adds.sort_by(|a, b| a.y.total_cmp(&b.y));
         assert_eq!(adds.len(), 3, "the references' Add and one per entry");
+        // Distinct widgets saying "glucose": an update can list a node twice.
         let glucose = |h: &Harness| {
-            h.access
+            let mut at: Vec<(i64, i64)> = h
+                .access
                 .as_ref()
                 .unwrap()
                 .nodes
                 .iter()
                 .filter(|(_, n)| n.label().or(n.value()) == Some("glucose"))
-                .count()
+                .filter_map(|(_, n)| n.bounds())
+                .map(|b| (b.x0 as i64, b.y0 as i64))
+                .collect();
+            at.sort();
+            at.dedup();
+            at.len()
         };
         let before = glucose(&h);
         h.click(adds[1]);

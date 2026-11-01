@@ -170,6 +170,22 @@ impl DiagramView {
         self.record_if_changed("Edit Display Name", before)
     }
 
+    /// Sets the label text of one drawing of a species (an alias's own), a
+    /// reaction or a compartment, by id (docs/layout-labels-design.md); blank
+    /// clears it. One undo step.
+    pub fn set_label_text(&mut self, id: &str, text: &str) -> ViewResponse {
+        let text = crate::model::display_name(Some(text.trim().to_owned()));
+        let before = self.model.clone();
+        if let Some(s) = self.model.find_species_mut(id) {
+            s.label_text = text;
+        } else if let Some(r) = self.model.find_reaction_mut(id) {
+            r.label_text = text;
+        } else if let Some(c) = self.model.find_compartment_mut(id) {
+            c.label_text = text;
+        }
+        self.record_if_changed("Edit Label Text", before)
+    }
+
     /// The annotation of a species (its primary's, for an alias), a reaction
     /// or a compartment by id, or of the model for `None`
     /// (docs/annotations-design.md).

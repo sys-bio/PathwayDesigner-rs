@@ -348,6 +348,12 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 21: label text.** A species, reaction or compartment object may have
+`"labelText": "GPI dimer"`, its own words for its label, shown in place of the
+display name when names are shown (docs/layout-labels-design.md); on a species,
+each drawing's own, an alias's included. Left out when it has none. A document
+with any is version 21.
+
 **Version 20: species in amounts.** A species object may have `"inAmounts":
 true` (it stands for its amount in rate laws, SBML's `hasOnlySubstanceUnits`,
 Antimony's `substanceOnly`) and `"initialAmount": true` (its `initialValue` is an
@@ -1180,6 +1186,14 @@ italic="true" align="center" color="#CC0000FF" wrapWidth="120"/>`, with only `si
 Import makes free text from every text glyph that has a `text` and labels nothing,
 at its box's top-left corner, with the note's look if it has one and the defaults
 otherwise. Text glyphs that label a species are not free text.
+
+**Label text (docs/layout-labels-design.md)** is the `text` of the text glyph that
+labels a species', reaction's or compartment's glyph. Import keeps a glyph's `text`
+as that drawing's label text unless it is the item's display name or id; Reactome
+labels `GPI dimer [cytosol]` this way as `GPI dimer`. Export writes a drawing's
+label text as its text glyph's `text`, with no `originOfText`, as Reactome does,
+and `originOfText` otherwise. A reaction whose name isn't shown, and a hidden
+compartment, have no text glyph, so their label text is not written.
 
 **Stems (S §5.13)** are written as the reaction glyph's own `curve`: two line
 segments, from the reactants' end of the stem to the junction and on to the

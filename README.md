@@ -82,7 +82,10 @@ Delphi version does, and some more (see [Status](#status)).
   which can be typed in its Properties to rename it (rate laws follow), and can
   have a display name, a readable name such as *D-Glucose 6-phosphate*.
   **View ▸ Display names** labels the diagram with display names instead of
-  ids; each item's **Label** setting can override that.
+  ids; each item's **Label** setting can override that. A drawing can also have
+  **label text**, shorter words shown in place of its display name: Reactome's
+  maps, for example, label *GPI dimer [cytosol]* as *GPI dimer*, and opening one
+  keeps those labels.
 - **Cut, Copy and Paste** (Ctrl+X, Ctrl+C, Ctrl+V) parts of a network, within a
   model or into another, in the same window or another one. A copied reaction
   brings its species, and rate laws bring the parameters and rules they use. Ids

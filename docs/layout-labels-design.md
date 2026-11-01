@@ -1,6 +1,7 @@
 # Label text from SBML layouts
 
-2026-11-01. Design; decisions settled with the author (L1–L7).
+2026-11-01. Design; decisions settled with the author (L1–L7). Built: SPEC-Rust §8.3
+(label text) and the JSON version 21 entry describe what was made.
 
 Reactome names a species in full, with its compartment (`GPI dimer [cytosol]`),
 and draws its map with short labels (`GPI dimer`). The short labels are in the

@@ -66,6 +66,13 @@ display names instead of the ids; the **Label** list in the Properties tab
 changes this for the selected items only. Models read from SBML or Antimony
 keep the display names they have.
 
+A drawing can also have **label text**: words shown in place of its display
+name, on that drawing only, when names are shown. Type them in **Label text**
+in the Properties tab; leave it empty to show the display name. Some SBML
+files have them already: Reactome names a species *GPI dimer [cytosol]* but
+labels its map *GPI dimer*, and PathwayDesigner keeps both. The full name
+still shows when you rest the pointer on the item.
+
 ## Annotations
 
 A species, reaction or compartment can also say what it *is*: an SBO term

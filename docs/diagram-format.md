@@ -245,6 +245,7 @@ gives only the properties it names.
 | `idSize` | number | 12 |
 | `idBold`, `idItalic` | flags | off |
 | `label` | `id`, `displayName` | as the diagram (§6.4) |
+| `labelText` | a string | none |
 
 **What a label shows.** An item's label is its id, or its display name if the
 diagram says `labels displayName` (§6.4). `label id` or `label displayName`
@@ -254,6 +255,14 @@ can show the name while `ATP` shows the id. The display names themselves are
 the model's: the Antimony section gives them (`S1 is "glucose"`), not the
 diagram. The `id`, `idColor`, `idSize`, `idBold` and `idItalic` properties
 place and draw the label, whichever it shows.
+
+**Label text.** `labelText "GPI dimer"` gives one drawing its own words, shown
+in place of its display name wherever the display name would be shown, also
+when it has none. It is for short labels of long names, as Reactome draws
+`GPI dimer [cytosol]`. It belongs to one drawing (`ATP#2` can have its own),
+reaction or compartment, so it is written in that item's braces; in a style or
+the defaults it is a warning and is skipped. SBML Layout holds it as the `text`
+of the item's text glyph (§14).
 
 **Where a species' id goes.** It is drawn inside the node by default. Outside,
 there are three ways to place it, from simplest to finest:
@@ -288,6 +297,7 @@ when the id is exactly there, and the offset otherwise (§12).
 | `idColor`, `idSize` | color, number | `#1A1A1A`, 12 |
 | `idBold`, `idItalic` | flags | off |
 | `label` | `id`, `displayName` | as the diagram (§6.4) |
+| `labelText` | a string | none |
 
 A reaction's id is hidden by default. `id shown` shows it beside the junction,
 placed clear of the reaction's lines (SPECIFICATION.md §5.12); `id above`,
@@ -303,6 +313,7 @@ with its centre at that offset from the junction.
 | `border` | border, `none` | `#7FA36B 2` |
 | `idSize` | number | 12 |
 | `label` | `id`, `displayName` | as the diagram (§6.4) |
+| `labelText` | a string | none |
 
 The compartment's id is drawn in its border color when the border color is set,
 otherwise in `#3D5C2B`; it has no color of its own.

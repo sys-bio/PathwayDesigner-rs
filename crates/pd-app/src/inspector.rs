@@ -42,6 +42,10 @@ enum Field {
     SpeciesName,
     ReactionName,
     CompartmentName,
+    /// A drawing's own words for its label (docs/layout-labels-design.md).
+    SpeciesLabelText,
+    ReactionLabelText,
+    CompartmentLabelText,
 }
 
 impl Field {
@@ -55,6 +59,9 @@ impl Field {
                 | Field::SpeciesName
                 | Field::ReactionName
                 | Field::CompartmentName
+                | Field::SpeciesLabelText
+                | Field::ReactionLabelText
+                | Field::CompartmentLabelText
         )
     }
 }
@@ -88,6 +95,9 @@ pub struct Inspector {
     species_name: Draft,
     reaction_name: Draft,
     compartment_name: Draft,
+    species_label_text: Draft,
+    reaction_label_text: Draft,
+    compartment_label_text: Draft,
     /// Why the last rename was refused, and of which id field.
     rename_error: Option<(Field, String)>,
     /// The Annotations parts (docs/annotations-design.md, step 4).
@@ -234,6 +244,9 @@ impl Inspector {
             (Field::SpeciesName, &one_species),
             (Field::ReactionName, &one_reaction),
             (Field::CompartmentName, &one_compartment),
+            (Field::SpeciesLabelText, &one_species),
+            (Field::ReactionLabelText, &one_reaction),
+            (Field::CompartmentLabelText, &one_compartment),
         ] {
             if self.draft(field).target != *target {
                 self.commit(field, view);
@@ -287,6 +300,14 @@ impl Inspector {
                             self.rename_refused(ui, Field::SpeciesId);
                             ui.label("Display name");
                             self.name_field(ui, view, Field::SpeciesName, one_species.is_some());
+                            ui.end_row();
+                            ui.label("Label text");
+                            self.label_text_field(
+                                ui,
+                                view,
+                                Field::SpeciesLabelText,
+                                one_species.is_some(),
+                            );
                             ui.end_row();
                             ui.label("Label");
                             label_choice(ui, view, StyleKind::Species);
@@ -485,6 +506,14 @@ impl Inspector {
                             ui.label("Display name");
                             self.name_field(ui, view, Field::ReactionName, one_reaction.is_some());
                             ui.end_row();
+                            ui.label("Label text");
+                            self.label_text_field(
+                                ui,
+                                view,
+                                Field::ReactionLabelText,
+                                one_reaction.is_some(),
+                            );
+                            ui.end_row();
                             ui.label("Label");
                             label_choice(ui, view, StyleKind::Reaction);
                             ui.end_row();
@@ -604,6 +633,14 @@ impl Inspector {
                                 ui,
                                 view,
                                 Field::CompartmentName,
+                                one_compartment.is_some(),
+                            );
+                            ui.end_row();
+                            ui.label("Label text");
+                            self.label_text_field(
+                                ui,
+                                view,
+                                Field::CompartmentLabelText,
                                 one_compartment.is_some(),
                             );
                             ui.end_row();
@@ -884,6 +921,9 @@ impl Inspector {
             Field::SpeciesName => &self.species_name,
             Field::ReactionName => &self.reaction_name,
             Field::CompartmentName => &self.compartment_name,
+            Field::SpeciesLabelText => &self.species_label_text,
+            Field::ReactionLabelText => &self.reaction_label_text,
+            Field::CompartmentLabelText => &self.compartment_label_text,
         }
     }
 
@@ -908,6 +948,9 @@ impl Inspector {
             Field::SpeciesName => &mut self.species_name,
             Field::ReactionName => &mut self.reaction_name,
             Field::CompartmentName => &mut self.compartment_name,
+            Field::SpeciesLabelText => &mut self.species_label_text,
+            Field::ReactionLabelText => &mut self.reaction_label_text,
+            Field::CompartmentLabelText => &mut self.compartment_label_text,
         }
     }
 
@@ -954,6 +997,12 @@ impl Inspector {
             Field::CompartmentName => m
                 .find_compartment(target)
                 .and_then(|c| c.display_name.clone()),
+            // Each drawing's own, an alias's included.
+            Field::SpeciesLabelText => m.find_species(target).and_then(|s| s.label_text.clone()),
+            Field::ReactionLabelText => m.find_reaction(target).and_then(|r| r.label_text.clone()),
+            Field::CompartmentLabelText => m
+                .find_compartment(target)
+                .and_then(|c| c.label_text.clone()),
         }
         .unwrap_or_default()
     }
@@ -1034,6 +1083,12 @@ impl Inspector {
             (Field::SpeciesName | Field::ReactionName | Field::CompartmentName, _) => {
                 view.set_display_name(&target, &text);
             }
+            (
+                Field::SpeciesLabelText | Field::ReactionLabelText | Field::CompartmentLabelText,
+                _,
+            ) => {
+                view.set_label_text(&target, &text);
+            }
             _ => {}
         }
     }
@@ -1109,6 +1164,25 @@ impl Inspector {
         let hint = if one { "none" } else { "select one" };
         self.number(ui, view, field, one, hint)
             .on_hover_text("The name shown instead of the id, when names are shown");
+    }
+
+    /// A drawing's own words for its label (docs/layout-labels-design.md):
+    /// empty means its display name.
+    fn label_text_field(
+        &mut self,
+        ui: &mut egui::Ui,
+        view: &mut DiagramView,
+        field: Field,
+        one: bool,
+    ) {
+        let hint = if one {
+            "the display name"
+        } else {
+            "select one"
+        };
+        self.number(ui, view, field, one, hint).on_hover_text(
+            "Shown in place of the display name, on this drawing only, when names are shown",
+        );
     }
 
     /// The rate-law field: a parse error shows under it, but the law is
