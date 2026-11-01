@@ -190,6 +190,20 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         self.errors.push(d);
     }
 
+    /// `base`, or `base_2`, `base_3`, …: the first that isn't an attribute
+    /// value anywhere in the document, so it clashes with no id.
+    fn unused_id(&self, base: &str) -> String {
+        let used = |id: &str| {
+            self.doc
+                .descendants()
+                .any(|n| n.attributes().any(|a| a.value() == id))
+        };
+        std::iter::once(base.to_owned())
+            .chain((2..).map(|n| format!("{base}_{n}")))
+            .find(|id| !used(id))
+            .expect("some suffix is free")
+    }
+
     fn warn(&mut self, n: Node, message: &str) {
         let d = self.diag(n, message);
         self.warnings.push(d);

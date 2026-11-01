@@ -190,6 +190,58 @@ pub enum AdditionalGlyph {
     Text(TextGlyph),
 }
 
+impl Layout {
+    /// The size that holds everything drawn, from the origin: the furthest
+    /// right and lowest of the glyphs' boxes and curves. For a layout read
+    /// without its `<dimensions>`.
+    pub fn extent(&self) -> Dimensions {
+        let mut far = (0.0f64, 0.0f64);
+        let add_box = |b: &Option<BoundingBox>, far: &mut (f64, f64)| {
+            if let Some(b) = b {
+                far.0 = far.0.max(b.position.x + b.dimensions.width);
+                far.1 = far.1.max(b.position.y + b.dimensions.height);
+            }
+        };
+        let add_curve = |c: &Option<Curve>, far: &mut (f64, f64)| {
+            for s in c.iter().flat_map(|c| &c.segments) {
+                for p in [s.start(), s.end()] {
+                    far.0 = far.0.max(p.x);
+                    far.1 = far.1.max(p.y);
+                }
+            }
+        };
+        for g in &self.compartment_glyphs {
+            add_box(&g.bounding_box, &mut far);
+        }
+        for g in &self.species_glyphs {
+            add_box(&g.bounding_box, &mut far);
+        }
+        for g in &self.text_glyphs {
+            add_box(&g.bounding_box, &mut far);
+        }
+        for g in &self.reaction_glyphs {
+            add_box(&g.bounding_box, &mut far);
+            add_curve(&g.curve, &mut far);
+            for r in &g.species_reference_glyphs {
+                add_box(&r.bounding_box, &mut far);
+                add_curve(&r.curve, &mut far);
+            }
+        }
+        for g in &self.additional {
+            let b = match g {
+                AdditionalGlyph::Graphical(g) => &g.bounding_box,
+                AdditionalGlyph::General(g) => &g.bounding_box,
+                AdditionalGlyph::Compartment(g) => &g.bounding_box,
+                AdditionalGlyph::Species(g) => &g.bounding_box,
+                AdditionalGlyph::Reaction(g) => &g.bounding_box,
+                AdditionalGlyph::Text(g) => &g.bounding_box,
+            };
+            add_box(b, &mut far);
+        }
+        Dimensions::new(far.0, far.1)
+    }
+}
+
 impl AdditionalGlyph {
     pub fn id(&self) -> &str {
         match self {

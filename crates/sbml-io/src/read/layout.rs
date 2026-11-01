@@ -25,7 +25,17 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         let mut rest = None;
         let mut meta = self.meta(E::new(n), Some(lns), |r, c| {
             if r.name_in(c, lns) == Some("layout") {
-                layouts.push(r.layout(c, Some(lns)));
+                let mut l = r.layout(c, Some(lns));
+                if l.id.is_empty() {
+                    // Reactome leaves it out; SBML Layout requires it.
+                    l.id = r.unused_id("layout");
+                    let message = format!(
+                        "a layout has no id, which SBML Layout requires; it is called '{}' here",
+                        l.id
+                    );
+                    r.warn(c, &message);
+                }
+                layouts.push(l);
                 return true;
             }
             if !l2 && r.name_in(c, ns::RENDER) == Some("listOfGlobalRenderInformation") {
@@ -95,7 +105,11 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         let mut render = None;
         let mut e = E::new(n);
         let mut l = Layout {
-            id: self.req_pkg(&mut e, pkg, "id"),
+            // Checked by `layout_list`, which can name one that is missing.
+            id: e
+                .take_pkg(pkg, "id")
+                .map(str::to_string)
+                .unwrap_or_default(),
             name: e.take_pkg(pkg, "name").map(str::to_string),
             ..Layout::default()
         };
@@ -139,11 +153,20 @@ impl<'a, 'i: 'a> Reader<'a, 'i> {
         match dims {
             Some(d) => l.dimensions = d,
             None => {
+                // As Reactome and MINERVA write: the size is what holds
+                // everything drawn.
+                l.dimensions = l.extent();
+                let named = if l.id.is_empty() {
+                    String::new()
+                } else {
+                    format!(" '{}'", l.id)
+                };
                 let message = format!(
-                    "the layout '{}' has no <dimensions> (its width and height), which SBML Layout requires of every layout",
-                    l.id
+                    "the layout{named} has no <dimensions> (its width and height), which SBML Layout requires; its size is taken from what it draws ({} by {})",
+                    crate::fmt_f64(l.dimensions.width),
+                    crate::fmt_f64(l.dimensions.height)
                 );
-                self.error(n, &message)
+                self.warn(n, &message)
             }
         }
         l

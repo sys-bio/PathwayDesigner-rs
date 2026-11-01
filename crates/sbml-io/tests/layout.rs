@@ -200,29 +200,101 @@ fn validate_checks_layout_references() {
     );
 }
 
-/// A layout without its size, as MINERVA 22.0.2 writes for a hidden layer, is
-/// refused with a reason that names it; so is a glyph's box without its place.
+/// A layout without its size, as MINERVA 22.0.2 and Reactome write, is read
+/// with a warning, its size taken from what it draws; one without an id, as
+/// Reactome writes, gets one. Written back, both are complete. A glyph's box
+/// without its place is still refused, with a reason that names it.
 #[test]
-fn an_incomplete_layout_is_refused_saying_what_is_missing() {
+fn an_incomplete_layout_is_completed_or_refused_saying_what_is_missing() {
     let path = format!("{}/tests/data/layout-l3v1.xml", env!("CARGO_MANIFEST_DIR"));
     let text = std::fs::read_to_string(path).unwrap();
     let first = |xml: &str| match read(xml) {
         Ok(_) => panic!("read, though incomplete"),
         Err(errors) => errors[0].message.clone(),
     };
+    let complete = read(&text).unwrap().document;
     let start = text.find("<layout:dimensions").unwrap();
     let end = start + text[start..].find("/>").unwrap() + 2;
-    let no_size = format!("{}{}", &text[..start], &text[end..]);
-    let message = first(&no_size);
-    assert!(
-        message.contains("the layout 'layout1' has no <dimensions>"),
-        "{message}"
+    let no_size = format!("{}{}", &text[..start], &text[end..]).replacen(
+        r#"<layout:layout layout:id="layout1">"#,
+        "<layout:layout>",
+        1,
     );
-    assert!(message.contains("SBML Layout requires"), "{message}");
+    assert!(no_size.contains("<layout:layout>"));
+    let r = read(&no_size).unwrap();
+    let said: Vec<&str> = r.warnings.iter().map(|w| w.message.as_str()).collect();
+    assert!(
+        said.iter()
+            .any(|m| m.contains("has no <dimensions>") && m.contains("SBML Layout requires")),
+        "{said:?}"
+    );
+    assert!(
+        said.iter().any(|m| m.contains("a layout has no id")),
+        "{said:?}"
+    );
+    let layouts = &r.document.model.as_ref().unwrap().layouts;
+    let l = &layouts[0];
+    assert_eq!(l.id, "layout");
+    // The compartment's box, at (5, 5) and 390 by 290, reaches furthest.
+    assert_eq!(l.dimensions, Dimensions::new(395.0, 295.0));
+    assert_eq!(
+        complete.model.as_ref().unwrap().layouts[0].extent(),
+        l.dimensions
+    );
+    // Written back and read again, nothing is missing.
+    let again = read(&write(&r.document)).unwrap();
+    assert!(again.warnings.is_empty(), "{:?}", again.warnings);
+    // The id made up clashes with nothing.
+    let taken = no_size.replacen(
+        r#"<model id="glycolysis_fragment">"#,
+        r#"<model id="layout">"#,
+        1,
+    );
+    let r = read(&taken).unwrap();
+    assert_eq!(r.document.model.as_ref().unwrap().layouts[0].id, "layout_2");
 
     let at = text.find("<layout:position").unwrap();
     let end = at + text[at..].find("/>").unwrap() + 2;
     let no_place = format!("{}{}", &text[..at], &text[end..]);
     let message = first(&no_place);
     assert!(message.contains("the bounding box of '"), "{message}");
+}
+
+/// A layout's extent reaches the furthest box or curve, wherever it is.
+#[test]
+fn the_extent_holds_every_box_and_curve() {
+    let line = |x0, y0, x1, y1| Curve {
+        segments: vec![Segment::Line {
+            start: Point::new(x0, y0),
+            end: Point::new(x1, y1),
+        }],
+    };
+    let mut l = Layout::default();
+    l.species_glyphs.push(SpeciesGlyph {
+        bounding_box: Some(BoundingBox::new(10.0, 10.0, 50.0, 20.0)),
+        ..SpeciesGlyph::default()
+    });
+    assert_eq!(l.extent(), Dimensions::new(60.0, 30.0));
+    l.reaction_glyphs.push(ReactionGlyph {
+        curve: Some(line(0.0, 0.0, 100.0, 5.0)),
+        ..ReactionGlyph::default()
+    });
+    assert_eq!(l.extent(), Dimensions::new(100.0, 30.0));
+    l.reaction_glyphs[0]
+        .species_reference_glyphs
+        .push(SpeciesReferenceGlyph {
+            curve: Some(line(0.0, 0.0, 20.0, 80.0)),
+            ..SpeciesReferenceGlyph::default()
+        });
+    assert_eq!(l.extent(), Dimensions::new(100.0, 80.0));
+    l.text_glyphs.push(TextGlyph {
+        bounding_box: Some(BoundingBox::new(150.0, 0.0, 10.0, 10.0)),
+        ..TextGlyph::default()
+    });
+    l.additional
+        .push(AdditionalGlyph::Graphical(GraphicalObject {
+            bounding_box: Some(BoundingBox::new(0.0, 90.0, 10.0, 10.0)),
+            ..GraphicalObject::default()
+        }));
+    assert_eq!(l.extent(), Dimensions::new(160.0, 100.0));
 }
