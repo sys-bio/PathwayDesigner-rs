@@ -64,7 +64,8 @@ such as *glucose*. Select an item and type its display name in the
 **Properties** tab. **View ▸ Display names** then labels the diagram with the
 display names instead of the ids; the **Label** list in the Properties tab
 changes this for the selected items only. Models read from SBML or Antimony
-keep the display names they have.
+keep the display names they have, and an SBML file that has names opens with
+**View ▸ Display names** already on.
 
 A drawing can also have **label text**: words shown in place of its display
 name, on that drawing only, when names are shown. Type them in **Label text**

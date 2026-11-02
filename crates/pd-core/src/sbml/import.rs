@@ -102,6 +102,21 @@ pub fn import(xml: &str, opts: &ImportOptions) -> Result<Imported, Vec<sb::Diagn
         namespaces: read.document.namespaces.clone(),
     };
     let (had_layout, unplaced) = b.build(m, opts);
+    // Labelled by name when there are names (or label text) to show: SBML
+    // can't say which the diagram shows, and ids such as Reactome's
+    // `species_70469` read as if something were wrong.
+    let m = &mut b.model;
+    m.show_display_names = m
+        .species()
+        .iter()
+        .any(|s| s.display_name.is_some() || s.label_text.is_some())
+        || m.reactions()
+            .iter()
+            .any(|r| r.display_name.is_some() || r.label_text.is_some())
+        || m.compartments
+            .iter()
+            .any(|c| c.display_name.is_some() || c.label_text.is_some());
+    m.refresh_labels();
     Ok(Imported {
         model: b.model,
         warnings: b.warnings,
@@ -466,9 +481,14 @@ impl Builder {
                     .annotation
                     .as_deref()
                     .and_then(super::shape::read_compartment);
+                // A box smaller than the smallest the app makes draws nothing:
+                // Reactome gives the compartments its map leaves out a 1 × 1
+                // box in a corner. Such a compartment is hidden, as one with
+                // no glyph is (below).
+                let min = crate::compartments::MIN_SIZE;
                 if let Some(c) = self.model.find_compartment_mut(id)
-                    && w >= 1.0
-                    && h >= 1.0
+                    && w >= min
+                    && h >= min
                 {
                     self.targets
                         .push((g.id.clone(), Target::Compartment(id.clone())));

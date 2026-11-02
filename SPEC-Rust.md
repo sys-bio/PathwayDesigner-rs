@@ -1035,6 +1035,11 @@ replace `sbml-io` behind the same bridge.
   modifiers, rate laws through `pd-core::sbml::math` and `to_infix`, and assignment
   rules (read before initial assignments, which may use their values). Ids are
   matched exactly, as SBML does: `R1` and `r1` are two things.
+- **Labels:** a model with any display name or label text opens with
+  `show_display_names` on, as SBML can't say which the diagram shows.
+- **Compartment boxes:** a compartment glyph smaller than the smallest box the
+  app makes (40 × 40) is read as no box, so the compartment is hidden: Reactome
+  gives the compartments its map leaves out a 1 × 1 box in a corner.
 - **Species' values:** `initialConcentration`, or `initialAmount` if that is missing
   or 0, kept as given: a species remembers whether its value is an amount, and
   whether it stands for its amount in rate laws (`hasOnlySubstanceUnits`).

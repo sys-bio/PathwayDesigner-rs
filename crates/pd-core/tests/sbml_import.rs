@@ -634,3 +634,67 @@ fn avogadro_beside_a_parameter_of_that_name() {
     assert_eq!(m.find_reaction("J0").unwrap().kinetic_law, "avogadro/2");
     assert!(sbml::export(&m).xml.contains("symbols/avogadro"));
 }
+
+/// Reactome gives each compartment its map leaves out a 1 × 1 box in a
+/// corner. Such a box draws nothing: the compartment is kept, hidden, and
+/// its species stay in it; a compartment with a real box is drawn.
+#[test]
+fn a_placeholder_compartment_box_is_hidden() {
+    use pd_core::model::{Compartment, Frame, Model};
+    let mut m = Model::new();
+    for (id, at) in [("cytosol", 0.0), ("membrane", 600.0)] {
+        let mut c = Compartment::new(id);
+        c.frame = Some(Frame::from_corners(pt(at, 0.0), pt(at + 400.0, 300.0)));
+        m.compartments.push(c);
+    }
+    let s = m.add_species(pt(800.0, 150.0), 80.0, 36.0);
+    m.find_species_mut(&s).unwrap().compartment = "membrane".into();
+    let xml = sbml::export(&m).xml;
+    let at = xml.find(r#"layout:compartment="membrane""#).unwrap();
+    let dims = at + xml[at..].find("<layout:dimensions").unwrap();
+    let end = dims + xml[dims..].find("/>").unwrap();
+    let placeholder = format!(
+        "{}<layout:dimensions layout:width=\"1\" layout:height=\"1\"{}",
+        &xml[..dims],
+        &xml[end..]
+    );
+    let back = sbml::import(&placeholder, &OPTS).unwrap().model;
+    let c = back.find_compartment("membrane").unwrap();
+    assert!(c.hidden && c.drawn_frame().is_none(), "{c:?}");
+    assert_eq!(back.find_species(&s).unwrap().compartment, "membrane");
+    let cytosol = back.find_compartment("cytosol").unwrap();
+    assert!(!cytosol.hidden && cytosol.drawn_frame().is_some());
+    // The same box at full size is drawn.
+    let back = sbml::import(&xml, &OPTS).unwrap().model;
+    assert!(
+        back.find_compartment("membrane")
+            .unwrap()
+            .drawn_frame()
+            .is_some()
+    );
+}
+
+/// An SBML file with display names (or label text) opens showing them, as
+/// SBML can't say which the diagram shows; one without opens showing ids.
+#[test]
+fn an_sbml_file_with_names_opens_showing_them() {
+    use pd_core::model::Model;
+    let mut m = Model::new();
+    let s = m.add_species(pt(0.0, 0.0), 80.0, 36.0);
+    let xml = sbml::export(&m).xml;
+    let back = sbml::import(&xml, &OPTS).unwrap().model;
+    assert!(!back.show_display_names);
+    assert_eq!(back.find_species(&s).unwrap().label(), s);
+
+    m.find_species_mut(&s).unwrap().display_name = Some("glucose".into());
+    let back = sbml::import(&sbml::export(&m).xml, &OPTS).unwrap().model;
+    assert!(back.show_display_names);
+    assert_eq!(back.find_species(&s).unwrap().label(), "glucose");
+
+    // A reaction's or compartment's name is enough.
+    let mut m = Model::new();
+    let r = m.add_reaction(pt(0.0, 0.0));
+    m.find_reaction_mut(&r).unwrap().display_name = Some("uptake".into());
+    let back = sbml::import(&sbml::export(&m).xml, &OPTS).unwrap().model;
+    assert!(back.show_display_names);
+}

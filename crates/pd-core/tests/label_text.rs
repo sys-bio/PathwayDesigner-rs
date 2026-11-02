@@ -112,6 +112,9 @@ fn s1_text_glyph(xml: &str) -> &str {
 #[test]
 fn sbml_keeps_label_text_as_reactome_writes_it() {
     let mut m = model();
+    // As it opens again: an SBML file with names shows them.
+    m.show_display_names = true;
+    m.refresh_labels();
     let plain = pd_core::sbml::export(&m).xml;
     // Without label text, the name is the species', by its id.
     let glyph = s1_text_glyph(&plain);
@@ -122,6 +125,7 @@ fn sbml_keeps_label_text_as_reactome_writes_it() {
     m.find_species_mut("S1").unwrap().label_text = Some("G6P".into());
     m.find_reaction_mut("R1").unwrap().label_text = Some("GPI".into());
     m.compartments[0].label_text = Some("cyto".into());
+    m.refresh_labels();
     let xml = pd_core::sbml::export(&m).xml;
     let glyph = s1_text_glyph(&xml);
     assert!(glyph.contains(r#"layout:text="G6P""#), "{glyph}");
