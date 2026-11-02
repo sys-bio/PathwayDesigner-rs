@@ -33,11 +33,7 @@ fn main() {
     let mut names = std::collections::HashSet::new();
     for p in paths {
         let text = std::fs::read_to_string(&p).unwrap();
-        let model = if pd_core::escher::looks_like_escher(&text) {
-            pd_core::escher::import(&text).unwrap().model
-        } else {
-            pd_core::json::from_json(&text).unwrap().model
-        };
+        let model = pd_core::read_model(&text).unwrap();
         let exported = pd_core::sbml::export(&model);
         let name = p.file_stem().unwrap().to_string_lossy().into_owned();
         assert!(names.insert(name.clone()), "two models are called {name}");

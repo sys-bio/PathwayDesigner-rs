@@ -75,11 +75,7 @@ fn every_glyph_of_every_gallery_model_has_one_style() {
             .unwrap();
     for e in index["examples"].as_array().unwrap() {
         let text = std::fs::read_to_string(root.join(e["file"].as_str().unwrap())).unwrap();
-        let model = if pd_core::escher::looks_like_escher(&text) {
-            pd_core::escher::import(&text).unwrap().model
-        } else {
-            pd_core::json::from_json(&text).unwrap().model
-        };
+        let model = pd_core::read_model(&text).unwrap();
         let (l, ri) = export(&model);
         let styled = styles(&ri);
         let mut ids: Vec<&str> = Vec::new();

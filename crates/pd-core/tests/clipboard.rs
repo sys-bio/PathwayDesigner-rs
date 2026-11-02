@@ -405,11 +405,7 @@ fn gallery_models_copy_whole() {
             .unwrap();
     for e in index["examples"].as_array().unwrap() {
         let text = std::fs::read_to_string(root.join(e["file"].as_str().unwrap())).unwrap();
-        let mut m = if pd_core::escher::looks_like_escher(&text) {
-            pd_core::escher::import(&text).unwrap().model
-        } else {
-            pd_core::json::from_json(&text).unwrap().model
-        };
+        let mut m = pd_core::read_model(&text).unwrap();
         let title = e["title"].as_str().unwrap();
         let all: Vec<String> = m
             .species()

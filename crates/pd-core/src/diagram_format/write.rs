@@ -1778,11 +1778,7 @@ lines",
         for e in index["examples"].as_array().unwrap() {
             let file = e["file"].as_str().unwrap();
             let text = std::fs::read_to_string(root.join(file)).unwrap();
-            let model = if crate::escher::looks_like_escher(&text) {
-                crate::escher::import(&text).unwrap().model
-            } else {
-                crate::json::from_json(&text).unwrap().model
-            };
+            let model = crate::read_model(&text).unwrap();
             let written = export_with_diagram(&model);
             let start = written.find("/* diagram").unwrap();
             let line_of = |w: &crate::antimony::Diagnostic| w.line;

@@ -118,6 +118,13 @@
       "title": "E. coli core (BiGG)",
       "description": "The BiGG e_coli_core model, 95 reactions",
       "version": 4
+    },
+    {
+      "file": "ExampleModels/Reactome_Glycolysis.xml",
+      "group": "Large models",
+      "title": "Glucose metabolism (Reactome)",
+      "description": "Reactome's pathway R-HSA-70326 as Reactome exports it in SBML, with its own layout, short labels and compartments; from reactome.org",
+      "version": 0
     }
   ]
 }

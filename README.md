@@ -382,7 +382,7 @@ into the app.
 To add a model:
 
 1. Put the file anywhere in the repository; `ExampleModels/` is the usual place.
-   It can be a PathwayDesigner `.json` file or an Escher map.
+   It can be a PathwayDesigner `.json` file, an Escher map, or an SBML file.
 2. Add an entry to `Gallery/index.json`:
 
    ```json
@@ -400,7 +400,7 @@ To add a model:
      first appear in the file; a new name makes a new group.
    - `title`, and an optional `description` shown under it.
    - `version`: the `"version"` at the top of the model's file, or `0` for an
-     Escher map. An app too old for that version shows the entry greyed out
+     Escher map or an SBML file. An app too old for that version shows the entry greyed out
      instead of failing to open it.
 3. Run `cargo test -p pd-app gallery`. It checks every entry: the file exists,
    opens, and has the version the entry says, and no file is listed twice. CI

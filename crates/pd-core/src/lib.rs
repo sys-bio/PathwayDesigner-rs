@@ -38,3 +38,28 @@ pub mod textbox;
 pub mod themes;
 pub mod undo;
 pub mod view;
+
+/// A model from a file's text, by what it holds: an Escher map, SBML, or
+/// PathwayDesigner's JSON. For the Gallery's checks and the tools that go
+/// through every Gallery model; the app decides by the file's name too.
+pub fn read_model(text: &str) -> Result<model::Model, String> {
+    if escher::looks_like_escher(text) {
+        return escher::import(text).map(|i| i.model);
+    }
+    let t = text.trim_start_matches('\u{FEFF}').trim_start();
+    if t.starts_with('<') {
+        let opts = antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        return sbml::import(text, &opts).map(|i| i.model).map_err(|e| {
+            e.iter()
+                .map(|d| d.to_string())
+                .collect::<Vec<_>>()
+                .join("; ")
+        });
+    }
+    json::from_json(text)
+        .map(|l| l.model)
+        .map_err(|e| e.to_string())
+}

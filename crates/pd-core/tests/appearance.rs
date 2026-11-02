@@ -24,11 +24,7 @@ fn gallery() -> Vec<(String, Model)> {
         .iter()
         .map(|e| {
             let text = std::fs::read_to_string(root.join(e["file"].as_str().unwrap())).unwrap();
-            let model = if pd_core::escher::looks_like_escher(&text) {
-                pd_core::escher::import(&text).unwrap().model
-            } else {
-                pd_core::json::from_json(&text).unwrap().model
-            };
+            let model = pd_core::read_model(&text).unwrap();
             (e["title"].as_str().unwrap().to_owned(), model)
         })
         .collect()
