@@ -4,6 +4,44 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.32 (2026-11-02)
+
+**New**
+
+- **Cut, Copy and Paste** (Ctrl+X, Ctrl+C, Ctrl+V, the Edit menu and the
+  right-click menus) for parts of a network, within a model or into another,
+  in the same window or another browser tab. A copied reaction brings its
+  species, and its rate law the parameters and rules it uses; ids already in
+  the model get `_2`, `_3`, and the rate laws follow. Paste puts the copy
+  under the pointer, or where you right-clicked; a right-click on empty canvas
+  now offers Paste.
+- **Reactome's pathway diagrams open as Reactome draws them.** Opening the SBML
+  that Reactome exports keeps its layout, its compartments and its short
+  labels (`GPI dimer` for `GPI dimer [cytosol]`). An example, Reactome's
+  glucose metabolism, is in the Gallery under Large models.
+- **Label text:** a drawing can have its own words for its label, shown in
+  place of its display name; type them in *Label text* in the Properties panel.
+  Read from and saved to SBML layouts, as Reactome writes them, and kept in
+  Antimony's diagram as `labelText`.
+- **Compartment Width and Height** in the Properties panel, to size a
+  compartment's box by number.
+
+**Changed**
+
+- A species' name never spills out of its node: one too long breaks onto more
+  lines, and if it still doesn't fit it is drawn a little smaller. The font
+  size set for it is kept.
+- An SBML file with names opens with *View ▸ Display names* on.
+
+**Fixed**
+
+- An SBML layout without an id or an overall size, as Reactome writes it, was
+  refused; it is now read, with a warning.
+- Reactome's placeholder boxes for compartments its map leaves out were drawn
+  as specks; those compartments are now hidden.
+
+PathwayDesigner's files are version 21 when an item has label text.
+
 ## 0.1.31 (2026-10-31)
 
 **Fixed: SBML models come back as they went in**
