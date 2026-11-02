@@ -25,8 +25,8 @@ use pd_core::view::DiagramView;
 const DPI: f64 = 300.0;
 
 /// Names and text large enough to read once a panel is scaled to a quarter
-/// of a page (PLOS asks for about 8 pt).
-const FONT: f64 = 32.0;
+/// of a page: about 10 pt in print (PLOS asks for at least 8).
+const FONT: f64 = 44.0;
 
 /// Where every panel's reaction sits: S on the left, P on the right, the
 /// junction between them, a modifier above and an inhibitor below.
@@ -56,7 +56,7 @@ fn bold_lines(m: &mut Model) {
 /// Species boxes sized for [`FONT`].
 fn big(id: &str, at: Pt) -> SpeciesNode {
     let mut s = SpeciesNode::new(id, at);
-    s.resize(130.0, 62.0);
+    s.resize(150.0, 72.0);
     s.style.has_custom_style = true;
     s.style.font_size = FONT;
     s
