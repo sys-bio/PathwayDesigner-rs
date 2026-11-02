@@ -3582,6 +3582,44 @@ k = 0.1",
         assert_eq!(a.label(), "glucose [cytosol]");
     }
 
+    /// A compartment's box is sized in its panel, Width and Height, as one
+    /// undo step each.
+    #[test]
+    fn a_compartments_box_is_sized_in_the_panel() {
+        use pd_core::model::{Compartment, Frame, Model};
+        use pd_core::view::Target;
+        let mut m = Model::new();
+        let mut c = Compartment::new("cell");
+        c.frame = Some(Frame::from_corners(pt(0.0, 0.0), pt(300.0, 200.0)));
+        m.compartments.push(c);
+        let mut h = Harness::new();
+        h.app.view.set_model(m);
+        h.app
+            .view
+            .select_item(&Target::Compartment("cell".into()), false);
+        h.run(vec![]);
+        h.run(vec![]);
+        let field = h.text("Width") + egui::vec2(140.0, 0.0);
+        h.click(field);
+        h.key(Key::A, Modifiers::COMMAND);
+        h.run(vec![Event::Text("500".into())]);
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        let f = h
+            .app
+            .view
+            .model()
+            .find_compartment("cell")
+            .unwrap()
+            .frame
+            .unwrap();
+        assert_eq!(
+            (f.width, f.height, f.center),
+            (500.0, 200.0, pt(150.0, 100.0))
+        );
+        assert_eq!(h.app.view.undo_description(), Some("Resize Compartment"));
+    }
+
     /// docs/display-names-design.md D4: View ▸ Display names labels the
     /// diagram with names, and each panel's Label choice overrides it.
     #[test]

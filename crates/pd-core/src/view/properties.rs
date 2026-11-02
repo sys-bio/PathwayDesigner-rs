@@ -1010,6 +1010,44 @@ impl DiagramView {
         self.record_if_changed("Resize Species", before)
     }
 
+    /// Sizes the box of compartment `id` about its centre, to `width` and/or
+    /// `height`, no smaller than [`crate::compartments::MIN_SIZE`], as
+    /// dragging its corner does: the species stay where they are and take the
+    /// compartment they are now in (S §7.9). Nothing for a compartment with no
+    /// box drawn. One undo step.
+    pub fn set_compartment_box_size(
+        &mut self,
+        id: &str,
+        width: Option<f64>,
+        height: Option<f64>,
+    ) -> ViewResponse {
+        use crate::compartments::{MIN_SIZE, contents, members, reassign};
+        let Some(old) = self
+            .model
+            .find_compartment(id)
+            .and_then(|c| c.drawn_frame())
+        else {
+            return ViewResponse::default();
+        };
+        let mut frame = old;
+        if let Some(w) = width.filter(|w| w.is_finite()) {
+            frame.width = w.max(MIN_SIZE);
+        }
+        if let Some(h) = height.filter(|h| h.is_finite()) {
+            frame.height = h.max(MIN_SIZE);
+        }
+        let before = self.model.clone();
+        let c = self.model.find_compartment_mut(id).expect("found above");
+        let cid = c.id.clone();
+        c.frame = Some(frame);
+        let mut ids = members(&self.model, &cid);
+        for f in [old, frame] {
+            ids.extend(contents(&self.model, &f).species);
+        }
+        reassign(&mut self.model, &ids);
+        self.record_if_changed("Resize Compartment", before)
+    }
+
     /// Draws every selected species (null nodes aside) as `shape`. Made a
     /// circle, a species takes the larger of its width and height both ways,
     /// so its name still fits. One undo step (S §5.10).

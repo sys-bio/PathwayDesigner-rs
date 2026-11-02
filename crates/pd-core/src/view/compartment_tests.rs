@@ -421,3 +421,35 @@ fn a_compartment_name_can_be_bigger() {
         24.0
     );
 }
+
+/// The Properties panel's Width and Height: the box is sized about its
+/// centre, never below the smallest, species stay put and take the
+/// compartment they are then in, one undo step; nothing without a box.
+#[test]
+fn the_box_is_sized_by_number() {
+    let mut v = view();
+    let c = draw_around_a(&mut v);
+    // Wider, about its centre: B at (300, 0) is now inside.
+    v.set_compartment_box_size(&c, Some(800.0), None);
+    let f = frame(&v, &c);
+    assert_eq!((f.center, f.width, f.height), (pt(0.0, 0.0), 800.0, 200.0));
+    assert_eq!(comp_of(&v, "S2"), c);
+    assert_eq!(v.model().find_species("S2").unwrap().center, pt(300.0, 0.0));
+    assert_eq!(v.undo_description(), Some("Resize Compartment"));
+    // Shorter than A: A is left out.
+    v.set_compartment_box_size(&c, None, Some(10.0));
+    let f = frame(&v, &c);
+    assert_eq!(f.height, crate::compartments::MIN_SIZE);
+    v.set_compartment_box_size(&c, Some(5.0), None);
+    assert_eq!(frame(&v, &c).width, crate::compartments::MIN_SIZE);
+    v.undo();
+    v.undo();
+    v.undo();
+    assert_eq!(frame(&v, &c).width, 200.0);
+    assert_eq!(comp_of(&v, "S2"), "");
+    // A hidden compartment has no box to size.
+    v.model.find_compartment_mut(&c).unwrap().hidden = true;
+    let r = v.set_compartment_box_size(&c, Some(500.0), None);
+    assert!(!r.model_changed);
+    assert_eq!(frame(&v, &c).width, 200.0);
+}

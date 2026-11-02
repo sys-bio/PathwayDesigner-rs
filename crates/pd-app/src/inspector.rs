@@ -36,6 +36,9 @@ enum Field {
     ReactionId,
     CompartmentId,
     Volume,
+    /// The size of a compartment's box.
+    CompartmentWidth,
+    CompartmentHeight,
     CompartmentBorderWidth,
     CompartmentFontSize,
     /// Display names (docs/display-names-design.md D3).
@@ -90,6 +93,8 @@ pub struct Inspector {
     reaction_id: Draft,
     compartment_id: Draft,
     volume: Draft,
+    compartment_width: Draft,
+    compartment_height: Draft,
     compartment_border: Draft,
     compartment_font_size: Draft,
     species_name: Draft,
@@ -239,6 +244,8 @@ impl Inspector {
             (Field::ReactionId, &one_reaction),
             (Field::CompartmentId, &one_compartment),
             (Field::Volume, &one_compartment),
+            (Field::CompartmentWidth, &one_compartment),
+            (Field::CompartmentHeight, &one_compartment),
             (Field::CompartmentBorderWidth, &one_compartment),
             (Field::CompartmentFontSize, &first_compartment),
             (Field::SpeciesName, &one_species),
@@ -650,6 +657,26 @@ impl Inspector {
                             ui.label("Volume");
                             self.number(ui, view, Field::Volume, one_compartment.is_some(), "");
                             ui.end_row();
+                            // The box, when it is drawn.
+                            let boxed = one_compartment.as_deref().is_some_and(|id| {
+                                view.model()
+                                    .find_compartment(id)
+                                    .is_some_and(|c| c.drawn_frame().is_some())
+                            });
+                            let hint = if one_compartment.is_none() {
+                                "select one"
+                            } else {
+                                "no box drawn"
+                            };
+                            for (label, field) in [
+                                ("Width", Field::CompartmentWidth),
+                                ("Height", Field::CompartmentHeight),
+                            ] {
+                                ui.label(label);
+                                self.number(ui, view, field, boxed, hint)
+                                    .on_hover_text("The box's size; or drag one of its corners");
+                                ui.end_row();
+                            }
                         }
                         ui.label("Fill");
                         self.swatch(ui, view, ColourField::CompartmentFill);
@@ -916,6 +943,8 @@ impl Inspector {
             Field::ReactionId => &self.reaction_id,
             Field::CompartmentId => &self.compartment_id,
             Field::Volume => &self.volume,
+            Field::CompartmentWidth => &self.compartment_width,
+            Field::CompartmentHeight => &self.compartment_height,
             Field::CompartmentBorderWidth => &self.compartment_border,
             Field::CompartmentFontSize => &self.compartment_font_size,
             Field::SpeciesName => &self.species_name,
@@ -943,6 +972,8 @@ impl Inspector {
             Field::ReactionId => &mut self.reaction_id,
             Field::CompartmentId => &mut self.compartment_id,
             Field::Volume => &mut self.volume,
+            Field::CompartmentWidth => &mut self.compartment_width,
+            Field::CompartmentHeight => &mut self.compartment_height,
             Field::CompartmentBorderWidth => &mut self.compartment_border,
             Field::CompartmentFontSize => &mut self.compartment_font_size,
             Field::SpeciesName => &mut self.species_name,
@@ -985,6 +1016,14 @@ impl Inspector {
             Field::ReactionId => m.find_reaction(target).map(|r| r.id.clone()),
             Field::CompartmentId => m.find_compartment(target).map(|c| c.id.clone()),
             Field::Volume => m.find_compartment(target).map(|c| c.size.to_string()),
+            Field::CompartmentWidth => m
+                .find_compartment(target)
+                .and_then(|c| c.drawn_frame())
+                .map(|f| size_text(f.width)),
+            Field::CompartmentHeight => m
+                .find_compartment(target)
+                .and_then(|c| c.drawn_frame())
+                .map(|f| size_text(f.height)),
             Field::CompartmentBorderWidth => m
                 .find_compartment(target)
                 .map(|c| size_text(draw::compartment_colours(c).2)),
@@ -1069,6 +1108,12 @@ impl Inspector {
                 if self.rename_error.is_some() {
                     self.draft_mut(field).dirty = true;
                 }
+            }
+            (Field::CompartmentWidth, Some(v)) => {
+                view.set_compartment_box_size(&target, Some(v), None);
+            }
+            (Field::CompartmentHeight, Some(v)) => {
+                view.set_compartment_box_size(&target, None, Some(v));
             }
             (Field::Volume, Some(v)) => {
                 view.set_compartment_volume(&target, v);

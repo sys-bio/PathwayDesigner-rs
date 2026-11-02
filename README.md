@@ -68,8 +68,9 @@ Delphi version does, and some more (see [Status](#status)).
   and from SBML (as SBO terms) and Antimony (in the diagram comment). Modifier lines, and reactants' and
   products' lines, can be routed round the diagram through **corner points**,
   carried in SBML Layout as curves of several segments.
-- **Compartments**, drawn as boxes you can move and resize; species move with
-  their compartment, a box can be hidden, and its name can be any size.
+- **Compartments**, drawn as boxes you can move and resize (by their corners,
+  or by Width and Height in Properties); species move with their compartment,
+  a box can be hidden, and its name can be any size.
 - **Free text** for titles and notes, with typeface, size, bold, italic, colour,
   alignment and wrapping.
 - A right-hand panel with **Properties** for what is selected (colours, line and
