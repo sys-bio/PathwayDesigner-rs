@@ -589,6 +589,11 @@ same on every platform**:
 - Node widths after auto-widening may still differ by a pixel or two from the Delphi
   app, which uses Skia and a system font. That is acceptable, because it is a
   difference in measurement, not in the method.
+- **A species' name in its node** (S §5.3, docs/name-wrapping-design.md):
+  `render::draw::name_layout` gives the lines and the size it is drawn at, from
+  the same measurements, so the screen, PNG, SVG, PDF and printing break it in
+  the same places. `NAME_H_MARGIN` (4) and `NAME_V_MARGIN` (2) are the room
+  left round it, `MIN_NAME_SIZE` (6) the smallest it is drawn.
 
 ### 5.5 Bézier legs
 

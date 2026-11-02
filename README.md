@@ -114,6 +114,8 @@ Delphi version does, and some more (see [Status](#status)).
 **How things look**
 - Species **shapes**: rounded rectangle, rectangle, ellipse, circle or hexagon;
   **resize** them by their corners or by number, or fit them to their names.
+  A name too long for its node is broken onto more lines, or drawn a little
+  smaller, so it never spills out.
 - Fill, border colour, border width (0 for no border), solid or dashed border,
   label colour and font size, for each item. A species' or compartment's fill can
   be left out (**No fill**), so what is behind shows through.

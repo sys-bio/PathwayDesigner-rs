@@ -73,6 +73,10 @@ files have them already: Reactome names a species *GPI dimer [cytosol]* but
 labels its map *GPI dimer*, and PathwayDesigner keeps both. The full name
 still shows when you rest the pointer on the item.
 
+A name too long for its node is broken onto two or more lines, or drawn a
+little smaller, so that it stays inside the node. To give it more room, make
+the node bigger, or use **Fit to Name** in the Properties tab.
+
 ## Annotations
 
 A species, reaction or compartment can also say what it *is*: an SBO term

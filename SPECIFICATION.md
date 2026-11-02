@@ -136,6 +136,7 @@ world coordinates.
 | `id` | string | generated | Biochemical identifier, and the label unless the display name is shown (§5.14). |
 | `displayName` | string or none | none | The species' name (SBML `name`, Antimony `S1 is "glucose"`), on a primary only (§5.14). Added in the Rust version. |
 | `label` | As the diagram, Id or Display name | As the diagram | What this drawing's label shows (§5.14). Each drawing, alias or not, has its own. Added in the Rust version. |
+| `labelText` | string or none | none | This drawing's own words for its label, shown in place of the display name (docs/layout-labels-design.md). Added in the Rust version. |
 | `center` | point | — | World coordinates of the centre. |
 | `width`, `height` | number | 80 × 36 | Null nodes are 28 × 28. Can be changed (§7.10). |
 | `shape` | NodeShape | rounded rectangle | What it is drawn as (§5.10). Ignored for null nodes. Added in the Rust version. |
@@ -324,6 +325,13 @@ Each frame MUST be drawn in this order:
 - **Label:** the id (for an alias, the primary's id), centred horizontally. It is
   centred vertically on the font's cap height. Default size 12, colour `#1A1A1A`.
   Custom `fontSize` and `labelColor` are used when set.
+  *(Rust version:)* a label never spills out of its node
+  (docs/name-wrapping-design.md). One wider than the node less 4 each side is
+  broken at spaces, as many words a line as fit, the lines centred together; if
+  the lines are then too many for the node's height less 2 above and below, or a
+  word is too wide, it is drawn smaller, half a point at a time, down to 6. Only
+  the drawing changes: the font size set is kept. A label outside the node
+  (§5.11) is drawn on one line at its size.
 - **Selection:** a selected node is shown **only** by a red (`#FF0000`) dashed halo
   (10 on, 5 off). The halo is a rounded rectangle 6 units outside the node, stroke
   width 2, corner radius 14. Selection MUST NOT change the node's fill or border.

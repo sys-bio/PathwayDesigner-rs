@@ -1,7 +1,8 @@
 # Wrapping a species' name inside its node
 
 2026-11-01. Design; W1–W7 settled with the author, W4 changed: no name
-spills out of its node.
+spills out of its node. Built: SPECIFICATION §5.3 and SPEC-Rust §5.4 describe
+what was made.
 
 A species' name is drawn on one line, centred in its node. A name wider than
 the node spills out of it. Reactome's maps have small nodes with long labels
