@@ -5464,23 +5464,29 @@ k = 0.1"
         assert_eq!(species_ids(&h), ["A", "B"]);
     }
 
+    /// A menu item's label as egui gives it: its words and its shortcut as
+    /// this platform writes it (Ctrl+C, or ⌘C on macOS).
+    fn menu_label(h: &Harness, words: &str, shortcut: &KeyboardShortcut) -> String {
+        format!("{words} {}", h.app.ctx.format_shortcut(shortcut))
+    }
+
     #[test]
     fn the_edit_menu_cuts_copies_and_pastes() {
         let mut h = clipboard_harness();
         h.click(h.widget("Edit"));
         h.run(vec![]);
-        h.click(h.widget("Copy Ctrl+C"));
+        h.click(h.widget(&menu_label(&h, "Copy", &COPY)));
         let text = h.copied.clone().expect("copied");
         // Paste asks for the clipboard; its text comes as a Paste event, and
         // lands a step from the originals, wherever the pointer is.
         h.click(h.widget("Edit"));
         h.run(vec![]);
-        h.click(h.widget("Paste Ctrl+V"));
+        h.click(h.widget(&menu_label(&h, "Paste", &PASTE)));
         h.run(vec![Event::Paste(text)]);
         assert_eq!(h.centre("A_2"), pt(20.0, 20.0));
         h.click(h.widget("Edit"));
         h.run(vec![]);
-        h.click(h.widget("Cut Ctrl+X"));
+        h.click(h.widget(&menu_label(&h, "Cut", &CUT)));
         assert!(h.app.view.model().find_reaction("R1_2").is_none());
     }
 
