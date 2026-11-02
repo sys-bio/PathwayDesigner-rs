@@ -16,6 +16,14 @@ pub const LABEL_FONT_SIZE: f64 = 12.0;
 /// The space each side of a species' name, when a rename widens the node to
 /// fit it (S §5.3) and for Fit to Name (S §7.10).
 pub const FIT_MARGIN: f64 = 10.0;
+/// Room left each side of a name inside its node, before it wraps or is
+/// drawn smaller (docs/name-wrapping-design.md W1).
+pub const NAME_H_MARGIN: f64 = 4.0;
+/// Room left above and below a name inside its node
+/// (docs/name-wrapping-design.md W4).
+pub const NAME_V_MARGIN: f64 = 2.0;
+/// The smallest a name inside its node is drawn, to fit it (W4).
+pub const MIN_NAME_SIZE: f64 = 6.0;
 /// The smallest a species can be made, either way (S §7.10).
 pub const MIN_SPECIES_SIZE: f64 = 10.0;
 /// The space between a node and its name, when the name is taken outside

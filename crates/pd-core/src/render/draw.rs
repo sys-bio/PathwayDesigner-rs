@@ -406,6 +406,74 @@ pub fn width_for_name(s: &SpeciesNode) -> f64 {
     text_width_in(name_font(&s.style), s.label(), label_size(s)) + 2.0 * FIT_MARGIN
 }
 
+/// How a species' name is drawn (docs/name-wrapping-design.md): its lines
+/// and the size they are drawn at.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NameLayout {
+    pub lines: Vec<String>,
+    pub size: f64,
+}
+
+/// How a species' name is drawn (docs/name-wrapping-design.md). Outside its
+/// node, on one line at its size. Inside, at its size on one line if that
+/// fits the room (the node's width less [`NAME_H_MARGIN`] each side); otherwise
+/// broken at spaces, each line holding as many words as fit; and if the
+/// lines are then too many for the node's height (less [`NAME_V_MARGIN`]
+/// above and below) or a word is wider than the room, smaller, half a point
+/// at a time, down to [`MIN_NAME_SIZE`], until they fit (W4).
+pub fn name_layout(s: &SpeciesNode) -> NameLayout {
+    let name = s.label();
+    let font = name_font(&s.style);
+    let size = label_size(s);
+    if s.label_offset.is_some() || s.is_null_node {
+        return NameLayout {
+            lines: vec![name.to_owned()],
+            size,
+        };
+    }
+    let room = s.width - 2.0 * NAME_H_MARGIN;
+    let tall = s.height - 2.0 * NAME_V_MARGIN;
+    let mut at = size;
+    loop {
+        let lines = wrap_name(name, font, at, room);
+        let m = font_metrics_in(font, at);
+        let fits = lines.iter().all(|l| text_width_in(font, l, at) <= room)
+            && (m.ascent - m.descent) * lines.len() as f64 <= tall;
+        if fits || at - 0.5 < MIN_NAME_SIZE {
+            return NameLayout { lines, size: at };
+        }
+        at -= 0.5;
+    }
+}
+
+/// `name` broken at spaces for `room` at `size`: on one line if it fits,
+/// otherwise as many words a line as fit, a word too wide on its own line.
+fn wrap_name(name: &str, font: TextFont, size: f64, room: f64) -> Vec<String> {
+    let fits = |t: &str| text_width_in(font, t, size) <= room;
+    if fits(name) {
+        return vec![name.to_owned()];
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for word in name.split_whitespace() {
+        match lines.last_mut() {
+            Some(line) if fits(&format!("{line} {word}")) => {
+                line.push(' ');
+                line.push_str(word);
+            }
+            _ => lines.push(word.to_owned()),
+        }
+    }
+    if lines.is_empty() {
+        lines.push(name.to_owned());
+    }
+    lines
+}
+
+/// The lines a species' name is drawn on: [`name_layout`]'s.
+pub fn name_lines(s: &SpeciesNode) -> Vec<String> {
+    name_layout(s).lines
+}
+
 /// The face a species' or reaction's name is drawn in (S §5.11.1): the
 /// bundled sans-serif, bold and italic as its style says.
 pub fn name_font(style: &VisualStyle) -> TextFont {
@@ -1543,17 +1611,24 @@ impl Drawer<'_> {
             }
         }
 
-        let size = label_size(node) * self.opts.zoom;
+        let name = name_layout(node);
+        let size = name.size * self.opts.zoom;
         if size >= MIN_LABEL_SIZE_PX {
             let color = pick(style.map(|s| s.label_color), LABEL);
-            // Inside the node, or outside it at its offset (S §5.11).
-            out.text(
-                self.to_screen(node.center + node.label_offset.unwrap_or(Pt::ZERO)),
-                node.label(),
-                size as f32,
-                name_font(&node.style),
-                color,
-            );
+            // Inside the node, on as many lines as it needs, centred
+            // together (docs/name-wrapping-design.md); or outside it at its
+            // offset (S §5.11).
+            let font = name_font(&node.style);
+            let lines = name.lines;
+            let m = font_metrics_in(font, name.size);
+            let step = m.ascent - m.descent;
+            let first = -step * (lines.len() - 1) as f64 / 2.0;
+            for (i, line) in lines.iter().enumerate() {
+                let at = node.center
+                    + node.label_offset.unwrap_or(Pt::ZERO)
+                    + pt(0.0, first + step * i as f64);
+                out.text(self.to_screen(at), line, size as f32, font, color);
+            }
         }
         if node.locked && !self.opts.for_output {
             self.padlock(node, out);
@@ -2101,6 +2176,153 @@ mod tests {
         assert!(names.contains(&"uptake".to_owned()), "{names:?}");
         assert!(names.contains(&"astrocyte".to_owned()), "{names:?}");
         assert!(!names.contains(&a) && !names.contains(&r), "{names:?}");
+    }
+
+    /// A species `w` wide named `name`, shown by its label text.
+    fn named(name: &str, w: f64) -> SpeciesNode {
+        let mut s = SpeciesNode::new("S1", pt(0.0, 0.0));
+        s.width = w;
+        s.height = 41.0;
+        s.shown_name = Some(name.to_owned());
+        s
+    }
+
+    /// docs/name-wrapping-design.md: a name wider than its node less the
+    /// margins is broken at spaces, as many words a line as fit; one that
+    /// fits stays on one line.
+    #[test]
+    fn a_name_too_wide_for_its_node_is_broken_at_spaces() {
+        assert_eq!(
+            name_lines(&named("aldolase tetramer", 81.0)),
+            ["aldolase", "tetramer"]
+        );
+        assert_eq!(
+            name_lines(&named("aldolase tetramer", 200.0)),
+            ["aldolase tetramer"]
+        );
+        let s = named("pyruvate kinase tetramer", 119.0);
+        let lines = name_lines(&s);
+        assert!(lines.len() > 1, "{lines:?}");
+        assert_eq!(lines.join(" "), "pyruvate kinase tetramer");
+        let room = s.width - 2.0 * NAME_H_MARGIN;
+        let width = |t: &str| text_width_in(name_font(&s.style), t, label_size(&s));
+        for (i, line) in lines.iter().enumerate() {
+            assert!(width(line) <= room, "{line} fits");
+            // Each line holds as many words as fit: the next word would not.
+            if let Some(next) = lines.get(i + 1) {
+                let first = next.split(' ').next().unwrap();
+                assert!(width(&format!("{line} {first}")) > room, "{lines:?}");
+            }
+        }
+        // The room is the node's width less the margins: a name that fits
+        // the node's width but not the room wraps.
+        let mut s = named("aldolase tetramer", 0.0);
+        s.width = width(s.label()) + NAME_H_MARGIN;
+        assert_eq!(name_lines(&s), ["aldolase", "tetramer"]);
+    }
+
+    /// Whether a name's layout fits its node: every line in the room, the
+    /// lines in the node's height less the margins.
+    fn fits(s: &SpeciesNode, l: &NameLayout) -> bool {
+        let font = name_font(&s.style);
+        let m = font_metrics_in(font, l.size);
+        l.lines
+            .iter()
+            .all(|t| text_width_in(font, t, l.size) <= s.width - 2.0 * NAME_H_MARGIN)
+            && (m.ascent - m.descent) * l.lines.len() as f64 <= s.height - 2.0 * NAME_V_MARGIN
+    }
+
+    /// W4: no name spills out of its node. Too many lines for its height, or
+    /// a word too wide, and it is drawn smaller, by half a point, the largest
+    /// size that fits; never below the smallest; the size set is kept.
+    #[test]
+    fn a_name_that_still_doesnt_fit_is_drawn_smaller() {
+        // A node 22 tall has room for one line only, and this one is too
+        // narrow for the name on one line at its size.
+        let mut s = named("PFK tetramer", 70.0);
+        s.height = 22.0;
+        let l = name_layout(&s);
+        assert!(l.size < LABEL_FONT_SIZE, "{l:?}");
+        assert!(fits(&s, &l), "{l:?}");
+        // The largest that fits: half a point larger doesn't.
+        let bigger = NameLayout {
+            lines: wrap_name(s.label(), name_font(&s.style), l.size + 0.5, 62.0),
+            size: l.size + 0.5,
+        };
+        assert!(!fits(&s, &bigger), "{bigger:?}");
+        assert_eq!(label_size(&s), LABEL_FONT_SIZE, "the size set is kept");
+        // A word too wide for the room, in a node tall enough.
+        let s = named("phosphoenolpyruvate", 90.0);
+        let l = name_layout(&s);
+        assert_eq!(l.lines, ["phosphoenolpyruvate"]);
+        assert!(l.size < LABEL_FONT_SIZE && fits(&s, &l), "{l:?}");
+        // A name that fits is drawn at its own size.
+        let s = named("aldolase tetramer", 81.0);
+        assert_eq!(name_layout(&s).size, LABEL_FONT_SIZE);
+        // Never smaller than the smallest size, even when that can't fit.
+        let mut s = named("glyceraldehyde 3-phosphate dehydrogenase", 20.0);
+        s.height = 10.0;
+        assert_eq!(name_layout(&s).size, MIN_NAME_SIZE);
+    }
+
+    /// A name drawn outside its node, and a name a node was fitted to, are
+    /// never broken (W5, W6).
+    #[test]
+    fn names_outside_and_fitted_names_stay_on_one_line() {
+        let mut s = named("aldolase tetramer", 81.0);
+        s.label_offset = Some(pt(0.0, -40.0));
+        assert_eq!(name_lines(&s), ["aldolase tetramer"]);
+        let mut s = named("glyceraldehyde 3-phosphate dehydrogenase", 40.0);
+        s.width = width_for_name(&s);
+        assert_eq!(name_lines(&s).len(), 1);
+    }
+
+    /// The lines are drawn one under another, centred together on the node.
+    #[test]
+    fn wrapped_lines_are_drawn_centred_in_the_node() {
+        let mut m = Model::new();
+        let id = m.add_species(pt(100.0, 50.0), 81.0, 41.0);
+        m.find_species_mut(&id).unwrap().display_name = Some("aldolase tetramer".into());
+        m.show_display_names = true;
+        m.refresh_labels();
+        let opts = DrawOptions::default();
+        let calls = draw(&m, &opts);
+        let lines: Vec<(SPt, String)> = calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::Text(p, t, ..) => Some((*p, t.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            lines.iter().map(|(_, t)| t.as_str()).collect::<Vec<_>>(),
+            ["aldolase", "tetramer"]
+        );
+        let centre = world_to_screen(pt(100.0, 50.0), opts.zoom, opts.scroll);
+        let (a, b) = (lines[0].0, lines[1].0);
+        let (cx, cy) = (centre.x as f32, centre.y as f32);
+        assert!((a.x - cx).abs() < 1e-3 && (b.x - cx).abs() < 1e-3);
+        assert!(((a.y + b.y) / 2.0 - cy).abs() < 1e-3, "{a:?} {b:?}");
+        let m = font_metrics_in(TextFont::default(), LABEL_FONT_SIZE);
+        let step = ((m.ascent - m.descent) * opts.zoom) as f32;
+        assert!((b.y - a.y - step).abs() < 1e-3, "{a:?} {b:?}");
+
+        // A name that has to be smaller is drawn at that size.
+        let mut m = Model::new();
+        let id = m.add_species(pt(0.0, 0.0), 70.0, 22.0);
+        m.find_species_mut(&id).unwrap().display_name = Some("PFK tetramer".into());
+        m.show_display_names = true;
+        m.refresh_labels();
+        let want = name_layout(m.find_species(&id).unwrap()).size;
+        assert!(want < LABEL_FONT_SIZE);
+        let sizes: Vec<f32> = draw(&m, &opts)
+            .iter()
+            .filter_map(|c| match c {
+                Call::Text(_, _, size, _) => Some(*size),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(sizes, [(want * opts.zoom) as f32]);
     }
 
     /// A at (0,0) → R at (200,0) → B at (400,0), all 80 × 36.
