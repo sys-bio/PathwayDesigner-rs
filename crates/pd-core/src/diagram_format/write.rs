@@ -632,9 +632,10 @@ impl<'m> Writer<'m> {
 
     /// A `line` for each modifier whose line isn't plain: a kind other than
     /// a plain modifier, a second drawing, corner points or a look of its own.
-    /// Only modifiers named in the rate law, which the Antimony text keeps;
-    /// a self modifier (also a reactant or product) always, since the line
-    /// is what makes it one again when read.
+    /// Always for a self modifier (also a reactant or product), and for a
+    /// modifier the rate law doesn't name, as Reactome's catalysts in a
+    /// reaction with no rate law: Antimony keeps a modifier only through its
+    /// rate law, so the line is what makes it one again when read.
     fn modifier_lines(&self, r: &Reaction) -> Vec<String> {
         let names = law_names(&r.kinetic_law);
         let mut out = Vec::new();
@@ -648,9 +649,7 @@ impl<'m> Writer<'m> {
                     .find_species(&p.species)
                     .is_some_and(|s| s.primary_id() == primary)
             });
-            if !names.iter().any(|n| n == primary) {
-                continue;
-            }
+            let named = names.iter().any(|n| n == primary);
             let kind = match m.kind {
                 ModifierKind::Modifier => None,
                 ModifierKind::Activator => Some("activator"),
@@ -659,7 +658,7 @@ impl<'m> Writer<'m> {
             };
             let plain =
                 kind.is_none() && !node.is_alias() && m.points.is_empty() && m.look.is_default();
-            if plain && !participant {
+            if plain && named && !participant {
                 continue;
             }
             let mut clauses = Vec::new();
@@ -1666,17 +1665,37 @@ end */";
         // the diagram, not as an interaction.
         assert!(out.contains("line A to hk kind activator"), "{out}");
         assert!(!out.contains("-o"), "{out}");
-        // A modifier that is also a reactant the law uses (a self modifier)
-        // comes back only through its line, so the line is written; one the
-        // law doesn't use can't come back, so isn't.
+        // A modifier that is also a reactant (a self modifier) comes back
+        // only through its line, so the line is written, whether the law uses
+        // it or not.
         let hk = m.find_reaction_mut("hk").unwrap();
         let mut p = crate::model::Participant::new("Glc", 1.0);
         p.points = vec![pt(5.0, 5.0)];
         hk.modifiers.push(p);
         hk.kinetic_law = "E*C*A*k".into();
-        assert!(!export_with_diagram(&m).contains("line Glc"));
+        assert!(export_with_diagram(&m).contains("line Glc to hk via (5, 5)"));
         m.find_reaction_mut("hk").unwrap().kinetic_law = "E*C*A*k*Glc".into();
         assert!(export_with_diagram(&m).contains("line Glc to hk via (5, 5)"));
+        // A plain modifier the law doesn't name, as Reactome's catalysts in a
+        // reaction with no rate law, comes back only through its line too.
+        // X takes no other part in hk.
+        m.push_species(crate::model::SpeciesNode::new("X", pt(0.0, 200.0)))
+            .unwrap();
+        let hk = m.find_reaction_mut("hk").unwrap();
+        hk.modifiers.retain(|p| p.species != "Glc");
+        hk.modifiers.push(crate::model::Participant::new("X", 1.0));
+        hk.kinetic_law = String::new();
+        let out = export_with_diagram(&m);
+        assert!(out.contains("line X to hk\n"), "{out}");
+        let back = import(&out, &OPTS).unwrap().model;
+        let names: Vec<&str> = back
+            .find_reaction("hk")
+            .unwrap()
+            .modifiers
+            .iter()
+            .map(|p| p.species.as_str())
+            .collect();
+        assert!(names.contains(&"X") && names.contains(&"E"), "{names:?}");
     }
 
     #[test]

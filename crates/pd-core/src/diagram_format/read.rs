@@ -1147,16 +1147,11 @@ impl Reader<'_> {
             return;
         };
         if !set_drawing(model, reaction, &[Role::Modifier], &modifier.id, &node) {
-            // A reactant or product its rate law uses: a self modifier, as
-            // Mark as Modifier makes one (S §5.7), which Antimony can't say.
-            let own = crate::view::participants::law_uses_own_species(model, reaction);
-            if !own.iter().any(|(s, _)| *s == modifier.id) {
-                self.warn(
-                    pos,
-                    format!("'{}' doesn't modify '{reaction}'", modifier.id),
-                );
-                return;
-            }
+            // Not a modifier the rate law names: the line makes it one. A
+            // reactant or product becomes a self modifier, as Mark as Modifier
+            // makes one (S §5.7); any other species a modifier the law
+            // doesn't name, as Reactome's catalysts in a reaction with no
+            // rate law. Antimony can say neither.
             let r = model.find_reaction_mut(reaction).expect("checked above");
             r.modifiers
                 .push(crate::model::Participant::new(node.as_str(), 1.0));
@@ -1737,22 +1732,34 @@ mod tests {
         );
     }
 
-    /// A line from a reactant or product its rate law uses makes it a
-    /// modifier of its own reaction (a self modifier, S §5.7), which
-    /// Antimony can't say; one its law doesn't use is still skipped.
+    /// A line from a species that isn't one of the reaction's modifiers makes
+    /// it one, which Antimony can't say: a reactant or product of its own
+    /// reaction (a self modifier, S §5.7), or any other species, as
+    /// Reactome's catalysts in a reaction with no rate law.
     #[test]
-    fn a_line_from_a_reactant_the_law_uses_makes_a_self_modifier() {
-        let i = read("line Glc to hk kind activator\nline G6P to hk");
+    fn a_line_makes_its_species_a_modifier() {
+        let i =
+            read("line Glc to hk kind activator\nline G6P to hk\nline ATP to out kind catalyst");
         let hk = i.model.find_reaction("hk").unwrap();
-        let glc = hk
-            .modifiers
-            .iter()
-            .find(|m| m.species == "Glc")
-            .expect("marked");
-        assert_eq!(glc.kind, ModifierKind::Activator);
-        // G6P is a product of hk, but its law doesn't use it.
-        assert!(hk.modifiers.iter().all(|m| m.species != "G6P"));
-        assert_eq!(messages(&i), ["'G6P' doesn't modify 'hk'"]);
+        let kind = |id: &str| {
+            hk.modifiers
+                .iter()
+                .find(|m| m.species == id)
+                .map(|m| m.kind)
+        };
+        assert_eq!(kind("Glc"), Some(ModifierKind::Activator));
+        // G6P is a product of hk, though its law doesn't use it.
+        assert_eq!(kind("G6P"), Some(ModifierKind::Modifier));
+        // ATP is no part of out, whose law doesn't name it.
+        let out = i.model.find_reaction("out").unwrap();
+        assert_eq!(
+            out.modifiers
+                .iter()
+                .find(|m| m.species == "ATP")
+                .map(|m| m.kind),
+            Some(ModifierKind::Catalyst)
+        );
+        assert!(messages(&i).is_empty(), "{:?}", messages(&i));
     }
 
     #[test]
@@ -2248,7 +2255,6 @@ compartment nowhere hidden",
             "'arrowSize' isn't a property of a reaction",
             "a leg joins a species' drawing and a reaction",
             "'E' isn't a reactant of 'hk'",
-            "'Glc' doesn't modify 'out'",
             "there is no species style 'missing'",
             "the value of 'size' doesn't read",
             "no compartment 'nowhere'",
@@ -2258,7 +2264,7 @@ compartment nowhere hidden",
                 "missing {expect:?} in {m:#?}"
             );
         }
-        assert_eq!(m.len(), 12, "{m:#?}");
+        assert_eq!(m.len(), 11, "{m:#?}");
         // Still read: Glc's position.
         assert_eq!(i.model.find_species("Glc").unwrap().center, pt(1.0, 2.0));
     }

@@ -1511,7 +1511,7 @@ mod tests {
         );
         // Not written back as interactions: X's kind goes in the diagram,
         // and comes back from it. Y, named in no rate law, has no place in
-        // the Antimony text.
+        // the Antimony text, but the diagram's line brings it back.
         let text = export(m);
         assert!(!text.contains("-|") && !text.contains("-o"), "{text}");
         assert!(!text.contains("Interactions"), "{text}");
@@ -1525,7 +1525,18 @@ mod tests {
             again.find_reaction("J1").unwrap().modifiers[0].kind,
             K::Inhibitor
         );
-        assert!(again.find_reaction("J2").unwrap().modifiers.is_empty());
+        let j2: Vec<&str> = again
+            .find_reaction("J2")
+            .unwrap()
+            .modifiers
+            .iter()
+            .map(|p| p.species.as_str())
+            .collect();
+        assert_eq!(j2, ["Y"]);
+        assert!(
+            export(m).lines().all(|l| !l.contains("Y -")),
+            "not in the text"
+        );
     }
 
     #[test]

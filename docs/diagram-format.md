@@ -527,9 +527,12 @@ line E#2 to R5 kind catalyst
 - **A self modifier.** A line from a reactant or product of the reaction that
   its rate law uses makes that species a modifier of its own reaction as well,
   drawn as a loop (SPECIFICATION.md §8.4). Antimony has no way to say this, so
-  a writer always writes a self modifier's line, even a plain one. A line from
-  any other species that isn't one of the reaction's modifiers is skipped,
-  with a warning (§13).
+  a writer always writes a self modifier's line, even a plain one.
+- **A modifier the rate law doesn't name.** Antimony keeps a modifier only
+  through its rate law, so a line from any other species that isn't one of the
+  reaction's modifiers makes it one: Reactome's catalysts, in reactions with no
+  rate law, come back this way. A writer always writes such a modifier's line,
+  even a plain one.
 - A modifier the model has (from its rate law) but the diagram
   doesn't mention is drawn as a plain straight line from its first drawing.
 
