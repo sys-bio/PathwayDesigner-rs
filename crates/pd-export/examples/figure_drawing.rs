@@ -20,14 +20,14 @@ use pd_core::render::draw::Shown;
 
 const DPI: f64 = 300.0;
 
-/// Names large enough to read once a panel is scaled to a third of a page
-/// (PLOS asks for about 8 pt), as in the modifier figure.
-const FONT: f64 = 26.0;
+/// Names large enough to read once a panel is scaled to a third of a page:
+/// about 13 pt in print (PLOS asks for at least 8).
+const FONT: f64 = 42.0;
 
 /// Species boxes sized for [`FONT`].
 fn big(id: &str, at: Pt) -> SpeciesNode {
     let mut s = SpeciesNode::new(id, at);
-    s.resize(110.0, 54.0);
+    s.resize(140.0, 70.0);
     s.style.has_custom_style = true;
     s.style.font_size = FONT;
     s
@@ -63,7 +63,8 @@ fn reaction(single: bool, name: &str) -> Model {
     r.is_reversible = false;
     m.push_reaction(r).unwrap();
     // Every panel the same height, so they line up: the name at the foot.
-    let t = m.add_text(pt(220.0 - name.len() as f64 * 7.0, 150.0), name);
+    let half = name.chars().count() as f64 * FONT * 0.27;
+    let t = m.add_text(pt(220.0 - half, 150.0), name);
     m.find_text_mut(&t).unwrap().size = FONT;
     // And the top of the tallest panel, kept by an empty text.
     let top = m.add_text(pt(220.0, -150.0), " ");
