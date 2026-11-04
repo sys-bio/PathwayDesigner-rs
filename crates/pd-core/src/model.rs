@@ -1032,11 +1032,23 @@ pub struct Annotation {
     pub references: Vec<Reference>,
     /// The notes as read, XHTML (A4); written back unchanged.
     pub notes: Option<String>,
+    /// Another tool's own XML from the item's SBML annotation, each element
+    /// standing on its own, written back unchanged
+    /// (docs/other-annotations-design.md).
+    pub other: Vec<String>,
+    /// The item's SBML `metaid` as read, written back as it was, since
+    /// another tool's XML may point at the item by it (O3).
+    pub metaid: Option<String>,
 }
 
 impl Annotation {
+    /// Nothing that says what the item is: no SBO term, references, notes or
+    /// other tools' XML. (A `metaid` alone says nothing.)
     pub fn is_empty(&self) -> bool {
-        self.sbo.is_none() && self.references.is_empty() && self.notes.is_none()
+        self.sbo.is_none()
+            && self.references.is_empty()
+            && self.notes.is_none()
+            && self.other.is_empty()
     }
 }
 

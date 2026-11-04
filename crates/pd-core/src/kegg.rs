@@ -218,6 +218,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 sbo: Some(SBO_SIMPLE_CHEMICAL),
                 references: compound_reference(number).into_iter().collect(),
                 notes: None,
+                ..Annotation::default()
             };
             model.push_species(s).expect("checked unused");
             compounds.push((id.clone(), number.to_owned()));
@@ -263,6 +264,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
                     sbo: Some(SBO_POLYPEPTIDE),
                     references: enzyme_references(e.name),
                     notes: None,
+                    ..Annotation::default()
                 };
                 model.push_species(s).expect("checked unused");
                 enzyme_species.insert(e.name, id.clone());
@@ -340,6 +342,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
                 .map(|n| reference("bqbiol:is", &format!("kegg.reaction:{n}")))
                 .collect(),
             notes: None,
+            ..Annotation::default()
         };
         rx.reactants = reactants
             .iter()

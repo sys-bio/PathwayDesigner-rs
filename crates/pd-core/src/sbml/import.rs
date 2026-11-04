@@ -179,6 +179,8 @@ impl Builder {
                 })
                 .collect(),
             notes: meta.notes.clone().filter(|n| !n.trim().is_empty()),
+            other: kept_others(self.miriam(meta).other).0,
+            metaid: meta.metaid.clone(),
         }
     }
 
@@ -648,9 +650,10 @@ impl Builder {
                 m.layouts.len()
             ));
         }
-        // Another tool's own annotation isn't kept (docs/annotations-design.md
-        // A3, A8): say so once, before it is lost on saving.
-        let annotated = |meta: &sb::Meta| !self.miriam(meta).other.is_empty();
+        // Another tool's own annotation is kept, but CellDesigner's and RDF
+        // that can't be read (docs/other-annotations-design.md O1, O2): say
+        // so once, before they are lost on saving.
+        let annotated = |meta: &sb::Meta| kept_others(self.miriam(meta).other).1;
         let items = usize::from(annotated(&m.meta))
             + m.compartments.iter().filter(|c| annotated(&c.meta)).count()
             + m.species.iter().filter(|s| annotated(&s.meta)).count()
@@ -658,8 +661,9 @@ impl Builder {
             + m.parameters.iter().filter(|p| annotated(&p.meta)).count();
         if items > 0 {
             self.warn(format!(
-                "another tool's own annotations on {items} item{} aren't kept: saving will lose \
-                 them (SBO terms, database references and notes are kept)",
+                "CellDesigner's or JDesigner's own annotations, RDF that can't be read, or a second element \
+                 in one namespace, on {items} item{} aren't kept: saving will lose them (other \
+                 tools' annotations, SBO terms, database references and notes are kept)",
                 if items == 1 { "" } else { "s" }
             ));
         }
@@ -1440,4 +1444,41 @@ fn sbo_number(term: &str) -> Option<u32> {
 /// which need nothing kept (docs/layout-labels-design.md L4).
 fn own_words(t: &sb::TextGlyph, name: Option<&str>, id: &str) -> Option<String> {
     crate::model::display_name(t.text.clone()).filter(|w| Some(w.as_str()) != name && w != id)
+}
+
+/// The namespaces of CellDesigner and JDesigner, whose annotations hold
+/// their own copy of their diagram (docs/other-annotations-design.md O1).
+const DIAGRAM_TOOLS: [&str; 2] = [
+    "http://www.sbml.org/2001/ns/celldesigner",
+    "http://www.sys-bio.org/sbml",
+];
+
+/// Whether another tool's element of an annotation is kept: not
+/// CellDesigner's or JDesigner's (O1), not RDF the reader couldn't take
+/// apart (O2), and XML that reads.
+fn kept(o: &sb::miriam::Other) -> bool {
+    o.namespace
+        .as_deref()
+        .is_some_and(|ns| !DIAGRAM_TOOLS.contains(&ns))
+        && !o.is_rdf()
+}
+
+/// The elements of an annotation kept ([`kept`]), as XML, the first of each
+/// namespace only: SBML Level 3, which is written, allows one top-level
+/// element per namespace in an annotation, where Level 2 files (JDesigner's
+/// `jd:display` beside its `jd:listOfShadows`) can have more. And whether
+/// any element was left out.
+fn kept_others(others: Vec<sb::miriam::Other>) -> (Vec<String>, bool) {
+    let all = others.len();
+    let mut seen: Vec<String> = Vec::new();
+    let mut out = Vec::new();
+    for o in others.into_iter().filter(kept) {
+        let ns = o.namespace.clone().unwrap_or_default();
+        if !seen.contains(&ns) {
+            seen.push(ns);
+            out.push(o.xml);
+        }
+    }
+    let dropped = out.len() < all;
+    (out, dropped)
 }

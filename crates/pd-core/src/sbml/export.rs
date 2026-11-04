@@ -177,7 +177,8 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
         ..Default::default()
     };
     let model_id = m.id.clone().unwrap_or_default();
-    m.meta = meta(&model_id, &model.annotation, &model.history);
+    let mut metaids = Metaids::new(model);
+    m.meta = meta(&mut metaids, &model_id, &model.annotation, &model.history);
 
     // Compartments: the default one if it's missing, then the model's.
     if model.find_compartment(DEFAULT_COMPARTMENT).is_none() {
@@ -191,7 +192,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     }
     for c in &model.compartments {
         m.compartments.push(sb::Compartment {
-            meta: meta(&c.id, &c.annotation, &History::default()),
+            meta: meta(&mut metaids, &c.id, &c.annotation, &History::default()),
             id: c.id.clone(),
             name: c.display_name.clone(),
             size: Some(c.size),
@@ -208,7 +209,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
         .filter(|s| !s.is_alias() && !s.is_null_node)
     {
         m.species.push(sb::Species {
-            meta: meta(&s.id, &s.annotation, &History::default()),
+            meta: meta(&mut metaids, &s.id, &s.annotation, &History::default()),
             id: s.id.clone(),
             name: s.display_name.clone(),
             compartment: if s.compartment.is_empty() {
@@ -238,7 +239,12 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             id: p.variable.clone(),
             value,
             constant: Some(true),
-            meta: meta(&p.variable, &p.annotation, &History::default()),
+            meta: meta(
+                &mut metaids,
+                &p.variable,
+                &p.annotation,
+                &History::default(),
+            ),
             ..Default::default()
         });
         if value.is_none()
@@ -263,7 +269,12 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             m.parameters.push(sb::Parameter {
                 id: r.variable.clone(),
                 constant: Some(false),
-                meta: meta(&r.variable, &r.annotation, &History::default()),
+                meta: meta(
+                    &mut metaids,
+                    &r.variable,
+                    &r.annotation,
+                    &History::default(),
+                ),
                 ..Default::default()
             });
         }
@@ -287,7 +298,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     let mut legs: Vec<Leg> = Vec::new();
     for r in model.reactions() {
         let mut rx = sb::Reaction {
-            meta: meta(&r.id, &r.annotation, &History::default()),
+            meta: meta(&mut metaids, &r.id, &r.annotation, &History::default()),
             id: r.id.clone(),
             name: r.display_name.clone(),
             reversible: Some(r.is_reversible),
@@ -791,10 +802,69 @@ pub(crate) fn leg_segments(
     Some(leg_segments)
 }
 
+/// The metaids written: each item's own as read (docs/other-annotations-design.md
+/// O3), the first item written keeping it when several share it (a pasted
+/// copy); else one made from its id that no item read.
+struct Metaids {
+    /// Every metaid as read.
+    read: HashSet<String>,
+    used: HashSet<String>,
+}
+
+impl Metaids {
+    fn new(model: &Model) -> Self {
+        let mut read: HashSet<String> = HashSet::new();
+        let annotations = std::iter::once(&model.annotation)
+            .chain(model.compartments.iter().map(|c| &c.annotation))
+            .chain(
+                model
+                    .species()
+                    .iter()
+                    .filter(|s| !s.is_alias() && !s.is_null_node)
+                    .map(|s| &s.annotation),
+            )
+            .chain(model.parameters.iter().map(|p| &p.annotation))
+            .chain(model.assignment_rules.iter().map(|r| &r.annotation))
+            .chain(model.reactions().iter().map(|r| &r.annotation));
+        for a in annotations {
+            if let Some(m) = &a.metaid {
+                read.insert(m.clone());
+            }
+        }
+        Self {
+            read,
+            used: Default::default(),
+        }
+    }
+
+    /// The metaid for the item `id` with annotation `a`.
+    fn pick(&mut self, id: &str, a: &crate::model::Annotation) -> String {
+        if let Some(m) = &a.metaid
+            && self.used.insert(m.clone())
+        {
+            return m.clone();
+        }
+        let free = |c: &str, used: &HashSet<String>| !used.contains(c) && !self.read.contains(c);
+        let made = std::iter::once(id.to_owned())
+            .chain((2..).map(|n| format!("{id}_{n}")))
+            .find(|c| free(c, &self.used))
+            .expect("some suffix is free");
+        self.used.insert(made.clone());
+        made
+    }
+}
+
 /// An item's SBO term, notes and database references (and the model's
-/// history) as SBML (docs/annotations-design.md). The metaid the RDF hangs
-/// on is the item's id, which is unique among them.
-fn meta(id: &str, a: &crate::model::Annotation, history: &History) -> sb::Meta {
+/// history) as SBML (docs/annotations-design.md), with another tool's own
+/// XML written back as it was (docs/other-annotations-design.md). It has a
+/// metaid when there is RDF, other XML, or one was read: its own as read,
+/// else one made from its id ([`Metaids`]).
+fn meta(
+    metaids: &mut Metaids,
+    id: &str,
+    a: &crate::model::Annotation,
+    history: &History,
+) -> sb::Meta {
     let mut terms: Vec<sb::miriam::CvTerm> = Vec::new();
     for r in &a.references {
         let (model, qualifier) = match r.qualifier.split_once(':') {
@@ -828,9 +898,20 @@ fn meta(id: &str, a: &crate::model::Annotation, history: &History) -> sb::Meta {
         created: history.created.clone(),
         modified: history.modified.clone(),
     };
-    let annotation = sb::miriam::write_annotation(id, &terms, &history);
+    let rdf = !terms.is_empty() || !history.is_empty();
+    let metaid = (rdf || !a.other.is_empty() || a.metaid.is_some()).then(|| metaids.pick(id, a));
+    let mut annotation = metaid
+        .as_deref()
+        .and_then(|m| sb::miriam::write_annotation(m, &terms, &history));
+    if !a.other.is_empty() {
+        let mut all = annotation.unwrap_or_default();
+        for x in &a.other {
+            all.push_str(x);
+        }
+        annotation = Some(all);
+    }
     sb::Meta {
-        metaid: annotation.is_some().then(|| id.to_owned()),
+        metaid,
         sbo_term: a.sbo.map(|n| format!("SBO:{n:07}")),
         notes: a.notes.clone(),
         annotation,
@@ -998,6 +1079,9 @@ mod tests {
     </listOfRules>
     <listOfReactions>
       <reaction id="R" reversible="false" sboTerm="SBO:0000176">
+        <annotation>
+          <celldesigner:extension xmlns:celldesigner="http://www.sbml.org/2001/ns/celldesigner"><celldesigner:x/></celldesigner:extension>
+        </annotation>
         <listOfReactants><speciesReference species="S" stoichiometry="1" constant="true"/></listOfReactants>
         <listOfProducts><speciesReference species="P" stoichiometry="1" constant="true"/></listOfProducts>
       </reaction>
@@ -1005,7 +1089,8 @@ mod tests {
   </model>
 </sbml>"##;
         let i = crate::sbml::import(sbml, &opts).unwrap();
-        // Only COPASI's own XML, on one item, isn't kept.
+        // COPASI's own XML is kept (docs/other-annotations-design.md);
+        // only CellDesigner's, on one item, isn't (O1).
         let lost: Vec<&String> = i
             .warnings
             .iter()
@@ -1013,7 +1098,8 @@ mod tests {
             .collect();
         assert_eq!(lost.len(), 1, "{:?}", i.warnings);
         assert!(
-            lost[0].starts_with("another tool's own annotations on 1 item"),
+            lost[0].starts_with("CellDesigner's or JDesigner's own annotations")
+                && lost[0].contains("on 1 item"),
             "{}",
             lost[0]
         );
@@ -1034,6 +1120,11 @@ mod tests {
                 ]
             );
             assert!(s.notes.as_deref().unwrap().contains("Glucose."));
+            // COPASI's XML and the metaid it was read with are kept.
+            assert_eq!(s.other.len(), 1);
+            assert!(s.other[0].starts_with("<COPASI"), "{:?}", s.other);
+            assert_eq!(s.metaid.as_deref(), Some("_S"));
+            assert!(m.find_reaction("R").unwrap().annotation.other.is_empty());
             assert_eq!(m.find_compartment("c").unwrap().annotation.sbo, Some(290));
             assert_eq!(m.find_reaction("R").unwrap().annotation.sbo, Some(176));
             let k = &m.find_parameter("k").unwrap().annotation;
@@ -1056,10 +1147,16 @@ mod tests {
         };
         check(&i.model);
         // Written and read again: the same, and nothing more lost. The RDF
-        // hangs on each item's metaid, its id.
+        // hangs on each item's metaid: its own as read, else its id.
         let text = export(&i.model).xml;
-        assert!(text.contains(r#"metaid="S""#), "{text}");
-        assert!(text.contains(r##"rdf:about="#S""##), "{text}");
+        assert!(text.contains(r#"metaid="_S""#), "{text}");
+        assert!(text.contains(r##"rdf:about="#_S""##), "{text}");
+        assert!(
+            text.contains(r#"<COPASI xmlns="http://www.copasi.org/static/sbml"><x/></COPASI>"#),
+            "{text}"
+        );
+        assert!(!text.contains("celldesigner"), "{text}");
+        assert!(text.contains(r##"rdf:about="#m""##), "{text}");
         let back = crate::sbml::import(&text, &opts).unwrap();
         assert!(
             back.warnings.iter().all(|w| !w.contains("aren't kept")),

@@ -22,9 +22,13 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought label text on species, reactions and compartments
-/// (`labelText`, docs/layout-labels-design.md).
-pub const FORMAT_VERSION: u32 = 21;
+/// one that brought other tools' annotations and the SBML `metaid` in an
+/// annotation (`other`, `metaid`, docs/other-annotations-design.md).
+pub const FORMAT_VERSION: u32 = 22;
+
+/// The version that brought label text on species, reactions and
+/// compartments (`labelText`, docs/layout-labels-design.md).
+pub const LABEL_TEXT_VERSION: u32 = 21;
 
 /// The version that brought species in amounts (`inAmounts`) and initial
 /// values that are amounts (`initialAmount`).
@@ -194,8 +198,10 @@ pub fn needed_version(model: &Model) -> u32 {
     let label_text = model.species().iter().any(|s| s.label_text.is_some())
         || model.reactions().iter().any(|r| r.label_text.is_some())
         || model.compartments.iter().any(|c| c.label_text.is_some());
-    if label_text {
+    if other_annotations(model) {
         FORMAT_VERSION
+    } else if label_text {
+        LABEL_TEXT_VERSION
     } else if model
         .species()
         .iter()
@@ -423,6 +429,13 @@ struct FileAnnotation {
     references: Vec<FileReference>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     notes: Option<String>,
+    /// Version 22: another tool's own XML, each element standing on its own
+    /// (docs/other-annotations-design.md).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    other: Vec<String>,
+    /// Version 22: the SBML `metaid` as read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    metaid: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -457,7 +470,7 @@ struct FileCreator {
 }
 
 fn annotation_to_file(a: &Annotation) -> Option<FileAnnotation> {
-    (!a.is_empty()).then(|| FileAnnotation {
+    (!a.is_empty() || a.metaid.is_some()).then(|| FileAnnotation {
         sbo: a.sbo,
         references: a
             .references
@@ -468,7 +481,20 @@ fn annotation_to_file(a: &Annotation) -> Option<FileAnnotation> {
             })
             .collect(),
         notes: a.notes.clone(),
+        other: a.other.clone(),
+        metaid: a.metaid.clone(),
     })
+}
+
+/// Whether any item has another tool's annotations or a `metaid` (version 22).
+fn other_annotations(model: &Model) -> bool {
+    let has = |a: &Annotation| !a.other.is_empty() || a.metaid.is_some();
+    has(&model.annotation)
+        || model.species().iter().any(|s| has(&s.annotation))
+        || model.reactions().iter().any(|r| has(&r.annotation))
+        || model.compartments.iter().any(|c| has(&c.annotation))
+        || model.parameters.iter().any(|p| has(&p.annotation))
+        || model.assignment_rules.iter().any(|r| has(&r.annotation))
 }
 
 /// A reference with no qualifier or no resource is dropped.
@@ -488,6 +514,12 @@ fn annotation_from_file(f: Option<FileAnnotation>) -> Annotation {
             })
             .collect(),
         notes: f.notes.filter(|n| !n.trim().is_empty()),
+        other: f
+            .other
+            .into_iter()
+            .filter(|x| !x.trim().is_empty())
+            .collect(),
+        metaid: f.metaid.filter(|m| !m.trim().is_empty()),
     }
 }
 
@@ -1862,12 +1894,12 @@ mod tests {
         m.compartments.push(Compartment::new("cell"));
         m.find_species_mut(&a).unwrap().display_name = Some("GPI dimer [cytosol]".into());
         let alias = m.add_alias(&a, pt(0.0, 100.0)).unwrap();
-        assert!(needed_version(&m) < FORMAT_VERSION);
+        assert!(needed_version(&m) < LABEL_TEXT_VERSION);
         m.find_species_mut(&a).unwrap().label_text = Some("GPI dimer".into());
         m.find_species_mut(&alias).unwrap().label_text = Some("GPI".into());
         m.find_reaction_mut(&r).unwrap().label_text = Some("isomerisation".into());
         m.compartments[0].label_text = Some("cytosol".into());
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), LABEL_TEXT_VERSION);
         let text = to_json(&m);
         assert!(text.contains("\"labelText\": \"GPI dimer\""), "{text}");
         let back = from_json(&text).unwrap().model;
@@ -1944,6 +1976,7 @@ mod tests {
             notes: Some(
                 "<body xmlns=\"http://www.w3.org/1999/xhtml\"><p>Glucose.</p></body>".into(),
             ),
+            ..Annotation::default()
         };
         m.find_species_mut(&s).unwrap().annotation = a.clone();
         m.parameters[0].annotation.sbo = Some(27);

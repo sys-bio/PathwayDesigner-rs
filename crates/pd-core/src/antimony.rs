@@ -288,6 +288,7 @@ fn model_name(model: &Model) -> &str {
 pub fn layout_notes(model: &Model) -> Vec<String> {
     let (safe, renamed) = safe_ids(model);
     let mut notes = crate::antimony_layout_out::notes(&safe);
+    other_annotations_note(&mut notes, model);
     renames_note(&mut notes, &renamed);
     notes
 }
@@ -314,8 +315,46 @@ pub fn diagram_notes(model: &Model, layout: bool) -> Vec<String> {
             if texts == 1 { " is" } else { "s are" }
         ));
     }
+    other_annotations_note(&mut notes, model);
     renames_note(&mut notes, &renamed);
     notes
+}
+
+/// A note on other tools' annotations, which Antimony has no place for
+/// (docs/other-annotations-design.md O6), if any item has them.
+fn other_annotations_note(notes: &mut Vec<String>, model: &Model) {
+    let items = usize::from(!model.annotation.other.is_empty())
+        + model
+            .species()
+            .iter()
+            .filter(|s| !s.annotation.other.is_empty())
+            .count()
+        + model
+            .reactions()
+            .iter()
+            .filter(|r| !r.annotation.other.is_empty())
+            .count()
+        + model
+            .compartments
+            .iter()
+            .filter(|c| !c.annotation.other.is_empty())
+            .count()
+        + model
+            .parameters
+            .iter()
+            .filter(|p| !p.annotation.other.is_empty())
+            .count()
+        + model
+            .assignment_rules
+            .iter()
+            .filter(|r| !r.annotation.other.is_empty())
+            .count();
+    if items > 0 {
+        notes.push(format!(
+            "other tools' annotations on {items} item{} aren't written: Antimony has no place for them (SBML keeps them)",
+            if items == 1 { "" } else { "s" }
+        ));
+    }
 }
 
 /// Puts first the note on ids written with `_` added, if any were.
@@ -783,6 +822,7 @@ fn annotation_from(
             })
             .collect(),
         notes: notes.clone().filter(|n| !n.trim().is_empty()),
+        ..crate::model::Annotation::default()
     }
 }
 

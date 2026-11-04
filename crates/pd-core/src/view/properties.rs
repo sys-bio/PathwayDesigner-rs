@@ -1551,6 +1551,7 @@ mod tests {
                 resource: "https://identifiers.org/CHEBI:17234".into(),
             }],
             notes: None,
+            ..Annotation::default()
         };
         v.set_annotation(Some(&alias), a.clone());
         assert_eq!(v.undo_description(), Some("Edit Annotation"));

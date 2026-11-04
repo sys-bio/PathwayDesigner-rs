@@ -60,9 +60,28 @@ impl History {
 pub struct Annotation {
     pub terms: Vec<CvTerm>,
     pub history: History,
-    /// Every other element in the annotation, as raw XML: another tool's own,
-    /// or RDF this reader doesn't take apart.
-    pub other: Vec<String>,
+    /// Every other element in the annotation: another tool's own, or RDF
+    /// this reader doesn't take apart.
+    pub other: Vec<Other>,
+}
+
+/// One element of an annotation this reader doesn't take apart.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Other {
+    /// The element's namespace; `None` when the annotation didn't read as
+    /// XML, and `xml` is the whole of it.
+    pub namespace: Option<String>,
+    /// The element as raw XML, standing on its own: the namespaces it uses
+    /// that were declared on the document's `<sbml>` element are declared
+    /// on it, so it can be written into another document as it is.
+    pub xml: String,
+}
+
+impl Other {
+    /// RDF, which only [`read_annotation`]'s own reading makes sense of.
+    pub fn is_rdf(&self) -> bool {
+        self.namespace.as_deref() == Some(RDF)
+    }
 }
 
 /// Takes an annotation's content apart. `namespaces` are those declared on
@@ -82,7 +101,10 @@ pub fn read_annotation(xml: &str, namespaces: &[(Option<String>, String)]) -> An
     let mut out = Annotation::default();
     let Ok(doc) = roxmltree::Document::parse(&wrapped) else {
         if !xml.trim().is_empty() {
-            out.other.push(xml.to_owned());
+            out.other.push(Other {
+                namespace: None,
+                xml: xml.to_owned(),
+            });
         }
         return out;
     };
@@ -90,9 +112,46 @@ pub fn read_annotation(xml: &str, namespaces: &[(Option<String>, String)]) -> An
         if is(top, RDF, "RDF") && read_rdf(top, &mut out) {
             continue;
         }
-        out.other.push(wrapped[top.range()].to_owned());
+        out.other.push(Other {
+            namespace: top.tag_name().namespace().map(str::to_owned),
+            xml: standing_alone(&wrapped[top.range()], namespaces),
+        });
     }
     out
+}
+
+/// `element` (raw XML) with declarations added to its start tag for the
+/// document's namespaces it uses but doesn't declare itself: a prefix
+/// written in it, or the default namespace for an unprefixed tag.
+fn standing_alone(element: &str, namespaces: &[(Option<String>, String)]) -> String {
+    let name_end = element[1..]
+        .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
+        .map_or(element.len(), |i| i + 1);
+    let tag = &element[1..name_end];
+    let mut decl = String::new();
+    for (prefix, uri) in namespaces {
+        let needed = match prefix {
+            Some(p) => {
+                let used = [
+                    format!("<{p}:"),
+                    format!(" {p}:"),
+                    format!("\t{p}:"),
+                    format!("\n{p}:"),
+                ]
+                .iter()
+                .any(|u| element.contains(u.as_str()));
+                used && !element.contains(&format!("xmlns:{p}="))
+            }
+            None => !tag.contains(':') && !element.contains("xmlns="),
+        };
+        if needed {
+            match prefix {
+                Some(p) => decl.push_str(&format!(" xmlns:{p}=\"{}\"", escape_attr(uri))),
+                None => decl.push_str(&format!(" xmlns=\"{}\"", escape_attr(uri))),
+            }
+        }
+    }
+    format!("{}{decl}{}", &element[..name_end], &element[name_end..])
 }
 
 /// Reads an `rdf:RDF` into `out`; false, with `out` unchanged, if it holds
@@ -307,7 +366,41 @@ mod tests {
         );
         assert_eq!(a.terms[1].qualifier, "isPartOf");
         assert_eq!(a.other.len(), 1);
-        assert!(a.other[0].starts_with("<COPASI"), "{:?}", a.other);
+        assert!(a.other[0].xml.starts_with("<COPASI"), "{:?}", a.other);
+        assert_eq!(
+            a.other[0].namespace.as_deref(),
+            Some("http://www.copasi.org/static/sbml")
+        );
+        assert!(!a.other[0].is_rdf());
+    }
+
+    /// Another tool's element that uses a prefix declared only on the
+    /// document's `<sbml>` gets the declaration, so it stands on its own.
+    #[test]
+    fn another_tools_xml_carries_the_namespaces_it_uses() {
+        let ns = [
+            (
+                None,
+                "http://www.sbml.org/sbml/level3/version1/core".to_owned(),
+            ),
+            (Some("jd".to_owned()), "urn:jd".to_owned()),
+            (Some("x".to_owned()), "urn:x".to_owned()),
+        ];
+        let a = read_annotation(
+            r#"<jd:display x:size="2"><jd:at>1</jd:at></jd:display>"#,
+            &ns,
+        );
+        assert_eq!(a.other.len(), 1);
+        let xml = &a.other[0].xml;
+        assert!(
+            xml.starts_with(r#"<jd:display xmlns:jd="urn:jd" xmlns:x="urn:x" x:size"#),
+            "{xml}"
+        );
+        assert!(roxmltree::Document::parse(xml).is_ok(), "{xml}");
+        assert_eq!(a.other[0].namespace.as_deref(), Some("urn:jd"));
+        // One that declares its own namespace is left as it is.
+        let own = r#"<COPASI xmlns="urn:c"><x/></COPASI>"#;
+        assert_eq!(read_annotation(own, &ns).other[0].xml, own);
     }
 
     #[test]
@@ -321,7 +414,9 @@ mod tests {
         // Without them it doesn't read, and comes back whole.
         let a = read_annotation(xml, &[]);
         assert!(a.terms.is_empty());
-        assert_eq!(a.other, [xml]);
+        assert_eq!(a.other.len(), 1);
+        assert_eq!(a.other[0].xml, xml);
+        assert_eq!(a.other[0].namespace, None);
     }
 
     #[test]
@@ -355,5 +450,6 @@ mod tests {
         let a = read_annotation(xml, &[]);
         assert!(a.terms.is_empty());
         assert_eq!(a.other.len(), 1);
+        assert!(a.other[0].is_rdf());
     }
 }
