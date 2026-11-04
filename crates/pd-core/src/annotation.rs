@@ -217,9 +217,13 @@ pub fn resource_from_typed(text: &str) -> Option<String> {
 
 /// Notes, which are XHTML, as plain text: a paragraph or line break a line
 /// break, tags dropped, the five XML entities decoded, blank lines at the
-/// ends trimmed.
+/// ends trimmed. A link keeps its address: its words, then the address in
+/// angle brackets, `libSBML <http://sbml.org>`, or the address alone when
+/// the words are the address; [`notes_xhtml`] makes it a link again.
 pub fn notes_text(xhtml: &str) -> String {
     let mut out = String::new();
+    // The open links' addresses, and where each one's words start.
+    let mut links: Vec<(String, usize)> = Vec::new();
     let mut rest = xhtml;
     while let Some(lt) = rest.find('<') {
         out.push_str(&rest[..lt]);
@@ -234,6 +238,16 @@ pub fn notes_text(xhtml: &str) -> String {
             .next()
             .unwrap_or("");
         let local = name.rsplit(':').next().unwrap_or(name);
+        if local == "a" && !tag.starts_with('/') {
+            links.push((href(tag).unwrap_or_default(), out.len()));
+        } else if local == "a"
+            && let Some((url, start)) = links.pop()
+        {
+            let url = decode(&url);
+            if !url.is_empty() && decode(out[start..].trim()) != url {
+                out.push_str(&format!(" <{url}>"));
+            }
+        }
         if matches!(local, "p" | "br" | "div" | "li" | "h1" | "h2" | "h3" | "tr")
             && (tag.starts_with('/') || local == "br")
         {
@@ -242,12 +256,7 @@ pub fn notes_text(xhtml: &str) -> String {
         rest = &rest[lt + gt + 1..];
     }
     out.push_str(rest);
-    let decoded = out
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-        .replace("&amp;", "&");
+    let decoded = decode(&out);
     // Each line's own spacing, as written out of an indented XML file, goes.
     let lines: Vec<&str> = decoded.lines().map(str::trim).collect();
     let mut text = lines.join("\n");
@@ -257,21 +266,78 @@ pub fn notes_text(xhtml: &str) -> String {
     text.trim().to_owned()
 }
 
-/// Plain text as notes: a paragraph per line, in an XHTML body. `None` for
-/// empty text.
-pub fn notes_xhtml(text: &str) -> Option<String> {
-    let text = text.trim();
-    if text.is_empty() {
-        return None;
-    }
+/// The five XML entities decoded.
+fn decode(s: &str) -> String {
+    s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
+}
+
+/// The `href` of an `a` start tag's inside (`a href="…"`), as written.
+fn href(tag: &str) -> Option<String> {
+    let at = tag.find("href")?;
+    let rest = tag[at + 4..].trim_start().strip_prefix('=')?.trim_start();
+    let quote = rest.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+    let rest = &rest[1..];
+    Some(rest[..rest.find(quote)?].to_owned())
+}
+
+/// A line of plain text as XHTML, each web address in it (`http://` or
+/// `https://`, bare or in angle brackets) a link to itself; a full stop,
+/// comma or the like straight after a bare address isn't part of it.
+fn line_xhtml(line: &str) -> String {
     let esc = |s: &str| {
         s.replace('&', "&amp;")
             .replace('<', "&lt;")
             .replace('>', "&gt;")
     };
+    let mut out = String::new();
+    let mut rest = line;
+    while let Some(at) = ["http://", "https://"]
+        .iter()
+        .filter_map(|p| rest.find(p))
+        .min()
+    {
+        let bracketed = rest[..at].ends_with('<');
+        let before = if bracketed {
+            &rest[..at - 1]
+        } else {
+            &rest[..at]
+        };
+        out.push_str(&esc(before));
+        let tail = &rest[at..];
+        let mut end = tail
+            .find(|c: char| c.is_whitespace() || c == '>' || c == '<' || c == '"')
+            .unwrap_or(tail.len());
+        if !bracketed {
+            end = tail[..end]
+                .trim_end_matches(['.', ',', ';', ':', ')', '!', '?'])
+                .len();
+        }
+        let url = &tail[..end];
+        let attr = esc(url).replace('"', "&quot;");
+        out.push_str(&format!("<a href=\"{attr}\">{}</a>", esc(url)));
+        rest = &tail[end..];
+        if bracketed && rest.starts_with('>') {
+            rest = &rest[1..];
+        }
+    }
+    out.push_str(&esc(rest));
+    out
+}
+
+/// Plain text as notes: a paragraph per line, in an XHTML body, each web
+/// address a link. `None` for empty text.
+pub fn notes_xhtml(text: &str) -> Option<String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return None;
+    }
     let paragraphs: String = text
         .lines()
-        .map(|l| format!("<p>{}</p>", esc(l.trim())))
+        .map(|l| format!("<p>{}</p>", line_xhtml(l.trim())))
         .collect();
     Some(format!(
         "<body xmlns=\"http://www.w3.org/1999/xhtml\">{paragraphs}</body>"
@@ -381,5 +447,53 @@ mod tests {
         );
         assert_eq!(notes_text(&back), "a < b\nsecond");
         assert_eq!(notes_xhtml("  \n "), None);
+    }
+
+    /// A link keeps its address through the text the panel shows and edits:
+    /// shown after its words in angle brackets (alone when the words are the
+    /// address), and made a link again when the notes are written.
+    #[test]
+    fn links_in_notes_keep_their_addresses() {
+        let xhtml = r#"<body xmlns="http://www.w3.org/1999/xhtml"><p>Encoded with <a href="http://sbml.org/Software/libSBML">libSBML</a>.</p><p>See <a href="https://example.org/a?x=1&amp;y=2">https://example.org/a?x=1&amp;y=2</a></p></body>"#;
+        let text = notes_text(xhtml);
+        assert_eq!(
+            text,
+            "Encoded with libSBML <http://sbml.org/Software/libSBML>.\nSee https://example.org/a?x=1&y=2"
+        );
+        let back = notes_xhtml(&text).unwrap();
+        assert!(
+            back.contains(r#"<a href="http://sbml.org/Software/libSBML">http://sbml.org/Software/libSBML</a>."#),
+            "{back}"
+        );
+        assert!(
+            back.contains(r#"<a href="https://example.org/a?x=1&amp;y=2">"#),
+            "{back}"
+        );
+        // A full stop after a bare address isn't part of it.
+        let bare = notes_xhtml("At http://a.org/b. Then more.").unwrap();
+        assert!(
+            bare.contains(r#"<a href="http://a.org/b">http://a.org/b</a>. Then"#),
+            "{bare}"
+        );
+        // And text with no address is as before.
+        assert!(!notes_xhtml("No links here.").unwrap().contains("<a "));
+    }
+
+    /// BIOMD0000000042's notes: its three links survive being shown and
+    /// written again.
+    #[test]
+    fn a_biomodels_notes_keep_their_links() {
+        let xhtml = r#"<body xmlns="http://www.w3.org/1999/xhtml"><p>This model was encoded with <a href="http://sbml.org/Software/libSBML">libSBML</a>. Terms of use: <a href="http://www.ebi.ac.uk/biomodels//legal.html">BioModels Database</a>. The file: <a href="http://www.ebi.ac.uk/biomodels/models-main/anno/BIOMD0000000042/BIOMD0000000042.xml">here</a></p></body>"#;
+        let back = notes_xhtml(&notes_text(xhtml)).unwrap();
+        for url in [
+            "http://sbml.org/Software/libSBML",
+            "http://www.ebi.ac.uk/biomodels//legal.html",
+            "http://www.ebi.ac.uk/biomodels/models-main/anno/BIOMD0000000042/BIOMD0000000042.xml",
+        ] {
+            assert!(
+                back.contains(&format!(r#"href="{url}""#)),
+                "{url} in {back}"
+            );
+        }
     }
 }

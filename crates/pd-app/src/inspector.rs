@@ -1670,7 +1670,13 @@ fn history(ui: &mut egui::Ui, view: &DiagramView) {
     if let Some(d) = h.modified.last() {
         lines.push(format!("Modified {d}"));
     }
-    ui.label(RichText::new(lines.join("\n")).small().weak());
+    // Two points over the small size, which was too small to read.
+    let size = ui
+        .style()
+        .text_styles
+        .get(&egui::TextStyle::Small)
+        .map_or(12.0, |f| f.size + 2.0);
+    ui.label(RichText::new(lines.join("\n")).size(size).weak());
 }
 
 fn name_face(ui: &mut egui::Ui, view: &mut DiagramView, species: bool) {
