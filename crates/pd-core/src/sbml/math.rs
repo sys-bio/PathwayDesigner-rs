@@ -55,12 +55,29 @@ pub fn to_math_with(ast: &Ast, level: u32, version: u32, avogadro_free: bool) ->
     }
 }
 
+/// A number from an expression. A whole number is a MathML integer only if
+/// it fits in 32 bits, as libSBML reads integers; a larger one is real (found
+/// by checking the BioModels round trip with libSBML).
 fn number(text: &str) -> Math {
-    let value = match text.parse::<i64>() {
-        Ok(i) => Number::Integer(i),
+    let value = match text.parse::<i32>() {
+        Ok(i) => Number::Integer(i64::from(i)),
         Err(_) => Number::Real(text.parse().unwrap_or(f64::NAN)),
     };
     Math::Number { value, units: None }
+}
+
+/// A piece's condition: a plain number, as import makes MathML's `<true/>`
+/// and `<false/>`, goes back as one of them, since a condition must be a
+/// Boolean (found by checking the BioModels round trip with libSBML).
+fn condition(c: Math) -> Math {
+    match c {
+        Math::Number { value, .. } => Math::Constant(if value.value() != 0.0 {
+            Constant::True
+        } else {
+            Constant::False
+        }),
+        other => other,
+    }
 }
 
 fn call(name: &str, mut args: Vec<Math>, level: u32, version: u32) -> Math {
@@ -73,7 +90,7 @@ fn call(name: &str, mut args: Vec<Math>, level: u32, version: u32) -> Math {
             let mut pieces = Vec::new();
             let mut it = args.into_iter();
             while let (Some(v), Some(c)) = (it.next(), it.next()) {
-                pieces.push((v, c));
+                pieces.push((v, condition(c)));
             }
             return Math::Piecewise { pieces, otherwise };
         }

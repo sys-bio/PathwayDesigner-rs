@@ -197,7 +197,9 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             name: c.display_name.clone(),
             size: Some(c.size),
             spatial_dimensions: Some(f64::from(c.dimensions)),
-            constant: Some(true),
+            // A compartment whose size a rule sets isn't constant (found by
+            // checking the BioModels round trip with libSBML).
+            constant: Some(!model.assignment_rules.iter().any(|r| r.variable == c.id)),
             ..Default::default()
         });
     }
@@ -922,6 +924,82 @@ fn meta(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Found by checking the BioModels round trip with libSBML: a compartment
+    /// a rule sets is written not constant; a piece's condition that is a
+    /// plain number (MathML's `<true/>` as import reads it) goes back as
+    /// `<true/>` or `<false/>`; a whole number too large for 32 bits is
+    /// written as a real, not an integer libSBML can't read.
+    #[test]
+    fn what_libsbml_found_in_the_biomodels_round_trip() {
+        let mut m = Model::new();
+        for id in ["fixed", "growing"] {
+            m.compartments.push(crate::model::Compartment::new(id));
+        }
+        let rule = |variable: &str, expression: &str| crate::model::AssignmentRule {
+            variable: variable.into(),
+            expression: expression.into(),
+            annotation: Default::default(),
+        };
+        m.assignment_rules.push(rule("growing", "1 + time"));
+        m.assignment_rules
+            .push(rule("p", "piecewise(1, 1, 0) + piecewise(2, 0, 3)"));
+        m.assignment_rules
+            .push(rule("q", "2000000000000 + 2147483647 + 2147483648"));
+        let xml = export(&m).xml;
+        let compartment = |id: &str| {
+            let at = xml.find(&format!(r#"<compartment id="{id}""#)).unwrap();
+            xml[at..at + xml[at..].find('>').unwrap()].to_owned()
+        };
+        assert!(compartment("fixed").contains(r#"constant="true""#));
+        assert!(
+            compartment("growing").contains(r#"constant="false""#),
+            "{}",
+            compartment("growing")
+        );
+        // The conditions: <true/> and <false/>, not numbers.
+        assert_eq!(xml.matches("<true/>").count(), 1, "{xml}");
+        assert_eq!(xml.matches("<false/>").count(), 1, "{xml}");
+        // 2^31 - 1 is the largest integer; anything larger is real.
+        assert!(
+            xml.contains(r#"<cn type="integer"> 2147483647 </cn>"#),
+            "{xml}"
+        );
+        assert!(
+            !xml.contains(r#"<cn type="integer"> 2147483648 </cn>"#),
+            "{xml}"
+        );
+        assert!(
+            !xml.contains(r#"<cn type="integer"> 2000000000000 </cn>"#),
+            "{xml}"
+        );
+        // Read back, the same values.
+        let opts = crate::antimony::ImportOptions {
+            convert_catalytic: false,
+            seed: 1,
+        };
+        let back = crate::sbml::import(&xml, &opts).unwrap().model;
+        let q = back
+            .assignment_rules
+            .iter()
+            .find(|r| r.variable == "q")
+            .unwrap();
+        let v = crate::expr::evaluate(&crate::expr::parse(&q.expression).unwrap(), &|_| None);
+        assert_eq!(
+            v,
+            Some(2000000000000.0 + 2147483647.0 + 2147483648.0),
+            "{}",
+            q.expression
+        );
+        // The first piecewise takes its piece, the second its otherwise.
+        let p = back
+            .assignment_rules
+            .iter()
+            .find(|r| r.variable == "p")
+            .unwrap();
+        let v = crate::expr::evaluate(&crate::expr::parse(&p.expression).unwrap(), &|_| None);
+        assert_eq!(v, Some(1.0 + 3.0), "{}", p.expression);
+    }
 
     /// Level 3 Version 1, unless the model uses `rateOf`, which only
     /// Version 2 can say; then Version 2, with `rateOf` written as SBML's
