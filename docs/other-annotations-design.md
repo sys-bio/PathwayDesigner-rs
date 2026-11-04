@@ -1,7 +1,10 @@
 # Other tools' annotations in the model
 
 2026-11-03. Design; O1–O6 settled with the author, as proposed (O3: the metaid
-must be kept). Revises decision A3 of docs/annotations-design.md.
+must be kept). Revises decision A3 of docs/annotations-design.md. Built: SPEC-Rust
+§8.3 (other tools' annotations) and the JSON version 22 entry describe what was
+made; checked on the 1,062 curated BioModels, all of which pass libSBML's checks
+after a round trip.
 
 ## Now
 

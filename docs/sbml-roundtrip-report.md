@@ -88,7 +88,8 @@ unit tests beside the code), checked by breaking the fix on purpose.
 
 All of these are reported when a file is opened: events, rate rules,
 algebraic rules, constraints, conversion factors, stoichiometry that isn't a
-fixed number (read as its starting value), and other tools' own annotations.
+fixed number (read as its starting value), and CellDesigner's and JDesigner's
+own annotations (other tools' are kept and written back, since 2026-11-03).
 Function definitions are written into the expressions that use them, which
 keeps the model's behaviour. None of the curated BioModels models uses
 conversion factors or variable stoichiometry.

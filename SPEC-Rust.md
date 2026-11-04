@@ -348,6 +348,12 @@ know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
+**Version 22: other tools' annotations.** An `"annotation"` object may have
+`"other"`, a list of another tool's own XML elements from the item's SBML
+annotation, each declaring the namespaces it uses, and `"metaid"`, the item's SBML
+metaid as read (docs/other-annotations-design.md); each left out when empty. An
+annotation with only a metaid is written too. A document with either is version 22.
+
 **Version 21: label text.** A species, reaction or compartment object may have
 `"labelText": "GPI dimer"`, its own words for its label, shown in place of the
 display name when names are shown (docs/layout-labels-design.md); on a species,
@@ -1035,6 +1041,16 @@ replace `sbml-io` behind the same bridge.
   modifiers, rate laws through `pd-core::sbml::math` and `to_infix`, and assignment
   rules (read before initial assignments, which may use their values). Ids are
   matched exactly, as SBML does: `R1` and `r1` are two things.
+- **Other tools' annotations** (docs/other-annotations-design.md): XML another
+  tool wrote in the annotation of the model, a compartment, species, reaction,
+  parameter or rule is kept with the item and written back unchanged, each element
+  with the namespace declarations it uses from the `<sbml>` element, beside the
+  item's references, on its metaid as read (made from its id when another item
+  already has it, or when it had none). Not kept, with one warning on opening:
+  CellDesigner's and JDesigner's own annotations, their copies of their diagrams;
+  RDF the MIRIAM reader can't take apart; and any second element in one namespace
+  on an item, which Level 3 forbids. Antimony can't hold them, and saving as
+  Antimony says so.
 - **Labels:** a model with any display name or label text opens with
   `show_display_names` on, as SBML can't say which the diagram shows.
 - **Compartment boxes:** a compartment glyph smaller than the smallest box the

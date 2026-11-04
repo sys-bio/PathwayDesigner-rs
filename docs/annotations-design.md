@@ -124,6 +124,8 @@ says so, once, in the warnings.
   by another tool (COPASI's, CellDesigner's): kept and written back unchanged,
   or dropped with a warning (proposed: dropped, since after editing it may no
   longer be true, as CellDesigner's layout annotation would not be).
+  *Superseded 2026-11-03 by docs/other-annotations-design.md:* kept, except
+  CellDesigner's and JDesigner's.
 - **A4. Notes.** Kept as the original XHTML and shown as text, written back
   unchanged unless edited (proposed); or kept as plain text only.
 - **A5. SBO terms in the panel.** A short built-in list of the common terms
