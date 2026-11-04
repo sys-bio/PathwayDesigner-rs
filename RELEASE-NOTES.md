@@ -4,6 +4,39 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## 0.1.33 (2026-11-04)
+
+**New**
+
+- **Other tools' annotations are kept.** What another tool writes in an SBML
+  file for its own use, such as COPASI's, is kept with the model and written back
+  unchanged when it is saved as SBML. CellDesigner's and JDesigner's own
+  annotations, which hold their copies of their diagrams, are still left out, and
+  opening the file says so. SBO terms, database references and notes are kept as
+  before.
+
+**Changed**
+
+- Links in notes keep their addresses: the Notes box shows a link as its words
+  and its address, `libSBML <http://sbml.org/Software/libSBML>`, and any web
+  address in edited notes is saved as a link. Editing notes no longer loses
+  their links.
+- Saved as Antimony with its diagram, a model keeps the modifiers no rate law
+  names, such as Reactome's catalysts in reactions without rate laws.
+- The model's history, under its notes, is in a larger font.
+
+**Fixed**
+
+- SBML saved by PathwayDesigner now passes libSBML's checks for every curated
+  BioModels model. A compartment set by a rule was written as constant; a
+  condition read as `true` or `false` was written as a number; and a whole
+  number too large for 32 bits was written as an integer libSBML can't read.
+- An update to the Markdown library behind the help pages, for a security
+  advisory (RUSTSEC-2026-0433) about a feature the help pages don't use.
+
+PathwayDesigner's files are version 22 when they hold another tool's
+annotations.
+
 ## 0.1.32 (2026-11-02)
 
 **New**
