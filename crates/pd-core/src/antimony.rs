@@ -2906,7 +2906,7 @@ end
         let a = ok("A -> B", &ON);
         let b = ok("A -> B", &ON);
         assert_eq!(a, b);
-        let c = ok("A -> B", &ImportOptions { seed: 2, ..ON });
+        let c = ok("A -> B", &ImportOptions { seed: 2 });
         assert_ne!(a.species()[0].center, c.species()[0].center);
     }
 }

@@ -292,10 +292,10 @@ pub fn gather(
             package: model.sbml_document.clone(),
             ..Annotation::default()
         };
-        if let Some(Value::Object(mut v)) = annotation_value(&doc, false) {
-            if let Some(p) = v.remove("package") {
-                m.insert("documentPackage".into(), p);
-            }
+        if let Some(Value::Object(mut v)) = annotation_value(&doc, false)
+            && let Some(p) = v.remove("package")
+        {
+            m.insert("documentPackage".into(), p);
         }
     }
     if let Some(v) = model.sbml_version {
@@ -984,17 +984,16 @@ fn merge_annotation(a: &mut Annotation, v: Option<&Value>) {
     }
     if let Some(Value::Array(more)) = m.get("moreReferences") {
         for r in more {
-            if let (Some(q), Some(res)) = (text(r.get(0)), text(r.get(1))) {
-                if !a
+            if let (Some(q), Some(res)) = (text(r.get(0)), text(r.get(1)))
+                && !a
                     .references
                     .iter()
                     .any(|x| x.qualifier == q && x.resource == res)
-                {
-                    a.references.push(crate::model::Reference {
-                        qualifier: q,
-                        resource: res,
-                    });
-                }
+            {
+                a.references.push(crate::model::Reference {
+                    qualifier: q,
+                    resource: res,
+                });
             }
         }
     }
@@ -1388,34 +1387,34 @@ fn apply_initial(model: &mut Model, symbol: &str, map: &Map<String, Value>) {
     };
     merge_annotation(&mut a.annotation, map.get("annotation"));
     restore(&mut a.expression, formula);
-    if let Some(v) = map.get("value") {
-        if let Some(p) = model.parameters.iter_mut().find(|p| p.variable == symbol) {
-            p.value = v.as_f64();
+    if let Some(v) = map.get("value")
+        && let Some(p) = model.parameters.iter_mut().find(|p| p.variable == symbol)
+    {
+        p.value = v.as_f64();
+    }
+    if let Some(v) = map.get("initial")
+        && let Some(s) = model.find_species_mut(symbol)
+    {
+        match v.as_f64() {
+            Some(x) => {
+                s.initial_value = x;
+                s.sbml.initial_unset = false;
+            }
+            None => s.sbml.initial_unset = true,
+        }
+        if let Some(amount) = map.get("amount").and_then(Value::as_bool) {
+            s.initial_is_amount = amount;
         }
     }
-    if let Some(v) = map.get("initial") {
-        if let Some(s) = model.find_species_mut(symbol) {
-            match v.as_f64() {
-                Some(x) => {
-                    s.initial_value = x;
-                    s.sbml.initial_unset = false;
-                }
-                None => s.sbml.initial_unset = true,
+    if let Some(v) = map.get("size")
+        && let Some(c) = model.compartments.iter_mut().find(|c| c.id == symbol)
+    {
+        match v.as_f64() {
+            Some(x) => {
+                c.size = x;
+                c.sbml.size_unset = false;
             }
-            if let Some(amount) = map.get("amount").and_then(Value::as_bool) {
-                s.initial_is_amount = amount;
-            }
-        }
-    }
-    if let Some(v) = map.get("size") {
-        if let Some(c) = model.compartments.iter_mut().find(|c| c.id == symbol) {
-            match v.as_f64() {
-                Some(x) => {
-                    c.size = x;
-                    c.sbml.size_unset = false;
-                }
-                None => c.sbml.size_unset = true,
-            }
+            None => c.sbml.size_unset = true,
         }
     }
 }

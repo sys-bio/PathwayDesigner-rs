@@ -837,7 +837,7 @@ pub fn still_used(model: &Model, part: Part) -> Option<String> {
             let id = &model.function_definitions.get(i)?.id;
             let mut calls = Vec::new();
             for (_, text) in model.formulas() {
-                if let Ok(ast) = expr::parse(&text) {
+                if let Ok(ast) = expr::parse(text) {
                     called(&ast, &mut calls);
                 }
             }
