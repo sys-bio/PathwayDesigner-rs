@@ -1,8 +1,9 @@
 # A readable diagram format for Antimony models — draft specification
 
 **Status: draft for discussion, version 0.11, 2026-11-07. Read and written by
-PathwayDesigner (docs/diagram-format-implementation-design.md).** Version 0.7 is published as a technical report (Zenodo, DOI
-10.5281/zenodo.23608982). 0.2: the file type and COMBINE archives settled (§3). 0.3: made
+PathwayDesigner (docs/diagram-format-implementation-design.md).** Version 0.11 is published as a technical report (Zenodo, DOI
+10.5281/zenodo.24046743), as were 0.7 (10.5281/zenodo.23608982) and 0.9
+(10.5281/zenodo.23625331). 0.2: the file type and COMBINE archives settled (§3). 0.3: made
 consistent with the app and with the minimal Render profile
 (`docs/render-design.md` §11): bold and italic names added; the reaction line
 pattern and the compartment name color removed; the §14 mapping corrected. 0.4:

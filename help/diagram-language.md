@@ -281,6 +281,6 @@ back, so a file written by a newer program isn't damaged.
 
 The full description of the language is the technical report *A concise
 alternative syntax for describing biochemical network diagrams alongside
-Antimony models*, <https://doi.org/10.5281/zenodo.23625331>.
+Antimony models*, <https://doi.org/10.5281/zenodo.24046743>.
 
 Back to the [contents](contents.md).
