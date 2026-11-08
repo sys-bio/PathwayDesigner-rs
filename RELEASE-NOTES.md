@@ -4,7 +4,7 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
-## Unreleased
+## 1.0.0 (2026-11-08)
 
 **New**
 
@@ -27,6 +27,9 @@ version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 - Preferences: **Write functions into the formulas that use them**, for tools
   that don't read functions.
 - New help page: Events and rules.
+- The diagram format's specification is version 0.11, with the new comment for
+  what Antimony can't say; its technical report is on Zenodo
+  (https://doi.org/10.5281/zenodo.24046743).
 
 **Changed**
 
