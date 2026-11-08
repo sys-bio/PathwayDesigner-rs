@@ -17,26 +17,64 @@ impl DiagramView {
         opts: &ImportOptions,
     ) -> Result<(ViewResponse, Vec<Diagnostic>, bool), Vec<Diagnostic>> {
         let imported = antimony::import(text, opts)?;
+        Ok(self.put_antimony(imported))
+    }
+
+    /// [`DiagramView::import_antimony`] for "Load Antimony", whose text was
+    /// most likely got from this diagram: what Antimony can't say is kept
+    /// from the diagram it replaces, for each item the text still has
+    /// (docs/antimony-full-support-design.md S3), unless the text has its
+    /// own `sbml` block.
+    pub fn load_antimony(
+        &mut self,
+        text: &str,
+        opts: &ImportOptions,
+    ) -> Result<(ViewResponse, Vec<Diagnostic>, bool), Vec<Diagnostic>> {
+        let imported = antimony::import_keeping(text, opts, &self.model)?;
+        Ok(self.put_antimony(imported))
+    }
+
+    fn put_antimony(
+        &mut self,
+        imported: antimony::Imported,
+    ) -> (ViewResponse, Vec<Diagnostic>, bool) {
         self.cancel_layout();
         self.cancel_gesture();
         let before = std::mem::replace(&mut self.model, imported.model);
         let mut r = self.record("Import Antimony", before);
         r.selection_changed = true;
         let needs_layout = !imported.had_layout || imported.unplaced > 0;
-        Ok((r, imported.warnings, needs_layout))
+        (r, imported.warnings, needs_layout)
+    }
+
+    /// The model as SBML and Antimony are written from it: with its
+    /// functions written in, if [`DiagramView::write_functions_in`].
+    fn to_write(&self) -> std::borrow::Cow<'_, crate::model::Model> {
+        if self.write_functions_in && !self.model.function_definitions.is_empty() {
+            std::borrow::Cow::Owned(self.model.with_functions_written_in())
+        } else {
+            std::borrow::Cow::Borrowed(&self.model)
+        }
     }
 
     /// The diagram as Antimony text (S §11.3).
     pub fn export_antimony(&self) -> String {
-        antimony::export(&self.model)
+        antimony::export(&self.to_write())
+    }
+
+    /// What [`DiagramView::export_antimony`] leaves out, for the user
+    /// (docs/antimony-full-support-design.md S6).
+    pub fn plain_antimony_notes(&self) -> Vec<String> {
+        antimony::plain_notes(&self.to_write())
     }
 
     /// The diagram as Antimony with its drawing as layout statements
     /// (docs/antimony-layout-export-design.md), and what those can't say.
     pub fn export_antimony_with_layout(&self) -> (String, Vec<String>) {
+        let model = self.to_write();
         (
-            antimony::export_with_layout(&self.model),
-            antimony::layout_notes(&self.model),
+            antimony::export_with_layout(&model),
+            antimony::layout_notes(&model),
         )
     }
 
@@ -44,12 +82,13 @@ impl DiagramView {
     /// (docs/diagram-format.md), and with `layout`, Antimony's layout
     /// statements too; and what the export can't keep.
     pub fn export_antimony_with_diagram(&self, layout: bool) -> (String, Vec<String>) {
+        let model = self.to_write();
         let text = if layout {
-            antimony::export_with_diagram_and_layout(&self.model)
+            antimony::export_with_diagram_and_layout(&model)
         } else {
-            antimony::export_with_diagram(&self.model)
+            antimony::export_with_diagram(&model)
         };
-        (text, antimony::diagram_notes(&self.model, layout))
+        (text, antimony::diagram_notes(&model, layout))
     }
 
     /// Replaces the diagram with the model in SBML `xml`, as one undo step
@@ -115,7 +154,7 @@ impl DiagramView {
 
     /// The diagram as SBML with its layout (S §11.5).
     pub fn export_sbml(&self) -> sbml::Exported {
-        sbml::export(&self.model)
+        sbml::export(&self.to_write())
     }
 }
 
@@ -124,10 +163,7 @@ mod tests {
     use super::*;
     use crate::geometry::pt;
 
-    const OPTS: ImportOptions = ImportOptions {
-        convert_catalytic: true,
-        seed: 1,
-    };
+    const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
     #[test]
     fn import_is_one_undo_step() {

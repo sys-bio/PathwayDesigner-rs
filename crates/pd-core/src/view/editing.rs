@@ -35,7 +35,7 @@ fn midpoint(m: &Model, id: &str) -> Option<Pt> {
 const NEW_TEXT: &str = "Text";
 
 /// The value of a parameter made for a new reaction's rate law (S §6.5).
-const NEW_PARAMETER_VALUE: &str = "0.1";
+const NEW_PARAMETER_VALUE: f64 = 0.1;
 /// Radius of the dot at the cursor while picking species, in screen points.
 const PICK_DOT_RADIUS_PX: f32 = 5.0;
 const GUIDE_DASH_PX: (f32, f32) = (6.0, 4.0);
@@ -128,9 +128,10 @@ impl DiagramView {
     /// One undo step.
     pub fn delete_compartment(&mut self, id: &str) -> ViewResponse {
         let before = self.model.clone();
-        if !self.model.delete_compartment(id) {
+        let Some(deleted) = self.model.delete_compartment(id) else {
             return ViewResponse::default();
-        }
+        };
+        self.removed = deleted.removed;
         let mut r = self.record("Delete Compartment", before);
         r.selection_changed = true;
         r
@@ -285,11 +286,9 @@ impl DiagramView {
             apply_smooth_handles(&mut self.model, &id);
         }
         if self.model.find_parameter(&k).is_none() {
-            self.model.parameters.push(Parameter {
-                variable: k,
-                expression: NEW_PARAMETER_VALUE.to_owned(),
-                annotation: Default::default(),
-            });
+            self.model
+                .parameters
+                .push(Parameter::new(k, Some(NEW_PARAMETER_VALUE)));
         }
         self.record("Add Reaction", before)
     }
@@ -972,7 +971,7 @@ impl DiagramView {
             return ViewResponse::default();
         }
         let before = self.model.clone();
-        self.model.delete_species(id);
+        self.removed = self.model.delete_species(id).removed;
         let mut r = self.record("Delete", before);
         r.selection_changed = true;
         r
@@ -980,9 +979,10 @@ impl DiagramView {
 
     pub fn delete_reaction(&mut self, id: &str) -> ViewResponse {
         let before = self.model.clone();
-        if !self.model.delete_reaction(id) {
+        let Some(deleted) = self.model.delete_reaction(id) else {
             return ViewResponse::default();
-        }
+        };
+        self.removed = deleted.removed;
         let mut r = self.record("Delete", before);
         r.selection_changed = true;
         r

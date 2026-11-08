@@ -1654,10 +1654,7 @@ mod tests {
     use crate::geometry::pt;
     use crate::model::{Model, ModifierKind, NodeShape, ReactionMode, Rgba};
 
-    const OPTS: ImportOptions = ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
     const MODEL: &str = "model m
   compartment cell = 1

@@ -4,12 +4,19 @@
 //! with libSBML and libRoadRunner and writes the report.
 //!
 //! ```text
-//! cargo run -p pd-core --release --example biomodels_roundtrip -- <BioModels> <out>
+//! cargo run -p pd-core --release --example biomodels_roundtrip -- <BioModels> <out> [antimony|keeping|plain]
 //! ```
+//! With `antimony`, the model goes through Antimony on the way, as a file
+//! saved and opened again does: read from SBML, written as Antimony with its
+//! diagram, read back, and written as SBML (docs/antimony-full-support-design.md).
+//! With `keeping`, as Get Antimony and then Load Antimony in the Antimony tab
+//! do: written as plain Antimony and read back over the model (S3). With
+//! `plain`, written as plain Antimony and read back alone (S6).
 //! `<BioModels>`: a folder of `<id>/<id>_url.xml` (as BioModels' curated
 //! archive unpacks), or of `<id>.xml`. Writes `<out>/<id>.xml` for each model
-//! read, and `<out>/roundtrip.jsonl`, a line per model: whether it was read,
-//! what the import warned about, and what the export found wrong or added.
+//! read, and `<out>/roundtrip.jsonl`, a line per model: which file was read,
+//! whether it was read, what the import warned about, and what the export
+//! found wrong or added.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -60,12 +67,10 @@ fn models(dir: &Path) -> Vec<(String, PathBuf)> {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let (src, out) = (Path::new(&args[1]), Path::new(&args[2]));
+    let mode = args.get(3).map(String::as_str);
     std::fs::create_dir_all(out).expect("the output folder");
     let mut log = std::fs::File::create(out.join("roundtrip.jsonl")).expect("the log");
-    let opts = pd_core::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = pd_core::antimony::ImportOptions { seed: 1 };
     let all = models(src);
     let (mut read, mut failed) = (0, 0);
     for (id, file) in &all {
@@ -85,13 +90,48 @@ fn main() {
         let line = match pd_core::sbml::import(&text, &opts) {
             Ok(imported) => {
                 read += 1;
-                let exported = pd_core::sbml::export(&imported.model);
+                let mut model = imported.model;
+                let mut antimony_warnings: Vec<String> = Vec::new();
+                // What plain Antimony says it leaves out (S6).
+                let plain_notes = if mode == Some("plain") {
+                    pd_core::antimony::plain_notes(&model)
+                } else {
+                    Vec::new()
+                };
+                if let Some(mode) = mode {
+                    let text = match mode {
+                        "antimony" => pd_core::antimony::export_with_diagram(&model),
+                        "keeping" | "plain" => pd_core::antimony::export(&model),
+                        other => panic!("no mode {other}"),
+                    };
+                    std::fs::write(out.join(format!("{id}.ant")), &text).expect("written");
+                    let again = if mode == "keeping" {
+                        pd_core::antimony::import_keeping(&text, &opts, &model)
+                    } else {
+                        pd_core::antimony::import(&text, &opts)
+                    };
+                    match again {
+                        Ok(again) => {
+                            antimony_warnings =
+                                again.warnings.iter().map(|d| d.to_string()).collect();
+                            model = again.model;
+                        }
+                        Err(errors) => {
+                            antimony_warnings =
+                                errors.iter().map(|d| format!("error: {d}")).collect();
+                        }
+                    }
+                }
+                let exported = pd_core::sbml::export(&model);
                 std::fs::write(out.join(format!("{id}.xml")), &exported.xml).expect("written");
                 json!({
                     "id": id,
+                    "file": file,
                     "read": true,
                     "warnings": imported.warnings,
                     "problems": exported.problems,
+                    "antimony": antimony_warnings,
+                    "plain_notes": plain_notes,
                     "notes": exported.notes,
                 })
             }

@@ -449,10 +449,7 @@ mod tests {
                     assert_eq!(e.version, 0, "{}: not PathwayDesigner JSON", e.file);
                 }
                 FileKind::Sbml => {
-                    let opts = pd_core::antimony::ImportOptions {
-                        convert_catalytic: false,
-                        seed: 1,
-                    };
+                    let opts = pd_core::antimony::ImportOptions { seed: 1 };
                     pd_core::sbml::import(&text, &opts)
                         .unwrap_or_else(|err| panic!("{}: {err:?}", e.file));
                     assert_eq!(e.version, 0, "{}: not PathwayDesigner JSON", e.file);

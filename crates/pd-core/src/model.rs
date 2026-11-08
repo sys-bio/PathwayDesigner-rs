@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 
 use crate::geometry::Pt;
+pub use crate::model_core::*;
 
 /// A species, reaction, parameter or compartment identifier. Kept exactly as
 /// typed or imported, letter case included (S §4).
@@ -288,6 +289,8 @@ pub struct SpeciesNode {
     /// display name its label shows, or `None` for its species' id. Read it
     /// through [`SpeciesNode::label`].
     pub shown_name: Option<String>,
+    /// What SBML says of it beyond this, on a primary only.
+    pub sbml: SpeciesSbml,
 }
 
 /// A display name as read from a file: `None` for a missing or blank one
@@ -453,6 +456,7 @@ impl SpeciesNode {
             label_choice: LabelChoice::Diagram,
             label_text: None,
             shown_name: None,
+            sbml: SpeciesSbml::default(),
         }
     }
 
@@ -505,6 +509,9 @@ pub struct Participant {
     pub points: Vec<Pt>,
     /// A modifier line's own look (S §5.7.2). Only used in a modifier list.
     pub look: ModifierLook,
+    /// What SBML says of it beyond the species and stoichiometry: its id,
+    /// name and annotation. `None` for most.
+    pub sbml: Option<Box<SpeciesReference>>,
 }
 
 /// A modifier line's pattern (S §5.7.2).
@@ -582,7 +589,13 @@ impl Participant {
             kind: ModifierKind::Modifier,
             points: Vec::new(),
             look: ModifierLook::default(),
+            sbml: None,
         }
+    }
+
+    /// Its SBML id, if it has one.
+    pub fn reference_id(&self) -> Option<&str> {
+        self.sbml.as_ref().and_then(|r| r.id.as_deref())
     }
 }
 
@@ -744,6 +757,9 @@ pub struct Reaction {
     /// Transient, kept by [`Model::refresh_labels`]; read it through
     /// [`Reaction::label`].
     pub shown_name: Option<String>,
+    /// What SBML says of it beyond this: fast, its compartment, its rate
+    /// law's local parameters.
+    pub sbml: ReactionSbml,
 }
 
 /// True if a stem's ends, offsets from the junction, are on one straight
@@ -790,6 +806,7 @@ impl Reaction {
             label_choice: LabelChoice::Diagram,
             label_text: None,
             shown_name: None,
+            sbml: ReactionSbml::default(),
         }
     }
 
@@ -949,7 +966,8 @@ pub struct Compartment {
     pub id: Id,
     /// The volume.
     pub size: f64,
-    pub dimensions: u32,
+    /// SBML's `spatialDimensions`: 3 for a volume, 2 for a membrane.
+    pub dimensions: f64,
     pub style: VisualStyle,
     /// Where it is drawn. `None` until it is placed.
     pub frame: Option<Frame>,
@@ -973,6 +991,8 @@ pub struct Compartment {
     /// Transient, kept by [`Model::refresh_labels`]; read it through
     /// [`Compartment::label`].
     pub shown_name: Option<String>,
+    /// What SBML says of it beyond this: units, whether its size changes.
+    pub sbml: CompartmentSbml,
 }
 
 impl Compartment {
@@ -980,7 +1000,7 @@ impl Compartment {
         Self {
             id: id.into(),
             size: 1.0,
-            dimensions: 3,
+            dimensions: 3.0,
             style: VisualStyle::default(),
             frame: None,
             hidden: false,
@@ -991,6 +1011,7 @@ impl Compartment {
             label_choice: LabelChoice::Diagram,
             label_text: None,
             shown_name: None,
+            sbml: CompartmentSbml::default(),
         }
     }
 
@@ -1012,13 +1033,37 @@ impl Compartment {
     }
 }
 
-/// `variable = expression` (S §3.5).
-#[derive(Clone, Debug, PartialEq, Default)]
+/// A parameter (S §3.5). A formula for its starting value is an initial
+/// assignment ([`Model::initial_assignments`]); Antimony and the native file
+/// write the two as one, `k = 2*Vm` ([`Model::parameter_text`]).
+#[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
     pub variable: String,
-    pub expression: String,
+    /// `None` when it has none: an initial assignment, rule or event may
+    /// give it one.
+    pub value: Option<f64>,
+    /// Its display name (SBML `name`).
+    pub name: Option<String>,
+    pub units: Option<String>,
+    /// SBML's `constant`: nothing changes it while the model runs. False
+    /// when a rule or an event sets it.
+    pub constant: bool,
     /// What it is (docs/annotations-design.md A1).
     pub annotation: Annotation,
+}
+
+impl Parameter {
+    /// A constant parameter with this value.
+    pub fn new(variable: impl Into<String>, value: Option<f64>) -> Self {
+        Parameter {
+            variable: variable.into(),
+            value,
+            name: None,
+            units: None,
+            constant: true,
+            annotation: Annotation::default(),
+        }
+    }
 }
 
 /// What an item is, beyond its name (docs/annotations-design.md): its SBO
@@ -1039,6 +1084,14 @@ pub struct Annotation {
     /// The item's SBML `metaid` as read, written back as it was, since
     /// another tool's XML may point at the item by it (O3).
     pub metaid: Option<String>,
+    /// Who made the item and when, for an item other than the model (whose
+    /// history is [`Model::history`]).
+    pub history: History,
+    /// What other SBML packages put on the item (F10).
+    pub package: PackageData,
+    /// RDF descriptions the reader doesn't take apart, raw XML, written back
+    /// inside the item's RDF.
+    pub rdf: Vec<String>,
 }
 
 impl Annotation {
@@ -1049,6 +1102,7 @@ impl Annotation {
             && self.references.is_empty()
             && self.notes.is_none()
             && self.other.is_empty()
+            && self.history.is_empty()
     }
 }
 
@@ -1085,14 +1139,23 @@ pub struct Creator {
     pub organization: Option<String>,
 }
 
-/// `variable := expression` (S §3.5).
+/// `variable := expression` (S §3.5): the item always has this value.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct AssignmentRule {
     pub variable: String,
     pub expression: String,
-    /// The annotation of the parameter it sets, when that parameter is
-    /// nothing else (docs/annotations-design.md A1).
+    /// The rule's own annotation; the item it sets has its own.
     pub annotation: Annotation,
+}
+
+/// What a deletion took with it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Deleted {
+    /// Reactions deleted with a species, by id.
+    pub reactions: Vec<Id>,
+    /// What else went, in words: rules, events and the like that named
+    /// something deleted (F8).
+    pub removed: Vec<String>,
 }
 
 /// Why a rename was refused (S §4).
@@ -1135,9 +1198,33 @@ pub struct DuplicateId(pub Id);
 #[derive(Clone, Debug, PartialEq)]
 pub struct Model {
     pub model_name: String,
+    /// The SBML model's own id, when it has one apart from its name.
+    pub model_id: Option<String>,
+    /// The SBML file this came from gave the model no id, or no name (its
+    /// id is then [`Model::model_name`]): written back so.
+    pub model_id_unset: bool,
+    pub model_name_unset: bool,
     pub compartments: Vec<Compartment>,
     pub parameters: Vec<Parameter>,
     pub assignment_rules: Vec<AssignmentRule>,
+    /// What the rest of SBML holds (docs/sbml-full-support-design.md).
+    pub function_definitions: Vec<FunctionDefinition>,
+    pub unit_definitions: Vec<UnitDefinition>,
+    pub units: ModelUnits,
+    pub conversion_factor: Option<Id>,
+    pub initial_assignments: Vec<InitialAssignment>,
+    pub rate_rules: Vec<RateRule>,
+    pub algebraic_rules: Vec<AlgebraicRule>,
+    pub constraints: Vec<Constraint>,
+    pub events: Vec<Event>,
+    /// The SBML namespaces other packages' parts need: (prefix, URI).
+    pub sbml_namespaces: Vec<(Option<String>, String)>,
+    /// What other packages put on the SBML document itself: the `comp`
+    /// package's model definitions, a package's `required` attribute.
+    pub sbml_document: PackageData,
+    /// The version of SBML Level 3 the model was read from, if it was: XML
+    /// kept as read for another package belongs to that version's core.
+    pub sbml_version: Option<u32>,
     /// The model's saved styles (S §8.6). Only those some item follows are
     /// saved in the file.
     pub styles: Vec<SavedStyle>,
@@ -1181,9 +1268,24 @@ impl Default for Model {
     fn default() -> Self {
         Self {
             model_name: String::new(),
+            model_id: None,
+            model_id_unset: false,
+            model_name_unset: false,
             compartments: Vec::new(),
             parameters: Vec::new(),
             assignment_rules: Vec::new(),
+            function_definitions: Vec::new(),
+            unit_definitions: Vec::new(),
+            units: ModelUnits::default(),
+            conversion_factor: None,
+            initial_assignments: Vec::new(),
+            rate_rules: Vec::new(),
+            algebraic_rules: Vec::new(),
+            constraints: Vec::new(),
+            events: Vec::new(),
+            sbml_namespaces: Vec::new(),
+            sbml_document: PackageData::default(),
+            sbml_version: None,
             styles: Vec::new(),
             theme: None,
             background: Rgba::DEFAULT,
@@ -1308,6 +1410,14 @@ impl Model {
             .find(|p| p.variable.eq_ignore_ascii_case(name))
     }
 
+    /// The parameter called `name` (ignoring case), for editing. Don't change
+    /// its `variable` here: use [`Model::rename_parameter`].
+    pub fn find_parameter_mut(&mut self, name: &str) -> Option<&mut Parameter> {
+        self.parameters
+            .iter_mut()
+            .find(|p| p.variable.eq_ignore_ascii_case(name))
+    }
+
     /// The compartment called `name`, compared ignoring case as the reference does.
     pub fn find_compartment(&self, name: &str) -> Option<&Compartment> {
         self.compartments
@@ -1413,25 +1523,26 @@ impl Model {
         id
     }
 
-    /// Deletes a compartment. Its species go to the default compartment.
-    /// Returns false if there was none with that id (ignoring case).
-    pub fn delete_compartment(&mut self, id: &str) -> bool {
-        let before = self.compartments.len();
-        self.compartments.retain(|c| !c.id.eq_ignore_ascii_case(id));
-        if self.compartments.len() == before {
-            return false;
-        }
+    /// Deletes a compartment. Its species go to the default compartment;
+    /// what names it goes too (F8). `None` if there was none with that id
+    /// (ignoring case).
+    pub fn delete_compartment(&mut self, id: &str) -> Option<Deleted> {
+        let gone = self.find_compartment(id)?.id.clone();
+        self.compartments.retain(|c| c.id != gone);
         for s in &mut self.species {
-            if s.compartment.eq_ignore_ascii_case(id) {
+            if s.compartment.eq_ignore_ascii_case(&gone) {
                 s.compartment.clear();
             }
         }
-        true
+        Some(Deleted {
+            reactions: Vec::new(),
+            removed: self.remove_uses(&[gone]),
+        })
     }
 
-    /// Renames a compartment, and every species in it, and whole-word uses
-    /// of its id in rate laws, parameters and rules (its volume can be used
-    /// in them). Changing only the letter case is allowed.
+    /// Renames a compartment, every species in it, and every use of its id
+    /// (its volume can be used in formulas, [`Model::rename_uses`]).
+    /// Changing only the letter case is allowed.
     pub fn rename_compartment(&mut self, old: &str, new: &str) -> Result<(), RenameError> {
         let old = self
             .find_compartment(old)
@@ -1453,15 +1564,7 @@ impl Model {
                 s.compartment = new.to_owned();
             }
         }
-        for r in &mut self.reactions {
-            r.kinetic_law = replace_whole_word(&r.kinetic_law, &old, new);
-        }
-        for p in &mut self.parameters {
-            p.expression = replace_whole_word(&p.expression, &old, new);
-        }
-        for r in &mut self.assignment_rules {
-            r.expression = replace_whole_word(&r.expression, &old, new);
-        }
+        self.rename_uses(&old, new);
         Ok(())
     }
 
@@ -1575,14 +1678,19 @@ impl Model {
     ///   deleted;
     /// - removed nodes are taken out of every remaining modifier list (D-6).
     ///
-    /// Returns the ids of the deleted reactions. Nothing happens if there is no
-    /// such species.
-    pub fn delete_species(&mut self, id: &str) -> Vec<Id> {
+    /// - what names a deleted species, reaction or species reference goes
+    ///   too (F8).
+    ///
+    /// Nothing happens if there is no such species.
+    pub fn delete_species(&mut self, id: &str) -> Deleted {
         let Some(node) = self.find_species(id) else {
-            return Vec::new();
+            return Deleted::default();
         };
         let mut removed: Vec<Id> = vec![node.id.clone()];
+        // SBML ids that go: the species, unless only a drawing of it goes.
+        let mut gone: Vec<Id> = Vec::new();
         if !node.is_alias() {
+            gone.push(node.id.clone());
             removed.extend(self.aliases_of(id).map(|a| a.id.clone()));
         }
         let is_removed = |s: &str| removed.iter().any(|r| r == s);
@@ -1596,15 +1704,26 @@ impl Model {
                 .any(|p| is_removed(&p.species));
             if !keep {
                 deleted_reactions.push(r.id.clone());
+                gone.push(r.id.clone());
+                gone.extend(reference_ids(r));
             }
             keep
         });
         for r in &mut self.reactions {
-            r.modifiers.retain(|m| !is_removed(&m.species));
+            r.modifiers.retain(|m| {
+                let keep = !is_removed(&m.species);
+                if !keep && let Some(id) = m.reference_id() {
+                    gone.push(id.to_owned());
+                }
+                keep
+            });
         }
         self.species.retain(|s| !is_removed(&s.id));
         self.rebuild_indexes();
-        deleted_reactions
+        Deleted {
+            reactions: deleted_reactions,
+            removed: self.remove_uses(&gone),
+        }
     }
 
     /// Removes a null node and its legs, but keeps the reactions: a null node
@@ -1624,21 +1743,26 @@ impl Model {
         true
     }
 
-    /// Deletes a reaction. Returns false if there was none with that id.
-    pub fn delete_reaction(&mut self, id: &str) -> bool {
-        let Some(&i) = self.reaction_index.get(id) else {
-            return false;
-        };
-        self.reactions.remove(i);
+    /// Deletes a reaction, and what names it or its species references
+    /// (F8). `None` if there was none with that id.
+    pub fn delete_reaction(&mut self, id: &str) -> Option<Deleted> {
+        let &i = self.reaction_index.get(id)?;
+        let r = self.reactions.remove(i);
         self.rebuild_indexes();
-        true
+        let mut gone = vec![r.id.clone()];
+        gone.extend(reference_ids(&r));
+        Some(Deleted {
+            reactions: Vec::new(),
+            removed: self.remove_uses(&gone),
+        })
     }
 
     /// Renames a species (S §3.7, §4, §7.1). Renaming an alias renames its
     /// primary, because an alias shows its primary's id.
     ///
     /// Every reference follows: aliases, reaction participants and modifiers,
-    /// and whole-word occurrences in kinetic laws (case-sensitive, D-12).
+    /// and every use in a formula or as what one sets (case-sensitive, D-12;
+    /// [`Model::rename_uses`]).
     /// Renaming to the same id does nothing. Auto-widening the node to fit the
     /// new label is the caller's job; it needs the font (S §5.3).
     pub fn rename_species(&mut self, old: &str, new: &str) -> Result<(), RenameError> {
@@ -1656,12 +1780,16 @@ impl Model {
         if self.is_id_taken_for_rename(new) {
             return Err(RenameError::InUse);
         }
+        self.put_species_id(&old, new);
+        Ok(())
+    }
 
+    fn put_species_id(&mut self, old: &str, new: &str) {
         for s in &mut self.species {
             if s.id == old {
                 s.id = new.to_owned();
             }
-            if s.alias_of.as_deref() == Some(old.as_str()) {
+            if s.alias_of.as_deref() == Some(old) {
                 s.alias_of = Some(new.to_owned());
             }
         }
@@ -1676,14 +1804,60 @@ impl Model {
                     p.species = new.to_owned();
                 }
             }
-            r.kinetic_law = replace_whole_word(&r.kinetic_law, &old, new);
         }
+        self.rename_uses(old, new);
         self.rebuild_indexes();
-        Ok(())
     }
 
-    /// Renames reaction `old` to `new`, and every whole-word use of it in an
-    /// expression (a rate law, a parameter's value, a rule).
+    /// Gives a species, reaction, compartment or parameter back the id
+    /// `new` it had, wherever `old` is used: unlike the renames a person
+    /// makes, an id differing from another only in case is allowed, as SBML
+    /// allows it (found by the Test Suite round trip). `false` if nothing is
+    /// `old` or something already is `new`.
+    pub(crate) fn rename_back(&mut self, old: &str, new: &str) -> bool {
+        if old == new || self.is_id_used(new) || !is_valid_sid(new) {
+            return false;
+        }
+        if let Some(s) = self.species.iter().find(|s| s.id == old) {
+            if s.is_null_node {
+                return false;
+            }
+            self.put_species_id(old, new);
+        } else if self.reactions.iter().any(|r| r.id == old) {
+            for r in &mut self.reactions {
+                if r.id == old {
+                    r.id = new.to_owned();
+                }
+            }
+            self.rename_uses(old, new);
+            self.rebuild_indexes();
+        } else if self.compartments.iter().any(|c| c.id == old) {
+            for c in &mut self.compartments {
+                if c.id == old {
+                    c.id = new.to_owned();
+                }
+            }
+            for s in &mut self.species {
+                if s.compartment == old {
+                    s.compartment = new.to_owned();
+                }
+            }
+            self.rename_uses(old, new);
+        } else if self.parameters.iter().any(|p| p.variable == old) {
+            for p in &mut self.parameters {
+                if p.variable == old {
+                    p.variable = new.to_owned();
+                }
+            }
+            self.rename_uses(old, new);
+        } else {
+            return false;
+        }
+        true
+    }
+
+    /// Renames reaction `old` to `new`, and every use of it in a formula,
+    /// where it stands for its rate ([`Model::rename_uses`]).
     pub fn rename_reaction(&mut self, old: &str, new: &str) -> Result<(), RenameError> {
         if self.find_reaction(old).is_none() {
             return Err(RenameError::NotFound);
@@ -1701,29 +1875,52 @@ impl Model {
             if r.id == old {
                 r.id = new.to_owned();
             }
-            r.kinetic_law = replace_whole_word(&r.kinetic_law, old, new);
         }
-        for p in &mut self.parameters {
-            p.expression = replace_whole_word(&p.expression, old, new);
-        }
-        for r in &mut self.assignment_rules {
-            r.expression = replace_whole_word(&r.expression, old, new);
-        }
+        self.rename_uses(old, new);
         self.rebuild_indexes();
         Ok(())
     }
 
-    /// True if any species, reaction, text, parameter or compartment uses
-    /// `id`. Species, reactions and texts match exactly; parameters and
-    /// compartments ignore case, as the reference's lookups do.
+    /// Renames parameter `old` to `new`, and every use of it
+    /// ([`Model::rename_uses`]).
+    pub fn rename_parameter(&mut self, old: &str, new: &str) -> Result<(), RenameError> {
+        if !self.parameters.iter().any(|p| p.variable == old) {
+            return Err(RenameError::NotFound);
+        }
+        if new == old {
+            return Ok(());
+        }
+        if !is_valid_sid(new) {
+            return Err(RenameError::InvalidId);
+        }
+        if self.is_id_taken_for_rename(new) {
+            return Err(RenameError::InUse);
+        }
+        for p in &mut self.parameters {
+            if p.variable == old {
+                p.variable = new.to_owned();
+            }
+        }
+        self.rename_uses(old, new);
+        Ok(())
+    }
+
+    /// True if any species, reaction, text, parameter, compartment,
+    /// function, event or species reference uses `id`, exactly: SBML ids are
+    /// case-sensitive, so a parameter `r1` and a reaction `R1` are two things
+    /// (found by the BioModels round trip).
     pub fn is_id_used(&self, id: &str) -> bool {
-        // Exactly: SBML ids are case-sensitive, so a parameter `r1` and a
-        // reaction `R1` are two things (found by the BioModels round trip).
         self.species_index.contains_key(id)
             || self.reaction_index.contains_key(id)
             || self.find_text(id).is_some()
             || self.parameters.iter().any(|p| p.variable == id)
             || self.compartments.iter().any(|c| c.id == id)
+            || self.function_definitions.iter().any(|f| f.id == id)
+            || self.events.iter().any(|e| e.id.as_deref() == Some(id))
+            || self
+                .reactions
+                .iter()
+                .any(|r| reference_ids(r).any(|r| r == id))
     }
 
     /// Whether renaming something to `id` would clash: an exact match, or,
@@ -1737,6 +1934,11 @@ impl Model {
             || self.reactions.iter().any(|r| same(&r.id))
             || self.parameters.iter().any(|p| same(&p.variable))
             || self.compartments.iter().any(|c| same(&c.id))
+            // A rate law's local parameter of that name would hide it there.
+            || self
+                .reactions
+                .iter()
+                .any(|r| r.sbml.local_parameters.iter().any(|p| same(&p.id)))
     }
 
     fn rebuild_indexes(&mut self) {
@@ -1753,6 +1955,15 @@ impl Model {
             .map(|(i, r)| (r.id.clone(), i))
             .collect();
     }
+}
+
+/// The SBML ids of a reaction's species references, where they have them.
+fn reference_ids(r: &Reaction) -> impl Iterator<Item = String> + '_ {
+    r.reactants
+        .iter()
+        .chain(&r.products)
+        .chain(&r.modifiers)
+        .filter_map(|p| p.reference_id().map(str::to_owned))
 }
 
 /// The numeric suffix of an id: everything after its first character, as an
@@ -1886,11 +2097,7 @@ mod tests {
     fn lookups_are_case_sensitive_for_species_but_not_parameters() {
         let mut m = Model::new();
         m.push_species(SpeciesNode::new("Glc", Pt::ZERO)).unwrap();
-        m.parameters.push(Parameter {
-            variable: "Km".into(),
-            expression: "0.5".into(),
-            annotation: Default::default(),
-        });
+        m.parameters.push(Parameter::new("Km", Some(0.5)));
         m.compartments.push(Compartment::new("Cell"));
         assert!(m.find_species("Glc").is_some());
         assert!(m.find_species("glc").is_none());
@@ -1919,7 +2126,7 @@ mod tests {
     fn deleting_a_species_cascades() {
         let mut m = small_model();
         let deleted = m.delete_species("S1");
-        assert_eq!(deleted, vec!["R2".to_owned()]);
+        assert_eq!(deleted.reactions, vec!["R2".to_owned()]);
         assert!(m.find_species("S1").is_none());
         assert!(m.reactions().is_empty());
         // Indexes are rebuilt: the remaining species are still found.
@@ -1931,7 +2138,7 @@ mod tests {
     fn deleting_a_modifier_keeps_the_reaction_and_cleans_its_modifier_list() {
         let mut m = small_model();
         let deleted = m.delete_species("S4");
-        assert!(deleted.is_empty());
+        assert!(deleted.reactions.is_empty());
         let r = m.find_reaction("R2").unwrap();
         assert!(
             r.modifiers.is_empty(),
@@ -1948,7 +2155,7 @@ mod tests {
             .unwrap()
             .reactants
             .push(Participant::new(&alias, 1.0));
-        let mut deleted = m.delete_species("S3");
+        let mut deleted = m.delete_species("S3").reactions;
         deleted.sort();
         assert_eq!(deleted, vec!["R2".to_owned(), r]);
         assert!(m.find_species(&alias).is_none());
@@ -1959,7 +2166,7 @@ mod tests {
         let mut m = small_model();
         let alias = m.add_alias("S1", pt(0.0, 200.0)).unwrap();
         let deleted = m.delete_species(&alias);
-        assert!(deleted.is_empty());
+        assert!(deleted.reactions.is_empty());
         assert!(m.find_species("S1").is_some());
         assert!(m.find_species(&alias).is_none());
         assert_eq!(m.reactions().len(), 1);
@@ -1986,8 +2193,8 @@ mod tests {
     #[test]
     fn deleting_a_reaction() {
         let mut m = small_model();
-        assert!(m.delete_reaction("R2"));
-        assert!(!m.delete_reaction("R2"));
+        assert!(m.delete_reaction("R2").is_some());
+        assert!(m.delete_reaction("R2").is_none());
         assert!(m.find_reaction("R2").is_none());
         assert_eq!(m.species().len(), 3);
     }
@@ -2032,14 +2239,11 @@ mod tests {
     #[test]
     fn a_reaction_is_renamed_everywhere() {
         let mut m = small_model();
-        m.parameters.push(Parameter {
-            variable: "k".into(),
-            expression: "2*R2".into(),
-            annotation: Default::default(),
-        });
+        m.parameters.push(Parameter::new("k", None));
+        m.set_parameter_text("k", "2*R2");
         assert_eq!(m.rename_reaction("R2", "J1"), Ok(()));
         assert!(m.find_reaction("J1").is_some() && m.find_reaction("R2").is_none());
-        assert_eq!(m.parameters[0].expression, "2*J1");
+        assert_eq!(m.parameter_text("k"), "2*J1");
         assert_eq!(m.rename_reaction("J1", "S1"), Err(RenameError::InUse));
         assert_eq!(m.rename_reaction("J1", "2x"), Err(RenameError::InvalidId));
         assert_eq!(m.rename_reaction("R9", "Q"), Err(RenameError::NotFound));
@@ -2048,11 +2252,7 @@ mod tests {
     #[test]
     fn rename_is_refused_when_invalid() {
         let mut m = small_model();
-        m.parameters.push(Parameter {
-            variable: "k1".into(),
-            expression: "0.1".into(),
-            annotation: Default::default(),
-        });
+        m.parameters.push(Parameter::new("k1", Some(0.1)));
         assert_eq!(m.rename_species("S1", ""), Err(RenameError::InvalidId));
         assert_eq!(m.rename_species("S1", "2x"), Err(RenameError::InvalidId));
         assert_eq!(m.rename_species("S1", "a-b"), Err(RenameError::InvalidId));
@@ -2152,9 +2352,9 @@ mod tests {
         assert_eq!(m.selected_compartments().count(), 1);
         m.clear_selection();
         assert_eq!(m.selected_compartments().count(), 0);
-        assert!(m.delete_compartment("CELL"));
+        assert!(m.delete_compartment("CELL").is_some());
         assert_eq!(m.find_species("S1").unwrap().compartment, "");
-        assert!(!m.delete_compartment("Cell"));
+        assert!(m.delete_compartment("Cell").is_none());
     }
 
     #[test]

@@ -17,6 +17,7 @@ process, with a time limit.
 
 import concurrent.futures as cf
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -24,16 +25,11 @@ import sys
 
 LEVELS = ["l3v2", "l3v1", "l2v5", "l2v4", "l2v3", "l2v2", "l2v1"]
 TIMEOUT = 120
-# What PathwayDesigner leaves out, by the cases' component and test tags.
-LEFT_OUT = {
-    "EventNoDelay": "events",
-    "EventWithDelay": "events",
-    "RateRule": "rate rules",
-    "AlgebraicRule": "algebraic rules",
-    "Constraint": "constraints",
-    "comp": "the comp package",
-    "fbc": "the fbc package",
-}
+# What PathwayDesigner leaves out, by the cases' component and test tags:
+# nothing since it holds all of SBML core and keeps other packages
+# (docs/sbml-full-support-design.md); what the import itself says it
+# leaves out counts.
+LEFT_OUT = {}
 
 
 def settings(case_dir, case):
@@ -105,6 +101,19 @@ def compare(head, want, got, s):
 def check_one(case_dir, case, original, roundtrip):
     s = settings(case_dir, case)
     head, want = expected(case_dir, case)
+    # A model built from others (the comp package) names their files, which
+    # may name more: the round trip is simulated beside copies of every
+    # file of the case, as the original is.
+    import tempfile
+    with open(roundtrip, encoding="utf-8") as fh:
+        names = re.findall(r'source="([^"]+)"', fh.read())
+    if names:
+        beside = tempfile.mkdtemp()
+        for n in os.listdir(case_dir):
+            if n.endswith(".xml"):
+                shutil.copy(os.path.join(case_dir, n), os.path.join(beside, n))
+        shutil.copy(roundtrip, os.path.join(beside, os.path.basename(roundtrip)))
+        roundtrip = os.path.join(beside, os.path.basename(roundtrip))
     out = {}
     for key, path in (("original", original), ("roundtrip", roundtrip)):
         try:
@@ -167,7 +176,7 @@ def check(semantic, out_dir, report):
             results.append(res)
             if i % 200 == 0:
                 print(f"{i} of {len(jobs)} checked", flush=True)
-    said = ("left out", "was read as", "read with the stoichiometry")
+    said = ("left out", "aren't kept", "have no place")
     for r in results:
         r["left_out"] = sorted({LEFT_OUT[t] for t in tags(os.path.join(semantic, r["case"]), r["case"]) if t in LEFT_OUT})
         # What the import itself said it left out or changed.

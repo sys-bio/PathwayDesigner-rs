@@ -25,10 +25,7 @@ fn model_files() -> Vec<PathBuf> {
     files
 }
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: false,
-    seed: 1,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
 fn close(a: Pt, b: Pt) -> bool {
     a.distance(b) < 1e-6
@@ -181,15 +178,10 @@ fn differences(a: &Model, b: &Model) -> Vec<String> {
         }
     }
     for p in &a.parameters {
-        let found = b.find_parameter(&p.variable);
+        let (ta, tb) = (a.parameter_text(&p.variable), b.parameter_text(&p.variable));
         check(
-            found.is_some_and(|q| canonical(&q.expression) == canonical(&p.expression)),
-            format!(
-                "parameter {}: {:?} vs {:?}",
-                p.variable,
-                p.expression,
-                found.map(|q| &q.expression)
-            ),
+            b.find_parameter(&p.variable).is_some() && canonical(&ta) == canonical(&tb),
+            format!("parameter {}: {ta:?} vs {tb:?}", p.variable),
         );
     }
     for r in &a.assignment_rules {

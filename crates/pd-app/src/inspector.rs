@@ -79,6 +79,9 @@ struct Draft {
 
 #[derive(Default)]
 pub struct Inspector {
+    /// A part of the Events & Rules tab whose link was clicked, for the app
+    /// to open there (docs/sbml-app-design.md A3).
+    pub go_to: Option<pd_core::sentences::Part>,
     concentration: Draft,
     border_width: Draft,
     species_width: Draft,
@@ -462,6 +465,14 @@ impl Inspector {
                             ui.label("Concentration");
                             self.number(ui, view, Field::Concentration, one_species.is_some(), "");
                             ui.end_row();
+                            if let Some(id) = &one_species {
+                                let primary = view
+                                    .model()
+                                    .find_species(id)
+                                    .map(|s| s.primary_id().to_owned())
+                                    .unwrap_or_default();
+                                self.go_to = changed_rows(ui, view, &primary).or(self.go_to);
+                            }
 
                             ui.label("Boundary");
                             let all = !species.is_empty()
@@ -657,6 +668,9 @@ impl Inspector {
                             ui.label("Volume");
                             self.number(ui, view, Field::Volume, one_compartment.is_some(), "");
                             ui.end_row();
+                            if let Some(id) = &one_compartment {
+                                self.go_to = changed_rows(ui, view, id).or(self.go_to);
+                            }
                             // The box, when it is drawn.
                             let boxed = one_compartment.as_deref().is_some_and(|id| {
                                 view.model()
@@ -1379,6 +1393,46 @@ impl Inspector {
 
 /// Whether the picker offers "No fill" for `field`: only a fill can be left
 /// out; a border, a line or text must be seen.
+/// Grid rows for what else sets `id`: its starting formula, and what also
+/// changes it, each a link to it in the Events & Rules tab. Returns the one
+/// clicked.
+fn changed_rows(
+    ui: &mut egui::Ui,
+    view: &DiagramView,
+    id: &str,
+) -> Option<pd_core::sentences::Part> {
+    let m = view.model();
+    let mut clicked = None;
+    if let Some((part, formula)) = pd_core::sentences::starts_at(m, id) {
+        ui.label("Starts at");
+        if ui
+            .link(formula)
+            .on_hover_text("Its starting value is this formula's; click to change it")
+            .clicked()
+        {
+            clicked = Some(part);
+        }
+        ui.end_row();
+    }
+    let by = pd_core::sentences::changed_by(m, id);
+    if !by.is_empty() {
+        ui.label("Also changed by");
+        ui.horizontal_wrapped(|ui| {
+            for (part, words) in by {
+                if ui
+                    .link(words)
+                    .on_hover_text("Show it in Events & Rules")
+                    .clicked()
+                {
+                    clicked = Some(part);
+                }
+            }
+        });
+        ui.end_row();
+    }
+    clicked
+}
+
 fn can_leave_out(field: ColourField) -> bool {
     matches!(field, ColourField::Fill | ColourField::CompartmentFill)
 }

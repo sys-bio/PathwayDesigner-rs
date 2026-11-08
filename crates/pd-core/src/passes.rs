@@ -1,6 +1,7 @@
 //! Passes applied to each reaction after any import, Antimony or SBML
-//! (SPEC-Rust §8.4): the catalytic rewrite, modifiers from the rate law, and
-//! null nodes for an empty side. Each is a plain function, so it can be
+//! (SPEC-Rust §8.4): modifiers from the rate law, and null nodes for an
+//! empty side. (The catalytic rewrite went: it changed the reactions a file
+//! states, docs/sbml-app-design.md A5.) Each is a plain function, so it can be
 //! tested on its own and behaves the same for both formats.
 
 use crate::expr;
@@ -9,33 +10,6 @@ use crate::model::{Model, NULL_NODE_SIZE, Participant, Reaction, SpeciesNode};
 
 /// Null nodes go this far left (source) or right (sink) of the junction.
 pub const NULL_OFFSET: f64 = 70.0;
-
-/// The catalytic rewrite (S §11.2): a species on both sides with the same
-/// total stoichiometry comes off both, and becomes a modifier, whether or not
-/// the rate law names it. `A -> A + B` becomes `-> B` with `A` as a modifier.
-pub fn catalytic_rewrite(r: &mut Reaction) {
-    let total = |list: &[Participant], s: &str| -> f64 {
-        list.iter()
-            .filter(|p| p.species == s)
-            .map(|p| p.stoichiometry)
-            .sum()
-    };
-    let mut catalysts: Vec<String> = Vec::new();
-    for p in &r.reactants {
-        if total(&r.reactants, &p.species) == total(&r.products, &p.species)
-            && !catalysts.contains(&p.species)
-        {
-            catalysts.push(p.species.clone());
-        }
-    }
-    r.reactants.retain(|p| !catalysts.contains(&p.species));
-    r.products.retain(|p| !catalysts.contains(&p.species));
-    for c in catalysts {
-        if !r.modifiers.iter().any(|m| m.species == c) {
-            r.modifiers.push(Participant::new(c, 1.0));
-        }
-    }
-}
 
 /// Every species the rate law names that isn't a reactant, product or
 /// modifier already becomes a modifier (S §8.4). A participant drawn as an
@@ -121,20 +95,6 @@ mod tests {
 
     fn ids(list: &[Participant]) -> Vec<&str> {
         list.iter().map(|p| p.species.as_str()).collect()
-    }
-
-    #[test]
-    fn catalytic_rewrite_moves_catalysts_to_modifiers() {
-        let mut r = reaction(&[("A", 1.0)], &[("A", 1.0), ("B", 1.0)]);
-        catalytic_rewrite(&mut r);
-        assert!(r.reactants.is_empty());
-        assert_eq!(ids(&r.products), ["B"]);
-        assert_eq!(ids(&r.modifiers), ["A"]);
-        // Different totals: nothing moves.
-        let mut r = reaction(&[("A", 1.0)], &[("A", 2.0)]);
-        catalytic_rewrite(&mut r);
-        assert_eq!(ids(&r.reactants), ["A"]);
-        assert!(r.modifiers.is_empty());
     }
 
     #[test]

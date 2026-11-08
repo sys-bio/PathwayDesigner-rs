@@ -6,10 +6,7 @@ use pd_core::geometry::{Pt, pt};
 use pd_core::model::ReactionMode;
 use pd_core::sbml::{self, Imported};
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: false,
-    seed: 7,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 7 };
 
 /// A layout file from sbml-io's tests, written by python-libsbml.
 fn fixture(name: &str) -> Imported {
@@ -57,7 +54,7 @@ fn a_libsbml_layout_is_read() {
     // The product curve already runs junction → species: kept as stored.
     let g6p = &j0.products[0];
     assert!(close(g6p.ctrl1, pt(190.0, 60.5)) && close(g6p.ctrl2, pt(330.0, 60.25)));
-    assert_eq!(m.find_parameter("k1").unwrap().expression, "0.1");
+    assert_eq!(m.parameter_text("k1"), "0.1");
 }
 
 #[test]
@@ -131,7 +128,7 @@ fn a_core_only_model() {
     let i = sbml::import(CORE_ONLY, &OPTS).unwrap();
     assert!(!i.had_layout);
     assert_eq!(i.unplaced, 3);
-    assert_eq!(i.warnings, ["1 event was left out"]);
+    assert!(i.warnings.is_empty(), "{:?}", i.warnings);
     let m = &i.model;
     assert_eq!(m.model_name, "Core only");
     assert_eq!(m.find_compartment("cell").unwrap().size, 2.0);
@@ -139,18 +136,24 @@ fn a_core_only_model() {
     assert_eq!(m.find_species("A").unwrap().initial_value, 5.0);
     assert_eq!(m.find_species("B").unwrap().initial_value, 3.0);
     assert!(m.find_species("E").unwrap().is_boundary);
-    // y is set by its rule, so it is the rule's variable, not a parameter.
-    assert!(m.find_parameter("y").is_none());
-    assert_eq!(m.assignment_rules[0].expression, "2*A");
+    // y is a parameter its rule sets, so not constant.
+    assert!(!m.find_parameter("y").unwrap().constant);
+    // `<cn>2</cn>` is MathML's real 2.
+    assert_eq!(m.assignment_rules[0].expression, "2.0*A");
 
     let j1 = m.find_reaction("J1").unwrap();
     // Level 2 reactions are reversible unless they say otherwise.
     assert!(j1.is_reversible);
     assert_eq!(j1.products[0].stoichiometry, 2.0);
-    // The local k clashes with the global one, so it is renamed.
-    assert_eq!(j1.kinetic_law, "J1_k*E*A");
-    assert_eq!(m.find_parameter("J1_k").unwrap().expression, "3");
-    assert_eq!(m.find_parameter("k").unwrap().expression, "0.5");
+    // The rate law keeps its own k (F2), beside the model's.
+    assert_eq!(j1.kinetic_law, "k*E*A");
+    assert_eq!(j1.sbml.local_parameters[0].id, "k");
+    assert_eq!(j1.sbml.local_parameters[0].value, Some(3.0));
+    assert_eq!(m.parameter_text("k"), "0.5");
+    assert!(m.find_parameter("J1_k").is_none());
+    // The event is kept, its trigger MathML's <true/>.
+    assert_eq!(m.events.len(), 1);
+    assert_eq!(m.events[0].trigger.expression, "true");
     // E is named in the law, so it is a modifier.
     assert_eq!(j1.modifiers[0].species, "E");
 
@@ -160,19 +163,16 @@ fn a_core_only_model() {
     assert!(j2.modifiers.is_empty());
 }
 
+/// The catalytic rewrite would change the file's reactions, so reading
+/// SBML never does it (F6), whatever the option says.
 #[test]
-fn the_catalytic_rewrite_and_null_nodes() {
-    let opts = ImportOptions {
-        convert_catalytic: true,
-        ..OPTS
-    };
+fn the_catalytic_rewrite_is_never_applied() {
+    let opts = ImportOptions { ..OPTS };
     let m = sbml::import(CORE_ONLY, &opts).unwrap().model;
     let j2 = m.find_reaction("J2").unwrap();
-    // B on both sides: a modifier now, and the empty side gets a null node.
-    assert_eq!(j2.modifiers[0].species, "B");
-    assert_eq!(j2.reactants[0].species, "_source_J2");
-    assert!(m.find_species("_source_J2").unwrap().is_null_node);
-    assert_eq!(j2.products[0].species, "A");
+    assert_eq!(j2.reactants[0].species, "B");
+    assert_eq!(j2.products.len(), 2);
+    assert!(j2.modifiers.is_empty());
 }
 
 #[test]
@@ -325,39 +325,38 @@ const FUNCTIONS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
   </model>
 </sbml>"#;
 
+/// Function definitions are kept as written, and rate laws and rules call
+/// them (F1).
 #[test]
-fn function_definitions_are_written_into_the_rate_laws() {
+fn function_definitions_are_kept() {
     let i = sbml::import(FUNCTIONS, &OPTS).unwrap();
+    assert!(i.warnings.is_empty(), "{:?}", i.warnings);
     let m = &i.model;
-    // The call becomes the body, with the arguments in place of the
-    // parameters, and a local parameter renamed as it is everywhere else.
+    let f = |id: &str| m.function_definitions.iter().find(|f| f.id == id).unwrap();
+    assert_eq!(f("mm").arguments, ["s", "v", "k"]);
+    assert_eq!(f("mm").body, "v*s/(k + s)");
+    assert_eq!(f("hill").body, "sq(s)/(sq(k) + sq(s))");
+    // MathML's <notanumber/> is a name too now.
+    assert_eq!(f("bad").body, "x*NaN");
     let j1 = m.find_reaction("J1").unwrap();
-    assert_eq!(j1.kinetic_law, "E*(Vm*A/(J1_k + A))");
-    assert_eq!(m.find_parameter("J1_k").unwrap().expression, "3");
-    // E is named only in the call's surroundings; A only inside the call.
+    assert_eq!(j1.kinetic_law, "E*mm(A, Vm, k)");
+    // E is named in the law and is no participant: a modifier.
     assert_eq!(j1.modifiers.len(), 1);
     assert_eq!(j1.modifiers[0].species, "E");
-    // A function calling another is expanded all the way down.
-    assert_eq!(
-        m.find_reaction("J2").unwrap().kinetic_law,
-        "B*B/(K*K + B*B)"
-    );
-    // Rules too.
-    assert_eq!(m.assignment_rules[0].expression, "A*A");
-    // A function that can't be read leaves out the law that calls it, and
-    // says why; nothing calls an undefined function.
-    assert_eq!(m.find_reaction("J3").unwrap().kinetic_law, "");
-    assert_eq!(
-        i.warnings,
-        [
-            "4 function definitions were written into the rate laws that use them",
-            "The rate law of J3 was left out: it uses the function bad, which uses <notanumber/>",
-        ]
-    );
-    // What is exported is valid: no calls left.
+    assert_eq!(m.find_reaction("J2").unwrap().kinetic_law, "hill(B, K)");
+    assert_eq!(m.assignment_rules[0].expression, "sq(A)");
+    assert_eq!(m.find_reaction("J3").unwrap().kinetic_law, "bad(A)");
+    // Written back as definitions and calls, valid.
     let exported = sbml::export(m);
     assert!(exported.problems.is_empty(), "{:?}", exported.problems);
-    assert!(!exported.xml.contains("<ci> mm </ci>") && !exported.xml.contains(">mm<"));
+    assert!(exported.notes.is_empty(), "{:?}", exported.notes);
+    assert!(exported.xml.contains(r#"<functionDefinition id="mm""#));
+    let back = sbml::import(&exported.xml, &OPTS).unwrap().model;
+    assert_eq!(back.function_definitions, m.function_definitions);
+    assert_eq!(
+        back.find_reaction("J1").unwrap().kinetic_law,
+        "E*mm(A, Vm, k)"
+    );
 }
 
 /// What the curated BioModels round trip found (docs: the BioModels report):
@@ -429,20 +428,23 @@ fn what_the_biomodels_round_trip_found_is_kept() {
         let b = m.find_species("B").unwrap();
         assert!(!b.in_amounts && b.initial_is_amount);
         assert_eq!(b.initial_value, 2.0);
-        // k*2, worked out at the start.
+        // C's own value, and the formula that gives it at the start (F3).
         let c = m.find_species("C").unwrap();
         assert!(!c.initial_is_amount);
-        assert_eq!(c.initial_value, 8.0);
+        assert_eq!(c.initial_value, 1.0);
+        assert_eq!(m.initial_assignment("C").unwrap().expression, "k*2.0");
         assert_eq!(m.assignment_rules[0].variable, "D");
-        // R2's own F, renamed, not merged with the F a rule computes.
-        assert_eq!(m.find_reaction("R2").unwrap().kinetic_law, "R2_F*B");
-        assert!(
-            m.parameters
-                .iter()
-                .any(|p| p.variable == "R2_F" && p.expression == "0.01")
+        // R2's own F, kept its own, apart from the F a rule computes.
+        let r2 = m.find_reaction("R2").unwrap();
+        assert_eq!(r2.kinetic_law, "F*B");
+        assert_eq!(r2.sbml.local_parameters[0].id, "F");
+        assert_eq!(r2.sbml.local_parameters[0].value, Some(0.01));
+        // The model's F, which a rule sets, is a parameter of its own.
+        assert!(!m.find_parameter("F").unwrap().constant);
+        assert_eq!(
+            m.assignment_rules[0].expression,
+            "piecewise(1.0, A > 3.0, 0.0)"
         );
-        assert!(!m.parameters.iter().any(|p| p.variable == "F"));
-        assert_eq!(m.assignment_rules[0].expression, "piecewise(1, A > 3, 0)");
     };
     let first = sbml::import(BIOMODELS_CASES, &OPTS).unwrap();
     assert!(
@@ -462,10 +464,10 @@ fn what_the_biomodels_round_trip_found_is_kept() {
 }
 
 /// Conversion factors, and a reaction's stoichiometry used in maths by its
-/// id, have nowhere to go in a diagram: the import says so (found by the
-/// SBML Test Suite round trip, where they went unannounced).
+/// id, are kept, and written back (found by the SBML Test Suite round trip,
+/// where they were lost).
 #[test]
-fn what_a_diagram_cannot_hold_is_reported() {
+fn conversion_factors_and_stoichiometry_ids_are_kept() {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
   <model id="m" conversionFactor="f">
@@ -487,15 +489,22 @@ fn what_a_diagram_cannot_hold_is_reported() {
     </listOfReactions>
   </model>
 </sbml>"#;
-    let w = sbml::import(xml, &OPTS).unwrap().warnings;
-    assert!(
-        w.iter().any(|w| w == "2 conversion factors were left out"),
-        "{w:?}"
-    );
-    assert!(
-        w.iter().any(|w| w.contains("stoichiometry by its id")),
-        "{w:?}"
-    );
+    let check = |m: &pd_core::model::Model| {
+        assert_eq!(m.conversion_factor.as_deref(), Some("f"));
+        let a = m.find_species("A").unwrap();
+        assert_eq!(a.sbml.conversion_factor.as_deref(), Some("f"));
+        let r = m.find_reaction("R").unwrap();
+        assert_eq!(r.reactants[0].reference_id(), Some("sr"));
+        assert_eq!(m.assignment_rules[0].expression, "sr");
+    };
+    let i = sbml::import(xml, &OPTS).unwrap();
+    assert!(i.warnings.is_empty(), "{:?}", i.warnings);
+    check(&i.model);
+    let written = sbml::export(&i.model);
+    assert!(written.problems.is_empty(), "{:?}", written.problems);
+    // `sr` is the species reference, not a parameter made up for it.
+    assert!(written.notes.is_empty(), "{:?}", written.notes);
+    check(&sbml::import(&written.xml, &OPTS).unwrap().model);
 }
 
 /// An initial assignment may use a value an assignment rule gives
@@ -525,17 +534,46 @@ fn an_initial_assignment_can_use_a_rule() {
         "{:?}",
         i.warnings
     );
-    // The assigned value is a concentration, as S1 isn't in amounts,
-    // though S1 was given an initial amount too.
+    // The formula is kept (F3), beside the value the file gives too.
     let s1 = i.model.find_species("S1").unwrap();
-    assert_eq!(s1.initial_value, 1.5);
-    assert!(!s1.initial_is_amount);
+    assert_eq!(s1.initial_value, 10.0);
+    assert!(s1.initial_is_amount);
+    assert_eq!(
+        i.model.initial_assignment("S1").unwrap().expression,
+        "2.0*k1"
+    );
 }
 
-/// A rule with no maths is left out, but the parameter it would set stays,
-/// with its value (found by the SBML Test Suite round trip).
+/// A species given its starting value only by a formula shows the value
+/// the formula gives, and is written back without one of its own.
 #[test]
-fn a_rule_without_maths_keeps_its_parameter() {
+fn a_starting_value_given_only_by_a_formula() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
+  <model id="m">
+    <listOfCompartments><compartment id="c" size="2" constant="true"/></listOfCompartments>
+    <listOfSpecies>
+      <species id="S1" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters><parameter id="k1" value="0.75" constant="true"/></listOfParameters>
+    <listOfInitialAssignments>
+      <initialAssignment symbol="S1"><math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><cn>2</cn><ci>k1</ci></apply></math></initialAssignment>
+    </listOfInitialAssignments>
+  </model>
+</sbml>"#;
+    let m = sbml::import(xml, &OPTS).unwrap().model;
+    let s1 = m.find_species("S1").unwrap();
+    assert!(s1.sbml.initial_unset);
+    assert_eq!(s1.initial_value, 1.5);
+    let written = sbml::export(&m).xml;
+    assert!(!written.contains("initialConcentration") && !written.contains("initialAmount"));
+}
+
+/// A rule with no maths, which Level 3 Version 2 allows, is kept, and so is
+/// the parameter it would set, with its value (found by the SBML Test
+/// Suite round trip).
+#[test]
+fn a_rule_without_maths_is_kept() {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
   <model id="m">
@@ -544,13 +582,20 @@ fn a_rule_without_maths_keeps_its_parameter() {
   </model>
 </sbml>"#;
     let m = sbml::import(xml, &OPTS).unwrap().model;
-    assert!(m.assignment_rules.is_empty());
-    assert_eq!(m.find_parameter("p").unwrap().expression, "3");
+    assert_eq!(m.assignment_rules[0].expression, "");
+    assert_eq!(m.parameter_text("p"), "3");
+    let written = sbml::export(&m);
+    assert!(
+        written.xml.contains(r#"<assignmentRule variable="p"/>"#),
+        "{}",
+        written.xml
+    );
 }
 
-/// A rule that sets a reaction's stoichiometry by its id is reported too.
+/// A rule that sets a reaction's stoichiometry by its id is kept, and the
+/// species reference stays not constant, with no stoichiometry of its own.
 #[test]
-fn a_stoichiometry_set_by_a_rule_is_reported() {
+fn a_stoichiometry_set_by_a_rule_is_kept() {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
   <model id="m">
@@ -568,10 +613,21 @@ fn a_stoichiometry_set_by_a_rule_is_reported() {
     </listOfReactions>
   </model>
 </sbml>"#;
-    let w = sbml::import(xml, &OPTS).unwrap().warnings;
+    let i = sbml::import(xml, &OPTS).unwrap();
+    assert!(i.warnings.is_empty(), "{:?}", i.warnings);
+    let r = i.model.find_reaction("R").unwrap();
+    let sr = r.reactants[0].sbml.as_deref().unwrap();
+    assert_eq!(sr.id.as_deref(), Some("sr"));
+    assert!(!sr.constant && sr.stoichiometry_unset);
+    let written = sbml::export(&i.model);
+    assert!(written.problems.is_empty(), "{:?}", written.problems);
+    assert!(written.notes.is_empty(), "{:?}", written.notes);
     assert!(
-        w.iter().any(|w| w.contains("stoichiometry by its id")),
-        "{w:?}"
+        written
+            .xml
+            .contains(r#"<speciesReference id="sr" species="A" constant="false"/>"#),
+        "{}",
+        written.xml
     );
 }
 
@@ -631,7 +687,7 @@ fn avogadro_beside_a_parameter_of_that_name() {
     );
     // Without one: the constant is kept as itself.
     let m = sbml::import(&law("<cn>2</cn>"), &OPTS).unwrap().model;
-    assert_eq!(m.find_reaction("J0").unwrap().kinetic_law, "avogadro/2");
+    assert_eq!(m.find_reaction("J0").unwrap().kinetic_law, "avogadro/2.0");
     assert!(sbml::export(&m).xml.contains("symbols/avogadro"));
 }
 

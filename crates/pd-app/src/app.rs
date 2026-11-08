@@ -165,6 +165,9 @@ pub(crate) enum RightTab {
     /// The inspector: the groups for what is selected.
     #[default]
     Properties,
+    /// The model's events, rules and the rest, as sentences
+    /// (docs/sbml-app-design.md).
+    EventsRules,
     /// The Antimony text, with Load Antimony and Get Antimony.
     Antimony,
     /// The saved styles of the model and of My Styles (S §8.6).
@@ -190,6 +193,8 @@ pub struct PathwayApp {
     /// Fetches the names of references' entries as they are wanted.
     names: crate::entry_names::NameFetcher,
     pub(crate) antimony: AntimonyPanel,
+    /// The Events & Rules tab: the part being edited, if any.
+    pub(crate) events: crate::events_tab::EventsTab,
     /// The Structure tab and the matrix panel.
     pub(crate) structure: crate::structure_panel::StructurePanel,
     /// Which of the right panel's tabs is shown.
@@ -290,6 +295,7 @@ impl PathwayApp {
             marks: crate::marks::MarkState::default(),
             names: crate::entry_names::NameFetcher::default(),
             antimony: AntimonyPanel::default(),
+            events: Default::default(),
             structure: Default::default(),
             right_tab: RightTab::default(),
             style_editor: None,
@@ -326,6 +332,7 @@ impl PathwayApp {
         };
         // Saved preferences apply from the start (fixes D-2).
         app.view.show_null_species = app.prefs.show_null_species;
+        app.view.write_functions_in = app.prefs.write_functions_in;
         app.view.selected_reaction_colour = app.prefs.selected_reaction;
         app.view.show_reversible = app.prefs.show_reversible;
         app.view.show_grid = app.prefs.show_grid;
@@ -1095,6 +1102,10 @@ impl PathwayApp {
                 // What the annotation lookups left to check
                 // (docs/annotation-marks-design.md M4).
                 ui.menu_button("Annotation Marks", |ui| self.marks.controls(ui));
+                ui.checkbox(&mut self.view.show_rule_marks, "Rule and Event Marks")
+                    .on_hover_text(
+                        "A lightning bolt beside what a rule or an event also changes; never exported",
+                    );
                 ui.separator();
                 // Restyles the whole diagram, in one undo step (S §8.7).
                 ui.menu_button("Theme", |ui| {
@@ -1705,17 +1716,19 @@ impl PathwayApp {
             }
             Dialog::Preferences(draft) => {
                 let mut ok = false;
-                let catalytic_changed = draft.convert_catalytic != self.prefs.convert_catalytic;
-                let will_reimport = catalytic_changed && self.antimony.last_import().is_some();
                 let modal = egui::Modal::new(egui::Id::unique("preferences")).show(ctx, |ui| {
                     ui.heading("Preferences");
                     ui.add_space(4.0);
-                    ui.checkbox(&mut draft.convert_catalytic, "Convert catalytic reactions")
-                        .on_hover_text(
-                            "On Antimony import, A -> A + B becomes -> B with A as a modifier",
-                        );
                     ui.checkbox(&mut draft.show_null_species, "Show null species")
                         .on_hover_text("Draw the null nodes of reactions with an empty side");
+                    ui.checkbox(
+                        &mut draft.write_functions_in,
+                        "Write functions into the formulas that use them",
+                    )
+                    .on_hover_text(
+                        "When saving SBML and Antimony, for tools that don't read functions; \
+                         the diagram keeps its functions",
+                    );
                     ui.horizontal(|ui| {
                         let [r, g, b, a] = draft.selected_reaction.0;
                         let mut colour = egui::Color32::from_rgba_unmultiplied(r, g, b, a);
@@ -1732,13 +1745,6 @@ impl PathwayApp {
                             draft.selected_reaction = pd_core::render::constants::SELECTED_REACTION;
                         }
                     });
-                    if will_reimport {
-                        ui.colored_label(
-                            egui::Color32::from_rgb(0xA0, 0x50, 0x00),
-                            "The last Antimony text will be imported again with the new setting. \
-                             Changes made since that import will be lost (Undo brings them back).",
-                        );
-                    }
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ok = ui.button("OK").clicked();
@@ -1750,13 +1756,8 @@ impl PathwayApp {
                     let draft = *draft;
                     self.prefs = draft;
                     self.view.show_null_species = draft.show_null_species;
+                    self.view.write_functions_in = draft.write_functions_in;
                     self.view.selected_reaction_colour = draft.selected_reaction;
-                    if will_reimport {
-                        let opts = self.import_options();
-                        if self.antimony.reimport(&mut self.view, &opts) {
-                            self.fit_pending = true;
-                        }
-                    }
                 }
             }
             Dialog::ConfirmDiscard(action) => {
@@ -1860,12 +1861,9 @@ impl PathwayApp {
 }
 
 impl PathwayApp {
-    /// How Antimony is imported, from the preferences.
+    /// How Antimony is imported: species placed at random, from the clock.
     pub(crate) fn import_options(&self) -> ImportOptions {
-        ImportOptions {
-            convert_catalytic: self.prefs.convert_catalytic,
-            seed: clock_seed(),
-        }
+        ImportOptions { seed: clock_seed() }
     }
 }
 
@@ -1888,6 +1886,10 @@ impl eframe::App for PathwayApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // What the last delete took with it (docs/sbml-app-design.md A7).
+        if let Some(notice) = removed_notice(&self.view.take_removed()) {
+            self.notice = Some(notice);
+        }
         #[cfg(target_os = "macos")]
         self.mac_menu_commands();
         self.handle_files();
@@ -1955,10 +1957,11 @@ impl eframe::App for PathwayApp {
             .default_size(280.0)
             .show(ui, |ui| {
                 // The tabs wrap onto a second row rather than hold the panel
-                // wider than it is set (with Annotate there are five).
+                // wider than it is set (with Annotate there are six).
                 ui.horizontal_wrapped(|ui| {
                     for (tab, name) in [
                         (RightTab::Properties, "Properties"),
+                        (RightTab::EventsRules, "Events & Rules"),
                         (RightTab::Antimony, "Antimony"),
                         (RightTab::Styles, "Styles"),
                         (RightTab::Structure, "Structure"),
@@ -1976,10 +1979,15 @@ impl eframe::App for PathwayApp {
                             self.inspector.fetch = Some(self.gallery.fetch);
                             self.inspector.marks = Some(std::mem::take(&mut self.marks));
                             self.inspector.show(ui, &mut self.view);
+                            if let Some(part) = self.inspector.go_to.take() {
+                                self.right_tab = RightTab::EventsRules;
+                                self.events.edit(&self.view, part);
+                            }
                             if let Some(marks) = self.inspector.marks.take() {
                                 self.marks = marks;
                             }
                         }
+                        RightTab::EventsRules => self.events.show(ui, &mut self.view),
                         RightTab::Antimony => {
                             antimony_action = self.antimony.show(ui, &mut self.view, &opts);
                         }
@@ -2105,6 +2113,17 @@ fn links_in_new_tabs(ctx: &egui::Context) {
             }
         }
     });
+}
+
+/// What the status bar says when a delete took rules, events and the like
+/// with it, as they named what was deleted (docs/sbml-app-design.md A7).
+fn removed_notice(removed: &[String]) -> Option<String> {
+    (!removed.is_empty()).then(|| {
+        format!(
+            "Also deleted with it: {}. Undo brings them back.",
+            removed.join(", ")
+        )
+    })
 }
 
 /// What the status bar says after Place Modifiers by Their Reactions.
@@ -2540,6 +2559,210 @@ mod tests {
         );
     }
 
+    /// docs/sbml-app-design.md, sub-step 1: the Events & Rules tab shows the
+    /// model's events and rules as sentences, and the Structure tab says
+    /// which species they also change.
+    #[test]
+    fn the_events_and_rules_tab() {
+        let mut h = Harness::new();
+        h.app
+            .view
+            .import_antimony(
+                "model m\n  species S1, S2\n  J1: S1 -> S2; k*S1\n  k = 1\n  y := S1 + S2\n  E1: at time >= 10: S1 = 5\nend",
+                &h.app.import_options(),
+            )
+            .unwrap();
+        h.run(vec![]);
+        h.click(h.widget("Events & Rules"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::EventsRules);
+        h.text("When time \u{2265} 10: S1 becomes 5");
+        h.text("y is always S1 + S2");
+        h.click(h.widget("Structure"));
+        h.run(vec![]);
+        h.text("Also changed by rules or events, which the analysis leaves out: S1.");
+    }
+
+    /// docs/sbml-app-design.md A4, A5: Preferences writes functions into
+    /// formulas when asked, and no longer offers the catalytic rewrite.
+    #[test]
+    fn the_preference_to_write_functions_in() {
+        let mut h = Harness::new();
+        assert!(!h.app.view.write_functions_in);
+        h.app.dialog = Some(Dialog::Preferences(h.app.prefs));
+        for _ in 0..3 {
+            h.run(vec![]);
+        }
+        h.click(h.widget("Write functions into the formulas that use them"));
+        h.run(vec![]);
+        let tree = h.access.as_ref().unwrap();
+        assert!(
+            !tree
+                .nodes
+                .iter()
+                .any(|(_, n)| n.label().is_some_and(|l| l.contains("atalytic"))),
+            "no catalytic preference"
+        );
+        h.click(h.widget("OK"));
+        h.run(vec![]);
+        assert!(h.app.prefs.write_functions_in);
+        assert!(h.app.view.write_functions_in);
+    }
+
+    /// docs/sbml-app-design.md A7: what a delete took with it is said in
+    /// the status bar; one undo brings it all back.
+    #[test]
+    fn a_delete_says_what_went_with_it() {
+        let mut h = Harness::new();
+        h.app
+            .view
+            .import_antimony(
+                "model m\n  species S1, S2\n  J1: S1 -> S2; k*S1\n  k = 1\n  y := 2*S2\n  E1: at time >= 10: S1 = 5\nend",
+                &h.app.import_options(),
+            )
+            .unwrap();
+        h.run(vec![]);
+        h.app
+            .act(MenuAction::DeleteSpecies("S1".into()), pt(0.0, 0.0));
+        h.run(vec![]);
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("Also deleted with it: the change to S1 in the event E1. Undo brings them back.")
+        );
+        // The event stays, with no changes (F8).
+        assert!(h.app.view.model().events[0].assignments.is_empty());
+        h.app.view.undo();
+        assert_eq!(h.app.view.model().events[0].assignments.len(), 1);
+        // Said once, not again on the next frame.
+        h.app.notice = None;
+        h.run(vec![]);
+        assert_eq!(h.app.notice, None);
+        // A delete that takes nothing else says nothing.
+        h.app
+            .act(MenuAction::DeleteReaction("J1".into()), pt(0.0, 0.0));
+        h.run(vec![]);
+        assert_eq!(h.app.notice, None);
+        // The selection deleted with the key: the rule that used S2.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Species("S2".into()), false);
+        h.app.view.delete_selection();
+        h.run(vec![]);
+        assert!(h.app.notice.as_deref().unwrap().contains("the rule for y"));
+    }
+
+    /// docs/sbml-app-design.md A3: a species' properties say what else sets
+    /// it, each a link to it in the Events & Rules tab.
+    #[test]
+    fn properties_link_to_what_else_sets_a_species() {
+        use pd_core::sentences::Part;
+        use pd_core::view::Target;
+        let mut h = Harness::new();
+        h.app
+            .view
+            .import_antimony(
+                "model m\n  species S1, S2\n  J1: S1 -> S2; k*S1\n  k = 1\n  S2 = 2*S1\n  E1: at time >= 10: S1 = 5\nend",
+                &h.app.import_options(),
+            )
+            .unwrap();
+        h.app.right_tab = RightTab::Properties;
+        h.app.view.select_item(&Target::Species("S1".into()), false);
+        h.run(vec![]);
+        h.text("Also changed by");
+        h.click(h.widget("the event E1"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::EventsRules);
+        assert_eq!(
+            h.app.events.editing.as_ref().and_then(|e| e.part),
+            Some(Part::Event(0))
+        );
+        // A species whose start is a formula links to it.
+        h.app.events.editing = None;
+        h.app.right_tab = RightTab::Properties;
+        h.app.view.select_item(&Target::Species("S2".into()), false);
+        h.run(vec![]);
+        h.text("Starts at");
+        h.click(h.widget("2*S1"));
+        h.run(vec![]);
+        assert_eq!(
+            h.app.events.editing.as_ref().and_then(|e| e.part),
+            Some(Part::InitialAssignment(0))
+        );
+    }
+
+    /// docs/sbml-app-design.md A1: a sentence clicked opens as a form; Done
+    /// is one undo step; Add and Delete.
+    #[test]
+    fn events_and_rules_are_edited_in_place() {
+        use pd_core::drafts::Draft;
+        use pd_core::sentences::Part;
+        let mut h = Harness::new();
+        h.app
+            .view
+            .import_antimony(
+                "model m\n  species S1, S2\n  J1: S1 -> S2; k*S1\n  k = 1\n  y := S1 + S2\n  E1: at time >= 10: S1 = 5\nend",
+                &h.app.import_options(),
+            )
+            .unwrap();
+        h.app.right_tab = RightTab::EventsRules;
+        h.run(vec![]);
+        // The rule, clicked, opens as a form with its formula.
+        h.click(h.text("y is always S1 + S2"));
+        h.run(vec![]);
+        let e = h.app.events.editing.as_mut().expect("a form");
+        assert_eq!(e.part, Some(Part::AssignmentRule(0)));
+        let Draft::Rule(r) = &mut e.draft else {
+            panic!("{:?}", e.draft)
+        };
+        assert_eq!(r.formula, "S1 + S2");
+        // A name not in the model: Done does nothing.
+        r.formula = "2*S1 + q".into();
+        h.run(vec![]);
+        h.text("Not in the model: q");
+        h.click(h.widget("Done"));
+        h.run(vec![]);
+        assert!(h.app.events.editing.is_some());
+        let Some(Draft::Rule(r)) = h.app.events.editing.as_mut().map(|e| &mut e.draft) else {
+            panic!()
+        };
+        r.formula = "2*S1".into();
+        h.run(vec![]);
+        h.click(h.widget("Done"));
+        h.run(vec![]);
+        assert!(h.app.events.editing.is_none());
+        assert_eq!(h.app.view.model().assignment_rules[0].expression, "2.0*S1");
+        h.text("y is always 2*S1");
+        // One undo step back; a form open on the rule lets go of it.
+        h.click(h.text("y is always 2*S1"));
+        h.run(vec![]);
+        assert!(h.app.events.editing.is_some());
+        h.app.view.undo();
+        h.run(vec![]);
+        assert_eq!(h.app.view.model().assignment_rules[0].expression, "S1 + S2");
+        assert!(h.app.events.editing.is_none());
+        // A new event.
+        h.click(h.widget("Add an event"));
+        h.run(vec![]);
+        let Some(Draft::Event(d)) = h.app.events.editing.as_mut().map(|e| &mut e.draft) else {
+            panic!()
+        };
+        d.name = "Pulse".into();
+        d.trigger = "time > 5".into();
+        d.assignments = vec![("S2".into(), "1".into())];
+        h.run(vec![]);
+        h.click(h.widget("Done"));
+        h.run(vec![]);
+        assert_eq!(h.app.view.model().events.len(), 2);
+        h.text("When time > 5: S2 becomes 1");
+        // And deleted.
+        h.click(h.text("When time > 5: S2 becomes 1"));
+        h.run(vec![]);
+        h.click(h.widget("Delete"));
+        h.run(vec![]);
+        assert_eq!(h.app.view.model().events.len(), 1);
+        assert!(h.app.events.editing.is_none());
+    }
+
     #[test]
     fn the_structure_tab_and_the_matrix_panel() {
         let mut h = Harness::new();
@@ -2699,10 +2922,7 @@ mod tests {
     #[test]
     fn mark_and_unmark_as_modifier_from_a_reactions_menu() {
         let mut h = Harness::new();
-        let opts = pd_core::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = pd_core::antimony::ImportOptions { seed: 1 };
         h.app
             .view
             .import_antimony(
@@ -2773,10 +2993,7 @@ k = 1
     #[test]
     fn arrange_places_modifiers_by_their_reactions() {
         let mut h = Harness::new();
-        let opts = pd_core::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = pd_core::antimony::ImportOptions { seed: 1 };
         let text = "species E; E = 1
 J1: A -> B; k*A*E
 J2: C -> D; k*C*E
@@ -4061,6 +4278,8 @@ k = 0.1",
         use pd_core::model::Reference;
         let mut h = Harness::new();
         h.app.gallery.fetch = rhea;
+        // Tall enough for every Add, under the two rows of tabs.
+        h.size = egui::vec2(1400.0, 1200.0);
         let opts = h.app.import_options();
         h.app
             .view

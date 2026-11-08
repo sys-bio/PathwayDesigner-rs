@@ -14,17 +14,11 @@ use serde_json::json;
 fn read(path: &str) -> (Model, Vec<String>) {
     let text = std::fs::read_to_string(path).expect("readable");
     if path.ends_with(".xml") || path.ends_with(".sbml") {
-        let opts = pd_core::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = pd_core::antimony::ImportOptions { seed: 1 };
         let i = pd_core::sbml::import(&text, &opts).expect("SBML");
         return (i.model, i.warnings);
     }
-    let opts = pd_core::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = pd_core::antimony::ImportOptions { seed: 1 };
     let i = pd_core::antimony::import(&text, &opts).expect("Antimony");
     let warnings = i.warnings.iter().map(|w| w.to_string()).collect();
     (i.model, warnings)

@@ -3,9 +3,9 @@
 //! A text editor with **Load Antimony** (import the text, one undo step) and
 //! **Get Antimony** (replace the text with an export of the diagram). Lines
 //! with errors are highlighted, and the errors are listed below with their
-//! line and column; clicking one puts the cursor there. The text last
-//! imported is remembered, so it can be imported again when the catalytic
-//! preference changes (S §12).
+//! line and column; clicking one puts the cursor there. Load Antimony keeps
+//! what the text can't say from the diagram it replaces
+//! (docs/antimony-full-support-design.md S3).
 
 use std::sync::Arc;
 
@@ -37,11 +37,11 @@ pub struct AntimonyPanel {
     warnings: Vec<Diagnostic>,
     /// A line after a successful import.
     imported: Option<String>,
+    /// What the text Get Antimony wrote leaves out.
+    export_notes: Vec<String>,
     /// Whether to offer to lay out the import: not when the text placed
     /// every species itself (Antimony's layout statements).
     offer_layout: bool,
-    /// The text last imported, for re-importing.
-    last_import: Option<String>,
     /// Put the cursor at this (line, column) on the next frame.
     jump: Option<(usize, usize)>,
     /// Get Antimony writes the drawing too, as a diagram comment.
@@ -51,20 +51,29 @@ pub struct AntimonyPanel {
 }
 
 impl AntimonyPanel {
-    pub fn last_import(&self) -> Option<&str> {
-        self.last_import.as_deref()
-    }
-
     /// The text in the panel.
     #[cfg(test)]
     pub fn text(&self) -> &str {
         &self.text
     }
 
-    /// Imports `text` into the view. On errors the diagram is unchanged and
-    /// they are listed.
-    fn import(&mut self, text: &str, view: &mut DiagramView, opts: &ImportOptions) -> bool {
-        match view.import_antimony(text, opts) {
+    /// Imports `text` into the view; with `keep`, keeping what Antimony
+    /// can't say from the diagram it replaces ([`DiagramView::load_antimony`]).
+    /// On errors the diagram is unchanged and they are listed.
+    fn import(
+        &mut self,
+        text: &str,
+        view: &mut DiagramView,
+        opts: &ImportOptions,
+        keep: bool,
+    ) -> bool {
+        let result = if keep {
+            view.load_antimony(text, opts)
+        } else {
+            view.import_antimony(text, opts)
+        };
+        self.export_notes.clear();
+        match result {
             Ok((_, warnings, needs_layout)) => {
                 self.errors.clear();
                 self.warnings = warnings;
@@ -80,7 +89,6 @@ impl AntimonyPanel {
                     m.reactions().len()
                 ));
                 self.offer_layout = needs_layout;
-                self.last_import = Some(text.to_owned());
                 true
             }
             Err(errors) => {
@@ -92,19 +100,23 @@ impl AntimonyPanel {
         }
     }
 
+    /// Get Antimony: the diagram as Antimony in the panel, with what that
+    /// text leaves out.
+    fn get(&mut self, view: &DiagramView) {
+        (self.text, self.export_notes) = match (self.with_layout, self.with_statements) {
+            (true, statements) => view.export_antimony_with_diagram(statements),
+            (false, true) => view.export_antimony_with_layout(),
+            (false, false) => (view.export_antimony(), view.plain_antimony_notes()),
+        };
+        self.errors.clear();
+        self.warnings.clear();
+        self.imported = None;
+    }
+
     /// Puts `text` in the panel and imports it, as when a file is opened.
     pub fn load(&mut self, text: &str, view: &mut DiagramView, opts: &ImportOptions) -> bool {
         self.text = text.to_owned();
-        self.import(text, view, opts)
-    }
-
-    /// Imports the last imported text again, with new options (when the
-    /// catalytic preference changes). Returns true if it did.
-    pub fn reimport(&mut self, view: &mut DiagramView, opts: &ImportOptions) -> bool {
-        match self.last_import.clone() {
-            Some(text) => self.import(&text, view, opts),
-            None => false,
-        }
+        self.import(text, view, opts, false)
     }
 
     pub fn show(
@@ -121,7 +133,7 @@ impl AntimonyPanel {
                 .clicked()
             {
                 let text = self.text.clone();
-                if self.import(&text, view, opts) {
+                if self.import(&text, view, opts, true) {
                     action = Some(PanelAction::Imported);
                 }
             }
@@ -130,14 +142,7 @@ impl AntimonyPanel {
                 .on_hover_text("Replace the text with the diagram, written as Antimony")
                 .clicked()
             {
-                self.text = match (self.with_layout, self.with_statements) {
-                    (true, statements) => view.export_antimony_with_diagram(statements).0,
-                    (false, true) => view.export_antimony_with_layout().0,
-                    (false, false) => view.export_antimony(),
-                };
-                self.errors.clear();
-                self.warnings.clear();
-                self.imported = None;
+                self.get(view);
             }
             ui.checkbox(&mut self.with_layout, "Diagram").on_hover_text(
                 "Get Antimony writes the drawing too, as a diagram comment after the model",
@@ -209,6 +214,9 @@ impl AntimonyPanel {
                 }
             }
         }
+        for note in &self.export_notes {
+            ui.label(RichText::new(note).color(WARNING).small());
+        }
         if let Some(msg) = &self.imported {
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(msg).small());
@@ -262,23 +270,65 @@ mod tests {
             ..AntimonyPanel::default()
         };
         let mut view = DiagramView::default();
-        let opts = ImportOptions {
-            convert_catalytic: true,
-            seed: 1,
-        };
+        let opts = ImportOptions { seed: 1 };
         let text = p.text.clone();
-        assert!(!p.import(&text, &mut view, &opts));
+        assert!(!p.import(&text, &mut view, &opts, false));
         assert_eq!(p.errors.len(), 1);
-        assert!(p.last_import().is_none());
         assert!(view.model().reactions().is_empty());
-        // A good one is remembered, and can be imported again.
-        assert!(p.import("A -> A + B; k*A", &mut view, &opts));
-        assert_eq!(p.last_import(), Some("A -> A + B; k*A"));
-        let off = ImportOptions {
-            convert_catalytic: false,
-            ..opts
-        };
-        assert!(p.reimport(&mut view, &off));
+        // A good one replaces the diagram, its reactions as written.
+        assert!(p.import("A -> A + B; k*A", &mut view, &opts, false));
+        assert!(p.errors.is_empty());
         assert_eq!(view.model().reactions()[0].reactants[0].species, "A");
+    }
+
+    /// docs/antimony-full-support-design.md S3 and S6: Get Antimony without
+    /// the diagram says what the text leaves out, and Load Antimony keeps it.
+    #[test]
+    fn get_and_load_antimony_keep_what_the_text_leaves_out() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
+  <model id="m">
+    <listOfCompartments><compartment id="c" size="1" spatialDimensions="3" constant="true"/></listOfCompartments>
+    <listOfSpecies>
+      <species id="A" compartment="c" initialConcentration="1" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="B" compartment="c" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfReactions>
+      <reaction id="J1" reversible="false">
+        <listOfReactants><speciesReference species="A" stoichiometry="1" constant="true"/></listOfReactants>
+        <listOfProducts><speciesReference species="B" stoichiometry="1" constant="true"/></listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML"><apply><times/><ci>k</ci><ci>A</ci></apply></math>
+          <listOfLocalParameters><localParameter id="k" value="3"/></listOfLocalParameters>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>"#;
+        let opts = ImportOptions { seed: 1 };
+        let mut view = DiagramView::default();
+        view.import_sbml(xml, &opts).unwrap();
+        let mut p = AntimonyPanel::default();
+        p.get(&view);
+        assert!(p.text.contains("J1_k"), "{}", p.text);
+        assert!(
+            p.export_notes[0].contains("each rate law's own parameters"),
+            "{:?}",
+            p.export_notes
+        );
+        let text = p.text.clone();
+        assert!(p.import(&text, &mut view, &opts, true));
+        assert!(p.export_notes.is_empty());
+        let j1 = view.model().find_reaction("J1").unwrap();
+        assert_eq!(j1.sbml.local_parameters[0].id, "k");
+        assert!(view.model().parameters.is_empty());
+        // With the diagram, the text keeps it itself.
+        p.with_layout = true;
+        p.get(&view);
+        assert!(
+            !p.export_notes.iter().any(|n| n.contains("leaves out")),
+            "{:?}",
+            p.export_notes
+        );
     }
 }

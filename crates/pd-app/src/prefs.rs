@@ -9,8 +9,8 @@ use pd_core::json::colour::{from_hex, to_hex};
 use pd_core::model::Rgba;
 use pd_core::render::constants::SELECTED_REACTION;
 
-const KEY_CATALYTIC: &str = "pathwayDesigner.convertCatalyticReactions";
 const KEY_NULL_SPECIES: &str = "pathwayDesigner.showNullSpecies";
+const KEY_FUNCTIONS_IN: &str = "pathwayDesigner.writeFunctionsIn";
 const KEY_SELECTED_REACTION: &str = "pathwayDesigner.selectedReactionColour";
 const KEY_REVERSIBLE: &str = "pathwayDesigner.showReversible";
 const KEY_GRID: &str = "pathwayDesigner.showGrid";
@@ -18,10 +18,11 @@ const KEY_SNAP: &str = "pathwayDesigner.snapToGrid";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preferences {
-    /// During Antimony import, `A -> A + B` becomes `-> B` with `A` as a modifier.
-    pub convert_catalytic: bool,
     /// Draw null nodes and the legs that touch them.
     pub show_null_species: bool,
+    /// Saving SBML and Antimony writes functions into the formulas that use
+    /// them (docs/sbml-app-design.md A4).
+    pub write_functions_in: bool,
     /// The colour a selected reaction is drawn in, to make it easy to see.
     pub selected_reaction: Rgba,
     /// View ▸ Reversible arrowheads: set from the View menu, not the
@@ -37,8 +38,8 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
-            convert_catalytic: true,
             show_null_species: true,
+            write_functions_in: false,
             selected_reaction: SELECTED_REACTION,
             show_reversible: true,
             show_grid: false,
@@ -57,8 +58,8 @@ impl Preferences {
                 Some("false") => false,
                 _ => default,
             };
-            p.convert_catalytic = flag(KEY_CATALYTIC, p.convert_catalytic);
             p.show_null_species = flag(KEY_NULL_SPECIES, p.show_null_species);
+            p.write_functions_in = flag(KEY_FUNCTIONS_IN, p.write_functions_in);
             p.show_reversible = flag(KEY_REVERSIBLE, p.show_reversible);
             p.show_grid = flag(KEY_GRID, p.show_grid);
             p.snap_to_grid = flag(KEY_SNAP, p.snap_to_grid);
@@ -73,8 +74,8 @@ impl Preferences {
     }
 
     pub fn save(&self, storage: &mut dyn eframe::Storage) {
-        storage.set_string(KEY_CATALYTIC, self.convert_catalytic.to_string());
         storage.set_string(KEY_NULL_SPECIES, self.show_null_species.to_string());
+        storage.set_string(KEY_FUNCTIONS_IN, self.write_functions_in.to_string());
         storage.set_string(KEY_SELECTED_REACTION, to_hex(self.selected_reaction));
         storage.set_string(KEY_REVERSIBLE, self.show_reversible.to_string());
         storage.set_string(KEY_GRID, self.show_grid.to_string());
@@ -116,15 +117,15 @@ mod tests {
     fn saved_values_come_back() {
         let mut m = Memory::default();
         let p = Preferences {
-            convert_catalytic: false,
             show_null_species: false,
+            write_functions_in: true,
             selected_reaction: Rgba([0xE0, 0x10, 0x80, 0xFF]),
             show_reversible: false,
             show_grid: true,
             snap_to_grid: true,
         };
         p.save(&mut m);
-        assert_eq!(m.0["pathwayDesigner.convertCatalyticReactions"], "false");
+        assert_eq!(m.0["pathwayDesigner.writeFunctionsIn"], "true");
         assert_eq!(m.0["pathwayDesigner.showReversible"], "false");
         assert_eq!(m.0["pathwayDesigner.showGrid"], "true");
         assert_eq!(m.0["pathwayDesigner.snapToGrid"], "true");

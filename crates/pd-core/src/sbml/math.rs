@@ -9,25 +9,64 @@ use crate::expr::{Ast, BinOp, Span, UnOp};
 
 const NO_SPAN: Span = Span { start: 0, end: 0 };
 
+/// The names formulas use for MathML's constants, `<true/>` and the like.
+pub const CONSTANTS: [(&str, Constant); 6] = [
+    ("true", Constant::True),
+    ("false", Constant::False),
+    ("pi", Constant::Pi),
+    ("exponentiale", Constant::ExponentialE),
+    ("inf", Constant::Infinity),
+    ("NaN", Constant::NotANumber),
+];
+
+/// Second names for two of [`CONSTANTS`], for a model that uses the first
+/// for an item of its own (the SBML Test Suite has a parameter `NaN`).
+pub const SECOND_NAMES: [(&str, Constant); 2] = [
+    ("infinity", Constant::Infinity),
+    ("notanumber", Constant::NotANumber),
+];
+
+/// Whether `name` stands for one of SBML's own values in a formula, rather
+/// than for an item: `time`, `avogadro`, or one of [`CONSTANTS`] or
+/// [`SECOND_NAMES`].
+pub fn is_constant_name(name: &str) -> bool {
+    name == "time"
+        || name == "avogadro"
+        || CONSTANTS
+            .iter()
+            .chain(&SECOND_NAMES)
+            .any(|(n, _)| *n == name)
+}
+
 /// An expression as MathML (the table in S §11.5). `level` and `version` say
 /// which operators are allowed: `max` and `min` exist only from Level 3
 /// Version 2, and are written as a `piecewise` before that.
 pub fn to_math(ast: &Ast, level: u32, version: u32) -> Math {
-    to_math_with(ast, level, version, true)
+    to_math_with(ast, level, version, &|_| false)
 }
 
-/// [`to_math`], saying whether the name `avogadro` is SBML's constant: not
-/// when the model has something of its own called that, which SBML allows
-/// (found by the SBML Test Suite round trip).
-pub fn to_math_with(ast: &Ast, level: u32, version: u32, avogadro_free: bool) -> Math {
-    let me = |a: &Ast| to_math_with(a, level, version, avogadro_free);
+/// [`to_math`], with `taken` saying which names the model uses for items of
+/// its own: such a name is that item, not SBML's constant of that name
+/// (`avogadro`, `pi`, …), which SBML allows (found by the SBML Test Suite
+/// round trip).
+pub fn to_math_with(ast: &Ast, level: u32, version: u32, taken: &dyn Fn(&str) -> bool) -> Math {
+    let me = |a: &Ast| to_math_with(a, level, version, taken);
     match ast {
         Ast::Number(text, _) => number(text),
-        Ast::Ident(name, _) if name == "time" => Math::Symbol(Symbol::new(Symbol::TIME, "time")),
-        Ast::Ident(name, _) if name == "avogadro" && avogadro_free => {
+        Ast::Ident(name, _) if name == "time" && !taken(name) => {
+            Math::Symbol(Symbol::new(Symbol::TIME, "time"))
+        }
+        Ast::Ident(name, _) if name == "avogadro" && !taken(name) => {
             Math::Symbol(Symbol::new(Symbol::AVOGADRO, "avogadro"))
         }
-        Ast::Ident(name, _) => Math::Ident(name.clone()),
+        Ast::Ident(name, _) => match CONSTANTS
+            .iter()
+            .chain(&SECOND_NAMES)
+            .find(|(n, _)| n == name)
+        {
+            Some((_, c)) if !taken(name) => Math::Constant(*c),
+            _ => Math::Ident(name.clone()),
+        },
         Ast::Unary(UnOp::Neg, e, _) => Math::Apply(Op::Minus, vec![me(e)]),
         Ast::Unary(UnOp::Not, e, _) => Math::Apply(Op::Not, vec![me(e)]),
         Ast::Binary(op, l, r, _) => {
@@ -63,6 +102,10 @@ fn number(text: &str) -> Math {
         Ok(i) => Number::Integer(i64::from(i)),
         Err(_) => Number::Real(text.parse().unwrap_or(f64::NAN)),
     };
+    // Too big for a double (`1e400`): MathML's infinity.
+    if value.value().is_infinite() {
+        return Math::Constant(Constant::Infinity);
+    }
     Math::Number { value, units: None }
 }
 
@@ -153,46 +196,68 @@ fn min_max(max: bool, mut args: Vec<Math>) -> Math {
 }
 
 /// MathML as an expression. `rename` maps ids to the names they get in the
-/// model (local parameters made global). Fails, with the reason, on MathML
-/// the expression language can't say.
+/// model. Fails, with the reason, on MathML the expression language can't
+/// say.
 pub fn from_math(m: &Math, rename: &HashMap<String, String>) -> Result<Ast, String> {
-    from_math_with(m, rename, true)
+    from_math_with(m, rename, &|_| false)
 }
 
-/// [`from_math`], saying whether the name `avogadro` is free to stand for
-/// SBML's constant; if the model has something of its own called that, the
-/// constant becomes its Level 3 Version 1 value, 6.02214179e23.
+/// [`from_math`], with `taken` saying which names the model uses for items
+/// of its own. SBML's constants are names in formulas (`avogadro`, `pi`,
+/// `true`, `inf`, …, [`CONSTANTS`]); one whose name the model uses for an
+/// item is written as its value instead: `avogadro` as its Level 3 Version 1
+/// value, 6.02214179e23.
 pub fn from_math_with(
     m: &Math,
     rename: &HashMap<String, String>,
-    avogadro_free: bool,
+    taken: &dyn Fn(&str) -> bool,
 ) -> Result<Ast, String> {
-    let me = |m: &Math| from_math_with(m, rename, avogadro_free);
+    let me = |m: &Math| from_math_with(m, rename, taken);
     let all = |args: &[Math]| args.iter().map(me).collect::<Result<Vec<_>, _>>();
     Ok(match m {
-        Math::Number { value, .. } => num_ast(value.value()),
+        // A whole number written as a real stays a real (`1.0`): some
+        // simulators divide integers as integers, so `1/2` would be 0 (found
+        // by the BioModels round trip).
+        Math::Number {
+            value: Number::Integer(i),
+            ..
+        } => num_ast(*i as f64),
+        Math::Number { value, .. } => real_ast(value.value()),
         Math::Ident(id) => ident(rename.get(id).unwrap_or(id)),
         Math::Symbol(s) if s.url == Symbol::TIME => ident("time"),
         // Kept as SBML's own constant, not a number: libSBML and its
         // simulators use Level 3 Version 1's value, 6.02214179e23, not the
         // newer exact one (found by the SBML Test Suite round trip).
         Math::Symbol(s) if s.url == Symbol::AVOGADRO => {
-            if avogadro_free {
-                ident("avogadro")
-            } else {
+            if taken("avogadro") {
                 num_ast(6.02214179e23)
+            } else {
+                ident("avogadro")
             }
         }
         Math::Symbol(s) => return Err(format!("the symbol {}", s.url)),
-        Math::Constant(c) => match c {
-            Constant::True => num_ast(1.0),
-            Constant::False => num_ast(0.0),
-            Constant::Pi => num_ast(std::f64::consts::PI),
-            Constant::ExponentialE => Ast::Call("exp".into(), vec![num_ast(1.0)], NO_SPAN),
-            Constant::NotANumber | Constant::Infinity => {
-                return Err(format!("<{}/>", c.tag()));
+        Math::Constant(c) => {
+            // Its name, or its second name, that no item of the model has.
+            let name = CONSTANTS
+                .iter()
+                .chain(&SECOND_NAMES)
+                .filter(|(_, k)| k == c)
+                .map(|(n, _)| *n)
+                .find(|n| !taken(n));
+            if let Some(name) = name {
+                ident(name)
+            } else {
+                match c {
+                    Constant::True => num_ast(1.0),
+                    Constant::False => num_ast(0.0),
+                    Constant::Pi => num_ast(std::f64::consts::PI),
+                    Constant::ExponentialE => Ast::Call("exp".into(), vec![num_ast(1.0)], NO_SPAN),
+                    // A number too big for a double, read back as infinity.
+                    Constant::Infinity => Ast::Number("1e400".into(), NO_SPAN),
+                    Constant::NotANumber => binary(BinOp::Div, num_ast(0.0), num_ast(0.0)),
+                }
             }
-        },
+        }
         Math::Apply(op, args) => {
             let a = all(args)?;
             apply(*op, a)?
@@ -255,6 +320,9 @@ fn apply(op: Op, mut a: Vec<Ast>) -> Result<Ast, String> {
     Ok(match (op, a.len()) {
         (Op::Plus, _) => fold(BinOp::Add, a, 0.0),
         (Op::Times, _) => fold(BinOp::Mul, a, 1.0),
+        // With fewer than two arguments, `and(x)` is a truth value, not `x`:
+        // kept as a call, as MathML has it.
+        (Op::And | Op::Or, n) if n < 2 => Ast::Call(op.tag().into(), a, NO_SPAN),
         (Op::And, _) => fold(BinOp::And, a, 1.0),
         (Op::Or, _) => fold(BinOp::Or, a, 0.0),
         (Op::Minus, 1) => Ast::Unary(UnOp::Neg, Box::new(a.remove(0)), NO_SPAN),
@@ -302,6 +370,19 @@ fn binary(op: BinOp, l: Ast, r: Ast) -> Ast {
 
 fn ident(name: &str) -> Ast {
     Ast::Ident(name.to_owned(), NO_SPAN)
+}
+
+/// A real number as the expression language writes it: as [`num_ast`], but a
+/// whole one with `.0`, so it reads back as a real.
+fn real_ast(v: f64) -> Ast {
+    let text = sbml_io::fmt_f64(v.abs());
+    let whole = v.is_finite() && !text.contains(['.', 'e', 'E']);
+    let n = Ast::Number(if whole { format!("{text}.0") } else { text }, NO_SPAN);
+    if v < 0.0 {
+        Ast::Unary(UnOp::Neg, Box::new(n), NO_SPAN)
+    } else {
+        n
+    }
 }
 
 /// A number as the expression language writes it: negative numbers as a
@@ -404,17 +485,88 @@ mod tests {
         );
     }
 
+    /// MathML's constants are names in formulas, and go back as constants,
+    /// unless the model has an item of that name.
+    /// A whole number written as a real stays a real, an integer an integer
+    /// (found by the BioModels round trip: libRoadRunner divides integers
+    /// as integers).
+    #[test]
+    fn reals_and_integers_stay_what_they_are() {
+        let none = HashMap::new();
+        for (value, text) in [
+            (Number::Real(1.0), "1.0"),
+            (Number::Real(2.5), "2.5"),
+            (Number::Integer(1), "1"),
+            (Number::Real(1e20), "1e20"),
+        ] {
+            let m = Math::Number { value, units: None };
+            let ast = from_math(&m, &none).unwrap();
+            assert_eq!(to_infix(&ast), text);
+            let back = to_math(&crate::expr::parse(text).unwrap(), 3, 2);
+            assert_eq!(
+                matches!(
+                    back,
+                    Math::Number {
+                        value: Number::Integer(_),
+                        ..
+                    }
+                ),
+                matches!(value, Number::Integer(_)),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn constants_are_kept() {
+        let none = HashMap::new();
+        for (name, c) in CONSTANTS {
+            let ast = from_math(&Math::Constant(c), &none).unwrap();
+            assert_eq!(to_infix(&ast), name);
+            assert_eq!(to_math(&ast, 3, 2), Math::Constant(c), "{name}");
+            // A parameter called `pi`: the item, both ways.
+            let taken = |n: &str| n == name;
+            assert_eq!(
+                to_math_with(&ast, 3, 2, &taken),
+                Math::Ident(name.to_owned())
+            );
+            assert_ne!(
+                to_infix(&from_math_with(&Math::Constant(c), &none, &taken).unwrap()),
+                name
+            );
+        }
+        assert!(is_constant_name("inf") && is_constant_name("time"));
+        // A model with a parameter `NaN` has MathML's NaN as `notanumber`.
+        let nan = from_math_with(&Math::Constant(Constant::NotANumber), &none, &|n| {
+            n == "NaN"
+        })
+        .unwrap();
+        assert_eq!(to_infix(&nan), "notanumber");
+        assert_eq!(
+            to_math_with(&nan, 3, 2, &|n| n == "NaN"),
+            Math::Constant(Constant::NotANumber)
+        );
+        // `and` of fewer than two arguments is kept as MathML has it.
+        for (args, text) in [(vec![], "and()"), (vec![Math::ident("x")], "and(x)")] {
+            let ast = from_math(&Math::Apply(Op::And, args.clone()), &none).unwrap();
+            assert_eq!(to_infix(&ast), text);
+            let again = crate::expr::parse(text).unwrap();
+            assert_eq!(to_math(&again, 3, 2), Math::Apply(Op::And, args));
+        }
+        assert!(!is_constant_name("k1"));
+    }
+
     #[test]
     fn mathml_only_forms() {
         let none = HashMap::new();
         let infix = |m: Math| to_infix(&from_math(&m, &none).unwrap());
-        // n-ary plus, unary minus, a negative number.
+        // n-ary plus, unary minus, a negative number (a real: `.0`).
         assert_eq!(
             infix(Math::Apply(
                 Op::Plus,
                 vec![Math::ident("a"), Math::ident("b"), Math::real(-2.0)]
             )),
-            "a + b + -2"
+            "a + b + -2.0"
         );
         assert_eq!(
             infix(Math::Root {
@@ -430,7 +582,7 @@ mod tests {
             }),
             "ln(x)/ln(2)"
         );
-        assert_eq!(infix(Math::Constant(Constant::True)), "1");
+        assert_eq!(infix(Math::Constant(Constant::True)), "true");
         // Local parameters renamed.
         let rename = HashMap::from([("k".to_owned(), "J1_k".to_owned())]);
         let ast = from_math(
@@ -440,7 +592,6 @@ mod tests {
         .unwrap();
         assert_eq!(to_infix(&ast), "J1_k*S");
         // What can't be said.
-        assert!(from_math(&Math::Constant(Constant::Infinity), &none).is_err());
         assert!(from_math(&Math::Raw("<diff/>".into()), &none).is_err());
     }
 }

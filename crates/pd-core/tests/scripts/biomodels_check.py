@@ -14,8 +14,9 @@ round-tripped file:
   species' concentration compared at 201 times. The largest relative
   difference is recorded.
 
-Models that use what PathwayDesigner doesn't keep (events, rate and algebraic
-rules, constraints) are expected to differ, and are reported apart. Each
+Models whose import said it left something out (what Level 2 says that
+Level 3 can't, CellDesigner's and JDesigner's own annotations) are reported
+apart. Each
 model is checked in a process of its own, with a time limit, so a model that
 makes the simulator hang can't stall the run. Writes the report as Markdown,
 and every model's result as JSON next to it.
@@ -236,7 +237,9 @@ def main():
     jobs = []
     for mid, r in sorted(log.items()):
         if r["read"]:
-            jobs.append((mid, original_file(src, mid), os.path.join(out_dir, f"{mid}.xml")))
+            # The file the round trip read, where a folder has several.
+            original = log[mid].get("file") or original_file(src, mid)
+            jobs.append((mid, original, os.path.join(out_dir, f"{mid}.xml")))
     results = []
     with cf.ThreadPoolExecutor(max_workers=max(2, (os.cpu_count() or 4) - 2)) as pool:
         for i, res in enumerate(pool.map(run_one, jobs), 1):
@@ -250,16 +253,11 @@ def main():
 
 def write_report(path, log, results):
     def dropped(r):
-        b = r.get("before") or {}
-        return [
-            f"{n} {what}"
-            for n, what in (
-                (b.get("events", 0), "events"),
-                (b.get("other_rules", 0), "rate/algebraic rules"),
-                (b.get("constraints", 0), "constraints"),
-            )
-            if n
-        ]
+        # What the import said it doesn't keep (docs/sbml-full-support-design.md:
+        # only Level 2's parts Level 3 has no place for, and CellDesigner's and
+        # JDesigner's own annotations).
+        said = log.get(r["id"], {}).get("warnings", [])
+        return [w for w in said if "aren't kept" in w or "have no place" in w or "left out" in w]
 
     groups = {"same": [], "same_dropped": [], "differs": [], "differs_dropped": [], "original": [], "roundtrip": [], "other": []}
     for r in results:

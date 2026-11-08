@@ -382,6 +382,50 @@ pub fn draw_marks(model: &Model, opts: &DrawOptions, marks: &Marks, out: &mut dy
     }
 }
 
+/// The lightning bolt's size, in world units (docs/sbml-app-design.md A2).
+const BOLT_WIDTH: f64 = 10.0;
+const BOLT_HEIGHT: f64 = 15.0;
+/// How far out from the corner it is: past the selection's corner handle.
+const BOLT_OUTSET: f64 = HALO_OUTSET + 4.0;
+
+/// Draws a small lightning bolt beside the top-right corner of every drawing
+/// of a species, and of every compartment box, that a rule or an event also
+/// changes (docs/sbml-app-design.md A2). On the screen only, like the
+/// annotation marks.
+pub fn draw_rule_marks(model: &Model, opts: &DrawOptions, out: &mut dyn Renderer) {
+    let d = Drawer { model, opts };
+    let (species, compartments) = crate::sentences::marked(model);
+    let mut corners: Vec<Pt> = model
+        .species()
+        .iter()
+        .filter(|s| !s.is_null_node && species.iter().any(|id| id == s.primary_id()))
+        .map(|s| pt(s.center.x + s.width / 2.0, s.center.y - s.height / 2.0))
+        .collect();
+    corners.extend(
+        model
+            .compartments
+            .iter()
+            .filter(|c| compartments.contains(&c.id))
+            .filter_map(|c| c.drawn_frame())
+            .map(|f| pt(f.center.x + f.width / 2.0, f.center.y - f.height / 2.0)),
+    );
+    for corner in corners {
+        // Its box's lower left out from the corner, clear of the handles.
+        let at = |x: f64, y: f64| {
+            d.to_screen(pt(
+                corner.x + BOLT_OUTSET + x * BOLT_WIDTH / 8.0,
+                corner.y - BOLT_OUTSET - BOLT_HEIGHT + y * BOLT_HEIGHT / 12.0,
+            ))
+        };
+        // Two convex pieces, as the renderer fills only convex polygons.
+        out.polygon(
+            &[at(4.5, 0.0), at(0.0, 7.0), at(4.0, 7.0), at(7.0, 0.0)],
+            REACTION_LINE,
+        );
+        out.polygon(&[at(4.0, 4.5), at(8.0, 4.5), at(2.5, 12.0)], REACTION_LINE);
+    }
+}
+
 /// The colour the diagram is drawn on (S §8.8): its own, or the default.
 pub fn background_colour(model: &Model) -> Rgba {
     pick(Some(model.background), BACKGROUND)
@@ -2522,6 +2566,56 @@ mod tests {
         );
         assert_eq!(coefficient_label(0.5).as_deref(), Some("×1/2"));
         assert_eq!(coefficient_label(-1.0), None);
+    }
+
+    /// docs/sbml-app-design.md A2: a species an event changes has a
+    /// lightning bolt beside each of its drawings, above its top-right
+    /// corner; nothing else has one.
+    #[test]
+    fn what_rules_and_events_change_has_a_bolt() {
+        let mut m = uni_uni();
+        let a = m.species()[0].id.clone();
+        m.add_alias(&a, pt(0.0, 200.0)).unwrap();
+        let opts = DrawOptions::default();
+        let bolts = |m: &Model| {
+            let mut rec = Recorder::default();
+            draw_rule_marks(m, &opts, &mut rec);
+            rec.calls
+                .iter()
+                .filter_map(|c| match c {
+                    Call::Polygon(p, f) if *f == REACTION_LINE => Some(p.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        assert!(bolts(&m).is_empty(), "no rules or events, no bolts");
+        m.events.push(crate::model::Event {
+            assignments: vec![crate::model::EventAssignment {
+                variable: a.clone(),
+                expression: "1".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let shown = bolts(&m);
+        assert_eq!(shown.len(), 4, "two pieces for the species and its alias");
+        let node = &m.species()[0];
+        let corner = opts_point(
+            &opts,
+            node.center.x + node.width / 2.0,
+            node.center.y - node.height / 2.0,
+        );
+        for p in shown[0].iter().chain(&shown[1]) {
+            assert!(
+                p.x >= corner.x && p.y <= corner.y,
+                "{p:?} beside {corner:?}"
+            );
+        }
+    }
+
+    fn opts_point(opts: &DrawOptions, x: f64, y: f64) -> SPt {
+        let s = world_to_screen(pt(x, y), opts.zoom, opts.scroll);
+        spt(s.x as f32, s.y as f32)
     }
 
     /// docs/annotation-marks-design.md step 2: a marked species has a solid

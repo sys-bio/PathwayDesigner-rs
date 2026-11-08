@@ -8,10 +8,7 @@ use pd_core::model::{Model, NodeShape, Rgba};
 use sbml_io::render as sr;
 use sbml_io::*;
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: true,
-    seed: 1,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
 const RED: Rgba = Rgba::rgb(0xFF, 0, 0);
 const BLUE: Rgba = Rgba::rgb(0, 0, 0xFF);

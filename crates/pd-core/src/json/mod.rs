@@ -14,17 +14,27 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::geometry::pt;
 use crate::model::{
-    Annotation, AssignmentRule, BorderDash, Compartment, Creator, DEFAULT_SPECIES_HEIGHT,
-    DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE, Frame, History, LabelChoice, LinePattern, Look,
-    Model, ModifierKind, ModifierLook, NodeShape, Parameter, Participant, Reaction, ReactionMode,
-    Reference, Rgba, SavedStyle, SpeciesNode, StyleKind, TextAlign, TextFont, TextItem, Typeface,
+    AlgebraicRule, Annotation, AssignmentRule, BorderDash, Compartment, CompartmentSbml,
+    Constraint, Creator, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE, Event,
+    EventAssignment, EventFormula, Frame, FunctionDefinition, History, InitialAssignment,
+    LabelChoice, LinePattern, LocalParameter, Look, Model, ModelUnits, ModifierKind, ModifierLook,
+    NodeShape, PackageAttribute, PackageData, Parameter, Participant, RateRule, Reaction,
+    ReactionMode, ReactionSbml, Reference, Rgba, SavedStyle, SpeciesNode, SpeciesReference,
+    SpeciesSbml, StyleKind, TextAlign, TextFont, TextItem, Trigger, Typeface, Unit, UnitDefinition,
     VisualStyle,
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought other tools' annotations and the SBML `metaid` in an
-/// annotation (`other`, `metaid`, docs/other-annotations-design.md).
-pub const FORMAT_VERSION: u32 = 22;
+/// one that brought the rest of SBML (docs/sbml-full-support-design.md F13):
+/// functions, units, initial assignments, rate and algebraic rules,
+/// constraints and events, and what parameters, species, compartments,
+/// reactions and their species references carry beyond what was kept
+/// before.
+pub const FORMAT_VERSION: u32 = 23;
+
+/// The version that brought other tools' annotations and the SBML `metaid`
+/// in an annotation (`other`, `metaid`, docs/other-annotations-design.md).
+pub const OTHER_ANNOTATIONS_VERSION: u32 = 22;
 
 /// The version that brought label text on species, reactions and
 /// compartments (`labelText`, docs/layout-labels-design.md).
@@ -109,6 +119,7 @@ fn used_reference_names(m: &Model) -> std::collections::BTreeMap<String, String>
     m.compartments.iter().for_each(|c| add(&c.annotation));
     m.parameters.iter().for_each(|p| add(&p.annotation));
     m.assignment_rules.iter().for_each(|r| add(&r.annotation));
+    for_each_sbml_annotation(m, &mut add);
     m.reference_names
         .iter()
         .filter(|(k, _)| used.contains(*k))
@@ -117,7 +128,9 @@ fn used_reference_names(m: &Model) -> std::collections::BTreeMap<String, String>
 }
 
 /// The version `model` must be saved as, the oldest that holds it
-/// (SPEC-Rust §4.2): 19 if it keeps names for its references, 18 if anything
+/// (SPEC-Rust §4.2): 23 if it has any of the rest of SBML ([`full_sbml`]), 22
+/// if it has other tools' annotations or a `metaid`, 21 if it has label
+/// text, 20 if a species is in amounts, 19 if it keeps names for its references, 18 if anything
 /// has an annotation or the model a history,
 /// 17 if a species, reaction or compartment has a display
 /// name or its own label choice, or the diagram shows display names, 16 if the diagram names colors (from a diagram's
@@ -198,8 +211,10 @@ pub fn needed_version(model: &Model) -> u32 {
     let label_text = model.species().iter().any(|s| s.label_text.is_some())
         || model.reactions().iter().any(|r| r.label_text.is_some())
         || model.compartments.iter().any(|c| c.label_text.is_some());
-    if other_annotations(model) {
+    if full_sbml(model) {
         FORMAT_VERSION
+    } else if other_annotations(model) {
+        OTHER_ANNOTATIONS_VERSION
     } else if label_text {
         LABEL_TEXT_VERSION
     } else if model
@@ -412,6 +427,42 @@ struct FileModel {
     /// reference.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     reference_names: std::collections::BTreeMap<String, String>,
+    /// Version 23: the rest of SBML (docs/sbml-full-support-design.md). Each
+    /// left out when empty. A parameter's initial assignment is its
+    /// `expression`, as before; `initialAssignments` holds the others.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    model_id: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    model_id_unset: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    model_name_unset: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    units: Option<FileModelUnits>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    conversion_factor: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    functions: Vec<FileFunction>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    unit_definitions: Vec<FileUnitDefinition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    initial_assignments: Vec<FileExpression>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    rate_rules: Vec<FileExpression>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    algebraic_rules: Vec<FileFormula>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    constraints: Vec<FileConstraint>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    events: Vec<FileEvent>,
+    /// The SBML namespaces other packages' parts need.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    namespaces: Vec<FileNamespace>,
+    /// What other packages put on the SBML document itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    document_package: Option<FilePackage>,
+    /// The version of SBML Level 3 the model was read from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sbml_version: Option<u32>,
 }
 
 /// An annotation (version 18): an SBO term's number, database references
@@ -436,6 +487,15 @@ struct FileAnnotation {
     /// Version 22: the SBML `metaid` as read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     metaid: Option<String>,
+    /// Version 23: who made an item other than the model, and when.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    history: Option<FileHistory>,
+    /// Version 23: what other SBML packages put on the item (F10).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    package: Option<FilePackage>,
+    /// Version 23: RDF descriptions kept as read, raw XML.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    rdf: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -470,23 +530,209 @@ struct FileCreator {
 }
 
 fn annotation_to_file(a: &Annotation) -> Option<FileAnnotation> {
-    (!a.is_empty() || a.metaid.is_some()).then(|| FileAnnotation {
-        sbo: a.sbo,
-        references: a
-            .references
-            .iter()
-            .map(|r| FileReference {
-                qualifier: r.qualifier.clone(),
-                resource: r.resource.clone(),
-            })
-            .collect(),
-        notes: a.notes.clone(),
-        other: a.other.clone(),
-        metaid: a.metaid.clone(),
+    (!a.is_empty() || a.metaid.is_some() || !a.package.is_empty() || !a.rdf.is_empty()).then(|| {
+        FileAnnotation {
+            sbo: a.sbo,
+            references: a
+                .references
+                .iter()
+                .map(|r| FileReference {
+                    qualifier: r.qualifier.clone(),
+                    resource: r.resource.clone(),
+                })
+                .collect(),
+            notes: a.notes.clone(),
+            other: a.other.clone(),
+            metaid: a.metaid.clone(),
+            history: history_to_file(&a.history),
+            package: (!a.package.is_empty()).then(|| package_to_file(&a.package)),
+            rdf: a.rdf.clone(),
+        }
     })
 }
 
-/// Whether any item has another tool's annotations or a `metaid` (version 22).
+fn package_to_file(p: &PackageData) -> FilePackage {
+    FilePackage {
+        attributes: p
+            .attributes
+            .iter()
+            .map(|x| FilePackageAttribute {
+                name: x.name.clone(),
+                namespace: x.namespace.clone(),
+                value: x.value.clone(),
+            })
+            .collect(),
+        elements: p.elements.clone(),
+    }
+}
+
+fn package_from_file(p: FilePackage) -> PackageData {
+    PackageData {
+        attributes: p
+            .attributes
+            .into_iter()
+            .map(|x| PackageAttribute {
+                name: x.name,
+                namespace: x.namespace,
+                value: x.value,
+            })
+            .collect(),
+        elements: p.elements,
+    }
+}
+
+fn history_to_file(h: &History) -> Option<FileHistory> {
+    (!h.is_empty()).then(|| FileHistory {
+        creators: h
+            .creators
+            .iter()
+            .map(|c| FileCreator {
+                family: c.family.clone(),
+                given: c.given.clone(),
+                email: c.email.clone(),
+                organization: c.organization.clone(),
+            })
+            .collect(),
+        created: h.created.clone(),
+        modified: h.modified.clone(),
+    })
+}
+
+fn history_from_file(h: Option<FileHistory>) -> History {
+    h.map(|h| History {
+        creators: h
+            .creators
+            .into_iter()
+            .map(|c| Creator {
+                family: c.family,
+                given: c.given,
+                email: c.email,
+                organization: c.organization,
+            })
+            .collect(),
+        created: h.created,
+        modified: h.modified,
+    })
+    .unwrap_or_default()
+}
+
+/// Calls `f` with the annotation of every item of the rest of SBML
+/// (version 23), so that what looks at annotations sees theirs too.
+fn for_each_sbml_annotation(m: &Model, f: &mut impl FnMut(&Annotation)) {
+    m.function_definitions.iter().for_each(|x| f(&x.annotation));
+    for u in &m.unit_definitions {
+        f(&u.annotation);
+        u.units.iter().for_each(|x| f(&x.annotation));
+    }
+    m.initial_assignments.iter().for_each(|x| f(&x.annotation));
+    m.rate_rules.iter().for_each(|x| f(&x.annotation));
+    m.algebraic_rules.iter().for_each(|x| f(&x.annotation));
+    m.constraints.iter().for_each(|x| f(&x.annotation));
+    for e in &m.events {
+        f(&e.annotation);
+        f(&e.trigger.annotation);
+        e.delay.iter().for_each(|x| f(&x.annotation));
+        e.priority.iter().for_each(|x| f(&x.annotation));
+        e.assignments.iter().for_each(|x| f(&x.annotation));
+    }
+    for r in m.reactions() {
+        f(&r.sbml.kinetic_law_annotation);
+        r.sbml
+            .local_parameters
+            .iter()
+            .for_each(|x| f(&x.annotation));
+        for p in r.reactants.iter().chain(&r.products).chain(&r.modifiers) {
+            if let Some(x) = &p.sbml {
+                f(&x.annotation);
+            }
+        }
+    }
+}
+
+/// Whether a parameter is only what a rule sets, and nothing more: written
+/// as before version 23, by the rule alone, and declared again on reading.
+fn implied_parameter(m: &Model, p: &Parameter) -> bool {
+    m.assignment_rules.iter().any(|r| r.variable == p.variable)
+        && p.value.is_none()
+        && m.initial_assignment(&p.variable).is_none()
+        && p.name.is_none()
+        && p.units.is_none()
+        && p.annotation.is_empty()
+        && p.annotation.metaid.is_none()
+        && p.annotation.package.is_empty()
+}
+
+/// Whether the model has any of the rest of SBML (version 23).
+fn full_sbml(m: &Model) -> bool {
+    let mut annotated = false;
+    for_each_sbml_annotation(m, &mut |a| {
+        annotated |= !a.is_empty() || a.metaid.is_some() || !a.package.is_empty();
+    });
+    let new_in_annotation =
+        |a: &Annotation| !a.history.is_empty() || !a.package.is_empty() || !a.rdf.is_empty();
+    let parameter = |p: &Parameter| {
+        let ruled = m.assignment_rules.iter().any(|r| r.variable == p.variable);
+        let formula = m.initial_assignment(&p.variable);
+        if ruled {
+            !implied_parameter(m, p)
+        } else {
+            (p.value.is_none() && formula.is_none())
+                || (p.value.is_some() && formula.is_some())
+                || formula
+                    .is_some_and(|a| !a.annotation.is_empty() || a.annotation.metaid.is_some())
+                || p.name.is_some()
+                || p.units.is_some()
+                || !p.constant
+        }
+    };
+    let participant = |p: &Participant| p.sbml.is_some();
+    m.model_id.is_some()
+        || m.model_id_unset
+        || m.model_name_unset
+        || !m.units.is_empty()
+        || m.conversion_factor.is_some()
+        || !m.function_definitions.is_empty()
+        || !m.unit_definitions.is_empty()
+        || m.initial_assignments
+            .iter()
+            .any(|a| !m.parameters.iter().any(|p| p.variable == a.symbol))
+        || !m.rate_rules.is_empty()
+        || !m.algebraic_rules.is_empty()
+        || !m.constraints.is_empty()
+        || !m.events.is_empty()
+        || !m.sbml_namespaces.is_empty()
+        || !m.sbml_document.is_empty()
+        || m.sbml_version.is_some()
+        || annotated
+        || m.parameters.iter().any(parameter)
+        || m.parameters.iter().any(|p| new_in_annotation(&p.annotation))
+        // A rule's own annotation: before, a rule's was its parameter's.
+        || m.assignment_rules
+            .iter()
+            .any(|r| !r.annotation.is_empty() || r.annotation.metaid.is_some())
+        || new_in_annotation(&m.annotation)
+        || m.compartments.iter().any(|c| {
+            c.sbml != CompartmentSbml::default()
+                || c.dimensions.fract() != 0.0
+                || !(0.0..=3.0).contains(&c.dimensions)
+                || new_in_annotation(&c.annotation)
+        })
+        || m.species()
+            .iter()
+            .any(|s| s.sbml != SpeciesSbml::default() || new_in_annotation(&s.annotation))
+        || m.reactions().iter().any(|r| {
+            r.sbml != ReactionSbml::default()
+                || new_in_annotation(&r.annotation)
+                || r.reactants
+                    .iter()
+                    .chain(&r.products)
+                    .chain(&r.modifiers)
+                    .any(participant)
+        })
+}
+
+/// Whether any item has another tool's annotations or a `metaid` (version
+/// 22).
 fn other_annotations(model: &Model) -> bool {
     let has = |a: &Annotation| !a.other.is_empty() || a.metaid.is_some();
     has(&model.annotation)
@@ -520,7 +766,169 @@ fn annotation_from_file(f: Option<FileAnnotation>) -> Annotation {
             .filter(|x| !x.trim().is_empty())
             .collect(),
         metaid: f.metaid.filter(|m| !m.trim().is_empty()),
+        history: history_from_file(f.history),
+        package: f.package.map(package_from_file).unwrap_or_default(),
+        rdf: f.rdf,
     }
+}
+
+/// What other SBML packages put on an item (version 23, F10).
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FilePackage {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    attributes: Vec<FilePackageAttribute>,
+    /// Each element as raw XML.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    elements: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FilePackageAttribute {
+    name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    namespace: Option<String>,
+    value: String,
+}
+
+/// The model's units (version 23), by unit id, each left out when not given.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FileModelUnits {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    substance: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    time: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    volume: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    area: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    length: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    extent: Option<String>,
+}
+
+/// A function definition (version 23): `id(arguments) = body`.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileFunction {
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default)]
+    arguments: Vec<String>,
+    #[serde(default)]
+    body: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
+}
+
+/// A unit definition (version 23).
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileUnitDefinition {
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default)]
+    units: Vec<FileUnit>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
+}
+
+/// One unit of a definition; exponent, scale and multiplier left out at 1,
+/// 0 and 1.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileUnit {
+    kind: String,
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    exponent: f64,
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    scale: i32,
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    multiplier: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
+}
+
+/// An algebraic rule, `0 = expression` (version 23).
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileFormula {
+    #[serde(default)]
+    expression: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
+}
+
+/// A constraint (version 23), its message XHTML as read.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileConstraint {
+    #[serde(default)]
+    expression: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
+}
+
+/// An event (version 23). The flags are left out at their usual `true`.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileEvent {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default)]
+    trigger: String,
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    trigger_initial_value: bool,
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    trigger_persistent: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trigger_annotation: Option<FileAnnotation>,
+    /// The event has no trigger at all.
+    #[serde(default, skip_serializing_if = "is_false")]
+    no_trigger: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    delay: Option<FileFormula>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    priority: Option<FileFormula>,
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    use_values_from_trigger_time: bool,
+    #[serde(default)]
+    assignments: Vec<FileExpression>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
+}
+
+/// A namespace other packages' parts need (version 23).
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileNamespace {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    prefix: Option<String>,
+    uri: String,
+}
+
+/// A rate law's local parameter (version 23).
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileLocalParameter {
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    value: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    units: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
 }
 
 /// A named color (version 16).
@@ -621,8 +1029,9 @@ struct FileCompartment {
     id: String,
     #[serde(default = "one")]
     size: f64,
-    #[serde(default = "three", deserialize_with = "lenient_u32")]
-    dimensions: u32,
+    /// A whole number but in version 23, which may write any.
+    #[serde(default = "three", serialize_with = "whole_if_can")]
+    dimensions: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style: Option<FileStyle>,
     /// Version 4: the box it is drawn as, by its centre and size, as for a
@@ -660,18 +1069,60 @@ struct FileCompartment {
     /// only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     annotation: Option<FileAnnotation>,
+    /// Version 23: its units; `false` when its size changes while the model
+    /// runs; the file it came from gave no size, no number of dimensions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    units: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    constant: Option<bool>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    size_unset: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    dimensions_unset: bool,
 }
 
-/// A parameter (`=`) or assignment rule (`:=`): both are a variable and an expression.
+/// A parameter (`=`), assignment rule (`:=`), rate rule, initial
+/// assignment or event assignment: each a variable and an expression.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FileExpression {
     variable: String,
     #[serde(default)]
     expression: String,
-    /// Version 18, a parameter's (docs/annotations-design.md A1).
+    /// Version 18, a parameter's (docs/annotations-design.md A1); from
+    /// version 23 a rule's own too.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     annotation: Option<FileAnnotation>,
+    /// Version 23, a parameter's: its value beside a formula `expression`
+    /// (SBML lets both be given; the formula wins), its display name and
+    /// units, `false` when something changes it while the model runs
+    /// (left out when a rule does, which says so), and its formula's
+    /// annotation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    value: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    units: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    constant: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    formula_annotation: Option<FileAnnotation>,
+}
+
+impl FileExpression {
+    fn new(variable: &str, expression: &str, annotation: &Annotation) -> Self {
+        FileExpression {
+            variable: variable.to_owned(),
+            expression: expression.to_owned(),
+            annotation: annotation_to_file(annotation),
+            value: None,
+            name: None,
+            units: None,
+            constant: None,
+            formula_annotation: None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -744,6 +1195,14 @@ struct FileSpecies {
     /// Version 20: its initial value is an amount.
     #[serde(default, skip_serializing_if = "is_false")]
     initial_amount: bool,
+    /// Version 23: its substance units, its conversion factor, and that the
+    /// file it came from gave no initial value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    units: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    conversion_factor: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    initial_unset: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -807,6 +1266,16 @@ struct FileReaction {
     /// only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     annotation: Option<FileAnnotation>,
+    /// Version 23: SBML's `fast`, the compartment it takes place in, its
+    /// rate law's local parameters and the rate law's own annotation.
+    #[serde(default, skip_serializing_if = "is_false")]
+    fast: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    compartment: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    local_parameters: Vec<FileLocalParameter>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kinetic_law_annotation: Option<FileAnnotation>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -856,6 +1325,19 @@ struct FileParticipantObject {
     symbol_size: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     symbol_gap: Option<f64>,
+    /// Version 23: the SBML species reference's id and name; `false` when
+    /// its stoichiometry changes while the model runs; that the file gave
+    /// no stoichiometry; its annotation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ref_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ref_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    constant: Option<bool>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    stoichiometry_unset: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
 }
 
 /// A style object. Missing keys mean 0 (use the default), or true for
@@ -893,8 +1375,27 @@ struct FileStyle {
 fn one() -> f64 {
     1.0
 }
-fn three() -> u32 {
-    3
+fn three() -> f64 {
+    3.0
+}
+fn is_one(v: &f64) -> bool {
+    *v == 1.0
+}
+fn is_zero_i32(v: &i32) -> bool {
+    *v == 0
+}
+fn is_true(b: &bool) -> bool {
+    *b
+}
+
+/// A number written as a whole number (`3`) when it is one, as the files
+/// before version 23 have it.
+fn whole_if_can<S: serde::Serializer>(v: &f64, s: S) -> Result<S::Ok, S::Error> {
+    if v.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(v) {
+        s.serialize_u32(*v as u32)
+    } else {
+        s.serialize_f64(*v)
+    }
 }
 fn yes() -> bool {
     true
@@ -984,17 +1485,37 @@ impl FileModel {
                 label_text: crate::model::display_name(c.label_text),
                 annotation: annotation_from_file(c.annotation),
                 shown_name: None,
+                sbml: CompartmentSbml {
+                    units: c.units,
+                    constant: c.constant.unwrap_or(true),
+                    size_unset: c.size_unset,
+                    dimensions_unset: c.dimensions_unset,
+                },
             })
             .collect();
-        model.parameters = self
-            .parameters
-            .into_iter()
-            .map(|p| Parameter {
-                variable: p.variable,
-                expression: p.expression,
-                annotation: annotation_from_file(p.annotation),
-            })
-            .collect();
+        // A parameter's `expression` is its value, or the formula of its
+        // initial assignment, beside which `value` may be given too.
+        for p in self.parameters {
+            let mut parameter = Parameter::new(p.variable, None);
+            parameter.name = crate::model::display_name(p.name);
+            parameter.units = p.units;
+            parameter.constant = p.constant.unwrap_or(true);
+            parameter.annotation = annotation_from_file(p.annotation);
+            let text = p.expression.trim();
+            match text.parse::<f64>() {
+                Ok(v) => parameter.value = Some(v),
+                Err(_) if !text.is_empty() => {
+                    parameter.value = p.value;
+                    model.initial_assignments.push(InitialAssignment {
+                        symbol: parameter.variable.clone(),
+                        expression: p.expression,
+                        annotation: annotation_from_file(p.formula_annotation),
+                    });
+                }
+                Err(_) => {}
+            }
+            model.parameters.push(parameter);
+        }
         model.assignment_rules = self
             .assignment_rules
             .into_iter()
@@ -1004,6 +1525,136 @@ impl FileModel {
                 annotation: annotation_from_file(r.annotation),
             })
             .collect();
+        model.model_id = self.model_id.filter(|id| !id.trim().is_empty());
+        model.model_id_unset = self.model_id_unset;
+        model.model_name_unset = self.model_name_unset;
+        model.units = self
+            .units
+            .map(|u| ModelUnits {
+                substance: u.substance,
+                time: u.time,
+                volume: u.volume,
+                area: u.area,
+                length: u.length,
+                extent: u.extent,
+            })
+            .unwrap_or_default();
+        model.conversion_factor = self.conversion_factor;
+        model.function_definitions = self
+            .functions
+            .into_iter()
+            .map(|f| FunctionDefinition {
+                id: f.id,
+                name: crate::model::display_name(f.name),
+                arguments: f.arguments,
+                body: f.body,
+                annotation: annotation_from_file(f.annotation),
+            })
+            .collect();
+        model.unit_definitions = self
+            .unit_definitions
+            .into_iter()
+            .map(|u| UnitDefinition {
+                id: u.id,
+                name: crate::model::display_name(u.name),
+                units: u
+                    .units
+                    .into_iter()
+                    .map(|x| Unit {
+                        kind: x.kind,
+                        exponent: x.exponent,
+                        scale: x.scale,
+                        multiplier: x.multiplier,
+                        annotation: annotation_from_file(x.annotation),
+                    })
+                    .collect(),
+                annotation: annotation_from_file(u.annotation),
+            })
+            .collect();
+        // From version 23 the list holds them all, in order, parameters'
+        // formulas among them; before, only parameters had one.
+        let listed: Vec<InitialAssignment> = self
+            .initial_assignments
+            .into_iter()
+            .map(|a| InitialAssignment {
+                symbol: a.variable,
+                expression: a.expression,
+                annotation: annotation_from_file(a.annotation),
+            })
+            .collect();
+        if version >= FORMAT_VERSION {
+            model.initial_assignments = listed;
+        } else {
+            model.initial_assignments.extend(listed);
+        }
+        model.rate_rules = self
+            .rate_rules
+            .into_iter()
+            .map(|r| RateRule {
+                variable: r.variable,
+                expression: r.expression,
+                annotation: annotation_from_file(r.annotation),
+            })
+            .collect();
+        model.algebraic_rules = self
+            .algebraic_rules
+            .into_iter()
+            .map(|r| AlgebraicRule {
+                expression: r.expression,
+                annotation: annotation_from_file(r.annotation),
+            })
+            .collect();
+        model.constraints = self
+            .constraints
+            .into_iter()
+            .map(|c| Constraint {
+                expression: c.expression,
+                message: c.message.filter(|m| !m.trim().is_empty()),
+                annotation: annotation_from_file(c.annotation),
+            })
+            .collect();
+        let formula = |f: FileFormula| EventFormula {
+            expression: f.expression,
+            annotation: annotation_from_file(f.annotation),
+        };
+        model.events = self
+            .events
+            .into_iter()
+            .map(|e| Event {
+                id: e.id.filter(|id| !id.trim().is_empty()),
+                name: crate::model::display_name(e.name),
+                use_values_from_trigger_time: e.use_values_from_trigger_time,
+                trigger: Trigger {
+                    expression: e.trigger,
+                    initial_value: e.trigger_initial_value,
+                    persistent: e.trigger_persistent,
+                    annotation: annotation_from_file(e.trigger_annotation),
+                },
+                no_trigger: e.no_trigger,
+                delay: e.delay.map(formula),
+                priority: e.priority.map(formula),
+                assignments: e
+                    .assignments
+                    .into_iter()
+                    .map(|a| EventAssignment {
+                        variable: a.variable,
+                        expression: a.expression,
+                        annotation: annotation_from_file(a.annotation),
+                    })
+                    .collect(),
+                annotation: annotation_from_file(e.annotation),
+            })
+            .collect();
+        model.sbml_namespaces = self
+            .namespaces
+            .into_iter()
+            .map(|n| (n.prefix, n.uri))
+            .collect();
+        model.sbml_document = self
+            .document_package
+            .map(package_from_file)
+            .unwrap_or_default();
+        model.sbml_version = self.sbml_version;
 
         // All species first; aliases are resolved in a second pass, so an
         // alias may come before its primary in the file.
@@ -1068,6 +1719,11 @@ impl FileModel {
                 label_text: crate::model::display_name(s.label_text),
                 annotation: annotation_from_file(s.annotation),
                 shown_name: None,
+                sbml: SpeciesSbml {
+                    units: s.units,
+                    conversion_factor: s.conversion_factor,
+                    initial_unset: s.initial_unset,
+                },
             };
             if let Err(dup) = model.push_species(node) {
                 warnings.push(format!("A second species with id `{}` was skipped.", dup.0));
@@ -1080,6 +1736,7 @@ impl FileModel {
             if s.alias_of.is_some() {
                 s.display_name = None;
                 s.annotation = Annotation::default();
+                s.sbml = SpeciesSbml::default();
             }
         }
 
@@ -1102,6 +1759,22 @@ impl FileModel {
             reaction.label_text = crate::model::display_name(r.label_text);
             reaction.annotation = annotation_from_file(r.annotation);
             reaction.label_choice = label_choice(r.label.as_deref(), &reaction.id, &mut warnings);
+            reaction.sbml = ReactionSbml {
+                fast: r.fast,
+                compartment: r.compartment,
+                local_parameters: r
+                    .local_parameters
+                    .into_iter()
+                    .map(|p| LocalParameter {
+                        id: p.id,
+                        name: crate::model::display_name(p.name),
+                        value: p.value,
+                        units: p.units,
+                        annotation: annotation_from_file(p.annotation),
+                    })
+                    .collect(),
+                kinetic_law_annotation: annotation_from_file(r.kinetic_law_annotation),
+            };
             reaction.stem = match r.stem.as_deref() {
                 None => None,
                 Some(&[a, b, c, d]) if [a, b, c, d].iter().all(|v| v.is_finite()) => {
@@ -1215,23 +1888,8 @@ impl FileModel {
         model.show_display_names = self.display_names;
         model.annotation = annotation_from_file(self.annotation);
         model.reference_names = self.reference_names;
-        model.history = self
-            .history
-            .map(|h| History {
-                creators: h
-                    .creators
-                    .into_iter()
-                    .map(|c| Creator {
-                        family: c.family,
-                        given: c.given,
-                        email: c.email,
-                        organization: c.organization,
-                    })
-                    .collect(),
-                created: h.created,
-                modified: h.modified,
-            })
-            .unwrap_or_default();
+        model.history = history_from_file(self.history);
+        declare_rule_variables(&mut model, version);
         model.refresh_labels();
 
         model.recompute_id_counter();
@@ -1239,6 +1897,30 @@ impl FileModel {
             model,
             version,
             warnings,
+        }
+    }
+}
+
+/// What an assignment rule sets that is nothing else is a parameter, which
+/// the rule changes; files write such a parameter by its rule alone. Before
+/// version 23 a rule's annotation was that of the parameter it sets.
+fn declare_rule_variables(model: &mut Model, version: u32) {
+    for i in 0..model.assignment_rules.len() {
+        let variable = model.assignment_rules[i].variable.clone();
+        let declared = model.find_species(&variable).is_some()
+            || model.compartments.iter().any(|c| c.id == variable)
+            || model.parameters.iter().any(|p| p.variable == variable);
+        if !declared {
+            model
+                .parameters
+                .push(Parameter::new(variable.clone(), None));
+        }
+        let old = version < FORMAT_VERSION;
+        if let Some(p) = model.parameters.iter_mut().find(|p| p.variable == variable) {
+            p.constant = false;
+            if old && p.annotation == Annotation::default() {
+                p.annotation = std::mem::take(&mut model.assignment_rules[i].annotation);
+            }
         }
     }
 }
@@ -1479,6 +2161,16 @@ fn participant_from_file(p: FileParticipant) -> Participant {
                     symbol_size: o.symbol_size.filter(|v| v.is_finite() && *v > 0.0),
                     symbol_gap: o.symbol_gap.filter(|v| v.is_finite() && *v >= 0.0),
                 },
+                sbml: {
+                    let r = SpeciesReference {
+                        id: o.ref_id.filter(|id| !id.trim().is_empty()),
+                        name: crate::model::display_name(o.ref_name),
+                        constant: o.constant.unwrap_or(true),
+                        stoichiometry_unset: o.stoichiometry_unset,
+                        annotation: annotation_from_file(o.annotation),
+                    };
+                    (r != SpeciesReference::default()).then(|| Box::new(r))
+                },
             }
         }
     }
@@ -1511,8 +2203,9 @@ fn style_from_file(s: Option<FileStyle>) -> VisualStyle {
 
 impl FileModel {
     fn from_model(m: &Model) -> Self {
+        let version = needed_version(m);
         FileModel {
-            version: Some(needed_version(m)),
+            version: Some(version),
             model_name: m.model_name.clone(),
             compartments: m
                 .compartments
@@ -1533,25 +2226,39 @@ impl FileModel {
                     label: c.label_choice.key().map(str::to_owned),
                     label_text: c.label_text.clone(),
                     annotation: annotation_to_file(&c.annotation),
+                    units: c.sbml.units.clone(),
+                    constant: (!c.sbml.constant).then_some(false),
+                    size_unset: c.sbml.size_unset,
+                    dimensions_unset: c.sbml.dimensions_unset,
                 })
                 .collect(),
             parameters: m
                 .parameters
                 .iter()
-                .map(|p| FileExpression {
-                    variable: p.variable.clone(),
-                    expression: p.expression.clone(),
-                    annotation: annotation_to_file(&p.annotation),
+                // Written by its rule alone in older versions, in its place
+                // in version 23.
+                .filter(|p| version == FORMAT_VERSION || !implied_parameter(m, p))
+                .map(|p| {
+                    let formula = m.initial_assignment(&p.variable);
+                    let ruled = m.assignment_rules.iter().any(|r| r.variable == p.variable);
+                    FileExpression {
+                        value: formula.and(p.value),
+                        name: p.name.clone(),
+                        units: p.units.clone(),
+                        constant: (!p.constant && !ruled).then_some(false),
+                        formula_annotation: formula.and_then(|a| annotation_to_file(&a.annotation)),
+                        ..FileExpression::new(
+                            &p.variable,
+                            &m.parameter_text(&p.variable),
+                            &p.annotation,
+                        )
+                    }
                 })
                 .collect(),
             assignment_rules: m
                 .assignment_rules
                 .iter()
-                .map(|r| FileExpression {
-                    variable: r.variable.clone(),
-                    expression: r.expression.clone(),
-                    annotation: annotation_to_file(&r.annotation),
-                })
+                .map(|r| FileExpression::new(&r.variable, &r.expression, &r.annotation))
                 .collect(),
             species: m
                 .species()
@@ -1583,6 +2290,9 @@ impl FileModel {
                     annotation: annotation_to_file(&s.annotation),
                     in_amounts: s.in_amounts,
                     initial_amount: s.initial_is_amount,
+                    units: s.sbml.units.clone(),
+                    conversion_factor: s.sbml.conversion_factor.clone(),
+                    initial_unset: s.sbml.initial_unset,
                 })
                 .collect(),
             reactions: m.reactions().iter().map(reaction_to_file).collect(),
@@ -1625,21 +2335,119 @@ impl FileModel {
             display_names: m.show_display_names,
             annotation: annotation_to_file(&m.annotation),
             reference_names: used_reference_names(m),
-            history: (!m.history.is_empty()).then(|| FileHistory {
-                creators: m
-                    .history
-                    .creators
-                    .iter()
-                    .map(|c| FileCreator {
-                        family: c.family.clone(),
-                        given: c.given.clone(),
-                        email: c.email.clone(),
-                        organization: c.organization.clone(),
-                    })
-                    .collect(),
-                created: m.history.created.clone(),
-                modified: m.history.modified.clone(),
+            history: history_to_file(&m.history),
+            model_id: m.model_id.clone(),
+            model_id_unset: m.model_id_unset,
+            model_name_unset: m.model_name_unset,
+            units: (!m.units.is_empty()).then(|| FileModelUnits {
+                substance: m.units.substance.clone(),
+                time: m.units.time.clone(),
+                volume: m.units.volume.clone(),
+                area: m.units.area.clone(),
+                length: m.units.length.clone(),
+                extent: m.units.extent.clone(),
             }),
+            conversion_factor: m.conversion_factor.clone(),
+            functions: m
+                .function_definitions
+                .iter()
+                .map(|f| FileFunction {
+                    id: f.id.clone(),
+                    name: f.name.clone(),
+                    arguments: f.arguments.clone(),
+                    body: f.body.clone(),
+                    annotation: annotation_to_file(&f.annotation),
+                })
+                .collect(),
+            unit_definitions: m
+                .unit_definitions
+                .iter()
+                .map(|u| FileUnitDefinition {
+                    id: u.id.clone(),
+                    name: u.name.clone(),
+                    units: u
+                        .units
+                        .iter()
+                        .map(|x| FileUnit {
+                            kind: x.kind.clone(),
+                            exponent: x.exponent,
+                            scale: x.scale,
+                            multiplier: x.multiplier,
+                            annotation: annotation_to_file(&x.annotation),
+                        })
+                        .collect(),
+                    annotation: annotation_to_file(&u.annotation),
+                })
+                .collect(),
+            // All of them, in order, in version 23 (a parameter's is its
+            // `expression` too, for older versions to read).
+            initial_assignments: m
+                .initial_assignments
+                .iter()
+                .filter(|a| {
+                    version == FORMAT_VERSION
+                        || !m.parameters.iter().any(|p| p.variable == a.symbol)
+                })
+                .map(|a| FileExpression::new(&a.symbol, &a.expression, &a.annotation))
+                .collect(),
+            rate_rules: m
+                .rate_rules
+                .iter()
+                .map(|r| FileExpression::new(&r.variable, &r.expression, &r.annotation))
+                .collect(),
+            algebraic_rules: m
+                .algebraic_rules
+                .iter()
+                .map(|r| formula_to_file(&r.expression, &r.annotation))
+                .collect(),
+            constraints: m
+                .constraints
+                .iter()
+                .map(|c| FileConstraint {
+                    expression: c.expression.clone(),
+                    message: c.message.clone(),
+                    annotation: annotation_to_file(&c.annotation),
+                })
+                .collect(),
+            events: m
+                .events
+                .iter()
+                .map(|e| FileEvent {
+                    id: e.id.clone(),
+                    name: e.name.clone(),
+                    trigger: e.trigger.expression.clone(),
+                    trigger_initial_value: e.trigger.initial_value,
+                    trigger_persistent: e.trigger.persistent,
+                    trigger_annotation: annotation_to_file(&e.trigger.annotation),
+                    no_trigger: e.no_trigger,
+                    delay: e
+                        .delay
+                        .as_ref()
+                        .map(|d| formula_to_file(&d.expression, &d.annotation)),
+                    priority: e
+                        .priority
+                        .as_ref()
+                        .map(|d| formula_to_file(&d.expression, &d.annotation)),
+                    use_values_from_trigger_time: e.use_values_from_trigger_time,
+                    assignments: e
+                        .assignments
+                        .iter()
+                        .map(|a| FileExpression::new(&a.variable, &a.expression, &a.annotation))
+                        .collect(),
+                    annotation: annotation_to_file(&e.annotation),
+                })
+                .collect(),
+            namespaces: m
+                .sbml_namespaces
+                .iter()
+                .map(|(prefix, uri)| FileNamespace {
+                    prefix: prefix.clone(),
+                    uri: uri.clone(),
+                })
+                .collect(),
+            document_package: (!m.sbml_document.is_empty())
+                .then(|| package_to_file(&m.sbml_document)),
+            sbml_version: m.sbml_version,
             color_names: m
                 .color_names
                 .iter()
@@ -1649,6 +2457,24 @@ impl FileModel {
                 })
                 .collect(),
         }
+    }
+}
+
+fn formula_to_file(expression: &str, annotation: &Annotation) -> FileFormula {
+    FileFormula {
+        expression: expression.to_owned(),
+        annotation: annotation_to_file(annotation),
+    }
+}
+
+/// A species reference's SBML keys (version 23), set on its file object.
+fn reference_to_file(p: &Participant, o: &mut FileParticipantObject) {
+    if let Some(r) = &p.sbml {
+        o.ref_id = r.id.clone();
+        o.ref_name = r.name.clone();
+        o.constant = (!r.constant).then_some(false);
+        o.stoichiometry_unset = r.stoichiometry_unset;
+        o.annotation = annotation_to_file(&r.annotation);
     }
 }
 
@@ -1720,7 +2546,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
             .map(|p| {
                 let (c1, c2) = (p.ctrl1, p.ctrl2);
                 let set = p.ctrl_pts_set;
-                FileParticipant::Full(Box::new(FileParticipantObject {
+                let mut o = FileParticipantObject {
                     id: p.species.clone(),
                     stoichiometry: Some(p.stoichiometry),
                     ctrl1x: set.then_some(c1.x),
@@ -1737,7 +2563,14 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     pattern: None,
                     symbol_size: None,
                     symbol_gap: None,
-                }))
+                    ref_id: None,
+                    ref_name: None,
+                    constant: None,
+                    stoichiometry_unset: false,
+                    annotation: None,
+                };
+                reference_to_file(p, &mut o);
+                FileParticipant::Full(Box::new(o))
             })
             .collect()
     };
@@ -1758,7 +2591,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
             .modifiers
             .iter()
             .map(|p| {
-                FileParticipant::Full(Box::new(FileParticipantObject {
+                let mut o = FileParticipantObject {
                     id: p.species.clone(),
                     stoichiometry: None,
                     ctrl1x: None,
@@ -1774,7 +2607,14 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
                     pattern: p.look.pattern.key().map(str::to_owned),
                     symbol_size: p.look.symbol_size,
                     symbol_gap: p.look.symbol_gap,
-                }))
+                    ref_id: None,
+                    ref_name: None,
+                    constant: None,
+                    stoichiometry_unset: false,
+                    annotation: None,
+                };
+                reference_to_file(p, &mut o);
+                FileParticipant::Full(Box::new(o))
             })
             .collect(),
         style,
@@ -1787,6 +2627,21 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
         label: r.label_choice.key().map(str::to_owned),
         label_text: r.label_text.clone(),
         annotation: annotation_to_file(&r.annotation),
+        fast: r.sbml.fast,
+        compartment: r.sbml.compartment.clone(),
+        local_parameters: r
+            .sbml
+            .local_parameters
+            .iter()
+            .map(|p| FileLocalParameter {
+                id: p.id.clone(),
+                name: p.name.clone(),
+                value: p.value,
+                units: p.units.clone(),
+                annotation: annotation_to_file(&p.annotation),
+            })
+            .collect(),
+        kinetic_law_annotation: annotation_to_file(&r.sbml.kinetic_law_annotation),
     }
 }
 
@@ -1961,11 +2816,7 @@ mod tests {
         let mut m = Model::default();
         let s = m.add_species(Pt::ZERO, 60.0, 30.0);
         let alias = m.add_alias(&s, pt(100.0, 0.0)).unwrap();
-        m.parameters.push(Parameter {
-            variable: "Km".into(),
-            expression: "0.5".into(),
-            annotation: Annotation::default(),
-        });
+        m.parameters.push(Parameter::new("Km", Some(0.5)));
         assert!(needed_version(&m) < FORMAT_VERSION);
         let a = Annotation {
             sbo: Some(247),
@@ -1985,14 +2836,6 @@ mod tests {
         m.find_reaction_mut("R1").unwrap().annotation.sbo = Some(176);
         m.compartments.push(Compartment::new("cell"));
         m.compartments[0].annotation.sbo = Some(290);
-        m.assignment_rules.push(crate::model::AssignmentRule {
-            variable: "kr".into(),
-            expression: "2*Km".into(),
-            annotation: Annotation {
-                sbo: Some(186),
-                ..Annotation::default()
-            },
-        });
         m.history.creators.push(Creator {
             family: Some("Sauro".into()),
             ..Creator::default()
@@ -2005,8 +2848,38 @@ mod tests {
         assert_eq!(back.parameters[0].annotation.sbo, Some(27));
         assert_eq!(back.find_reaction("R1").unwrap().annotation.sbo, Some(176));
         assert_eq!(back.compartments[0].annotation.sbo, Some(290));
-        assert_eq!(back.assignment_rules[0].annotation.sbo, Some(186));
         assert_eq!(back.history, m.history);
+    }
+
+    #[test]
+    fn a_rules_annotation_before_version_23_is_its_parameters() {
+        let text = r#"{ "version": 18, "modelName": "m",
+            "parameters": [ { "variable": "Km", "expression": "0.5" } ],
+            "assignmentRules": [ { "variable": "kr", "expression": "2*Km",
+                                   "annotation": { "sbo": 186 } } ],
+            "species": [], "reactions": [] }"#;
+        let m = from_json(text).unwrap().model;
+        // The parameter the rule sets is declared, not constant, and has
+        // the annotation; the rule has none of its own.
+        let kr = m.find_parameter("kr").unwrap();
+        assert_eq!(kr.annotation.sbo, Some(186));
+        assert!(!kr.constant);
+        assert!(m.assignment_rules[0].annotation.is_empty());
+        // Written back as before: the parameter by its rule alone.
+        let mut plain = m.clone();
+        plain.find_parameter_mut("kr").unwrap().annotation = Annotation::default();
+        assert!(needed_version(&plain) < FORMAT_VERSION);
+        assert!(!to_json(&plain).contains(
+            r#""variable": "kr",
+      "expression": """#
+        ));
+        // A rule's own annotation needs version 23, and is kept as the rule's.
+        let mut own = m.clone();
+        own.assignment_rules[0].annotation.sbo = Some(64);
+        assert_eq!(needed_version(&own), FORMAT_VERSION);
+        let back = from_json(&to_json(&own)).unwrap().model;
+        assert_eq!(back.assignment_rules[0].annotation.sbo, Some(64));
+        assert_eq!(back.find_parameter("kr").unwrap().annotation.sbo, Some(186));
     }
 
     #[test]
@@ -2118,7 +2991,7 @@ mod tests {
         }"#;
         let m = from_json(text).unwrap().model;
         assert_eq!(m.compartments[0].size, 2.5);
-        assert_eq!(m.parameters[0].expression, "0.1");
+        assert_eq!(m.parameters[0].value, Some(0.1));
         assert_eq!(m.assignment_rules[0].variable, "T");
         let a = m.find_species("A").unwrap();
         assert_eq!(a.initial_value, 5.0);
@@ -2509,5 +3382,360 @@ mod tests {
         let loaded = from_json(&to_json(&m)).unwrap();
         assert!(loaded.warnings.is_empty());
         assert_eq!(loaded.model, m);
+    }
+
+    /// A model with one of everything version 23 brought.
+    fn full_sbml_model() -> Model {
+        let mut m = Model::default();
+        let note = |sbo: u32| Annotation {
+            sbo: Some(sbo),
+            metaid: Some(format!("m{sbo}")),
+            ..Annotation::default()
+        };
+        m.model_name = "Full".into();
+        m.model_id = Some("full_1".into());
+        m.model_name_unset = true;
+        m.model_id_unset = true;
+        m.units.time = Some("minute".into());
+        m.units.substance = Some("mole".into());
+        m.conversion_factor = Some("cf".into());
+        m.sbml_namespaces = vec![(
+            Some("fbc".into()),
+            "http://www.sbml.org/sbml/level3/version1/fbc/version2".into(),
+        )];
+        m.sbml_version = Some(1);
+        m.sbml_document.attributes.push(PackageAttribute {
+            name: "fbc:required".into(),
+            namespace: Some("http://www.sbml.org/sbml/level3/version1/fbc/version2".into()),
+            value: "false".into(),
+        });
+        m.annotation.history.created = Some("2020-01-01T00:00:00Z".into());
+        m.compartments.push(Compartment::new("cell"));
+        m.compartments[0].dimensions = 2.5;
+        m.compartments[0].sbml = CompartmentSbml {
+            units: Some("litre".into()),
+            constant: false,
+            size_unset: true,
+            dimensions_unset: false,
+        };
+        let s = m.add_species(Pt::ZERO, 60.0, 30.0);
+        m.add_alias(&s, pt(100.0, 0.0)).unwrap();
+        let sp = m.find_species_mut(&s).unwrap();
+        sp.compartment = "cell".into();
+        sp.sbml = SpeciesSbml {
+            units: Some("mole".into()),
+            conversion_factor: Some("cf".into()),
+            initial_unset: true,
+        };
+        sp.annotation.package.attributes.push(PackageAttribute {
+            name: "fbc:charge".into(),
+            namespace: Some("http://www.sbml.org/sbml/level3/version1/fbc/version2".into()),
+            value: "-2".into(),
+        });
+        sp.annotation
+            .package
+            .elements
+            .push("<x:y xmlns:x=\"urn:x\"/>".into());
+        sp.annotation.history.creators.push(Creator {
+            family: Some("Smith".into()),
+            ..Creator::default()
+        });
+        let mut r = Reaction::new("J1", pt(50.0, 0.0));
+        let mut leg = Participant::new(s.clone(), 1.0);
+        leg.sbml = Some(Box::new(SpeciesReference {
+            id: Some("n1".into()),
+            name: Some("first".into()),
+            constant: false,
+            stoichiometry_unset: true,
+            annotation: note(1),
+        }));
+        r.reactants.push(leg);
+        let mut modifier = Participant::new(s.clone(), 1.0);
+        modifier.sbml = Some(Box::new(SpeciesReference {
+            id: Some("m1".into()),
+            ..SpeciesReference::default()
+        }));
+        r.modifiers.push(modifier);
+        r.kinetic_law = "k*S1 + f(k)".into();
+        r.sbml = ReactionSbml {
+            fast: true,
+            compartment: Some("cell".into()),
+            local_parameters: vec![LocalParameter {
+                id: "k".into(),
+                name: Some("local k".into()),
+                value: Some(3.0),
+                units: Some("per_second".into()),
+                annotation: note(2),
+            }],
+            kinetic_law_annotation: note(3),
+        };
+        m.push_reaction(r).unwrap();
+        // A constant parameter with a value, one with a formula and a value,
+        // one with neither, and one a rule sets.
+        let mut k = Parameter::new("k", Some(0.5));
+        k.name = Some("rate".into());
+        k.units = Some("per_second".into());
+        m.parameters.push(k);
+        m.parameters.push(Parameter::new("Vm", Some(9.0)));
+        m.initial_assignments.push(InitialAssignment {
+            symbol: "Vm".into(),
+            expression: "2*k".into(),
+            annotation: note(4),
+        });
+        m.parameters.push(Parameter {
+            constant: false,
+            ..Parameter::new("cf", None)
+        });
+        m.parameters.push(Parameter {
+            constant: false,
+            ..Parameter::new("y", None)
+        });
+        m.assignment_rules.push(AssignmentRule {
+            variable: "y".into(),
+            expression: "2*k".into(),
+            annotation: note(5),
+        });
+        m.initial_assignments.push(InitialAssignment {
+            symbol: s.clone(),
+            expression: "Vm/10".into(),
+            annotation: Annotation::default(),
+        });
+        m.function_definitions.push(FunctionDefinition {
+            id: "f".into(),
+            name: Some("double".into()),
+            arguments: vec!["x".into()],
+            body: "2*x".into(),
+            annotation: note(6),
+        });
+        m.unit_definitions.push(UnitDefinition {
+            id: "per_second".into(),
+            name: None,
+            units: vec![Unit {
+                exponent: -1.0,
+                scale: -3,
+                multiplier: 60.0,
+                ..Unit::new("second")
+            }],
+            annotation: note(7),
+        });
+        m.rate_rules.push(RateRule {
+            variable: "cf".into(),
+            expression: "-0.1*cf".into(),
+            annotation: note(8),
+        });
+        m.algebraic_rules.push(AlgebraicRule {
+            expression: "y - 2*k".into(),
+            annotation: note(9),
+        });
+        m.constraints.push(Constraint {
+            expression: "k >= 0".into(),
+            message: Some("<p xmlns=\"http://www.w3.org/1999/xhtml\">k is negative</p>".into()),
+            annotation: note(10),
+        });
+        m.events.push(Event {
+            id: Some("Feed".into()),
+            name: Some("feeding".into()),
+            use_values_from_trigger_time: false,
+            trigger: Trigger {
+                expression: "time > 10".into(),
+                initial_value: false,
+                persistent: false,
+                annotation: note(11),
+            },
+            no_trigger: false,
+            delay: Some(EventFormula {
+                expression: "2".into(),
+                annotation: note(12),
+            }),
+            priority: Some(EventFormula {
+                expression: "1".into(),
+                annotation: Annotation::default(),
+            }),
+            assignments: vec![EventAssignment {
+                variable: s.clone(),
+                expression: "5".into(),
+                annotation: note(13),
+            }],
+            annotation: note(14),
+        });
+        // An event with no trigger at all.
+        m.events.push(Event {
+            id: Some("Never".into()),
+            no_trigger: true,
+            ..Event::default()
+        });
+        // An event with no id and nothing but its trigger.
+        m.events.push(Event {
+            trigger: Trigger {
+                expression: "k < 0.1".into(),
+                ..Trigger::default()
+            },
+            ..Event::default()
+        });
+        m.refresh_labels();
+        m.recompute_id_counter();
+        m
+    }
+
+    #[test]
+    fn the_rest_of_sbml_is_kept_in_version_23() {
+        let m = full_sbml_model();
+        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        let loaded = from_json(&to_json(&m)).unwrap();
+        assert!(loaded.warnings.is_empty(), "{:?}", loaded.warnings);
+        assert_eq!(loaded.model, m);
+        // And a second time, the same text.
+        assert_eq!(to_json(&loaded.model), to_json(&m));
+    }
+
+    #[test]
+    fn each_part_of_the_rest_of_sbml_needs_version_23() {
+        let base = || {
+            let mut m = Model::default();
+            m.parameters.push(Parameter::new("k", Some(0.5)));
+            let s = m.add_species(Pt::ZERO, 60.0, 30.0);
+            let mut r = Reaction::new("J1", pt(50.0, 0.0));
+            r.reactants.push(Participant::new(s, 1.0));
+            m.push_reaction(r).unwrap();
+            m.compartments.push(Compartment::new("cell"));
+            m
+        };
+        assert!(needed_version(&base()) < FORMAT_VERSION);
+        type Change = Box<dyn Fn(&mut Model)>;
+        let changes: Vec<(&str, Change)> = vec![
+            ("model id", Box::new(|m| m.model_id = Some("x".into()))),
+            ("units", Box::new(|m| m.units.time = Some("second".into()))),
+            (
+                "conversion factor",
+                Box::new(|m| m.conversion_factor = Some("k".into())),
+            ),
+            (
+                "function",
+                Box::new(|m| m.function_definitions.push(FunctionDefinition::default())),
+            ),
+            (
+                "unit definition",
+                Box::new(|m| m.unit_definitions.push(UnitDefinition::default())),
+            ),
+            (
+                "rate rule",
+                Box::new(|m| m.rate_rules.push(RateRule::default())),
+            ),
+            (
+                "algebraic rule",
+                Box::new(|m| m.algebraic_rules.push(AlgebraicRule::default())),
+            ),
+            (
+                "constraint",
+                Box::new(|m| m.constraints.push(Constraint::default())),
+            ),
+            ("event", Box::new(|m| m.events.push(Event::default()))),
+            (
+                "namespace",
+                Box::new(|m| m.sbml_namespaces.push((None, "urn:x".into()))),
+            ),
+            (
+                "parameter name",
+                Box::new(|m| m.parameters[0].name = Some("x".into())),
+            ),
+            (
+                "parameter units",
+                Box::new(|m| m.parameters[0].units = Some("x".into())),
+            ),
+            (
+                "parameter not constant",
+                Box::new(|m| m.parameters[0].constant = false),
+            ),
+            (
+                "parameter without a value",
+                Box::new(|m| m.parameters[0].value = None),
+            ),
+            (
+                "species' initial assignment",
+                Box::new(|m| {
+                    let s = m.species()[0].id.clone();
+                    m.initial_assignments.push(InitialAssignment {
+                        symbol: s,
+                        expression: "1".into(),
+                        annotation: Annotation::default(),
+                    });
+                }),
+            ),
+            (
+                "species units",
+                Box::new(|m| m.species_mut().next().unwrap().sbml.units = Some("x".into())),
+            ),
+            (
+                "compartment not constant",
+                Box::new(|m| m.compartments[0].sbml.constant = false),
+            ),
+            (
+                "dimensions not whole",
+                Box::new(|m| m.compartments[0].dimensions = 2.5),
+            ),
+            (
+                "fast",
+                Box::new(|m| m.reactions_mut().next().unwrap().sbml.fast = true),
+            ),
+            (
+                "local parameter",
+                Box::new(|m| {
+                    m.reactions_mut()
+                        .next()
+                        .unwrap()
+                        .sbml
+                        .local_parameters
+                        .push(LocalParameter::default());
+                }),
+            ),
+            (
+                "species reference",
+                Box::new(|m| {
+                    m.reactions_mut().next().unwrap().reactants[0].sbml =
+                        Some(Box::new(SpeciesReference::default()));
+                }),
+            ),
+            (
+                "item history",
+                Box::new(|m| m.compartments[0].annotation.history.created = Some("2020".into())),
+            ),
+            (
+                "package data",
+                Box::new(|m| {
+                    m.compartments[0]
+                        .annotation
+                        .package
+                        .elements
+                        .push("<x/>".into());
+                }),
+            ),
+        ];
+        for (what, change) in changes {
+            let mut m = base();
+            change(&mut m);
+            assert_eq!(needed_version(&m), FORMAT_VERSION, "{what}");
+        }
+    }
+
+    #[test]
+    fn gallery_files_are_written_back_as_they_were() {
+        // Nothing of version 23 in them: the same text, the same version.
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ExampleModels");
+        let mut seen = 0;
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|e| e != "json") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let loaded = from_json(&text).unwrap();
+            let again = to_json(&loaded.model);
+            let name = path.display().to_string();
+            assert!(needed_version(&loaded.model) < FORMAT_VERSION, "{name}");
+            assert_eq!(from_json(&again).unwrap().model, loaded.model, "{name}");
+            assert_eq!(again, to_json(&from_json(&again).unwrap().model), "{name}");
+            seen += 1;
+        }
+        assert!(seen >= 10);
     }
 }

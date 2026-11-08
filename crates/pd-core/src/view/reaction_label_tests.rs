@@ -401,10 +401,7 @@ fn names_come_back_from_sbml() {
     let out = crate::sbml::export(v.model());
     assert!(out.xml.contains("layout:graphicalObject=\"rg_R1\""));
     assert!(!out.xml.contains("layout:graphicalObject=\"rg_R3\""));
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let back = crate::sbml::import(&out.xml, &opts).unwrap().model;
     let close = |id: &str, want: Pt| {
         let o = back.find_reaction(id).unwrap().label_offset;

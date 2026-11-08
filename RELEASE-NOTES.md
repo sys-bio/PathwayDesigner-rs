@@ -4,6 +4,42 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## Unreleased
+
+**New**
+
+- **The whole model is kept.** Opening an SBML file and saving it no longer
+  loses anything: events, assignment, rate and algebraic rules, starting values
+  given by formulas, functions, units, constraints, a rate law's own
+  parameters, conversion factors and other SBML packages are read, kept and
+  written back. Checked on all 1,062 curated BioModels and 1,823 SBML Test
+  Suite cases, element by element against libSBML.
+- **Antimony keeps them too.** Antimony saved with its diagram says what
+  Antimony can't (a rate law's own parameters, metaids and the like) in a
+  second comment, so nothing is lost. Load Antimony keeps it from the diagram
+  it replaces, and Get Antimony without the diagram says what the text leaves
+  out.
+- **Events & Rules tab.** Events, rules, starting formulas, functions, units
+  and checks, each as a sentence ("When time ≥ 10: Glucose becomes 5"), changed
+  in place with a small form that checks what you type. A lightning bolt marks
+  on the diagram what they change (View ▸ Rule and Event Marks), and a
+  species' properties link to them.
+- Preferences: **Write functions into the formulas that use them**, for tools
+  that don't read functions.
+- New help page: Events and rules.
+
+**Changed**
+
+- SBML is saved as Level 3 Version 2 (Version 1 for a model with fast
+  reactions).
+- Ids are matched exactly in Antimony, as in SBML: `A` and `a` are two things.
+- `A -> A + B` stays as written: the **Convert catalytic reactions**
+  preference is gone, since it changed the reactions a file states.
+- Deleting a species can take with it a rule or event that used it; the
+  status bar says what went, and Undo brings it back.
+- A model built from submodels (SBML's comp package) says so on opening.
+- The native file is version 23 when a model has any of the new parts.
+
 ## 0.1.33 (2026-11-04)
 
 **New**

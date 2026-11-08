@@ -205,10 +205,13 @@ fn lex(src: &str) -> Result<Vec<Token>, ParseError> {
                 i += 1;
             }
             let word = &src[start..i];
+            // Right before `(`, `and(x)` is a call, as MathML's `<and/>`
+            // of fewer than two arguments is written; `a and (b)` is `&&`.
+            let call = bytes.get(i) == Some(&b'(');
             let tok = match word {
-                "and" => Tok::Op("&&"),
-                "or" => Tok::Op("||"),
-                "not" => Tok::Op("!"),
+                "and" if !call => Tok::Op("&&"),
+                "or" if !call => Tok::Op("||"),
+                "not" if !call => Tok::Op("!"),
                 _ => Tok::Ident(word.to_owned()),
             };
             out.push(Token {

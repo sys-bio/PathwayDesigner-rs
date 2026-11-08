@@ -256,10 +256,7 @@ fn files_keep_corner_points() {
 
 #[test]
 fn sbml_keeps_corner_points_and_kinds() {
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let mut v = view();
     set_points(&mut v, &[pt(360.0, -200.0), pt(360.0, 0.0)]);
     v.model.find_reaction_mut("R1").unwrap().modifiers[0].kind = ModifierKind::Inhibitor;
@@ -600,10 +597,7 @@ fn files_keep_a_modifier_line_s_look_in_version_12() {
 #[test]
 fn sbml_keeps_a_modifier_line_s_look() {
     use crate::model::{LinePattern, Rgba};
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let mut v = view();
     // All default: no note at all.
     let xml = crate::sbml::export(v.model()).xml;

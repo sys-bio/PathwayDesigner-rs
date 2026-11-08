@@ -198,6 +198,18 @@ pub struct Reaction {
 The style holds `Rgba`, never `egui::Color32`. `Color32` stores premultiplied alpha
 and belongs to the UI layer. The app shell converts colours when it draws.
 
+**The rest of SBML** (`pd-core::model_core`, docs/sbml-full-support-design.md).
+The model also holds what SBML says besides the drawing, so a file opened and
+saved means what it meant: function definitions, unit definitions and the
+model's units, initial assignments, assignment, rate and algebraic rules,
+constraints and events, and on each item what SBML says of it beyond what is
+drawn (a species reference's id, a rate law's own parameters, a compartment's
+dimensions, unset values, other packages' parts: the items' `sbml` fields). A
+parameter is `{variable, value: Option<f64>, name, units, constant}`; a formula
+for a starting value is an initial assignment. Renaming an item renames it in
+every formula and wherever it is named; deleting one deletes with it only what
+would otherwise be invalid SBML, and `Deleted::removed` says what went (F8).
+
 ### 3.1 References are ids, not pointers
 
 The reference uses object references for aliases and participants, and has to be
@@ -347,6 +359,49 @@ doesn't know is read as the rounded rectangle, and a border style it doesn't
 know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
+
+**Version 23: the rest of SBML** (docs/sbml-full-support-design.md F13). Each
+key is left out when empty or at its usual value, and a document with any is
+version 23.
+
+- **The document** may have `"modelId"`, and `"modelIdUnset"` or
+  `"modelNameUnset"` for a model its SBML file gave no id or no name; `"units"` (`substance`, `time`,
+  `volume`, `area`, `length`, `extent`, each a unit id); `"conversionFactor"`;
+  `"functions"` (`id`, `name`, `arguments`, `body`); `"unitDefinitions"` (`id`,
+  `name`, `units`: `kind`, `exponent` 1, `scale` 0, `multiplier` 1);
+  `"initialAssignments"`, `"rateRules"` (`variable`, `expression`);
+  `"algebraicRules"` (`expression`); `"constraints"` (`expression`, `message`
+  as XHTML); `"events"` (`id`, `name`, `trigger`, `triggerInitialValue` true,
+  `triggerPersistent` true, `triggerAnnotation`, `delay` and `priority` as
+  `{expression, annotation}`, `useValuesFromTriggerTime` true, `assignments` as
+  `{variable, expression}`, `noTrigger` for one with no trigger at all);
+  `"namespaces"` (`prefix`, `uri`) that other packages' parts need;
+  `"documentPackage"`, what they put on the SBML document itself (as an
+  annotation's `"package"`); and `"sbmlVersion"`, the Level 3 version the model
+  was read from, whose core that kept XML belongs to. Each of these items may
+  have an `"annotation"`.
+- **A parameter's `expression`** is still its value, or the formula of its
+  initial assignment, for older versions to read; `initialAssignments` holds
+  every initial assignment, in order, and is what version 23 reads.
+  It may have `"value"` beside a formula (SBML lets both be given), `"name"`,
+  `"units"`, `"constant": false`, and `"formulaAnnotation"`. An empty
+  `expression` is a parameter with no value.
+- **What an assignment rule sets** is a parameter, which the rule changes. One
+  that is nothing more is written by its rule alone in older versions, and
+  declared again on reading; in its place in version 23. A rule's `"annotation"` is its own; before version 23 it
+  was the parameter's, and is moved to the parameter on reading.
+- **A compartment** may have `"units"`, `"constant": false`, `"sizeUnset"`,
+  `"dimensionsUnset"`, and `"dimensions"` that isn't a whole number.
+- **A species** may have `"units"`, `"conversionFactor"` and
+  `"initialUnset"`.
+- **A reaction** may have `"fast"`, `"compartment"`, `"localParameters"` (`id`,
+  `name`, `value`, `units`, `annotation`) and `"kineticLawAnnotation"`.
+- **A participant** may have `"refId"`, `"refName"`, `"constant": false`,
+  `"stoichiometryUnset"` and `"annotation"`, for its SBML species reference.
+- **An `"annotation"`** may have `"history"`, as the model's; `"package"`
+  (`attributes`: `name`, `namespace`, `value`; `elements` as raw XML), what
+  other SBML packages put on the item; and `"rdf"`, RDF descriptions the reader
+  doesn't take apart, as raw XML, written back inside the item's RDF.
 
 **Version 22: other tools' annotations.** An `"annotation"` object may have
 `"other"`, a list of another tool's own XML elements from the item's SBML
@@ -698,8 +753,7 @@ block. Instead:
   being typed.
 - On OK, call `view.rename(..)`, which records one undo step.
 
-Every confirmation (New with unsaved changes, re-import after the catalytic setting
-changes) uses the same pattern.
+Every confirmation (New with unsaved changes, for example) uses the same pattern.
 
 ### 6.3 Alignment
 
@@ -902,10 +956,10 @@ This is more code than using libSBML and libAntimony. It was chosen because:
   feature, since pd-core has its own SBML bridge (§8.3).
 - **`pd-core::antimony`** is the bridge. It turns the crate's model into a diagram
   `Model`, and writes a diagram as Antimony text, and holds everything specific to
-  PathwayDesigner: case resolution, implied parameters, the catalytic rewrite,
-  modifiers from the rate law, null nodes, random placement, warnings for what a
-  diagram cannot hold, parsing expressions with `pd-core::expr`, and the layout of
-  the text it writes (S §11.3).
+  PathwayDesigner: implied parameters, modifiers from the rate law, null nodes,
+  random placement, the `sbml` block for what Antimony can't say
+  (`pd-core::antimony_sbml`), parsing expressions with `pd-core::expr`, and the
+  layout of the text it writes (S §11.3).
 
 Until A9 of the crate's plan (2026-10-15) the reader was a small crate of its own,
 `pd-antimony`, which understood only the statements a diagram holds. The bridge's
@@ -914,23 +968,26 @@ which that reader accepted and Antimony does not.
 
 **Import.** The rules are S §11.2, over the whole language:
 
-- **Statements:** anything Antimony allows reads without an error. What a diagram
-  holds is used: `model name … end`, compartments, species (with `$`, `in` and
-  values), reactions with an optional `id:` and stoichiometry, `->` and `=>` (the
-  same thing in a diagram), `x = expr`, `x := expr`, and `const`/`var`, which are
-  read through. A `$` on a name that is not otherwise a species (`$B = 4`) makes a
+- **Statements:** anything Antimony allows reads without an error and is kept
+  (below): `model name … end`, compartments, species (with `$`, `in` and
+  values), reactions with an optional `id:` and stoichiometry, `->` (reversible)
+  and `=>` (not), `x = expr`, `x := expr`, and `const`/`var`. A `$` on a name that is not otherwise a species (`$B = 4`) makes a
   boundary species, as it always has here.
 - **Comments and separators:** `//`, `#` and `/* … */` comments. Statements end
   with `;` or a new line.
 - **What the import does:** create parameters that are used but never assigned;
-  resolve ids typed in a different case to the declared spelling; apply the catalytic
-  rewrite when the preference is on; detect modifiers; create null nodes; place nodes
-  at random positions.
+  detect modifiers; create null nodes; place nodes at random positions. Ids are
+  matched exactly, as Antimony and SBML match them: `A` and `a` are two things.
+  The reactions are as the text states them: there is no catalytic rewrite
+  (docs/sbml-app-design.md A5).
 - **Errors** come back as a list of `{line, column, message}`. None of them stop the
   app. Show them next to the text in the Antimony panel (§11.1). On any error the
   current model MUST stay unchanged.
-- **Functions** are expanded: each call is replaced by the function's body
-  (S §11.2), with one warning saying how many were written in.
+- **Everything else the language says** is kept (docs/antimony-full-support-design.md):
+  functions, unit definitions and `has` units, conversion factors, events, rate
+  and algebraic rules, constraints, starting values given by a formula (as
+  initial assignments), `const` and `var`, names (`is`) and annotations. Only
+  other models in the file and objectives are skipped, each with a warning.
 - **Layout statements** (`S1.position = {…}`, `J0.S1.b1 = {…}`, `S1.color = …`;
   S §11.2) are read by the crate into `Module::layout` and turned into the
   drawing by `pd-core::antimony_layout` (positions, sizes, aliases, null nodes,
@@ -962,23 +1019,39 @@ which that reader accepted and Antimony does not.
   `docs/diagram-format-implementation-design.md`.
 - **Reserved ids** (S §11.3): both exports write from a copy in which ids
   libAntimony reserves (`antimony::RESERVED`) have `_` added
-  (`antimony::safe_ids`, using `Model::rename_species`, `rename_compartment` and
-  `rename_reaction`); `layout_notes` lists the renames first.
-- **What a diagram cannot hold** (units, events, rate rules, algebraic
-  rules, constraints, objectives, other models in the file, names,
-  notes and annotations, units on symbols) gives a **warning** saying it was skipped,
-  not a failure (S §16.2 F-10). The crate's own warnings are passed on too, except
-  that a name used without a value is not one: here it is a parameter or species
-  at 0, by design. Interactions (`X -| J1`, `X -o J1`) give modifier kinds
+  (`antimony::safe_ids`: species, compartments, reactions, parameters, functions,
+  units and events); `layout_notes` lists the renames first, and the `sbml` block
+  records them, so reading it back gives the ids back.
+- **What Antimony can't say** (a rate law's own parameters, written as model
+  parameters `<reaction>_<name>`; fast reactions; species references' ids and
+  annotations; metaids, other tools' annotations and other packages' parts;
+  formulas exactly as written; the model's units; unset values) is written by
+  `antimony::export_with_diagram` in a second comment after the diagram,
+  `/* sbml … end */` (`antimony_sbml::write`; the lines are in
+  `docs/diagram-format.md` §3.1), and laid back on the model on reading
+  (`antimony_sbml::apply`), each note only where the text still says what was
+  written. `antimony::import_keeping`, which the Antimony panel's Load Antimony
+  uses, takes the notes from the diagram it replaces when the text has no block
+  of its own. `antimony::plain_notes` says, in words, what plain Antimony
+  leaves out. `biomodels_roundtrip` (modes `antimony`, `keeping`, `plain`) with
+  `sbml_compare.py` checks all three over the curated BioModels and the SBML
+  Test Suite: no difference through the block or through Get and Load
+  Antimony, and plain Antimony changes no model without a note.
+- The crate's own warnings are passed on, except that a name used without a
+  value is not one: here it is a parameter or species at 0, by design. Interactions (`X -| J1`, `X -o J1`) give modifier kinds
   (S §5.7.1); one naming no reaction, or a reactant or product of it, is skipped
   with a warning.
-- **What still gives an error:** text that is not Antimony, a species' value or a
-  compartment's size that is an expression rather than a number, two reactions
-  with one name, and a rate law that `pd-core::expr` cannot read (it has no `%` or
+- **What still gives an error:** text that is not Antimony, two reactions with
+  one name, and a rate law that `pd-core::expr` cannot read (it has no `%` or
   `? :`).
 
-**Export.** S §11.3 exactly. Write only `->`, and wrap the output in `model <name>` …
-`end`. Numbers are formatted the same way on every platform (fixes D-14).
+**Export.** S §11.3, with every part of the model (functions, units, events,
+rules, constraints, starting formulas) in sections of its own. `->` for a
+reversible reaction and `=>` for one that isn't; the output is wrapped in
+`model <name>` … `end`. Numbers are formatted the same way on every platform
+(fixes D-14). A whole number in a formula read from Antimony is a real
+(`2.0`), as libAntimony writes it to SBML, so `1/2` is a half in every
+simulator.
 
 After importing, SHOULD offer to run auto-layout, unless the text's layout
 statements placed every species. A preference can make it run automatically.
@@ -1001,9 +1074,11 @@ the rules below. A level-converting or more complete SBML crate could later
 replace `sbml-io` behind the same bridge.
 
 **Export** (S §11.5).
-- **Core:** compartments, species (no null nodes, D-9), numeric parameters, other
-  parameters as `initialAssignment`, reactions with `modifierSpeciesReference` (D-10),
-  assignment rules, and rate laws as MathML.
+- **Core:** everything the model holds (§3): function and unit definitions,
+  compartments, species (no null nodes, D-9), parameters, initial assignments,
+  rules, constraints, reactions with their species references and
+  `modifierSpeciesReference` (D-10), rate laws with their own parameters, and
+  events, as read.
 - **Layout:**
   - a box for every shown compartment but the default one: a compartment
     without one is given the box the app fits when the model is opened; a hidden
@@ -1049,8 +1124,8 @@ replace `sbml-io` behind the same bridge.
   already has it, or when it had none). Not kept, with one warning on opening:
   CellDesigner's and JDesigner's own annotations, their copies of their diagrams;
   RDF the MIRIAM reader can't take apart; and any second element in one namespace
-  on an item, which Level 3 forbids. Antimony can't hold them, and saving as
-  Antimony says so.
+  on an item, which Level 3 forbids. Antimony keeps them in its `sbml` block
+  (§8.2).
 - **Labels:** a model with any display name or label text opens with
   `show_display_names` on, as SBML can't say which the diagram shows.
 - **Compartment boxes:** a compartment glyph smaller than the smallest box the
@@ -1059,11 +1134,11 @@ replace `sbml-io` behind the same bridge.
 - **Species' values:** `initialConcentration`, or `initialAmount` if that is missing
   or 0, kept as given: a species remembers whether its value is an amount, and
   whether it stands for its amount in rate laws (`hasOnlySubstanceUnits`).
-- **Initial assignments:** to a parameter, kept as its expression; to a species or
-  compartment, the value worked out from the values at the start (numbers,
-  parameters, assignment rules, other species and compartments; the common
-  functions and `piecewise`), in the species' own units. One that can't be worked
-  out, using `time` for example, is left out, with a warning.
+- **Initial assignments** are kept as formulas. A species or compartment given
+  its starting value only by one shows the value worked out from the values at
+  the start (numbers, parameters, assignment rules, other species and
+  compartments; the common functions and `piecewise`), while the file's own
+  (absent) value is what is written back.
 - **Layout, when the file has it:**
   - species-glyph boxes give the position and size;
   - the reaction glyph gives the junction;
@@ -1094,8 +1169,8 @@ replace `sbml-io` behind the same bridge.
   to the default stays the default. PathwayDesigner's notes, read first, give only
   what Render can't say. What can only be approximated (gradients, several or
   inset shapes, other polygons, images, transformations) gives one warning.
-- **Afterwards:** null nodes for empty sides, and the catalytic rewrite only when the
-  preference asks for it.
+- **Afterwards:** null nodes for empty sides. Reactions are as the file states
+  them (no catalytic rewrite).
 
 **Details settled by the implementation (R9).**
 - **Round trip.** Every `Models/*.json` exports and imports back with the same
@@ -1110,10 +1185,13 @@ replace `sbml-io` behind the same bridge.
   as before. Other tools skip annotations they don't know, and libSBML's
   `checkConsistency()` accepts the files. (Until 2026-10-12 Linear came back as
   Straight, and smooth junctions as plain ones.)
-- **Species references get ids** (`sr_<rid>_sub_<sid>`, `…_prod_…`, `…_mod_…`,
-  made unique), and each species-reference glyph names its reference. Import
-  matches a glyph to its participant by that id. Without one it uses the glyph's
-  role and species, as in files from the Delphi app.
+- **Species references keep their ids** as read. One without an id gets one on
+  export (`sr_<rid>_sub_<sid>`, `…_prod_…`, `…_mod_…`, made unique), so each
+  species-reference glyph can name its reference; import matches a glyph to its
+  participant by that id, and forgets a made-up id that nothing else uses.
+  Without one it uses the glyph's role and species, as in files from the Delphi
+  app. Level 2's `stoichiometryMath` becomes an id and an assignment rule, as
+  libSBML converts it.
 - **Null nodes keep their place.** A null node is not a species (D-9), but it gets
   a species glyph that names no species, and its leg's glyph points at that. On
   import, such a glyph places the null node and gives its leg's handles.
@@ -1131,28 +1209,33 @@ replace `sbml-io` behind the same bridge.
   junction then goes halfway between the reaction's species. A layout in which
   no species glyph has a position counts as no layout, so the model is laid out
   automatically.
-- **Local parameters** become model parameters. A name already taken, including
-  one an assignment rule sets, becomes `<reaction>_<name>`, and the rate law is
-  rewritten to match.
-- **Function definitions** are expanded into the expressions that call them
-  (S §11.2), with one warning saying how many. A function whose body can't be
-  read leaves out each expression calling it, with a warning saying why.
-- **What a diagram can't hold** gives a warning: events, rate and algebraic
-  rules, constraints, conversion factors, stoichiometry used or set in maths by a
-  species reference's id (read as its starting value), and initial assignments
-  that can't be worked out. A rule with no maths is left out but its parameter
-  stays. MathML the expression language can't say (`infinity`, `notanumber`,
-  MathML outside SBML's subset) leaves that expression out, with a warning. `pi`,
-  `true` and `false` become numbers, `exponentiale` becomes `exp(1)`, `log` with
-  another base becomes `ln(x)/ln(b)`, and `piecewise`, `delay` and `rateOf` become
-  calls of those names, written back as SBML's own forms. Avogadro's constant
-  becomes the name `avogadro`, written back as SBML's symbol; in a model with
-  something of its own called `avogadro` it becomes Level 3 Version 1's value,
-  6.02214179e23, instead.
-- **The SBML version written.** Level 3 Version 1, which more tools read, unless
-  the model uses `rateOf`, which only Version 2 can say; then Level 3 Version 2.
-  A species' `initialAmount` or `initialConcentration` and `hasOnlySubstanceUnits`
-  are written as read.
+- **Local parameters** stay their reaction's own, as SBML says; one with the id
+  of something else in the model stays separate.
+- **Function definitions** are kept, and called as written. One that uses the
+  time or a name that isn't one of its arguments, which Level 2 Version 1 allows
+  and Level 3 doesn't, is written into the formulas that call it, with a
+  warning. The preference *Write functions into the formulas that use them*
+  (docs/sbml-app-design.md A4) does that for all of them on saving
+  (`Model::with_functions_written_in`); the diagram keeps them.
+- **Nothing else is left out.** Events, rules, constraints, units and conversion
+  factors are kept, and a whole number stays an integer or a real as the file
+  had it. The constants are names in formulas (`true`, `pi`, `inf`, `NaN`, …,
+  `sbml::math::CONSTANTS`), with a second name, or a number, where the model
+  has something of its own by that name; `piecewise`, `delay` and `rateOf` are
+  calls of those names, written back as SBML's own forms. Avogadro's constant is
+  the name `avogadro`, written back as SBML's symbol (Level 3 Version 1's value,
+  6.02214179e23, where the model has something called `avogadro`). The opening
+  warnings that remain: what Level 2 says that Level 3 has no place for,
+  CellDesigner's and JDesigner's own annotations, and a model built from
+  submodels (`comp`), which is kept but only its top model shown and edited.
+  `sbml_compare.py` checks a round trip element by element against libSBML's
+  own conversion of the original: all 1,062 curated BioModels and 1,823 Test
+  Suite cases, with no difference.
+- **The SBML version written.** Level 3 Version 2; Version 1 for a model with a
+  fast reaction or a rate law's own parameter that has a species' id, which
+  Version 2 can't say; other packages' XML in the version it was read in. A
+  species' `initialAmount` or `initialConcentration` and
+  `hasOnlySubstanceUnits` are written as read.
 - **Render styles** name at most 100 glyphs each; more with the same look go in
   another style like it. libSBML crashes reading a large file whose styles list
   hundreds of glyphs each.
@@ -1171,7 +1254,7 @@ replace `sbml-io` behind the same bridge.
   becomes `model.json`) and forget the previous file, so the status bar and title
   show the new name and Save asks where to save, instead of writing the imported
   model over the previous file. *Open…* also opens SBML, as a new document. *Save to
-  SBML…* writes Level 3 Version 1 with the layout. Problems and notes about the
+  SBML…* writes it with the layout, in the version above. Problems and notes about the
   file are shown in the status bar once it is written.
 
 **Checking.** Without libSBML there is no complete SBML validator in the app.
@@ -1240,8 +1323,8 @@ carried, as SBML Layout has no fonts; they come back as the defaults.
 
 ### 8.4 Behaviour specific to PathwayDesigner
 
-The catalytic rewrite, modifiers from the rate law, and adding null nodes are
-separate passes (`pd-core::passes`), applied to each reaction after any import,
+Modifiers from the rate law and adding null nodes are separate passes
+(`pd-core::passes`), applied to each reaction after any import,
 Antimony or SBML. They are not hidden inside one parser. Each can therefore be
 tested on its own, and they behave the same for both formats.
 
@@ -1339,8 +1422,8 @@ Autosave never adds anything to the document format.
 Use eframe's built-in storage (the `persistence` feature). On the desktop it is a
 file in the app's data folder. On the web it is `localStorage`.
 
-- Store the S §12 preferences under the same names
-  (`convertCatalyticReactions`, `showNullSpecies`), with `selectedReactionColour`
+- Store the S §12 preferences under the same names (`showNullSpecies`), with
+  `writeFunctionsIn` (docs/sbml-app-design.md A4), `selectedReactionColour`
   and View ▸ Reversible arrowheads (`showReversible`), View ▸ Grid (`showGrid`)
   and View ▸ Snap to grid (`snapToGrid`), S §7.6, which are kept the same way.
   (View ▸ Modifier lines is saved with each diagram instead; an old
@@ -1361,7 +1444,8 @@ Sharing a settings file with the Delphi app is not needed.
 ## 11. User interface
 
 Same layout as S §13: a single window, menu bar, toolbars, canvas, right-hand panel
-(the Properties and Antimony tabs, S §13.3) and status bar.
+(the Properties, Events & Rules, Antimony, Styles and Structure tabs, S §13.3) and
+status bar.
 
 | S §13 element | egui |
 |---|---|
@@ -1375,12 +1459,26 @@ Same layout as S §13: a single window, menu bar, toolbars, canvas, right-hand p
 
 ### 11.1 The Antimony panel
 
-- **Load Antimony** imports the text. **Get Antimony** replaces the text with an export
-  of the current model (S §11.4).
+- **Load Antimony** imports the text, keeping what Antimony can't say from the
+  diagram it replaces (`DiagramView::load_antimony`, §8.2). **Get Antimony**
+  replaces the text with an export of the current model (S §11.4); without the
+  diagram, the panel says what the text leaves out.
 - Parse errors are shown next to the text and in a list below it. Clicking an error
   moves the cursor to it.
-- When the catalytic setting changes, the app SHOULD warn that the last imported source
-  will be re-imported and that changes made since will be lost.
+
+### 11.1a The Events & Rules tab
+
+docs/sbml-app-design.md. The model's events, rules, starting formulas,
+functions, units and constraints ("checks"), each a sentence under a plain
+heading (`pd-core::sentences`). Clicking one opens it in place as a form of
+text fields (`pd-core::drafts`: `draft_of`, `check` as typed, `apply`), saved
+with Done as one undo step (`DiagramView::save_part`, `delete_part`); a
+function or unit still used can't be deleted. A species' or compartment's
+properties link to what else sets it ("Starts at", "Also changed by"); the
+diagram marks it with a lightning bolt (`render::draw::draw_rule_marks`,
+View ▸ Rule and Event Marks, never exported), and its tooltip says what. The
+Structure tab names the species rules and events also change. What a delete
+takes with it is said in the status bar (`DiagramView::take_removed`).
 
 ### 11.2 The inspector
 
@@ -1427,7 +1525,7 @@ reference's guard against editing the model by mistake while filling in controls
 | `geometry` | Unit tests covering every branch, including the special cases: a zero-length vector, a point equal to the centre, a zero-length segment |
 | `model`, `json` | Round-trip tests on the reference files (§4.1). Property tests (`proptest`): any random model survives a save and reload, and any sequence of edits gives the same JSON after undo then redo |
 | `expr` | The grammar table in S §8.3, error positions, and MathML round-trips for every operator and function in the S §11.5 table |
-| `antimony` | Every `Models/*.ant` file imports. Exporting then re-importing keeps the biochemistry. The catalytic rewrite with the preference on and off. `=>` gives the same result as `->`. Null nodes. Errors leave the model unchanged |
+| `antimony` | Every `Models/*.ant` file imports. Exporting then re-importing keeps the biochemistry. `->` reads as reversible and `=>` as not. Null nodes. Errors leave the model unchanged |
 | `sbml` | Export → python-libsbml `checkConsistency()` with no errors (CI only). Export → import keeps the geometry, including Bézier handles and aliases. Importing SBML Layout written by the Delphi app |
 | `layout` | Seeded random generator. For `A → A + B`: the junction is outside A's box and the two arcs are apart. Running the layout twice doesn't make the drawing drift. Locked nodes stay put |
 | `view` | The interaction state machine, tested without a window using made-up `ViewEvent`s, against every rule in S §6.2–§6.5 |

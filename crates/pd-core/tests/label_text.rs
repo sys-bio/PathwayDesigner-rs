@@ -7,10 +7,7 @@ use pd_core::antimony::ImportOptions;
 use pd_core::geometry::pt;
 use pd_core::model::{Compartment, Frame, LabelChoice, Model, Participant, Reaction};
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: false,
-    seed: 1,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
 /// `S1 -> S2` by `R1` in the compartment `c1`, all drawn, with Reactome's
 /// kind of display names.
@@ -37,11 +34,8 @@ fn model() -> Model {
     r.display_name = Some("glucose-6-phosphate isomerase".into());
     r.label_offset = Some(pt(0.0, -20.0));
     m.push_reaction(r).unwrap();
-    m.parameters.push(pd_core::model::Parameter {
-        variable: "k1".into(),
-        expression: "1".into(),
-        ..Default::default()
-    });
+    m.parameters
+        .push(pd_core::model::Parameter::new("k1", Some(1.0)));
     m
 }
 

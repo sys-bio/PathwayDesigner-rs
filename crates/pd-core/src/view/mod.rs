@@ -36,6 +36,7 @@ mod name_face_tests;
 #[cfg(test)]
 mod participant_tests;
 pub(crate) mod participants;
+mod parts;
 mod properties;
 #[cfg(test)]
 mod reaction_label_tests;
@@ -93,6 +94,16 @@ pub struct DiagramView {
     scroll: Pt,
     /// Aliases drawn in purple with a dashed border (S §7.6).
     pub show_alias_indicator: bool,
+    /// A lightning bolt beside what rules or events also change
+    /// (docs/sbml-app-design.md A2).
+    pub show_rule_marks: bool,
+    /// Saving SBML and Antimony writes the model's functions into the
+    /// formulas that call them (the preference, docs/sbml-app-design.md A4).
+    pub write_functions_in: bool,
+    /// What the last delete took with it besides (rules, events and the
+    /// like that named what was deleted), in words, until the app takes it
+    /// ([`DiagramView::take_removed`], docs/sbml-app-design.md A7).
+    removed: Vec<String>,
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
     /// Modifier arcs drawn (S §7.6).
@@ -413,6 +424,9 @@ impl DiagramView {
             zoom: 1.0,
             scroll: Pt::ZERO,
             show_alias_indicator: true,
+            show_rule_marks: true,
+            write_functions_in: false,
+            removed: Vec::new(),
             context_point: None,
             show_reversible: true,
             show_grid: false,
@@ -546,6 +560,9 @@ impl DiagramView {
         };
         draw_model_highlighted(&self.model, &opts, self.highlight.as_ref(), r);
         draw_marks(&self.model, &opts, &self.marks, r);
+        if self.show_rule_marks {
+            crate::render::draw::draw_rule_marks(&self.model, &opts, r);
+        }
         self.draw_overlays(r);
         if let Gesture::NewCompartment { start, current } = &self.gesture {
             let (a, b) = corners(self.world_to_screen(*start), self.world_to_screen(*current));
@@ -2284,18 +2301,30 @@ impl DiagramView {
         }
         let before = self.model.clone();
         let (species, reactions) = self.selection();
+        let mut removed = Vec::new();
         for id in &species {
-            self.model.delete_species(id);
+            removed.extend(self.model.delete_species(id).removed);
         }
         for id in &reactions {
-            self.model.delete_reaction(id);
+            removed.extend(
+                self.model
+                    .delete_reaction(id)
+                    .map(|d| d.removed)
+                    .unwrap_or_default(),
+            );
         }
         for id in self.selected_text_ids() {
             self.model.delete_text(&id);
         }
         for id in self.selected_compartment_ids() {
-            self.model.delete_compartment(&id);
+            removed.extend(
+                self.model
+                    .delete_compartment(&id)
+                    .map(|d| d.removed)
+                    .unwrap_or_default(),
+            );
         }
+        self.removed = removed;
         self.undo.push(Command::Snapshot {
             desc,
             before: Box::new(before),
@@ -2307,6 +2336,12 @@ impl DiagramView {
             model_changed: true,
             request: None,
         }
+    }
+
+    /// What the last delete took with it besides, in words, once: the app
+    /// says it in the status bar (docs/sbml-app-design.md A7).
+    pub fn take_removed(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.removed)
     }
 
     // ----- Undo -------------------------------------------------------------

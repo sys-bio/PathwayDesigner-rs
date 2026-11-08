@@ -13,10 +13,7 @@ use pd_core::kegg;
 use pd_core::model::{Model, ModifierKind};
 use pd_core::sbml;
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: false,
-    seed: 1,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
 fn maps() -> Option<Vec<PathBuf>> {
     let Some(dir) = std::env::var_os("KEGG_MAPS") else {

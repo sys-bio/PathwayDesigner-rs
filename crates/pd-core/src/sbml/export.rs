@@ -1,4 +1,6 @@
-//! The model as SBML Level 3 Version 1 with the Layout package (S §11.5).
+//! The model as SBML Level 3 with the Layout and Render packages (S §11.5),
+//! everything it holds written as it was read
+//! (docs/sbml-full-support-design.md).
 
 use std::collections::{HashMap, HashSet};
 
@@ -9,7 +11,8 @@ use crate::bezier::leg_curve;
 use crate::expr;
 use crate::geometry::Pt;
 use crate::model::{
-    DEFAULT_COMPARTMENT, History, Model, ModifierKind, ReactionMode, Role, SpeciesNode,
+    Annotation, DEFAULT_COMPARTMENT, History, Model, ModifierKind, PackageData, ReactionMode, Role,
+    SpeciesNode,
 };
 use crate::render::constants::JUNCTION_RADIUS;
 use crate::render::draw::{border, effective_junction, effective_mode, modifier_route};
@@ -19,30 +22,35 @@ use super::appearance::Item;
 
 const LEVEL: u32 = 3;
 
-/// The SBML version a model is written in: Level 3 Version 1, which more
-/// tools read, unless the model uses what only Version 2 can say (`rateOf`,
-/// the rate a species or parameter changes at). `max` and `min`, also new
-/// in Version 2, are written as `piecewise` in Version 1, which is the same.
+/// The SBML version a model is written in: Level 3 Version 2 (F5), but
+/// Version 1 for what Version 2 forbids: a fast reaction (Version 2 has no
+/// `fast`), or a rate law's local parameter named as a species of its
+/// reaction (found by the SBML Test Suite round trip); and a model with
+/// another package's XML kept as read (the `comp` package's model
+/// definitions) in the version it was read from, whose core that XML uses.
 fn version_for(model: &Model) -> u32 {
-    fn uses_rate(ast: &expr::Ast) -> bool {
-        match ast {
-            expr::Ast::Call(f, args, _) => f == "rate" || args.iter().any(uses_rate),
-            expr::Ast::Unary(_, a, _) => uses_rate(a),
-            expr::Ast::Binary(_, a, b, _) => uses_rate(a) || uses_rate(b),
-            _ => false,
-        }
+    let shadows = |r: &crate::model::Reaction| {
+        r.sbml.local_parameters.iter().any(|p| {
+            r.reactants
+                .iter()
+                .chain(&r.products)
+                .chain(&r.modifiers)
+                .filter_map(|x| model.find_species(&x.species))
+                .any(|s| s.primary_id() == p.id)
+        })
+    };
+    if model.reactions().iter().any(|r| r.sbml.fast || shadows(r)) {
+        return 1;
     }
-    let texts = model
-        .reactions()
-        .iter()
-        .map(|r| r.kinetic_law.as_str())
-        .chain(model.parameters.iter().map(|p| p.expression.as_str()))
-        .chain(model.assignment_rules.iter().map(|r| r.expression.as_str()));
-    let needs_2 = texts
-        .filter(|t| t.contains("rate"))
-        .filter_map(|t| expr::parse(t).ok())
-        .any(|ast| uses_rate(&ast));
-    if needs_2 { 2 } else { 1 }
+    let raw = !model.sbml_document.elements.is_empty()
+        || model
+            .annotations()
+            .iter()
+            .any(|a| !a.package.elements.is_empty());
+    match model.sbml_version {
+        Some(v) if raw => v,
+        _ => 2,
+    }
 }
 /// The layout is this much bigger than the right- and bottom-most node edges.
 const LAYOUT_MARGIN: f64 = 80.0;
@@ -128,34 +136,65 @@ fn sid(text: &str) -> String {
 
 fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) -> sb::Document {
     let version = version_for(model);
-    // `avogadro` is SBML's constant unless the model has something of its
-    // own called that.
-    let avogadro_free = !(model.species().iter().any(|s| s.id == "avogadro")
-        || model.reactions().iter().any(|r| r.id == "avogadro")
-        || model.compartments.iter().any(|c| c.id == "avogadro")
-        || model.parameters.iter().any(|p| p.variable == "avogadro")
-        || model
-            .assignment_rules
-            .iter()
-            .any(|r| r.variable == "avogadro"));
+    // A name the model uses for an item of its own means that item, not
+    // SBML's constant of that name (`avogadro`, `pi`, …).
+    let own: HashSet<&str> = model
+        .species()
+        .iter()
+        .map(|s| s.id.as_str())
+        .chain(model.reactions().iter().map(|r| r.id.as_str()))
+        .chain(model.compartments.iter().map(|c| c.id.as_str()))
+        .chain(model.parameters.iter().map(|p| p.variable.as_str()))
+        .chain(model.function_definitions.iter().map(|f| f.id.as_str()))
+        .collect();
+    // A rate law's local parameter of that name too.
+    let locals: HashSet<&str> = model
+        .reactions()
+        .iter()
+        .flat_map(|r| r.sbml.local_parameters.iter().map(|p| p.id.as_str()))
+        .collect();
+    let taken = |n: &str| own.contains(n) || locals.contains(n);
     let mut ids = Ids(HashSet::new());
     // Every id the model uses is taken before any is generated.
-    for s in model.species() {
-        ids.0.insert(s.id.clone());
-    }
-    for r in model.reactions() {
-        ids.0.insert(r.id.clone());
-    }
-    for c in &model.compartments {
-        ids.0.insert(c.id.clone());
-    }
-    for p in &model.parameters {
-        ids.0.insert(p.variable.clone());
+    for id in &own {
+        ids.0.insert((*id).to_owned());
     }
     for r in &model.assignment_rules {
         ids.0.insert(r.variable.clone());
     }
+    for e in &model.events {
+        if let Some(id) = &e.id {
+            ids.0.insert(id.clone());
+        }
+    }
+    for r in model.reactions() {
+        for p in r.reactants.iter().chain(&r.products).chain(&r.modifiers) {
+            if let Some(id) = p.reference_id() {
+                ids.0.insert(id.to_owned());
+            }
+        }
+    }
     ids.0.insert(DEFAULT_COMPARTMENT.into());
+
+    // Function bodies, whose arguments mean themselves there, not SBML's
+    // constants (a function with an argument `inf`, found by the BioModels
+    // round trip).
+    let mut bodies: Vec<Option<sb::Math>> = Vec::new();
+    for f in &model.function_definitions {
+        bodies.push(match expr::parse(f.body.trim()) {
+            _ if f.body.trim().is_empty() => None,
+            Ok(ast) => Some(to_math_with(&ast, LEVEL, version, &|n: &str| {
+                taken(n) || f.arguments.iter().any(|a| a == n)
+            })),
+            Err(e) => {
+                problems.push(format!(
+                    "The function {} doesn't parse, so it was left out: {e}",
+                    f.id
+                ));
+                None
+            }
+        });
+    }
 
     let mut parse = |text: &str, what: &str| -> Option<sb::Math> {
         let text = text.trim();
@@ -163,7 +202,7 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             return None;
         }
         match expr::parse(text) {
-            Ok(ast) => Some(to_math_with(&ast, LEVEL, version, avogadro_free)),
+            Ok(ast) => Some(to_math_with(&ast, LEVEL, version, &taken)),
             Err(e) => {
                 problems.push(format!("{what} doesn't parse, so it was left out: {e}"));
                 None
@@ -171,17 +210,87 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
         }
     };
 
+    // The id and name as read: a file may give the model neither.
+    let model_id = match &model.model_id {
+        Some(id) => {
+            ids.0.insert(id.clone());
+            Some(id.clone())
+        }
+        None if model.model_id_unset => None,
+        None => Some(ids.unique(sid(&model.model_name))),
+    };
+    let name = (!model.model_name.trim().is_empty() && !model.model_name_unset)
+        .then(|| model.model_name.clone());
     let mut m = sb::Model {
-        id: Some(ids.unique(sid(&model.model_name))),
-        name: (!model.model_name.trim().is_empty()).then(|| model.model_name.clone()),
+        id: model_id.clone(),
+        name,
+        substance_units: model.units.substance.clone(),
+        time_units: model.units.time.clone(),
+        volume_units: model.units.volume.clone(),
+        area_units: model.units.area.clone(),
+        length_units: model.units.length.clone(),
+        extent_units: model.units.extent.clone(),
+        conversion_factor: model.conversion_factor.clone(),
         ..Default::default()
     };
-    let model_id = m.id.clone().unwrap_or_default();
     let mut metaids = Metaids::new(model);
-    m.meta = meta(&mut metaids, &model_id, &model.annotation, &model.history);
+    m.meta = meta(
+        &mut metaids,
+        model_id.as_deref().unwrap_or("model"),
+        &model.annotation,
+        &model.history,
+    );
 
-    // Compartments: the default one if it's missing, then the model's.
-    if model.find_compartment(DEFAULT_COMPARTMENT).is_none() {
+    for f in &model.function_definitions {
+        let body = bodies.remove(0);
+        m.function_definitions.push(sb::FunctionDefinition {
+            meta: meta(&mut metaids, &f.id, &f.annotation, &f.annotation.history),
+            id: f.id.clone(),
+            name: f.name.clone(),
+            math: body.map(|body| sb::Math::Lambda {
+                args: f.arguments.clone(),
+                body: Box::new(body),
+            }),
+        });
+    }
+    for u in &model.unit_definitions {
+        m.unit_definitions.push(sb::UnitDefinition {
+            meta: meta(&mut metaids, &u.id, &u.annotation, &u.annotation.history),
+            id: u.id.clone(),
+            name: u.name.clone(),
+            units: u
+                .units
+                .iter()
+                .map(|x| sb::Unit {
+                    meta: meta(&mut metaids, &u.id, &x.annotation, &x.annotation.history),
+                    kind: x.kind.clone(),
+                    exponent: Some(x.exponent),
+                    scale: Some(x.scale),
+                    multiplier: Some(x.multiplier),
+                    offset: None,
+                })
+                .collect(),
+        });
+    }
+
+    // What changes while the model runs, so isn't constant: what a rule or
+    // an event sets (found by checking the BioModels round trip with libSBML).
+    let changed = |id: &str| {
+        model.assignment_rules.iter().any(|r| r.variable == id)
+            || model.rate_rules.iter().any(|r| r.variable == id)
+            || model
+                .events
+                .iter()
+                .any(|e| e.assignments.iter().any(|a| a.variable == id))
+    };
+
+    // Compartments: the default one if a species is in it and the model
+    // doesn't have it, then the model's.
+    let in_default = model
+        .species()
+        .iter()
+        .any(|s| !s.is_alias() && !s.is_null_node && s.compartment.is_empty());
+    if in_default && model.find_compartment(DEFAULT_COMPARTMENT).is_none() {
         m.compartments.push(sb::Compartment {
             id: DEFAULT_COMPARTMENT.into(),
             size: Some(1.0),
@@ -192,14 +301,13 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     }
     for c in &model.compartments {
         m.compartments.push(sb::Compartment {
-            meta: meta(&mut metaids, &c.id, &c.annotation, &History::default()),
+            meta: meta(&mut metaids, &c.id, &c.annotation, &c.annotation.history),
             id: c.id.clone(),
             name: c.display_name.clone(),
-            size: Some(c.size),
-            spatial_dimensions: Some(f64::from(c.dimensions)),
-            // A compartment whose size a rule sets isn't constant (found by
-            // checking the BioModels round trip with libSBML).
-            constant: Some(!model.assignment_rules.iter().any(|r| r.variable == c.id)),
+            size: (!c.sbml.size_unset).then_some(c.size),
+            spatial_dimensions: (!c.sbml.dimensions_unset).then_some(c.dimensions),
+            units: c.sbml.units.clone(),
+            constant: Some(c.sbml.constant && !changed(&c.id)),
             ..Default::default()
         });
     }
@@ -210,8 +318,9 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
         .iter()
         .filter(|s| !s.is_alias() && !s.is_null_node)
     {
+        let value = (!s.sbml.initial_unset).then_some(s.initial_value);
         m.species.push(sb::Species {
-            meta: meta(&mut metaids, &s.id, &s.annotation, &History::default()),
+            meta: meta(&mut metaids, &s.id, &s.annotation, &s.annotation.history),
             id: s.id.clone(),
             name: s.display_name.clone(),
             compartment: if s.compartment.is_empty() {
@@ -219,74 +328,139 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             } else {
                 s.compartment.clone()
             },
-            initial_concentration: (!s.initial_is_amount).then_some(s.initial_value),
-            initial_amount: s.initial_is_amount.then_some(s.initial_value),
+            initial_concentration: value.filter(|_| !s.initial_is_amount),
+            initial_amount: value.filter(|_| s.initial_is_amount),
+            substance_units: s.sbml.units.clone(),
             has_only_substance_units: Some(s.in_amounts),
             boundary_condition: Some(s.is_boundary),
             constant: Some(s.is_constant),
+            conversion_factor: s.sbml.conversion_factor.clone(),
             ..Default::default()
         });
     }
 
-    // Parameters: a number is the value; anything else is an initial
-    // assignment (D-10).
+    // Parameters, with their values (D-10).
     for p in &model.parameters {
-        let value = p
-            .expression
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .filter(|v| v.is_finite());
         m.parameters.push(sb::Parameter {
-            id: p.variable.clone(),
-            value,
-            constant: Some(true),
             meta: meta(
                 &mut metaids,
                 &p.variable,
                 &p.annotation,
-                &History::default(),
+                &p.annotation.history,
             ),
-            ..Default::default()
+            id: p.variable.clone(),
+            name: p.name.clone(),
+            value: p.value,
+            units: p.units.clone(),
+            constant: Some(p.constant && !changed(&p.variable)),
         });
-        if value.is_none()
-            && let Some(math) = parse(&p.expression, &format!("The value of {}", p.variable))
-        {
-            m.initial_assignments.push(sb::InitialAssignment {
-                symbol: p.variable.clone(),
-                math: Some(math),
-                meta: sb::Meta::default(),
-            });
-        }
     }
-    // Assignment rules (D-10). A variable that is nothing else needs a
-    // parameter to set.
+    // A rule's variable that is nothing else, as an older model may have,
+    // needs a parameter to set.
     for r in &model.assignment_rules {
         // Exactly: a compartment `d` doesn't declare a rule's `D` (found by
         // the BioModels round trip).
         let declared = model.find_species(&r.variable).is_some()
             || model.compartments.iter().any(|c| c.id == r.variable)
-            || model.parameters.iter().any(|p| p.variable == r.variable);
+            || model.parameters.iter().any(|p| p.variable == r.variable)
+            || model.reactions().iter().any(|x| {
+                x.reactants
+                    .iter()
+                    .chain(&x.products)
+                    .any(|p| p.reference_id() == Some(r.variable.as_str()))
+            });
         if !declared && !m.parameters.iter().any(|p| p.id == r.variable) {
             m.parameters.push(sb::Parameter {
                 id: r.variable.clone(),
                 constant: Some(false),
-                meta: meta(
-                    &mut metaids,
-                    &r.variable,
-                    &r.annotation,
-                    &History::default(),
-                ),
                 ..Default::default()
             });
         }
-        if let Some(math) = parse(&r.expression, &format!("The rule for {}", r.variable)) {
-            m.rules.push(sb::Rule::Assignment {
-                variable: r.variable.clone(),
-                math: Some(math),
-                meta: sb::Meta::default(),
-            });
-        }
+    }
+
+    for a in &model.initial_assignments {
+        let math = parse(&a.expression, &format!("The initial value of {}", a.symbol));
+        m.initial_assignments.push(sb::InitialAssignment {
+            meta: meta(&mut metaids, "metaid", &a.annotation, &a.annotation.history),
+            symbol: a.symbol.clone(),
+            math,
+        });
+    }
+    for r in &model.assignment_rules {
+        let math = parse(&r.expression, &format!("The rule for {}", r.variable));
+        m.rules.push(sb::Rule::Assignment {
+            meta: meta(&mut metaids, "metaid", &r.annotation, &r.annotation.history),
+            variable: r.variable.clone(),
+            math,
+        });
+    }
+    for r in &model.rate_rules {
+        let math = parse(&r.expression, &format!("The rate rule for {}", r.variable));
+        m.rules.push(sb::Rule::Rate {
+            meta: meta(&mut metaids, "metaid", &r.annotation, &r.annotation.history),
+            variable: r.variable.clone(),
+            math,
+        });
+    }
+    for r in &model.algebraic_rules {
+        let math = parse(&r.expression, "An algebraic rule");
+        m.rules.push(sb::Rule::Algebraic {
+            meta: meta(&mut metaids, "metaid", &r.annotation, &r.annotation.history),
+            math,
+        });
+    }
+    for c in &model.constraints {
+        let math = parse(&c.expression, "A check");
+        m.constraints.push(sb::Constraint {
+            meta: meta(&mut metaids, "metaid", &c.annotation, &c.annotation.history),
+            math,
+            message: c.message.clone(),
+        });
+    }
+    for e in &model.events {
+        let what = e.description();
+        let t = &e.trigger;
+        let trigger_math = parse(&t.expression, &what);
+        // An event SBML lets go without a trigger is written without one.
+        let has_trigger = !e.no_trigger;
+        let delay = e.delay.as_ref().map(|d| sb::Delay {
+            meta: meta(&mut metaids, "metaid", &d.annotation, &d.annotation.history),
+            math: parse(&d.expression, &what),
+        });
+        let priority = e.priority.as_ref().map(|p| sb::Priority {
+            meta: meta(&mut metaids, "metaid", &p.annotation, &p.annotation.history),
+            math: parse(&p.expression, &what),
+        });
+        let assignments = e
+            .assignments
+            .iter()
+            .map(|a| sb::EventAssignment {
+                meta: meta(&mut metaids, "metaid", &a.annotation, &a.annotation.history),
+                variable: a.variable.clone(),
+                math: parse(&a.expression, &what),
+            })
+            .collect();
+        m.events.push(sb::Event {
+            meta: meta(
+                &mut metaids,
+                e.id.as_deref().unwrap_or("metaid"),
+                &e.annotation,
+                &e.annotation.history,
+            ),
+            id: e.id.clone(),
+            name: e.name.clone(),
+            use_values_from_trigger_time: Some(e.use_values_from_trigger_time),
+            time_units: None,
+            trigger: has_trigger.then(|| sb::Trigger {
+                meta: meta(&mut metaids, "metaid", &t.annotation, &t.annotation.history),
+                initial_value: Some(t.initial_value),
+                persistent: Some(t.persistent),
+                math: trigger_math,
+            }),
+            delay,
+            priority,
+            assignments,
+        });
     }
 
     // Reactions. Each species reference gets an id, so its glyph can name it.
@@ -300,11 +474,13 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     let mut legs: Vec<Leg> = Vec::new();
     for r in model.reactions() {
         let mut rx = sb::Reaction {
-            meta: meta(&mut metaids, &r.id, &r.annotation, &History::default()),
+            meta: meta(&mut metaids, &r.id, &r.annotation, &r.annotation.history),
             id: r.id.clone(),
             name: r.display_name.clone(),
             reversible: Some(r.is_reversible),
-            fast: Some(false),
+            // Version 2 has no `fast`; a fast reaction makes it Version 1.
+            fast: (version == 1).then_some(r.sbml.fast),
+            compartment: r.sbml.compartment.clone(),
             ..Default::default()
         };
         for (role, list, tag) in [
@@ -315,26 +491,44 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
             for (index, p) in list.iter().enumerate() {
                 let reference = match primary(&p.species) {
                     Some(s) => {
-                        let sr_id = ids.unique(format!("sr_{}_{tag}_{}", r.id, s.id));
+                        // Its own id if it has one; else one made up, so its
+                        // glyph can name it.
+                        let info = p.sbml.as_deref().cloned().unwrap_or_default();
+                        let sr_id = match &info.id {
+                            Some(id) => id.clone(),
+                            None => ids.unique(format!("sr_{}_{tag}_{}", r.id, s.id)),
+                        };
+                        let mut sr_meta = meta(
+                            &mut metaids,
+                            &sr_id,
+                            &info.annotation,
+                            &info.annotation.history,
+                        );
                         if role == Role::Modifier {
-                            if rx.modifiers.iter().any(|m| m.species == s.id) {
-                                continue;
-                            }
+                            // The SBO term as read while it still says the
+                            // kind drawn; else the kind's own.
+                            let read = info
+                                .annotation
+                                .sbo
+                                .map(|n| format!("SBO:{n:07}"))
+                                .filter(|t| ModifierKind::from_sbo(t) == p.kind);
+                            sr_meta.sbo_term =
+                                read.or_else(|| p.kind.sbo_term().map(str::to_owned));
                             rx.modifiers.push(sb::ModifierSpeciesReference {
                                 id: Some(sr_id.clone()),
+                                name: info.name.clone(),
                                 species: s.id.clone(),
-                                meta: sb::Meta {
-                                    sbo_term: p.kind.sbo_term().map(str::to_owned),
-                                    ..Default::default()
-                                },
-                                ..Default::default()
+                                meta: sr_meta,
                             });
                         } else {
                             let sr = sb::SpeciesReference {
                                 id: Some(sr_id.clone()),
+                                name: info.name.clone(),
                                 species: s.id.clone(),
-                                stoichiometry: Some(p.stoichiometry),
-                                constant: Some(true),
+                                stoichiometry: (!info.stoichiometry_unset)
+                                    .then_some(p.stoichiometry),
+                                constant: Some(info.constant),
+                                meta: sr_meta,
                                 ..Default::default()
                             };
                             if role == Role::Reactant {
@@ -359,9 +553,34 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
                 });
             }
         }
-        if let Some(math) = parse(&r.kinetic_law, &format!("The rate law of {}", r.id)) {
+        // The rate law, with its local parameters, if it has anything.
+        let math = parse(&r.kinetic_law, &format!("The rate law of {}", r.id));
+        let law_annotation = &r.sbml.kinetic_law_annotation;
+        if math.is_some()
+            || !r.sbml.local_parameters.is_empty()
+            || !law_annotation.is_empty()
+            || law_annotation.metaid.is_some()
+        {
             rx.kinetic_law = Some(sb::KineticLaw {
-                math: Some(math),
+                meta: meta(
+                    &mut metaids,
+                    "metaid",
+                    law_annotation,
+                    &law_annotation.history,
+                ),
+                math,
+                parameters: r
+                    .sbml
+                    .local_parameters
+                    .iter()
+                    .map(|lp| sb::LocalParameter {
+                        meta: meta(&mut metaids, &lp.id, &lp.annotation, &lp.annotation.history),
+                        id: lp.id.clone(),
+                        name: lp.name.clone(),
+                        value: lp.value,
+                        units: lp.units.clone(),
+                    })
+                    .collect(),
                 ..Default::default()
             });
         }
@@ -373,22 +592,51 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     defined.extend(m.species.iter().map(|s| s.id.clone()));
     defined.extend(m.parameters.iter().map(|p| p.id.clone()));
     defined.extend(m.reactions.iter().map(|r| r.id.clone()));
+    defined.extend(m.reactions.iter().flat_map(|r| {
+        r.reactants
+            .iter()
+            .chain(&r.products)
+            .filter_map(|p| p.id.clone())
+    }));
     let mut used = Vec::new();
-    let maths = m
+    // Each formula, with the names that are its own: a rate law's local
+    // parameters.
+    let none: HashSet<String> = HashSet::new();
+    let mut maths: Vec<(&sb::Math, HashSet<String>)> = Vec::new();
+    for x in m
         .initial_assignments
         .iter()
         .filter_map(|ia| ia.math.as_ref())
         .chain(m.rules.iter().filter_map(|r| r.math()))
-        .chain(
-            m.reactions
+        .chain(m.constraints.iter().filter_map(|c| c.math.as_ref()))
+        .chain(m.events.iter().flat_map(|e| {
+            e.trigger
                 .iter()
-                .filter_map(|r| r.kinetic_law.as_ref()?.math.as_ref()),
-        );
+                .filter_map(|t| t.math.as_ref())
+                .chain(e.delay.iter().filter_map(|d| d.math.as_ref()))
+                .chain(e.priority.iter().filter_map(|p| p.math.as_ref()))
+                .chain(e.assignments.iter().filter_map(|a| a.math.as_ref()))
+        }))
+    {
+        maths.push((x, none.clone()));
+    }
+    for r in &m.reactions {
+        if let Some(k) = &r.kinetic_law
+            && let Some(x) = &k.math
+        {
+            maths.push((x, k.parameters.iter().map(|p| p.id.clone()).collect()));
+        }
+    }
     // Called function names aren't values, so they don't count.
-    let called: HashSet<String> = maths.clone().flat_map(called_functions).collect();
-    for math in maths {
+    let called: HashSet<String> = maths
+        .iter()
+        .flat_map(|(x, _)| called_functions(x))
+        .chain(m.function_definitions.iter().map(|f| f.id.clone()))
+        .collect();
+    for (math, own) in &maths {
         math.visit_idents(&mut |id| {
             if !defined.contains(id)
+                && !own.contains(id)
                 && !called.contains(id)
                 && !used.iter().any(|u: &String| u == id)
             {
@@ -416,6 +664,8 @@ fn document(model: &Model, problems: &mut Vec<String>, notes: &mut Vec<String>) 
     m.layouts.push(layout(model, &legs, &mut ids));
     m.global_render = Some(super::appearance::global_render(model));
     let mut doc = sb::Document::new(LEVEL, version);
+    doc.namespaces = model.sbml_namespaces.clone();
+    doc.meta.extra = extra(&model.sbml_document);
     doc.model = Some(m);
     doc
 }
@@ -816,19 +1066,7 @@ struct Metaids {
 impl Metaids {
     fn new(model: &Model) -> Self {
         let mut read: HashSet<String> = HashSet::new();
-        let annotations = std::iter::once(&model.annotation)
-            .chain(model.compartments.iter().map(|c| &c.annotation))
-            .chain(
-                model
-                    .species()
-                    .iter()
-                    .filter(|s| !s.is_alias() && !s.is_null_node)
-                    .map(|s| &s.annotation),
-            )
-            .chain(model.parameters.iter().map(|p| &p.annotation))
-            .chain(model.assignment_rules.iter().map(|r| &r.annotation))
-            .chain(model.reactions().iter().map(|r| &r.annotation));
-        for a in annotations {
+        for a in model.annotations() {
             if let Some(m) = &a.metaid {
                 read.insert(m.clone());
             }
@@ -840,7 +1078,7 @@ impl Metaids {
     }
 
     /// The metaid for the item `id` with annotation `a`.
-    fn pick(&mut self, id: &str, a: &crate::model::Annotation) -> String {
+    fn pick(&mut self, id: &str, a: &Annotation) -> String {
         if let Some(m) = &a.metaid
             && self.used.insert(m.clone())
         {
@@ -861,12 +1099,7 @@ impl Metaids {
 /// XML written back as it was (docs/other-annotations-design.md). It has a
 /// metaid when there is RDF, other XML, or one was read: its own as read,
 /// else one made from its id ([`Metaids`]).
-fn meta(
-    metaids: &mut Metaids,
-    id: &str,
-    a: &crate::model::Annotation,
-    history: &History,
-) -> sb::Meta {
+fn meta(metaids: &mut Metaids, id: &str, a: &Annotation, history: &History) -> sb::Meta {
     let mut terms: Vec<sb::miriam::CvTerm> = Vec::new();
     for r in &a.references {
         let (model, qualifier) = match r.qualifier.split_once(':') {
@@ -900,11 +1133,11 @@ fn meta(
         created: history.created.clone(),
         modified: history.modified.clone(),
     };
-    let rdf = !terms.is_empty() || !history.is_empty();
+    let rdf = !terms.is_empty() || !history.is_empty() || !a.rdf.is_empty();
     let metaid = (rdf || !a.other.is_empty() || a.metaid.is_some()).then(|| metaids.pick(id, a));
     let mut annotation = metaid
         .as_deref()
-        .and_then(|m| sb::miriam::write_annotation(m, &terms, &history));
+        .and_then(|m| sb::miriam::write_annotation(m, &terms, &history, &a.rdf));
     if !a.other.is_empty() {
         let mut all = annotation.unwrap_or_default();
         for x in &a.other {
@@ -917,7 +1150,23 @@ fn meta(
         sbo_term: a.sbo.map(|n| format!("SBO:{n:07}")),
         notes: a.notes.clone(),
         annotation,
-        ..Default::default()
+        extra: extra(&a.package),
+    }
+}
+
+/// What other packages put on an element, as `sbml-io` writes it (F10).
+fn extra(p: &PackageData) -> sb::Extra {
+    sb::Extra {
+        attributes: p
+            .attributes
+            .iter()
+            .map(|a| sb::Attribute {
+                name: a.name.clone(),
+                namespace: a.namespace.clone(),
+                value: a.value.clone(),
+            })
+            .collect(),
+        elements: p.elements.clone(),
     }
 }
 
@@ -974,10 +1223,7 @@ mod tests {
             "{xml}"
         );
         // Read back, the same values.
-        let opts = crate::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = crate::antimony::ImportOptions { seed: 1 };
         let back = crate::sbml::import(&xml, &opts).unwrap().model;
         let q = back
             .assignment_rules
@@ -1001,19 +1247,18 @@ mod tests {
         assert_eq!(v, Some(1.0 + 3.0), "{}", p.expression);
     }
 
-    /// Level 3 Version 1, unless the model uses `rateOf`, which only
-    /// Version 2 can say; then Version 2, with `rateOf` written as SBML's
-    /// symbol, and the file has no problems.
+    /// Level 3 Version 2 (F5), with `rateOf` and `max` as SBML says them;
+    /// Version 1 only for what Version 2 can't hold: a fast reaction, or
+    /// another package's XML read from Version 1.
     #[test]
-    fn version_2_only_when_needed() {
+    fn version_1_only_when_needed() {
         let mut m = Model::new();
+        m.parameters
+            .push(crate::model::Parameter::new("k", Some(2.0)));
         m.parameters.push(crate::model::Parameter {
-            variable: "k".into(),
-            expression: "2".into(),
-            annotation: Default::default(),
+            constant: false,
+            ..crate::model::Parameter::new("p", None)
         });
-        let plain = export(&m);
-        assert!(plain.xml.contains(r#"level="3" version="1""#));
         m.assignment_rules.push(crate::model::AssignmentRule {
             variable: "p".into(),
             expression: "2*rate(k) + max(k, 1)".into(),
@@ -1029,16 +1274,39 @@ mod tests {
         assert!(v2.xml.contains("rateOf"));
         assert!(v2.problems.is_empty(), "{:?}", v2.problems);
         // And back: the same rule.
-        let back = crate::sbml::import(
-            &v2.xml,
-            &crate::antimony::ImportOptions {
-                convert_catalytic: false,
-                seed: 1,
-            },
-        )
-        .unwrap()
-        .model;
+        let opts = crate::antimony::ImportOptions { seed: 1 };
+        let back = crate::sbml::import(&v2.xml, &opts).unwrap().model;
         assert_eq!(back.assignment_rules[0].expression, "2*rate(k) + max(k, 1)");
+
+        // A fast reaction: Version 1, with `fast` kept.
+        let mut fast = Model::new();
+        let a = fast.add_species(Pt::ZERO, 60.0, 30.0);
+        let r = fast.add_reaction(Pt::ZERO);
+        let rx = fast.find_reaction_mut(&r).unwrap();
+        rx.reactants.push(crate::model::Participant::new(a, 1.0));
+        rx.sbml.fast = true;
+        let v1 = export(&fast);
+        assert!(
+            v1.xml.contains(r#"level="3" version="1""#),
+            "{}",
+            &v1.xml[..300]
+        );
+        assert!(v1.xml.contains(r#"fast="true""#));
+        assert!(v1.problems.is_empty(), "{:?}", v1.problems);
+        let back = crate::sbml::import(&v1.xml, &opts).unwrap().model;
+        assert!(back.find_reaction(&r).unwrap().sbml.fast);
+
+        // Another package's XML kept as read: the version it was read from,
+        // whose core that XML uses; without such XML, Version 2.
+        let mut comp = Model::new();
+        comp.sbml_version = Some(1);
+        assert!(export(&comp).xml.contains(r#"level="3" version="2""#));
+        comp.sbml_document
+            .elements
+            .push(r#"<comp:listOfModelDefinitions xmlns:comp="urn:comp"/>"#.into());
+        assert!(export(&comp).xml.contains(r#"level="3" version="1""#));
+        comp.sbml_version = Some(2);
+        assert!(export(&comp).xml.contains(r#"level="3" version="2""#));
     }
 
     /// A style names at most 100 glyphs; a model with 250 species of one
@@ -1069,15 +1337,9 @@ mod tests {
             lists.iter().filter(|&&n| n == 100).count() >= 2,
             "{lists:?}"
         );
-        let back = crate::sbml::import(
-            &xml,
-            &crate::antimony::ImportOptions {
-                convert_catalytic: false,
-                seed: 1,
-            },
-        )
-        .unwrap()
-        .model;
+        let back = crate::sbml::import(&xml, &crate::antimony::ImportOptions { seed: 1 })
+            .unwrap()
+            .model;
         assert!(
             back.species()
                 .iter()
@@ -1102,10 +1364,7 @@ mod tests {
     /// annotation doesn't, and the file says so once (A3, A8).
     #[test]
     fn annotations_round_trip_and_other_tools_are_reported() {
-        let opts = crate::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = crate::antimony::ImportOptions { seed: 1 };
         let sbml = r##"<?xml version="1.0" encoding="UTF-8"?>
 <sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1"
       xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -1208,13 +1467,10 @@ mod tests {
             let k = &m.find_parameter("k").unwrap().annotation;
             assert_eq!(k.sbo, Some(35));
             assert!(k.notes.as_deref().unwrap().contains("A rate constant."));
-            // A parameter set by a rule is kept as the rule, with its annotation.
-            let kr = m
-                .assignment_rules
-                .iter()
-                .find(|r| r.variable == "kr")
-                .unwrap();
+            // A parameter set by a rule is kept, with its annotation.
+            let kr = m.find_parameter("kr").unwrap();
             assert_eq!(kr.annotation.sbo, Some(186));
+            assert!(!kr.constant);
             assert_eq!(m.annotation.sbo, Some(4));
             assert_eq!(
                 m.annotation.references[0].qualifier,
@@ -1266,10 +1522,7 @@ mod tests {
 
         let text = export(&m).xml;
         assert!(text.contains("name=\"L-glutamate\""), "{text}");
-        let opts = crate::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = crate::antimony::ImportOptions { seed: 1 };
         let back = crate::sbml::import(&text, &opts).unwrap().model;
         let name = |id: &str| back.find_species(id).unwrap().display_name.clone();
         assert_eq!(name(&a).as_deref(), Some("L-glutamate"));

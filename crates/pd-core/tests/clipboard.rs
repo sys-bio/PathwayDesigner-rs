@@ -27,11 +27,8 @@ fn reaction(m: &mut Model, id: &str, from: &str, to: &str, law: &str) {
 }
 
 fn param(m: &mut Model, id: &str, value: &str) {
-    m.parameters.push(Parameter {
-        variable: id.into(),
-        expression: value.into(),
-        ..Parameter::default()
-    });
+    m.parameters.push(Parameter::new(id, None));
+    m.set_parameter_text(id, value);
 }
 
 /// `A -> B` by `R1` at `k1*A`, and `B -> C` by `R2` at `k2*B`.
@@ -133,7 +130,7 @@ fn pasting_into_the_same_model_gives_new_ids_and_rewrites_laws() {
     let r = m.find_reaction("R1_2").unwrap();
     assert_eq!(r.kinetic_law, "k1_2*A_2");
     assert_eq!(r.reactants[0].species, "A_2");
-    assert_eq!(m.find_parameter("k1_2").unwrap().expression, "0.1");
+    assert_eq!(m.parameter_text("k1_2"), "0.1");
     // The originals are unchanged.
     assert_eq!(m.find_reaction("R1").unwrap().kinetic_law, "k1*A");
     // Values and display names are copied as they are.
@@ -450,12 +447,13 @@ fn gallery_models_copy_whole() {
 #[test]
 fn a_parameter_brings_the_parameters_its_value_uses() {
     let mut m = chain();
-    m.parameters[0].expression = "2*kbase".into();
+    let k = m.parameters[0].variable.clone();
+    m.set_parameter_text(&k, "2*kbase");
     param(&mut m, "kbase", "0.05");
     let f = copied(&mut m, &["R1"]);
     clipboard::paste(&mut m, &f, Pt::ZERO);
-    assert_eq!(m.find_parameter("k1_2").unwrap().expression, "2*kbase_2");
-    assert_eq!(m.find_parameter("kbase_2").unwrap().expression, "0.05");
+    assert_eq!(m.parameter_text("k1_2"), "2*kbase_2");
+    assert_eq!(m.parameter_text("kbase_2"), "0.05");
 }
 
 #[test]

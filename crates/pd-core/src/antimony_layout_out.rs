@@ -603,10 +603,7 @@ mod tests {
     use crate::geometry::{Pt, pt};
     use crate::model::{Frame, Model, NodeShape, ReactionMode, Rgba, Role, VisualStyle};
 
-    const OPTS: ImportOptions = ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
     fn model(text: &str) -> Model {
         import(text, &OPTS).unwrap().model

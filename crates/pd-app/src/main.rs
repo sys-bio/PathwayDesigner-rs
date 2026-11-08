@@ -10,6 +10,7 @@ mod canvas;
 mod clipboard;
 mod document;
 mod entry_names;
+mod events_tab;
 mod export;
 mod files;
 mod fonts;

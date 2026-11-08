@@ -63,6 +63,10 @@ pub struct Annotation {
     /// Every other element in the annotation: another tool's own, or RDF
     /// this reader doesn't take apart.
     pub other: Vec<Other>,
+    /// The `rdf:Description`s in the RDF this reader doesn't take apart
+    /// (statements about something else, or with what it doesn't know), each
+    /// as raw XML standing on its own, to be written back inside the RDF.
+    pub descriptions: Vec<String>,
 }
 
 /// One element of an annotation this reader doesn't take apart.
@@ -109,7 +113,7 @@ pub fn read_annotation(xml: &str, namespaces: &[(Option<String>, String)]) -> An
         return out;
     };
     for top in doc.root_element().children().filter(|n| n.is_element()) {
-        if is(top, RDF, "RDF") && read_rdf(top, &mut out) {
+        if is(top, RDF, "RDF") && read_rdf(top, &wrapped, &mut out) {
             continue;
         }
         out.other.push(Other {
@@ -155,12 +159,25 @@ fn standing_alone(element: &str, namespaces: &[(Option<String>, String)]) -> Str
 }
 
 /// Reads an `rdf:RDF` into `out`; false, with `out` unchanged, if it holds
-/// anything this reader doesn't know.
-fn read_rdf(rdf: roxmltree::Node, out: &mut Annotation) -> bool {
+/// anything but descriptions. A description holding anything this reader
+/// doesn't know is kept whole, as raw XML (`text` is the document it is in).
+fn read_rdf(rdf: roxmltree::Node, text: &str, out: &mut Annotation) -> bool {
     let mut found = Annotation::default();
     for d in rdf.children().filter(|n| n.is_element()) {
         if !is(d, RDF, "Description") {
             return false;
+        }
+        let known = |c: &roxmltree::Node| {
+            let ns = c.tag_name().namespace();
+            let name = c.tag_name().name();
+            ns == Some(BQBIOL)
+                || ns == Some(BQMODEL)
+                || ((ns == Some(DCTERMS) || ns == Some(DC)) && name == "creator")
+                || (ns == Some(DCTERMS) && (name == "created" || name == "modified"))
+        };
+        if !d.children().filter(|n| n.is_element()).all(|c| known(&c)) {
+            found.descriptions.push(with_scope(d, &text[d.range()]));
+            continue;
         }
         for c in d.children().filter(|n| n.is_element()) {
             let ns = c.tag_name().namespace();
@@ -171,17 +188,16 @@ fn read_rdf(rdf: roxmltree::Node, out: &mut Annotation) -> bool {
                     qualifier: name.to_owned(),
                     resources: resources(c),
                 });
-            } else if (ns == Some(DCTERMS) || ns == Some(DC)) && name == "creator" {
+            } else if name == "creator" {
                 found.history.creators.extend(creators(c));
-            } else if ns == Some(DCTERMS) && name == "created" {
+            } else if name == "created" {
                 found.history.created = date(c);
-            } else if ns == Some(DCTERMS) && name == "modified" {
-                found.history.modified.extend(date(c));
             } else {
-                return false;
+                found.history.modified.extend(date(c));
             }
         }
     }
+    out.descriptions.extend(found.descriptions);
     out.terms.extend(found.terms);
     out.history.creators.extend(found.history.creators);
     if found.history.created.is_some() {
@@ -189,6 +205,32 @@ fn read_rdf(rdf: roxmltree::Node, out: &mut Annotation) -> bool {
     }
     out.history.modified.extend(found.history.modified);
     true
+}
+
+/// An element's raw XML with every namespace in scope that it uses declared
+/// on its start tag, so it stands on its own wherever it is written.
+fn with_scope(node: roxmltree::Node, element: &str) -> String {
+    let name_end = element[1..]
+        .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
+        .map_or(element.len(), |i| i + 1);
+    let mut decl = String::new();
+    for ns in node.namespaces() {
+        let (used, declared) = match ns.name() {
+            Some(p) => (
+                element.contains(&format!("{p}:")),
+                element[..element.find('>').unwrap_or(element.len())]
+                    .contains(&format!("xmlns:{p}=")),
+            ),
+            None => (true, element.contains("xmlns=")),
+        };
+        if used && !declared && ns.name() != Some("xml") {
+            match ns.name() {
+                Some(p) => decl.push_str(&format!(" xmlns:{p}=\"{}\"", escape_attr(ns.uri()))),
+                None => decl.push_str(&format!(" xmlns=\"{}\"", escape_attr(ns.uri()))),
+            }
+        }
+    }
+    format!("{}{decl}{}", &element[..name_end], &element[name_end..])
 }
 
 fn is(n: roxmltree::Node, ns: &str, name: &str) -> bool {
@@ -243,11 +285,25 @@ fn creators(c: roxmltree::Node) -> Vec<Creator> {
 }
 
 /// The RDF for `terms` and `history` on the element whose metaid is
-/// `metaid`: creators, dates, then terms, as libSBML writes them; `None`
-/// when there is nothing to write.
-pub fn write_annotation(metaid: &str, terms: &[CvTerm], history: &History) -> Option<String> {
-    if terms.iter().all(|t| t.resources.is_empty()) && history.is_empty() {
+/// `metaid`: creators, dates, then terms, as libSBML writes them, then any
+/// `descriptions` kept as read; `None` when there is nothing to write.
+pub fn write_annotation(
+    metaid: &str,
+    terms: &[CvTerm],
+    history: &History,
+    descriptions: &[String],
+) -> Option<String> {
+    let own = !(terms.iter().all(|t| t.resources.is_empty()) && history.is_empty());
+    if !own && descriptions.is_empty() {
         return None;
+    }
+    if !own {
+        let mut out = format!("<rdf:RDF xmlns:rdf=\"{RDF}\">\n");
+        for d in descriptions {
+            out.push_str(&format!("  {d}\n"));
+        }
+        out.push_str("</rdf:RDF>");
+        return Some(out);
     }
     let esc = escape_text;
     let mut out = format!(
@@ -323,7 +379,11 @@ pub fn write_annotation(metaid: &str, terms: &[CvTerm], history: &History) -> Op
             t.qualifier
         ));
     }
-    out.push_str("  </rdf:Description>\n</rdf:RDF>");
+    out.push_str("  </rdf:Description>\n");
+    for d in descriptions {
+        out.push_str(&format!("  {d}\n"));
+    }
+    out.push_str("</rdf:RDF>");
     Some(out)
 }
 
@@ -436,20 +496,42 @@ mod tests {
             created: Some("2005-02-02T14:56:11Z".into()),
             modified: vec!["2012-07-05T16:44:43Z".into()],
         };
-        let xml = write_annotation("model1", &terms, &history).unwrap();
+        let xml = write_annotation("model1", &terms, &history, &[]).unwrap();
         let back = read_annotation(&xml, &[]);
         assert_eq!(back.terms, terms);
         assert_eq!(back.history, history);
         assert!(back.other.is_empty());
-        assert_eq!(write_annotation("x", &[], &History::default()), None);
+        assert_eq!(write_annotation("x", &[], &History::default(), &[]), None);
     }
 
+    /// A description with something this reader doesn't know is kept whole,
+    /// with the namespaces it uses from the RDF around it; the others are
+    /// read as usual. Written back inside the RDF, it reads again the same
+    /// (found by the BioModels round trip: COPASI's statements about
+    /// qualifiers lost a model its references and history).
     #[test]
-    fn rdf_with_something_unknown_is_returned_whole() {
-        let xml = r##"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:x="urn:x"><rdf:Description rdf:about="#S"><x:y>1</x:y></rdf:Description></rdf:RDF>"##;
+    fn a_description_with_something_unknown_is_kept_whole() {
+        let xml = r##"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:bqbiol="http://biomodels.net/biology-qualifiers/" xmlns:x="urn:x"><rdf:Description rdf:about="#S"><bqbiol:is><rdf:Bag><rdf:li rdf:resource="http://identifiers.org/chebi/CHEBI:1"/></rdf:Bag></bqbiol:is></rdf:Description><rdf:Description rdf:about="urn:other"><x:y>1</x:y></rdf:Description></rdf:RDF>"##;
         let a = read_annotation(xml, &[]);
-        assert!(a.terms.is_empty());
-        assert_eq!(a.other.len(), 1);
-        assert!(a.other[0].is_rdf());
+        assert_eq!(a.terms.len(), 1);
+        assert!(a.other.is_empty());
+        assert_eq!(a.descriptions.len(), 1);
+        let d = &a.descriptions[0];
+        assert!(
+            d.contains(r#"xmlns:x="urn:x""#) && d.contains("xmlns:rdf="),
+            "{d}"
+        );
+        let back = write_annotation("S", &a.terms, &a.history, &a.descriptions).unwrap();
+        let again = read_annotation(&back, &[]);
+        assert_eq!(again.terms, a.terms);
+        assert_eq!(again.descriptions.len(), 1);
+        // With nothing else to say, the description alone.
+        let alone = write_annotation("S", &[], &History::default(), &a.descriptions).unwrap();
+        assert_eq!(read_annotation(&alone, &[]).descriptions.len(), 1);
+        // Something other than descriptions in the RDF: returned whole.
+        let odd = r##"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Seq/></rdf:RDF>"##;
+        let o = read_annotation(odd, &[]);
+        assert_eq!(o.other.len(), 1);
+        assert!(o.other[0].is_rdf());
     }
 }

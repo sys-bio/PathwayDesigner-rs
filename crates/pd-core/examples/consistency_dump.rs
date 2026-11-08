@@ -18,10 +18,7 @@ use pd_core::antimony::ImportOptions;
 use pd_core::layout::{LayoutParams, LayoutRun};
 use pd_core::render::draw::Shown;
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: false,
-    seed: 1,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

@@ -674,10 +674,7 @@ mod tests {
         let c = crate::bezier::leg_curve(&m, r, Role::Reactant, 0).unwrap();
         assert_eq!((c.p0, c.p3), (pt(0.0, 0.0), pt(0.0, 100.0)));
         // The routes survive SBML.
-        let opts = crate::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = crate::antimony::ImportOptions { seed: 1 };
         let back = crate::sbml::import(&crate::sbml::export(&m).xml, &opts)
             .unwrap()
             .model;
@@ -877,10 +874,7 @@ mod tests {
         assert!((c.x - w / 2.0 - 115.0).abs() < 1e-9);
 
         // The sizes travel through SBML.
-        let opts = crate::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = crate::antimony::ImportOptions { seed: 1 };
         let back = crate::sbml::import(&crate::sbml::export(&m).xml, &opts)
             .unwrap()
             .model;

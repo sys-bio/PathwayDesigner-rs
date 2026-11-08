@@ -85,11 +85,7 @@ pub fn random_network(seed: u64) -> Model {
         } else {
             ReactionMode::Straight
         };
-        m.parameters.push(Parameter {
-            variable: k,
-            expression: "0.1".to_owned(),
-            annotation: Default::default(),
-        });
+        m.parameters.push(Parameter::new(k, Some(0.1)));
     }
     m
 }
@@ -119,7 +115,7 @@ mod tests {
         for r in m.reactions() {
             let k = format!("k{}", &r.id[1..]);
             assert!(r.kinetic_law.starts_with(&k));
-            assert_eq!(m.find_parameter(&k).unwrap().expression, "0.1");
+            assert_eq!(m.parameter_text(&k), "0.1");
             // No species twice in one reaction.
             let mut all: Vec<_> = r
                 .reactants

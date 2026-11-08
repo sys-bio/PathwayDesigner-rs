@@ -162,7 +162,21 @@ Delphi version does, and some more (see [Status](#status)).
   panel's Get Antimony does with *Diagram* ticked. File ▸ Export Antimony with
   Layout Statements, or *Layout statements* in the panel, adds Antimony 3's own
   layout statements, for tellurium and SBMLNetwork. Import reads either, from PathwayDesigner or from
-  libAntimony, and lays out what a diagram leaves out.
+  libAntimony, and lays out what a diagram leaves out. What Antimony can't say
+  of an SBML model (a rate law's own parameters, metaids and the like) goes in a
+  second comment, so nothing is lost; Load Antimony keeps it from the diagram it
+  replaces when the text has none
+  ([docs/antimony-full-support-design.md](docs/antimony-full-support-design.md)).
+- **The whole model is kept.** Events, assignment, rate and algebraic rules,
+  starting values from formulas, functions, units, constraints, a rate law's
+  own parameters, other tools' annotations and other SBML packages are read,
+  kept and written back, so a model opened and saved unchanged means what the
+  file meant. Checked on all 1,062 curated BioModels and 1,823 SBML Test Suite
+  cases, element by element against libSBML, through SBML and through Antimony
+  ([docs/sbml-full-support-design.md](docs/sbml-full-support-design.md)). The
+  **Events & Rules** tab lists them as sentences ("When time ≥ 10: Glucose
+  becomes 5") and edits them in place; a lightning bolt marks what they
+  change on the diagram ([docs/sbml-app-design.md](docs/sbml-app-design.md)).
 - **SBML** Level 2 and Level 3: import and export, including the **Layout**
   package, so positions, aliases, curves, reaction stems and reaction names survive
   the round trip, and the **Render** package, so colours, line widths, dashes,
@@ -306,7 +320,7 @@ On macOS, Cmd takes the place of Ctrl and Option of Alt.
 |---|---|---|---|
 | PathwayDesigner diagram | `.json` | yes | yes |
 | Antimony | `.ant`, `.txt` | yes | yes |
-| SBML Level 2 and 3, with Layout and Render | `.xml` | yes | Level 3 Version 1 (Version 2 for a model that needs it) |
+| SBML Level 2 and 3, with Layout and Render | `.xml` | yes | Level 3 Version 2 (Version 1 for a model with fast reactions) |
 | Escher map | `.json` | yes | |
 | SVG, PNG, PDF | `.svg`, `.png`, `.pdf` | | yes |
 

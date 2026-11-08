@@ -310,10 +310,7 @@ fn names_outside_come_back_from_sbml() {
     v.model.find_species_mut(&near).unwrap().label_offset = Some(pt(5.0, 0.0));
     let out = crate::sbml::export(v.model());
     assert!(out.xml.contains("label=\"outside\""));
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let back = crate::sbml::import(&out.xml, &opts).unwrap().model;
     let close = |o: Option<Pt>, want: Pt| o.is_some_and(|o| o.distance(want) < 1e-6);
     assert!(close(

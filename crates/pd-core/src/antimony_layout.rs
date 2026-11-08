@@ -1041,10 +1041,7 @@ mod tests {
     use crate::model::{Frame, Model, ReactionMode, Role};
 
     fn load(text: &str) -> Imported {
-        let opts = ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = ImportOptions { seed: 1 };
         import(text, &opts).unwrap_or_else(|e| panic!("{e:?}"))
     }
 

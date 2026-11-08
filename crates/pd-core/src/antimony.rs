@@ -2,10 +2,13 @@
 //!
 //! The bridge between the `antimony` crate, which reads Antimony text into a
 //! model of the language, and the diagram [`Model`]. Everything specific to
-//! PathwayDesigner lives here: case resolution, implied parameters, the
-//! catalytic rewrite, modifiers from the rate law, null nodes, random
-//! placement, warnings for what a diagram cannot hold, and the layout of the
-//! text it writes.
+//! PathwayDesigner lives here: case resolution, implied parameters,
+//! modifiers from the rate law, null nodes, random placement, and the layout
+//! of the text it writes. All that Antimony can say is read and written
+//! (docs/antimony-full-support-design.md S1): events, rate and algebraic
+//! rules, constraints, functions, units, `const` and `var`, names and
+//! annotations. Antimony has no integers: a whole number read from it is a
+//! real (`2.0`), as libAntimony writes it into SBML.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -17,8 +20,9 @@ use crate::expr;
 use crate::geometry::{Pt, pt};
 use crate::layout::Rng;
 use crate::model::{
-    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, ModifierKind, Parameter, Participant,
-    ReactionMode, SpeciesNode,
+    AlgebraicRule, AssignmentRule, Compartment, Constraint, DEFAULT_COMPARTMENT, Event,
+    EventAssignment, EventFormula, FunctionDefinition, InitialAssignment, Model, ModifierKind,
+    Parameter, Participant, RateRule, ReactionMode, SpeciesNode, Trigger, Unit, UnitDefinition,
 };
 use crate::passes;
 
@@ -27,8 +31,6 @@ const PLACEMENT: f64 = 600.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ImportOptions {
-    /// `A -> A + B` becomes `-> B` with `A` as a modifier (S §12).
-    pub convert_catalytic: bool,
     /// For the random placement of the species.
     pub seed: u64,
 }
@@ -119,7 +121,6 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
         module,
         errors: Vec::new(),
         warnings: Vec::new(),
-        functions: HashMap::new(),
     };
     let mut model = b.build(opts);
     warnings.append(&mut b.warnings);
@@ -144,6 +145,16 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
             (applied.had_layout, applied.unplaced)
         }
     };
+    // What Antimony can't say, from the block beside it (S4).
+    if let Some((notes, found)) = crate::antimony_sbml::read(src) {
+        crate::antimony_sbml::apply(&mut model, &notes);
+        warnings.extend(
+            found
+                .into_iter()
+                .map(|w| Diagnostic::at(Severity::Warning, Span::default(), w)),
+        );
+    }
+    crate::sbml::import::show_start_values_of(&mut model);
     warnings.sort_by_key(|d| (d.line, d.column));
     if b.errors.is_empty() {
         Ok(Imported {
@@ -157,24 +168,27 @@ pub fn import(src: &str, opts: &ImportOptions) -> Result<Imported, Vec<Diagnosti
     }
 }
 
-/// A warning for each thing in the text that the diagram cannot hold: the
-/// import goes ahead without it (SPEC-Rust §8.2).
+/// [`import`] for "Load Antimony", which replaces `old`: what the text
+/// can't say is taken from `old` (S3) when the text has no block of its
+/// own, for each item it still has and still says the same of.
+pub fn import_keeping(
+    src: &str,
+    opts: &ImportOptions,
+    old: &Model,
+) -> Result<Imported, Vec<Diagnostic>> {
+    let mut imported = import(src, opts)?;
+    if crate::antimony_sbml::read(src).is_none() {
+        crate::antimony_sbml::apply(&mut imported.model, &notes_for(old));
+        crate::sbml::import::show_start_values_of(&mut imported.model);
+    }
+    Ok(imported)
+}
+
+/// A warning for each thing in the text that PathwayDesigner can't hold:
+/// another model in the file, and objectives (the fbc package's). The import
+/// goes ahead without it (SPEC-Rust §8.2).
 fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnostic> {
     let mut out = Vec::new();
-    // Functions are not skipped: calls to them are expanded (S §11.2).
-    if let Some(first) = module.functions.first() {
-        let n = module.functions.len();
-        let what = if n == 1 {
-            "function was"
-        } else {
-            "functions were"
-        };
-        out.push(Diagnostic::at(
-            Severity::Warning,
-            first.span,
-            format!("{n} {what} written into the rate laws that use them"),
-        ));
-    }
     let mut skip = |span: Span, what: &str| {
         out.push(Diagnostic::at(
             Severity::Warning,
@@ -186,41 +200,6 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
         if !std::ptr::eq(m, module) {
             skip(m.span, "Other models in the file");
         }
-    }
-    for u in &module.units {
-        skip(u.span, "'unit' statements");
-    }
-    for e in &module.events {
-        skip(e.span, "Events");
-    }
-    for s in &module.symbols {
-        if let Some(rule) = s.rate_rule() {
-            skip(rule.span, "Rate rules");
-        }
-        // Species, compartments and reactions keep their names; others don't.
-        let named = matches!(
-            s.kind,
-            SymbolKind::Species | SymbolKind::Compartment | SymbolKind::Reaction
-        ) || (s.is_boundary && s.kind == SymbolKind::Parameter);
-        // They and parameters keep their annotations too
-        // (docs/annotations-design.md).
-        let annotated = named || s.kind == SymbolKind::Parameter;
-        let has_annotation = s.notes.is_some() || !s.cv_terms.is_empty() || s.sbo_term.is_some();
-        if (has_annotation && !annotated) || !s.metadata.is_empty() {
-            skip(s.span, "Notes and annotations");
-        }
-        if s.display_name.is_some() && !named {
-            skip(s.span, "Names of parameters and other items");
-        }
-        if s.units.is_some() || s.conversion_factor.is_some() {
-            skip(s.span, "Units and conversion factors");
-        }
-    }
-    for r in &module.algebraic_rules {
-        skip(r.span, "Algebraic rules");
-    }
-    for c in &module.constraints {
-        skip(c.span, "Constraints");
     }
     for o in &module.objectives {
         skip(o.span, "Objectives");
@@ -237,13 +216,125 @@ fn skipped(document: &antimony::model::Document, module: &Module) -> Vec<Diagnos
 /// reaction is written with `->`, an irreversible one with `=>` (S §11.3).
 /// The model alone: [`export_with_layout`] writes its drawing too.
 pub fn export(model: &Model) -> String {
-    write_model(&safe_ids(model).0, Vec::new())
+    write_model(&prepared(model), Vec::new())
+}
+
+/// The model as Antimony needs it: ids Antimony reserves renamed
+/// ([`safe_ids`]), and each rate law's own parameters made the model's
+/// ([`global_locals`]).
+fn prepared(model: &Model) -> Model {
+    prepared_with_notes(model).0
+}
+
+/// [`prepared`], with what its Antimony can't say of `model`
+/// (docs/antimony-full-support-design.md S5).
+fn prepared_with_notes(model: &Model) -> (Model, Vec<crate::antimony_sbml::Note>) {
+    let (safe, mut renamed) = safe_ids(model);
+    // Units apart: a unit may have the id of something else.
+    let mut renamed_units: Vec<(String, String)> = Vec::new();
+    for (was, now) in model.unit_definitions.iter().zip(&safe.unit_definitions) {
+        if was.id != now.id {
+            if let Some(i) = renamed
+                .iter()
+                .position(|(w, n)| *w == was.id && *n == now.id)
+            {
+                renamed.remove(i);
+            }
+            renamed_units.push((was.id.clone(), now.id.clone()));
+        }
+    }
+    let (text_model, mut locals) = global_locals(&safe);
+    // The block names reactions as the model does, once renamed back.
+    for (_, reaction, _) in &mut locals {
+        if let Some((was, _)) = renamed.iter().find(|(_, now)| now == reaction) {
+            reaction.clone_from(was);
+        }
+    }
+    let renamed: Vec<(String, String)> = renamed
+        .into_iter()
+        .filter(|(was, _)| *was != model.model_name)
+        .collect();
+    let notes = crate::antimony_sbml::gather(
+        model,
+        &renamed,
+        &renamed_units,
+        &locals,
+        model_name(&text_model),
+    );
+    (text_model, notes)
+}
+
+/// What the Antimony written for `model` can't say of it, as notes.
+pub fn notes_for(model: &Model) -> Vec<crate::antimony_sbml::Note> {
+    prepared_with_notes(model).1
+}
+
+/// Antimony has no rate law's own parameter: each is written as a model
+/// parameter `J1_k` (the next free name if that is taken), and the rate law
+/// uses that name (docs/antimony-full-support-design.md S2). Returns the
+/// model so, and each such parameter with its reaction and local name.
+pub(crate) fn global_locals(model: &Model) -> (Model, Vec<(String, String, String)>) {
+    let mut m = model.clone();
+    let mut made: Vec<(String, String, String)> = Vec::new();
+    let ids: Vec<String> = m.reactions().iter().map(|r| r.id.clone()).collect();
+    for rid in ids {
+        let locals = std::mem::take(
+            &mut m
+                .find_reaction_mut(&rid)
+                .expect("listed")
+                .sbml
+                .local_parameters,
+        );
+        for lp in locals {
+            let base = format!("{rid}_{}", lp.id);
+            let name = std::iter::once(base.clone())
+                .chain((2..).map(|n| format!("{base}_{n}")))
+                .find(|c| !m.is_id_taken_for_rename(c))
+                .expect("some suffix is free");
+            let r = m.find_reaction_mut(&rid).expect("listed");
+            r.kinetic_law = crate::model::replace_whole_word(&r.kinetic_law, &lp.id, &name);
+            m.parameters.push(Parameter {
+                name: lp.name.clone(),
+                units: lp.units.clone(),
+                annotation: lp.annotation.clone(),
+                ..Parameter::new(name.clone(), lp.value)
+            });
+            made.push((name, rid.clone(), lp.id.clone()));
+        }
+    }
+    (m, made)
+}
+
+/// A formula as Antimony writes it: a real whole number without its `.0`
+/// (Antimony has no integers). As written if it doesn't parse.
+pub(crate) fn antimony_formula(text: &str) -> String {
+    fn plain(ast: expr::Ast) -> expr::Ast {
+        use expr::Ast;
+        match ast {
+            Ast::Number(t, span) => {
+                let whole = t
+                    .strip_suffix(".0")
+                    .filter(|w| !w.is_empty() && w.bytes().all(|b| b.is_ascii_digit()));
+                Ast::Number(whole.map_or(t.clone(), str::to_owned), span)
+            }
+            Ast::Unary(op, e, span) => Ast::Unary(op, Box::new(plain(*e)), span),
+            Ast::Binary(op, l, r, span) => {
+                Ast::Binary(op, Box::new(plain(*l)), Box::new(plain(*r)), span)
+            }
+            Ast::Call(f, args, span) => Ast::Call(f, args.into_iter().map(plain).collect(), span),
+            other => other,
+        }
+    }
+    match expr::parse(text.trim()) {
+        Ok(ast) => expr::to_infix(&plain(ast)),
+        Err(_) => text.trim().to_owned(),
+    }
 }
 
 /// [`export`], with the drawing as Antimony's layout statements in a last
 /// section, `// Layout` (docs/antimony-layout-export-design.md).
 pub fn export_with_layout(model: &Model) -> String {
-    let model = safe_ids(model).0;
+    let model = prepared(model);
     write_model(&model, crate::antimony_layout_out::statements(&model))
 }
 
@@ -262,7 +353,7 @@ pub fn export_with_diagram_and_layout(model: &Model) -> String {
 }
 
 fn diagram_export(model: &Model, layout: bool) -> String {
-    let model = safe_ids(model).0;
+    let (model, notes) = prepared_with_notes(model);
     let statements = if layout {
         crate::antimony_layout_out::statements(&model)
     } else {
@@ -274,6 +365,12 @@ fn diagram_export(model: &Model, layout: bool) -> String {
         &model,
         model_name(&model),
     ));
+    // What Antimony can't say, in a block of its own (S4).
+    let block = crate::antimony_sbml::write(&notes, model_name(&model));
+    if !block.is_empty() {
+        text.push('\n');
+        text.push_str(&block);
+    }
     text
 }
 
@@ -288,15 +385,44 @@ fn model_name(model: &Model) -> &str {
 pub fn layout_notes(model: &Model) -> Vec<String> {
     let (safe, renamed) = safe_ids(model);
     let mut notes = crate::antimony_layout_out::notes(&safe);
-    other_annotations_note(&mut notes, model);
+    notes.extend(left_out_note(model));
     renames_note(&mut notes, &renamed);
     notes
+}
+
+/// What [`export`] (Antimony without the diagram and its `sbml` block)
+/// changes and leaves out of `model`, one line each
+/// (docs/antimony-full-support-design.md S6).
+pub fn plain_notes(model: &Model) -> Vec<String> {
+    let mut notes = left_out_note(model);
+    renames_note(&mut notes, &safe_ids(model).1);
+    notes
+}
+
+fn left_out_note(model: &Model) -> Vec<String> {
+    let parts = crate::antimony_sbml::left_out(&notes_for(model), model_name(&prepared(model)));
+    if parts.is_empty() {
+        return Vec::new();
+    }
+    vec![format!(
+        "Without the diagram, Antimony leaves out {}. Load Antimony keeps them for what is still in the text; with the diagram they are written too",
+        list(&parts)
+    )]
+}
+
+/// `a`, `a and b`, `a, b and c`.
+fn list(parts: &[&str]) -> String {
+    match parts {
+        [] => String::new(),
+        [one] => (*one).to_owned(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
 }
 
 /// What [`export_with_diagram`] can't keep, for the user: ids written with
 /// `_` added (Antimony reserves them), and texts whose line breaks and double
 /// quotes a diagram's strings can't hold. With `layout`, what the layout
-/// statements can't say too.
+/// statements can't say too. What Antimony can't say is in the `sbml` block.
 pub fn diagram_notes(model: &Model, layout: bool) -> Vec<String> {
     let (safe, renamed) = safe_ids(model);
     let mut notes = if layout {
@@ -315,46 +441,8 @@ pub fn diagram_notes(model: &Model, layout: bool) -> Vec<String> {
             if texts == 1 { " is" } else { "s are" }
         ));
     }
-    other_annotations_note(&mut notes, model);
     renames_note(&mut notes, &renamed);
     notes
-}
-
-/// A note on other tools' annotations, which Antimony has no place for
-/// (docs/other-annotations-design.md O6), if any item has them.
-fn other_annotations_note(notes: &mut Vec<String>, model: &Model) {
-    let items = usize::from(!model.annotation.other.is_empty())
-        + model
-            .species()
-            .iter()
-            .filter(|s| !s.annotation.other.is_empty())
-            .count()
-        + model
-            .reactions()
-            .iter()
-            .filter(|r| !r.annotation.other.is_empty())
-            .count()
-        + model
-            .compartments
-            .iter()
-            .filter(|c| !c.annotation.other.is_empty())
-            .count()
-        + model
-            .parameters
-            .iter()
-            .filter(|p| !p.annotation.other.is_empty())
-            .count()
-        + model
-            .assignment_rules
-            .iter()
-            .filter(|r| !r.annotation.other.is_empty())
-            .count();
-    if items > 0 {
-        notes.push(format!(
-            "other tools' annotations on {items} item{} aren't written: Antimony has no place for them (SBML keeps them)",
-            if items == 1 { "" } else { "s" }
-        ));
-    }
 }
 
 /// Puts first the note on ids written with `_` added, if any were.
@@ -379,6 +467,9 @@ const RESERVED: &[&str] = &[
     "DNA",
     "INF",
     "NaN",
+    // Antimony reads these as numbers too (found by the BioModels round trip).
+    "inf",
+    "nan",
     "abs",
     "acos",
     "after",
@@ -484,7 +575,6 @@ const RESERVED: &[&str] = &[
 /// (`compartment` becomes `compartment_`), everywhere it is used; and what
 /// was renamed. The diagram itself is not changed: export works on a copy.
 fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)>) {
-    use crate::model::replace_whole_word;
     let reserved = |id: &str| RESERVED.contains(&id);
     let used = |m: &Model, id: &str| {
         m.is_id_used(id) || m.assignment_rules.iter().any(|r| r.variable == id)
@@ -497,6 +587,12 @@ fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)
         || model.compartments.iter().any(|c| reserved(&c.id))
         || model.parameters.iter().any(|p| reserved(&p.variable))
         || model.assignment_rules.iter().any(|r| reserved(&r.variable))
+        || model.function_definitions.iter().any(|f| reserved(&f.id))
+        || model.unit_definitions.iter().any(|u| reserved(&u.id))
+        || model
+            .events
+            .iter()
+            .any(|e| e.id.as_deref().is_some_and(reserved))
         || reserved(&model.model_name);
     if !any {
         return (std::borrow::Cow::Borrowed(model), Vec::new());
@@ -519,16 +615,6 @@ fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)
     for old in ids {
         let new = fresh(&m, &old);
         if m.rename_species(&old, &new).is_ok() {
-            // Rate laws are done; values and rules too.
-            for p in &mut m.parameters {
-                p.expression = replace_whole_word(&p.expression, &old, &new);
-            }
-            for r in &mut m.assignment_rules {
-                r.expression = replace_whole_word(&r.expression, &old, &new);
-                if r.variable == old {
-                    r.variable = new.clone();
-                }
-            }
             renamed.push((old, new));
         }
     }
@@ -573,18 +659,47 @@ fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)
             if p.variable == old {
                 p.variable = new.clone();
             }
-            p.expression = replace_whole_word(&p.expression, &old, &new);
         }
-        for r in &mut m.assignment_rules {
-            if r.variable == old {
-                r.variable = new.clone();
+        m.rename_uses(&old, &new);
+        renamed.push((old, new));
+    }
+    // Functions, and every call of them (found by the BioModels round trip:
+    // a function called `function`, another called `inf`).
+    let ids: Vec<String> = m
+        .function_definitions
+        .iter()
+        .map(|f| f.id.clone())
+        .filter(|id| reserved(id))
+        .collect();
+    for old in ids {
+        let new = fresh(&m, &old);
+        m.formulas_mut(|t, _| *t = crate::model::replace_whole_word(t, &old, &new));
+        for f in &mut m.function_definitions {
+            f.body = crate::model::replace_whole_word(&f.body, &old, &new);
+            if f.id == old {
+                f.id = new.clone();
             }
-            r.expression = replace_whole_word(&r.expression, &old, &new);
-        }
-        for r in m.reactions_mut() {
-            r.kinetic_law = replace_whole_word(&r.kinetic_law, &old, &new);
         }
         renamed.push((old, new));
+    }
+    // Units, and every item in them.
+    let ids: Vec<String> = m
+        .unit_definitions
+        .iter()
+        .map(|u| u.id.clone())
+        .filter(|id| reserved(id))
+        .collect();
+    for old in ids {
+        let new = format!("{old}_");
+        rename_unit(&mut m, &old, &new);
+        renamed.push((old, new));
+    }
+    for e in &mut m.events {
+        if let Some(id) = e.id.as_mut().filter(|id| reserved(id)) {
+            let new = format!("{id}_");
+            renamed.push((id.clone(), new.clone()));
+            *id = new;
+        }
     }
     if reserved(&m.model_name) {
         let new = format!("{}_", m.model_name);
@@ -594,17 +709,102 @@ fn safe_ids(model: &Model) -> (std::borrow::Cow<'_, Model>, Vec<(String, String)
     (std::borrow::Cow::Owned(m), renamed)
 }
 
+/// Whether something other than a unit has the id `id`: SBML keeps units
+/// apart, Antimony's `is` and annotation lines don't.
+pub(crate) fn unit_shares_id(model: &Model, id: &str) -> bool {
+    model.find_species(id).is_some()
+        || model.compartments.iter().any(|c| c.id == id)
+        || model.parameters.iter().any(|p| p.variable == id)
+        || model.find_reaction(id).is_some()
+        || model.function_definitions.iter().any(|f| f.id == id)
+        || model.events.iter().any(|e| e.id.as_deref() == Some(id))
+}
+
+/// Renames a unit and every use of it.
+pub(crate) fn rename_unit(m: &mut Model, old: &str, new: &str) {
+    let swap = |u: &mut Option<String>| {
+        if u.as_deref() == Some(old) {
+            *u = Some(new.to_owned());
+        }
+    };
+    for u in &mut m.unit_definitions {
+        if u.id == old {
+            u.id = new.to_owned();
+        }
+    }
+    for c in &mut m.compartments {
+        swap(&mut c.sbml.units);
+    }
+    for s in m.species_mut() {
+        swap(&mut s.sbml.units);
+    }
+    for p in &mut m.parameters {
+        swap(&mut p.units);
+    }
+    for r in m.reactions_mut() {
+        for lp in &mut r.sbml.local_parameters {
+            swap(&mut lp.units);
+        }
+    }
+    let u = &mut m.units;
+    for x in [
+        &mut u.substance,
+        &mut u.time,
+        &mut u.volume,
+        &mut u.area,
+        &mut u.length,
+        &mut u.extent,
+    ] {
+        swap(x);
+    }
+}
+
 /// How many species an export declares on one line.
 const SPECIES_PER_LINE: usize = 4;
 
 fn write_model(model: &Model, layout: Vec<String>) -> String {
     let name = model_name(model);
-    let compartments: Vec<String> = model
+    let f = antimony_formula;
+    // Functions first, so what calls them reads after them.
+    let mut functions: Vec<String> = Vec::new();
+    // One with no body (SBML allows it) Antimony can't say.
+    for fd in model
+        .function_definitions
+        .iter()
+        .filter(|f| !f.body.trim().is_empty())
+    {
+        functions.push(format!("function {}({})", fd.id, fd.arguments.join(", ")));
+        functions.push(format!("  {}", f(&fd.body)));
+        functions.push("end".to_owned());
+    }
+    let units: Vec<String> = model
+        .unit_definitions
+        .iter()
+        .map(|u| format!("unit {} = {};", u.id, unit_text(u)))
+        .collect();
+    // A starting value given by a formula is written as that formula, in
+    // the initial values; one the file left unset isn't written.
+    let formula = |id: &str| {
+        model
+            .initial_assignment(id)
+            .filter(|a| !a.expression.trim().is_empty())
+            .map(|a| f(&a.expression))
+    };
+    let mut compartments: Vec<String> = Vec::new();
+    // The default compartment by its exact id: a model may have its own
+    // `DefaultCompartment` (found by the BioModels round trip).
+    for c in model
         .compartments
         .iter()
-        .filter(|c| !c.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT))
-        .map(|c| format!("compartment {} = {};", c.id, number(c.size)))
-        .collect();
+        .filter(|c| c.id != DEFAULT_COMPARTMENT)
+    {
+        let var = if c.sbml.constant { "" } else { "var " };
+        if formula(&c.id).is_some() || c.sbml.size_unset {
+            compartments.push(format!("{var}compartment {};", c.id));
+        } else {
+            compartments.push(format!("{var}compartment {} = {};", c.id, number(c.size)));
+        }
+    }
     let primaries: Vec<&SpeciesNode> = model
         .species()
         .iter()
@@ -619,8 +819,7 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         .map(|s| {
             let boundary = if s.is_boundary { "$" } else { "" };
             let mut one = format!("{boundary}{}", s.id);
-            if !s.compartment.is_empty() && !s.compartment.eq_ignore_ascii_case(DEFAULT_COMPARTMENT)
-            {
+            if !s.compartment.is_empty() && s.compartment != DEFAULT_COMPARTMENT {
                 let _ = write!(one, " in {}", s.compartment);
             }
             ((s.is_constant && s.is_boundary, s.in_amounts), one)
@@ -668,7 +867,11 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
         .iter()
         .map(|r| {
             let law = r.kinetic_law.trim();
-            let rate = if law.is_empty() { "v" } else { law };
+            let rate = if law.is_empty() {
+                "v".to_owned()
+            } else {
+                f(law)
+            };
             let arrow = if r.is_reversible { "->" } else { "=>" };
             format!(
                 "{}: {} {arrow} {}; {rate};",
@@ -681,60 +884,192 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
     // Activators and inhibitors are not written as Antimony's interactions
     // (`X -| J1`): people don't write them and libAntimony is fussy about
     // them. Their kind goes in the diagram comment instead (`kind inhibitor`).
-    let parameters: Vec<String> = model
-        .parameters
+    let ruled = |id: &str| model.assignment_rules.iter().any(|r| r.variable == id);
+    let mut parameters: Vec<String> = Vec::new();
+    for p in &model.parameters {
+        // Not constant, and not as a rule says, which Antimony knows.
+        if !p.constant && !ruled(&p.variable) {
+            parameters.push(format!("var {};", p.variable));
+        }
+        let text = model.parameter_text(&p.variable);
+        if !text.trim().is_empty() {
+            parameters.push(format!("{} = {};", p.variable, f(&text)));
+        }
+    }
+    let mut initial: Vec<String> = Vec::new();
+    for c in model
+        .compartments
         .iter()
-        .map(|p| format!("{} = {};", p.variable, p.expression.trim()))
-        .collect();
-    let initial: Vec<String> = primaries
-        .iter()
-        .map(|s| {
-            // Antimony gives an ordinary species a concentration: an amount
-            // is divided by the size of its compartment.
-            let value = if s.initial_is_amount && !s.in_amounts {
-                let size = model
-                    .compartments
-                    .iter()
-                    .find(|c| c.id == s.compartment)
-                    .map_or(1.0, |c| c.size);
-                if size > 0.0 {
-                    s.initial_value / size
-                } else {
-                    s.initial_value
-                }
+        .filter(|c| c.id != DEFAULT_COMPARTMENT)
+    {
+        if let Some(text) = formula(&c.id) {
+            initial.push(format!("{} = {text};", c.id));
+        }
+    }
+    for s in &primaries {
+        if let Some(text) = formula(&s.id) {
+            initial.push(format!("{} = {text};", s.id));
+            continue;
+        }
+        if s.sbml.initial_unset {
+            continue;
+        }
+        // Antimony gives an ordinary species a concentration: an amount
+        // is divided by the size of its compartment.
+        let value = if s.initial_is_amount && !s.in_amounts {
+            let size = model
+                .compartments
+                .iter()
+                .find(|c| c.id == s.compartment)
+                .map_or(1.0, |c| c.size);
+            if size > 0.0 {
+                s.initial_value / size
             } else {
                 s.initial_value
-            };
-            format!("{} = {};", s.id, number(value))
-        })
-        .collect();
+            }
+        } else {
+            s.initial_value
+        };
+        initial.push(format!("{} = {};", s.id, number(value)));
+    }
     let rules: Vec<String> = model
         .assignment_rules
         .iter()
-        .map(|r| format!("{} := {};", r.variable, r.expression.trim()))
+        .map(|r| format!("{} := {};", r.variable, f(&r.expression)))
         .collect();
+    let rate_rules: Vec<String> = model
+        .rate_rules
+        .iter()
+        .map(|r| format!("{}' = {};", r.variable, f(&r.expression)))
+        .collect();
+    // Labels Antimony needs, past the model's ids: `_alg0`, `_con0`.
+    let label = |prefix: &str, n: &mut usize| loop {
+        let l = format!("{prefix}{n}");
+        *n += 1;
+        if !model.is_id_used(&l) {
+            break l;
+        }
+    };
+    let mut n = 0;
+    let algebraic: Vec<String> = model
+        .algebraic_rules
+        .iter()
+        .map(|r| format!("{}: 0 = {};", label("_alg", &mut n), f(&r.expression)))
+        .collect();
+    let mut n = 0;
+    let constraints: Vec<String> = model
+        .constraints
+        .iter()
+        .map(|c| {
+            format!(
+                "constraint {}: {};",
+                label("_con", &mut n),
+                f(&c.expression)
+            )
+        })
+        .collect();
+    let events: Vec<String> = model
+        .events
+        .iter()
+        .map(|e| {
+            let mut text =
+                e.id.as_ref()
+                    .map(|id| format!("{id}: "))
+                    .unwrap_or_default();
+            text.push_str("at ");
+            if let Some(d) = &e.delay {
+                let _ = write!(text, "{} after ", f(&d.expression));
+            }
+            // An event with no trigger never happens: `false`.
+            let trigger = if e.no_trigger || e.trigger.expression.trim().is_empty() {
+                "false".to_owned()
+            } else {
+                f(&e.trigger.expression)
+            };
+            text.push_str(&trigger);
+            if let Some(p) = &e.priority {
+                let _ = write!(text, ", priority = {}", f(&p.expression));
+            }
+            if !e.trigger.persistent {
+                text.push_str(", persistent = false");
+            }
+            if !e.trigger.initial_value {
+                text.push_str(", t0 = false");
+            }
+            if !e.use_values_from_trigger_time {
+                text.push_str(", fromTrigger = false");
+            }
+            let assignments: Vec<String> = e
+                .assignments
+                .iter()
+                .map(|a| format!("{} = {}", a.variable, f(&a.expression)))
+                .collect();
+            let _ = write!(text, ": {};", assignments.join(", "));
+            text
+        })
+        .collect();
+
+    // Units on items, and conversion factors (`k has per_second;`).
+    let mut attached: Vec<String> = Vec::new();
+    if let Some(cf) = &model.conversion_factor {
+        attached.push(format!("model conversionFactor {cf};"));
+    }
+    for c in &model.compartments {
+        if let Some(u) = &c.sbml.units {
+            attached.push(format!("{} has {u};", c.id));
+        }
+    }
+    for s in &primaries {
+        if let Some(u) = &s.sbml.units {
+            attached.push(format!("{} has {u};", s.id));
+        }
+        if let Some(cf) = &s.sbml.conversion_factor {
+            attached.push(format!("{} conversionFactor {cf};", s.id));
+        }
+    }
+    for p in &model.parameters {
+        if let Some(u) = &p.units {
+            attached.push(format!("{} has {u};", p.variable));
+        }
+    }
 
     // `S1 is "glucose";` (docs/display-names-design.md D1), in the order of
     // the sections above.
     let named = model
         .compartments
         .iter()
-        .filter(|c| !c.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT))
+        .filter(|c| c.id != DEFAULT_COMPARTMENT)
         .map(|c| (&c.id, &c.display_name))
         .chain(primaries.iter().map(|s| (&s.id, &s.display_name)))
-        .chain(model.reactions().iter().map(|r| (&r.id, &r.display_name)));
+        .chain(model.reactions().iter().map(|r| (&r.id, &r.display_name)))
+        .chain(model.parameters.iter().map(|p| (&p.variable, &p.name)))
+        .chain(model.function_definitions.iter().map(|x| (&x.id, &x.name)))
+        .chain(
+            model
+                .unit_definitions
+                .iter()
+                .filter(|x| !unit_shares_id(model, &x.id))
+                .map(|x| (&x.id, &x.name)),
+        )
+        .chain(
+            model
+                .events
+                .iter()
+                .filter_map(|e| Some((e.id.as_ref()?, &e.name))),
+        );
     let names: Vec<String> = named
         .filter_map(|(id, name)| Some(format!("{id} is {};", quoted_name(name.as_deref()?))))
         .collect();
 
     // Annotations (docs/annotations-design.md): the model's, then each
-    // item's, in the order of the sections above.
+    // item's, in the order of the sections above. A rule's own annotation
+    // isn't Antimony's: Antimony would give it to the rule's variable.
     let mut annotations: Vec<String> = annotation_lines("model", &model.annotation, true);
     annotations.extend(history_lines(&model.history));
     for c in model
         .compartments
         .iter()
-        .filter(|c| !c.id.eq_ignore_ascii_case(DEFAULT_COMPARTMENT))
+        .filter(|c| c.id != DEFAULT_COMPARTMENT)
     {
         annotations.extend(annotation_lines(&c.id, &c.annotation, false));
     }
@@ -747,19 +1082,38 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
     for p in &model.parameters {
         annotations.extend(annotation_lines(&p.variable, &p.annotation, false));
     }
-    for r in &model.assignment_rules {
-        annotations.extend(annotation_lines(&r.variable, &r.annotation, false));
+    for x in &model.function_definitions {
+        annotations.extend(annotation_lines(&x.id, &x.annotation, false));
+    }
+    for x in model
+        .unit_definitions
+        .iter()
+        .filter(|x| !unit_shares_id(model, &x.id))
+    {
+        annotations.extend(annotation_lines(&x.id, &x.annotation, false));
+    }
+    for e in &model.events {
+        if let Some(id) = &e.id {
+            annotations.extend(annotation_lines(id, &e.annotation, false));
+        }
     }
 
     let mut out = format!("model {name}\n");
     let mut first = true;
     for (title, lines) in [
+        ("Functions", functions),
+        ("Units", units),
         ("Compartments", compartments),
         ("Species", species),
         ("Reactions", reactions),
         ("Parameters", parameters),
         ("Initial values", initial),
         ("Assignment rules", rules),
+        ("Rate rules", rate_rules),
+        ("Algebraic rules", algebraic),
+        ("Constraints", constraints),
+        ("Events", events),
+        ("Units and conversion factors", attached),
         ("Display names", names),
         ("Annotations", annotations),
         ("Layout", layout),
@@ -780,7 +1134,7 @@ fn write_model(model: &Model, layout: Vec<String>) -> String {
     out
 }
 
-fn is_identifier(s: &str) -> bool {
+pub(crate) fn is_identifier(s: &str) -> bool {
     let mut b = s.bytes();
     b.next()
         .is_some_and(|c| c.is_ascii_alphabetic() || c == b'_')
@@ -837,7 +1191,7 @@ fn sbml_qualifier(q: antimony::model::Qualifier, on_model: bool) -> String {
 
 /// The Antimony word for an SBML qualifier on an item (or the model), or
 /// `None` if Antimony has none.
-fn antimony_qualifier(qualifier: &str, on_model: bool) -> Option<&'static str> {
+pub(crate) fn antimony_qualifier(qualifier: &str, on_model: bool) -> Option<&'static str> {
     use antimony::model::Qualifier;
     Qualifier::ALL
         .into_iter()
@@ -956,9 +1310,6 @@ struct Builder<'a> {
     module: &'a Module,
     errors: Vec<Diagnostic>,
     warnings: Vec<Diagnostic>,
-    /// The `function` statements, written into the expressions that call
-    /// them (S §11.2).
-    functions: HashMap<String, expr::FunctionDef>,
 }
 
 impl Builder<'_> {
@@ -977,20 +1328,6 @@ impl Builder<'_> {
         e.span.slice_of(self.src).trim().to_owned()
     }
 
-    /// A number written in the text, or an error. A sign is part of the
-    /// number; anything more is an expression, which a diagram's species or
-    /// compartment can't hold.
-    fn number(&mut self, e: &antimony::expr::Expr, what: &str) -> Option<f64> {
-        let text = self.text(e);
-        match text.parse::<f64>() {
-            Ok(v) if v.is_finite() => Some(v),
-            _ => {
-                self.error(e.span, format!("{what} must be a number, not '{text}'"));
-                None
-            }
-        }
-    }
-
     /// An expression, parsed: the AST, or an error at the right place.
     fn expression(&mut self, e: &antimony::expr::Expr) -> Option<expr::Ast> {
         match expr::parse(&self.text(e)) {
@@ -1006,50 +1343,97 @@ impl Builder<'_> {
         }
     }
 
-    /// An expression with the functions it calls written into it.
-    fn expanded(&mut self, e: &antimony::expr::Expr) -> Option<expr::Ast> {
-        let ast = self.expression(e)?;
-        match expr::expand_functions(&ast, &self.functions) {
-            Ok(ast) => Some(ast),
-            Err(why) => {
-                self.error(e.span, format!("This uses {why}"));
-                None
-            }
+    /// An expression with its whole numbers made reals, as Antimony has no
+    /// integers (see the module's notes).
+    fn real(&mut self, e: &antimony::expr::Expr) -> Option<expr::Ast> {
+        Some(reals(self.expression(e)?))
+    }
+
+    /// A formula's text: the expression as the parser writes it, its whole
+    /// numbers reals; as written if it doesn't parse (the error is given).
+    fn formula(&mut self, e: &antimony::expr::Expr) -> String {
+        match self.real(e) {
+            Some(ast) => expr::to_infix(&ast),
+            None => self.text(e),
         }
     }
 
-    /// The text of an expression, as written unless it calls a function,
-    /// which is written into it.
-    fn expanded_text(&mut self, e: &antimony::expr::Expr) -> String {
-        match (self.expression(e), self.expanded(e)) {
-            (Some(written), Some(expanded)) if written != expanded => expr::to_infix(&expanded),
-            _ => self.text(e),
+    /// A number, or `None` for a formula (an initial assignment).
+    fn value(&self, e: &antimony::expr::Expr) -> Option<f64> {
+        crate::model::number_text(&self.text(e))
+    }
+
+    /// A flag of an event, `true` or `false` as written (or a number).
+    fn flag(&self, e: Option<&antimony::expr::Expr>, default: bool) -> bool {
+        match e.map(|e| self.text(e)) {
+            None => default,
+            Some(t) => match t.as_str() {
+                "true" => true,
+                "false" => false,
+                other => other.parse::<f64>().map_or(default, |v| v != 0.0),
+            },
         }
     }
 
     fn build(&mut self, opts: &ImportOptions) -> Model {
         let module = self.module;
-        for f in &module.functions {
-            if let Some(body) = f.body.as_ref().and_then(|b| self.expression(b)) {
-                let def = expr::FunctionDef {
-                    params: f.args.clone(),
-                    body,
-                };
-                self.functions.insert(f.name.clone(), def);
-            }
-        }
         let mut model = Model::new();
         model.model_name = module
             .name
             .clone()
             .unwrap_or_else(|| "anonymous".to_owned());
+        // Functions, kept as written (F1).
+        for f in &module.functions {
+            let body = match &f.body {
+                Some(b) => {
+                    if self.expression(b).is_none() {
+                        continue;
+                    }
+                    self.formula(b)
+                }
+                None => String::new(),
+            };
+            model.function_definitions.push(FunctionDefinition {
+                id: f.name.clone(),
+                name: display_name_of(module, &f.name),
+                arguments: f.args.clone(),
+                body,
+                annotation: annotation_of(module, &f.name),
+            });
+        }
+        // Units, as SBML says them: base units, a multiplier and exponents.
+        for u in &module.units {
+            if u.is_self_referential() {
+                continue;
+            }
+            let units = unit_factors(&u.definition).unwrap_or_else(|| {
+                self.warnings.push(Diagnostic::at(
+                    Severity::Warning,
+                    u.span,
+                    format!(
+                        "The unit {} isn't made of SBML's base units, so it was kept without them",
+                        u.name
+                    ),
+                ));
+                Vec::new()
+            });
+            model.unit_definitions.push(UnitDefinition {
+                id: u.name.clone(),
+                name: u.display_name.clone(),
+                units,
+                annotation: annotation_from(None, &u.cv_terms, &None, false),
+            });
+        }
+        model.conversion_factor = module.conversion_factor.clone();
 
-        // Species, in the order the text first mentions them. Names typed in
-        // another case resolve to the first spelling.
+        // Species, in the order the text first mentions them. Names are
+        // case-sensitive, as in Antimony and SBML: `A` and `a` are two
+        // things (found by the BioModels round trip, where a parameter `a`
+        // was taken for a species `A`).
         let mut species: Vec<SpeciesInfo> = Vec::new();
-        let mut by_lower: HashMap<String, usize> = HashMap::new();
+        let mut by_id: HashMap<String, usize> = HashMap::new();
         let mut resolve = |id: &str, boundary: bool, species: &mut Vec<SpeciesInfo>| -> String {
-            let i = *by_lower.entry(id.to_ascii_lowercase()).or_insert_with(|| {
+            let i = *by_id.entry(id.to_owned()).or_insert_with(|| {
                 species.push(SpeciesInfo {
                     id: id.to_owned(),
                     boundary: false,
@@ -1109,7 +1493,8 @@ impl Builder<'_> {
             .collect();
 
         // `x = expr`, in the order written: a species' initial value, a
-        // compartment's size, or a parameter.
+        // compartment's size, or a parameter. A formula for a species or a
+        // compartment is its initial assignment (F3).
         let mut assignments: Vec<(&Symbol, &antimony::expr::Expr)> = module
             .symbols
             .iter()
@@ -1117,31 +1502,46 @@ impl Builder<'_> {
             .collect();
         assignments.sort_by_key(|(_, e)| e.span.start.offset);
         let mut parameters: Vec<Parameter> = Vec::new();
+        // Each parameter's value or formula, as written, set once the model
+        // has its parameters.
+        let mut parameter_texts: Vec<(String, String)> = Vec::new();
+        let mut formulas: Vec<InitialAssignment> = Vec::new();
+        let mut unset: Vec<String> = Vec::new();
         for (s, value) in assignments {
-            let compartment = compartments
-                .iter()
-                .position(|c| c.id.eq_ignore_ascii_case(&s.name));
+            let compartment = compartments.iter().position(|c| c.id == s.name);
             let as_species = (s.kind != SymbolKind::Compartment)
-                .then(|| by_lower.get(&s.name.to_ascii_lowercase()).copied())
+                .then(|| by_id.get(&s.name).copied())
                 .flatten();
-            if let Some(i) = as_species {
-                if let Some(v) = self.number(value, "A species' initial value") {
-                    species[i].initial = v;
-                }
-            } else if let Some(c) = compartment {
-                if let Some(v) = self.number(value, "A compartment's size") {
-                    compartments[c].size = v;
+            if as_species.is_some() || compartment.is_some() {
+                let id = match as_species {
+                    Some(i) => species[i].id.clone(),
+                    None => compartments[compartment.expect("one of the two")]
+                        .id
+                        .clone(),
+                };
+                formulas.retain(|a| a.symbol != id);
+                match self.value(value) {
+                    Some(v) => match as_species {
+                        Some(i) => species[i].initial = v,
+                        None => compartments[compartment.expect("checked")].size = v,
+                    },
+                    None => {
+                        let expression = self.formula(value);
+                        formulas.push(InitialAssignment {
+                            symbol: id.clone(),
+                            expression,
+                            annotation: Default::default(),
+                        });
+                        unset.push(id);
+                    }
                 }
             } else {
-                let text = self.expanded_text(value);
-                match parameters.iter_mut().find(|p| p.variable == s.name) {
-                    Some(p) => p.expression = text,
-                    None => parameters.push(Parameter {
-                        variable: s.name.clone(),
-                        expression: text,
-                        annotation: Default::default(),
-                    }),
+                let text = self.formula(value);
+                if !parameters.iter().any(|p| p.variable == s.name) {
+                    parameters.push(Parameter::new(s.name.clone(), None));
                 }
+                parameter_texts.retain(|(name, _)| *name != s.name);
+                parameter_texts.push((s.name.clone(), text));
             }
         }
         // `x := expr`, in the order written.
@@ -1155,8 +1555,107 @@ impl Builder<'_> {
             .into_iter()
             .map(|(s, e)| AssignmentRule {
                 variable: s.name.clone(),
-                expression: self.expanded_text(e),
+                expression: self.formula(e),
                 annotation: Default::default(),
+            })
+            .collect();
+        // `x' = expr`, in the order written.
+        let mut rate_exprs: Vec<(&Symbol, &antimony::expr::Expr)> = module
+            .symbols
+            .iter()
+            .filter_map(|s| Some((s, s.rate_rule()?)))
+            .collect();
+        rate_exprs.sort_by_key(|(_, e)| e.span.start.offset);
+        let rate_rules: Vec<RateRule> = rate_exprs
+            .into_iter()
+            .map(|(s, e)| RateRule {
+                variable: s.name.clone(),
+                expression: self.formula(e),
+                annotation: Default::default(),
+            })
+            .collect();
+        let algebraic_rules: Vec<AlgebraicRule> = module
+            .algebraic_rules
+            .iter()
+            .map(|r| AlgebraicRule {
+                expression: r.expr.as_ref().map(|e| self.formula(e)).unwrap_or_default(),
+                annotation: Default::default(),
+            })
+            .collect();
+        let constraints: Vec<Constraint> = module
+            .constraints
+            .iter()
+            .map(|c| {
+                use antimony::model::ConstraintKind;
+                let expression = match &c.kind {
+                    ConstraintKind::Expr(e) => self.formula(e),
+                    // `0 <= x < 10`: both comparisons.
+                    ConstraintKind::Range {
+                        lower,
+                        subject,
+                        upper,
+                        lower_inclusive,
+                        upper_inclusive,
+                    } => {
+                        let op = |inclusive: bool| if inclusive { "<=" } else { "<" };
+                        let (l, x, u) = (
+                            self.formula(lower),
+                            self.formula(subject),
+                            self.formula(upper),
+                        );
+                        format!(
+                            "{l} {} {x} && {x} {} {u}",
+                            op(*lower_inclusive),
+                            op(*upper_inclusive)
+                        )
+                    }
+                };
+                Constraint {
+                    expression,
+                    message: None,
+                    annotation: Default::default(),
+                }
+            })
+            .collect();
+        let events: Vec<Event> = module
+            .events
+            .iter()
+            .map(|e| {
+                let what = |id: &Option<String>| id.as_deref().map(|n| annotation_of(module, n));
+                Event {
+                    id: e.name.clone(),
+                    name: e.name.as_deref().and_then(|n| display_name_of(module, n)),
+                    use_values_from_trigger_time: self.flag(e.from_trigger.as_ref(), true),
+                    trigger: Trigger {
+                        expression: self.formula(&e.trigger),
+                        initial_value: self.flag(e.initial_value.as_ref(), true),
+                        persistent: self.flag(e.persistent.as_ref(), true),
+                        annotation: Default::default(),
+                    },
+                    no_trigger: false,
+                    delay: e.delay.as_ref().map(|d| EventFormula {
+                        expression: self.formula(d),
+                        annotation: Default::default(),
+                    }),
+                    priority: e.priority.as_ref().map(|d| EventFormula {
+                        expression: self.formula(d),
+                        annotation: Default::default(),
+                    }),
+                    assignments: e
+                        .assignments
+                        .iter()
+                        .map(|a| EventAssignment {
+                            variable: a.target.clone(),
+                            expression: a
+                                .expr
+                                .as_ref()
+                                .map(|x| self.formula(x))
+                                .unwrap_or_default(),
+                            annotation: Default::default(),
+                        })
+                        .collect(),
+                    annotation: what(&e.name).unwrap_or_default(),
+                }
             })
             .collect();
 
@@ -1164,31 +1663,88 @@ impl Builder<'_> {
         let laws: Vec<Option<expr::Ast>> = module
             .reactions
             .iter()
-            .map(|r| r.kinetic_law.as_ref().and_then(|e| self.expanded(e)))
+            .map(|r| r.kinetic_law.as_ref().and_then(|e| self.real(e)))
             .collect();
 
         // A name in a rate law that is nothing else is a parameter, 0.
         for ast in laws.iter().flatten() {
             for name in expr::identifiers(ast) {
                 let known = species.iter().any(|s| s.id == name)
-                    || parameters
-                        .iter()
-                        .any(|p| p.variable.eq_ignore_ascii_case(name))
-                    || compartments.iter().any(|c| c.id.eq_ignore_ascii_case(name))
-                    || rules.iter().any(|r| r.variable == name);
+                    || module.reactions.iter().any(|r| r.name == name)
+                    || parameters.iter().any(|p| p.variable == name)
+                    || compartments.iter().any(|c| c.id == name)
+                    || rules.iter().any(|r| r.variable == name)
+                    || crate::sbml::math::is_constant_name(name);
                 if !known {
-                    parameters.push(Parameter {
-                        variable: name.to_owned(),
-                        expression: "0".to_owned(),
-                        annotation: Default::default(),
-                    });
+                    parameters.push(Parameter::new(name, Some(0.0)));
                 }
             }
         }
 
+        // What a rule or an event sets that is nothing else is a parameter,
+        // which it changes; so is one declared `var`, and a compartment.
+        let changed: Vec<String> = rules
+            .iter()
+            .map(|r| r.variable.clone())
+            .chain(rate_rules.iter().map(|r| r.variable.clone()))
+            .chain(
+                events
+                    .iter()
+                    .flat_map(|e| e.assignments.iter().map(|a| a.variable.clone())),
+            )
+            .collect();
+        for v in &changed {
+            let declared = species.iter().any(|s| s.id == *v)
+                || parameters.iter().any(|p| p.variable == *v)
+                || compartments.iter().any(|c| c.id == *v);
+            if !declared {
+                parameters.push(Parameter::new(v.clone(), None));
+            }
+        }
+        // A parameter declared with no value, `var k2;` (found by the Test
+        // Suite round trip): a parameter with none.
+        for s in &module.symbols {
+            let declared = s.kind == SymbolKind::Parameter
+                || (s.kind == SymbolKind::Unknown && !s.is_implicit);
+            let known = species.iter().any(|x| x.id == s.name)
+                || parameters.iter().any(|p| p.variable == s.name)
+                || compartments.iter().any(|c| c.id == s.name)
+                || crate::sbml::math::is_constant_name(&s.name);
+            if declared && !known {
+                parameters.push(Parameter::new(s.name.clone(), None));
+            }
+        }
+        let var = |name: &str| {
+            module
+                .symbol(name)
+                .is_some_and(|s| s.constness == antimony::model::Constness::Var)
+        };
+        let symbol_units = |name: &str| module.symbol(name).and_then(|s| s.units.clone());
+        for p in &mut parameters {
+            if changed.contains(&p.variable) || var(&p.variable) {
+                p.constant = false;
+            }
+            p.name = display_name_of(module, &p.variable);
+            p.units = symbol_units(&p.variable);
+        }
+        for c in &mut compartments {
+            if changed.contains(&c.id) || var(&c.id) {
+                c.sbml.constant = false;
+            }
+            c.sbml.units = symbol_units(&c.id);
+            c.sbml.size_unset = unset.contains(&c.id);
+        }
         model.compartments = compartments;
         model.parameters = parameters;
         model.assignment_rules = rules;
+        model.rate_rules = rate_rules;
+        model.algebraic_rules = algebraic_rules;
+        model.constraints = constraints;
+        model.events = events;
+        for (name, text) in parameter_texts {
+            model.set_parameter_text(&name, &text);
+        }
+        model.initial_assignments.extend(formulas);
 
         // One node per species, at random.
         let mut rng = Rng::new(opts.seed);
@@ -1204,6 +1760,11 @@ impl Builder<'_> {
             node.in_amounts = s.substance_only;
             node.initial_is_amount = s.substance_only;
             node.display_name = display_name_of(module, &s.id);
+            node.sbml.units = symbol_units(&s.id);
+            node.sbml.conversion_factor = module
+                .symbol(&s.id)
+                .and_then(|x| x.conversion_factor.clone());
+            node.sbml.initial_unset = unset.contains(&s.id);
             if model.push_species(node).is_err() {
                 // Unreachable: names were made unique above.
                 continue;
@@ -1265,9 +1826,6 @@ impl Builder<'_> {
         }
         for p in &mut model.parameters {
             p.annotation = annotation_of(module, &p.variable);
-        }
-        for r in &mut model.assignment_rules {
-            r.annotation = annotation_of(module, &r.variable);
         }
         model.annotation = annotation_from(module.sbo_term, &module.cv_terms, &module.notes, true);
         model.history = crate::model::History {
@@ -1383,9 +1941,9 @@ impl Builder<'_> {
             .iter()
             .map(|(s, n)| Participant::new(s.as_str(), *n))
             .collect();
-        if opts.convert_catalytic {
-            passes::catalytic_rewrite(&mut r);
-        }
+        // Not the catalytic rewrite, which would change the reactions the
+        // text says (S7).
+        let _ = opts;
         if let Some(ast) = &law {
             r.kinetic_law = expr::to_infix(ast);
             passes::modifiers_from_law(model, &mut r, ast);
@@ -1393,6 +1951,149 @@ impl Builder<'_> {
         passes::add_null_nodes(model, &mut r, None, None);
         model.push_reaction(r).expect("checked unique above");
     }
+}
+
+/// A formula as reading it from Antimony gives it: parsed, its whole numbers
+/// reals. As written if it doesn't parse.
+pub(crate) fn read_formula(text: &str) -> String {
+    match expr::parse(text.trim()) {
+        Ok(ast) => expr::to_infix(&reals(ast)),
+        Err(_) => text.trim().to_owned(),
+    }
+}
+
+/// `ast` with its whole numbers made reals (`2` → `2.0`): Antimony has no
+/// integers, and libAntimony writes every number into SBML as a real.
+fn reals(ast: expr::Ast) -> expr::Ast {
+    use expr::Ast;
+    match ast {
+        Ast::Number(text, span) if text.bytes().all(|b| b.is_ascii_digit()) => {
+            Ast::Number(format!("{text}.0"), span)
+        }
+        // Antimony's other spellings of infinity and NaN (found by the
+        // BioModels round trip): the model's.
+        Ast::Ident(name, span) if name == "INF" => Ast::Ident("inf".into(), span),
+        Ast::Ident(name, span) if name == "nan" => Ast::Ident("NaN".into(), span),
+        Ast::Unary(op, e, span) => Ast::Unary(op, Box::new(reals(*e)), span),
+        Ast::Binary(op, l, r, span) => {
+            Ast::Binary(op, Box::new(reals(*l)), Box::new(reals(*r)), span)
+        }
+        Ast::Call(f, args, span) => Ast::Call(f, args.into_iter().map(reals).collect(), span),
+        other => other,
+    }
+}
+
+/// SBML's base units, which a unit definition is made of.
+const BASE_UNITS: [&str; 36] = [
+    "ampere",
+    "avogadro",
+    "becquerel",
+    "candela",
+    "celsius",
+    "coulomb",
+    "dimensionless",
+    "farad",
+    "gram",
+    "gray",
+    "henry",
+    "hertz",
+    "item",
+    "joule",
+    "katal",
+    "kelvin",
+    "kilogram",
+    "liter",
+    "litre",
+    "lumen",
+    "lux",
+    "meter",
+    "metre",
+    "mole",
+    "newton",
+    "ohm",
+    "pascal",
+    "radian",
+    "second",
+    "siemens",
+    "sievert",
+    "steradian",
+    "tesla",
+    "volt",
+    "watt",
+    "weber",
+];
+
+/// A unit definition's text, `1e-3 mole / litre`, as SBML's units: base
+/// units, each with a multiplier from the number before it and an exponent
+/// (`metre^2`); those after `/` with their exponents negated. `None` for
+/// what isn't made of base units so.
+pub(crate) fn unit_factors(text: &str) -> Option<Vec<Unit>> {
+    let sides: Vec<&str> = text.trim().split('/').collect();
+    if sides.len() > 2 {
+        return None;
+    }
+    let mut out = Vec::new();
+    for (side, sign) in sides.iter().zip([1.0, -1.0]) {
+        let factors: Vec<&str> = side.split_whitespace().collect();
+        let mut multiplier = 1.0;
+        for (i, f) in factors.iter().enumerate() {
+            if let Ok(v) = f.parse::<f64>() {
+                if i == factors.len() - 1 {
+                    // `1 / second`: a lone 1 is nothing.
+                    if v == 1.0 && factors.len() == 1 && sign > 0.0 {
+                        continue;
+                    }
+                    return None;
+                }
+                multiplier = v;
+                continue;
+            }
+            let (kind, exponent) = match f.split_once('^') {
+                Some((k, e)) => (k, e.parse::<f64>().ok()?),
+                None => (*f, 1.0),
+            };
+            if !BASE_UNITS.contains(&kind) {
+                return None;
+            }
+            out.push(Unit {
+                kind: kind.to_owned(),
+                exponent: sign * exponent,
+                multiplier,
+                ..Unit::new(kind)
+            });
+            multiplier = 1.0;
+        }
+    }
+    Some(out)
+}
+
+/// A unit definition as Antimony's text: `60 second`, `1e-3 mole litre^-1`.
+/// The multipliers and scales together are one number, put on the first
+/// unit; the value is the same, as SBML reads it.
+pub(crate) fn unit_text(u: &UnitDefinition) -> String {
+    if u.units.is_empty() {
+        return "dimensionless".to_owned();
+    }
+    let factor: f64 = u
+        .units
+        .iter()
+        .map(|x| (x.multiplier * 10f64.powi(x.scale)).powf(x.exponent))
+        .product();
+    let mut parts: Vec<String> = Vec::new();
+    for (i, x) in u.units.iter().enumerate() {
+        let mut part = String::new();
+        if i == 0 && factor != 1.0 {
+            // On the first unit, inside its power: (m·kind)^e.
+            let m = factor.powf(1.0 / x.exponent);
+            let _ = write!(part, "{} ", crate::model::format_number(m));
+        }
+        part.push_str(&x.kind);
+        if x.exponent != 1.0 {
+            let _ = write!(part, "^{}", crate::model::format_number(x.exponent));
+        }
+        parts.push(part);
+    }
+    parts.join(" ")
 }
 
 /// The species, reaction, parameter or compartment ids that a model's text
@@ -1458,14 +2159,8 @@ mod tests {
         assert!(text.contains("J1: time__ -> time_; k*time__;"), "{text}");
     }
 
-    const ON: ImportOptions = ImportOptions {
-        convert_catalytic: true,
-        seed: 1,
-    };
-    const OFF: ImportOptions = ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    const ON: ImportOptions = ImportOptions { seed: 1 };
+    const OFF: ImportOptions = ImportOptions { seed: 1 };
 
     fn ok(src: &str, opts: &ImportOptions) -> Model {
         match import(src, opts) {
@@ -1593,7 +2288,7 @@ mod tests {
             0.0,
             "undeclared: 0"
         );
-        assert_eq!(m.find_parameter("k1").unwrap().expression, "0.1");
+        assert_eq!(m.parameter_text("k1"), "0.1");
         let r = reaction(&m, "R1");
         assert_eq!(r.kinetic_law, "k1*S1");
         assert_eq!(r.mode, ReactionMode::Straight);
@@ -1614,39 +2309,18 @@ mod tests {
         assert_eq!(ok("A -> B", &ON).model_name, "anonymous");
     }
 
+    /// The catalytic rewrite would change the reactions the text says, so
+    /// reading Antimony never does it (S7), whatever the option says.
     #[test]
-    fn catalytic_conversion_on_and_off() {
-        // M8 acceptance: A -> A + B; k*A.
-        let m = ok("R1: A -> A + B; k*A", &ON);
-        let (r, p, mods) = sides(&m, "R1");
-        assert_eq!(r, [("_source_R1".to_owned(), 1.0)]);
-        assert_eq!(p, [("B".to_owned(), 1.0)]);
-        assert_eq!(mods, ["A"]);
-        assert!(m.find_species("_source_R1").unwrap().is_null_node);
-
-        // Without a rate law, A is still the catalyst: a modifier.
-        let m = ok("R1: A -> A + B", &ON);
-        assert_eq!(sides(&m, "R1").2, ["A"]);
-
-        let m = ok("R1: A -> A + B; k*A", &OFF);
-        let (r, p, mods) = sides(&m, "R1");
-        assert_eq!(r, [("A".to_owned(), 1.0)]);
-        assert_eq!(p, [("A".to_owned(), 1.0), ("B".to_owned(), 1.0)]);
-        assert!(mods.is_empty());
-    }
-
-    #[test]
-    fn conversion_needs_equal_stoichiometry() {
-        let m = ok("R1: A -> 2 A + B; k*A", &ON);
-        let (r, _, _) = sides(&m, "R1");
-        assert_eq!(r, [("A".to_owned(), 1.0)]);
-        // `S4 + S4 -> S2 + S2` keeps everything; `S3 + S4 -> S4` loses S4.
-        let m = ok("R1: S4 + S4 -> S2 + S2; k\nR2: S3 + S4 -> S4; k*S3*S4", &ON);
-        assert_eq!(reaction(&m, "R1").reactants.len(), 2);
-        let (r, p, mods) = sides(&m, "R2");
-        assert_eq!(r, [("S3".to_owned(), 1.0)]);
-        assert_eq!(p, [("_sink_R2".to_owned(), 1.0)]);
-        assert_eq!(mods, ["S4"]);
+    fn the_catalytic_rewrite_is_never_applied() {
+        for opts in [&ON, &OFF] {
+            let m = ok("R1: A -> A + B; k*A\nR2: S3 + S4 -> S4; k*S3*S4", opts);
+            let (r, p, mods) = sides(&m, "R1");
+            assert_eq!(r, [("A".to_owned(), 1.0)]);
+            assert_eq!(p, [("A".to_owned(), 1.0), ("B".to_owned(), 1.0)]);
+            assert!(mods.is_empty());
+            assert_eq!(reaction(&m, "R2").products[0].species, "S4");
+        }
     }
 
     #[test]
@@ -1660,18 +2334,26 @@ mod tests {
         assert_eq!(reaction(&m, "R2").products[0].species, "_sink_R2");
     }
 
+    /// Names are case-sensitive, as in Antimony and SBML.
     #[test]
-    fn names_in_another_case_resolve_to_the_declared_spelling() {
-        let m = ok("species Glucose\nR1: glucose -> G6P; k*Glucose", &ON);
-        assert_eq!(ids(&m), ["Glucose", "G6P"]);
-        assert_eq!(reaction(&m, "R1").reactants[0].species, "Glucose");
+    fn names_in_another_case_are_other_names() {
+        let m = ok(
+            "species Glucose
+R1: glucose -> G6P; k*Glucose
+a = 1
+species A",
+            &ON,
+        );
+        assert_eq!(ids(&m)[..3], ["Glucose", "glucose", "G6P"]);
+        assert_eq!(reaction(&m, "R1").reactants[0].species, "glucose");
+        assert_eq!(m.parameter_text("a"), "1");
     }
 
     #[test]
     fn implied_parameters_and_modifiers() {
         let m = ok("R1: S -> P; Vm*S/(Km + S)*E\nspecies E\nKm = 0.5", &ON);
-        assert_eq!(m.find_parameter("Vm").unwrap().expression, "0");
-        assert_eq!(m.find_parameter("Km").unwrap().expression, "0.5");
+        assert_eq!(m.parameter_text("Vm"), "0");
+        assert_eq!(m.parameter_text("Km"), "0.5");
         assert!(m.find_parameter("E").is_none(), "E is a species");
         assert_eq!(sides(&m, "R1").2, ["E"]);
         assert_eq!(reaction(&m, "R1").kinetic_law, "Vm*S/(Km + S)*E");
@@ -1686,8 +2368,9 @@ mod tests {
         assert_eq!(m.find_compartment("cell").unwrap().size, 2.0);
         let a = m.find_species("A").unwrap();
         assert_eq!((a.initial_value, a.compartment.as_str()), (1.5, "cell"));
-        assert_eq!(m.find_parameter("k").unwrap().expression, "2*3");
-        assert_eq!(m.assignment_rules[0].expression, "A + 1");
+        // Antimony has no integers: whole numbers are reals.
+        assert_eq!(m.parameter_text("k"), "2.0*3.0");
+        assert_eq!(m.assignment_rules[0].expression, "A + 1.0");
         let b = m.find_species("B").unwrap();
         assert!(b.is_boundary && b.initial_value == 4.0);
     }
@@ -1708,10 +2391,6 @@ mod tests {
         let e = import("R1: A -> B; k*(A +\n", &ON).unwrap_err();
         assert_eq!(e[0].line, 1);
         assert!(e[0].column > 12);
-        // A species' value must be a number.
-        let e = import("species A\nA = k*2", &ON).unwrap_err();
-        assert!(e[0].message.contains("must be a number"));
-        assert_eq!((e[0].line, e[0].column), (2, 5));
         // Two reactions with one id.
         let e = import("R1: A -> B\nR1: B -> C", &ON).unwrap_err();
         assert_eq!(e[0].line, 2);
@@ -1724,16 +2403,21 @@ mod tests {
         assert_eq!(i.model.reactions().len(), 1);
     }
 
+    /// What PathwayDesigner can't hold is skipped with a warning: another
+    /// model in the file, and objectives. Functions, units, events and names
+    /// are kept (S1).
     #[test]
-    fn what_the_diagram_cant_hold_is_skipped_with_a_warning() {
+    fn what_cant_be_held_is_skipped_with_a_warning() {
         let i = import(
-            "function f(x)\n  x^2\nend\nunit mM = 1e-3 mole/litre\nE1: at (time > 5): S1 = 3\nS1 is \"glucose\"\nA -> B; k",
+            "function f(x)\n  x^2\nend\nunit mM = 1e-3 mole/litre\nE1: at (time > 5): S1 = 3\nS1 is \"glucose\"\nA -> B; k\nmaximize k",
             &ON,
         )
         .unwrap();
         let lines: Vec<usize> = i.warnings.iter().map(|w| w.line).collect();
-        assert_eq!(lines, [1, 4, 5, 6], "{:?}", i.warnings);
-        assert_eq!(i.model.reactions().len(), 1);
+        assert_eq!(lines, [8], "{:?}", i.warnings);
+        assert_eq!(i.model.function_definitions.len(), 1);
+        assert_eq!(i.model.unit_definitions[0].units.len(), 2);
+        assert_eq!(i.model.events[0].trigger.expression, "time > 5.0");
     }
 
     /// D1 of docs/display-names-design.md: `x is "…"` on a species,
@@ -1812,12 +2496,36 @@ J1 is \"uptake\"",
         );
     }
 
+    /// libAntimony writes infinity as `INF` (Test Suite case 00950).
     #[test]
-    fn a_parameters_name_is_skipped_with_a_warning() {
+    fn antimonys_spellings_of_infinity_are_infinity() {
+        let i = import(
+            "x := -INF + 1
+y = INF
+z = nan",
+            &ON,
+        )
+        .unwrap();
+        assert_eq!(i.model.assignment_rules[0].expression, "-inf + 1.0");
+        let value = |v: &str| {
+            i.model
+                .parameters
+                .iter()
+                .find(|p| p.variable == v)
+                .unwrap()
+                .value
+        };
+        assert_eq!(value("y"), Some(f64::INFINITY));
+        assert!(value("z").unwrap().is_nan());
+        assert!(!i.model.parameters.iter().any(|p| p.variable == "INF"));
+    }
+
+    #[test]
+    fn a_parameters_name_is_kept() {
         let i = import("A -> B; k*A\nk = 1\nk is \"rate constant\"", &ON).unwrap();
-        assert_eq!(i.warnings.len(), 1, "{:?}", i.warnings);
-        // At the symbol, as for its notes: where `k` is first given.
-        assert_eq!(i.warnings[0].line, 2);
+        assert!(i.warnings.is_empty(), "{:?}", i.warnings);
+        assert_eq!(i.model.parameters[0].name.as_deref(), Some("rate constant"));
+        assert!(export(&i.model).contains("k is \"rate constant\";"));
     }
 
     /// docs/annotations-design.md, step 3: SBO terms, references, notes and
@@ -1850,7 +2558,8 @@ J1 is \"uptake\"",
                 Some(290)
             );
             assert_eq!(m.find_parameter("k").unwrap().annotation.sbo, Some(35));
-            assert_eq!(m.assignment_rules[0].annotation.sbo, Some(186));
+            // The variable's, not the rule's.
+            assert_eq!(m.find_parameter("kr").unwrap().annotation.sbo, Some(186));
             assert_eq!(m.annotation.sbo, Some(4));
             assert_eq!(
                 m.annotation.references[0].qualifier,
@@ -1911,7 +2620,7 @@ J1 is \"uptake\"",
     #[test]
     fn const_is_read_through() {
         let m = ok("const k1 = 0.5\nconst species S = 2", &ON);
-        assert_eq!(m.find_parameter("k1").unwrap().expression, "0.5");
+        assert_eq!(m.parameter_text("k1"), "0.5");
         assert_eq!(m.find_species("S").unwrap().initial_value, 2.0);
     }
 
@@ -2031,19 +2740,22 @@ A = 1",
 
     #[test]
     fn any_antimony_file_imports() {
-        // Events and annotations are skipped, functions expanded; the rest
-        // is drawn.
+        // Functions and events are kept; the rest is drawn.
         let m = ok(
             "model *m()\n  function mm(s, v, k)\n    v*s/(k + s)\n  end\n  compartment c = 1;\n  species S in c, P in c;\n  J1: S => P; mm(S, Vm, Km);\n  S = 10; P = 0; Vm = 1; Km = 0.5;\n  E1: at time > 5: S = 10;\n  S is \"substrate\";\nend",
             &ON,
         );
         assert_eq!(ids(&m), ["S", "P"]);
         assert_eq!(m.find_species("S").unwrap().initial_value, 10.0);
-        assert_eq!(reaction(&m, "J1").kinetic_law, "Vm*S/(Km + S)");
+        assert_eq!(reaction(&m, "J1").kinetic_law, "mm(S, Vm, Km)");
+        assert_eq!(m.function_definitions[0].body, "v*s/(k + s)");
+        assert_eq!(m.events[0].assignments[0].expression, "10.0");
     }
 
+    /// Functions are kept as written, and what calls them calls them (F1);
+    /// written back, read again the same.
     #[test]
-    fn functions_are_written_into_what_calls_them() {
+    fn functions_are_kept() {
         let src = "function sq(x)
   x*x
 end
@@ -2053,32 +2765,25 @@ end
 J1: S -> P; E*hill(S, K);
 J2: P -> ; k2*P;
 T := sq(S) + P;
-U := k2 * P;
 V = sq(2);
 K = 1; k2 = 0.1; E = 1";
         let i = import(src, &ON).unwrap();
+        assert!(i.warnings.is_empty(), "{:?}", i.warnings);
         let m = &i.model;
-        assert_eq!(reaction(m, "J1").kinetic_law, "E*(S*S/(K*K + S*S))");
-        // A law, rule or value that calls nothing is kept as written.
-        assert_eq!(reaction(m, "J2").kinetic_law, "k2*P");
-        assert_eq!(m.assignment_rules[0].expression, "S*S + P");
-        assert_eq!(m.assignment_rules[1].expression, "k2 * P");
-        assert_eq!(m.find_parameter("V").unwrap().expression, "2*2");
-        assert_eq!(m.find_parameter("K").unwrap().expression, "1");
-        let notes: Vec<_> = i
-            .warnings
-            .iter()
-            .map(|d| (d.line, d.message.as_str()))
-            .collect();
-        assert_eq!(
-            notes,
-            [(
-                1,
-                "2 functions were written into the rate laws that use them"
-            )]
+        assert_eq!(m.function_definitions.len(), 2);
+        assert_eq!(m.function_definitions[1].arguments, ["s", "k"]);
+        assert_eq!(m.function_definitions[1].body, "sq(s)/(sq(k) + sq(s))");
+        assert_eq!(reaction(m, "J1").kinetic_law, "E*hill(S, K)");
+        assert_eq!(m.assignment_rules[0].expression, "sq(S) + P");
+        assert_eq!(m.parameter_text("V"), "sq(2.0)");
+        let text = export(m);
+        assert!(
+            text.contains("  function hill(s, k)\n    sq(s)/(sq(k) + sq(s))\n  end\n"),
+            "{text}"
         );
-        // Exported, the model calls no function.
-        assert!(!export(m).contains("hill") && !export(m).contains("sq("));
+        let back = ok(&text, &ON);
+        assert_eq!(back.function_definitions, m.function_definitions);
+        assert_eq!(reaction(&back, "J1").kinetic_law, "E*hill(S, K)");
 
         // The wrong number of arguments is an error where the call is (the
         // antimony crate finds it before the bridge would).
@@ -2159,7 +2864,7 @@ end
         let mut params: Vec<_> = m
             .parameters
             .iter()
-            .map(|p| format!("{}={}", p.variable, p.expression))
+            .map(|p| format!("{}={}", p.variable, m.parameter_text(&p.variable)))
             .collect();
         params.sort();
         out + &params.join(",")

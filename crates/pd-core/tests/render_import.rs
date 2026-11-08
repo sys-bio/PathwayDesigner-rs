@@ -27,14 +27,7 @@ fn without_notes(xml: &str) -> String {
 fn round_trip(model: &Model, notes: bool) -> Model {
     let xml = pd_core::sbml::export(model).xml;
     let xml = if notes { xml } else { without_notes(&xml) };
-    let imported = pd_core::sbml::import(
-        &xml,
-        &ImportOptions {
-            convert_catalytic: true,
-            seed: 7,
-        },
-    )
-    .unwrap();
+    let imported = pd_core::sbml::import(&xml, &ImportOptions { seed: 7 }).unwrap();
     imported.model
 }
 

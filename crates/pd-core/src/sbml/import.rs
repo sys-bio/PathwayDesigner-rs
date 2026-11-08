@@ -12,8 +12,11 @@ use crate::expr::{self, Ast};
 use crate::geometry::{Pt, pt};
 use crate::layout::Rng;
 use crate::model::{
-    AssignmentRule, Compartment, DEFAULT_COMPARTMENT, Model, ModifierKind, Parameter, Participant,
-    Reaction, ReactionMode, SpeciesNode, is_valid_sid,
+    AlgebraicRule, AssignmentRule, Compartment, CompartmentSbml, Constraint, DEFAULT_COMPARTMENT,
+    Event, EventAssignment, EventFormula, FunctionDefinition, History, InitialAssignment,
+    LocalParameter, Model, ModelUnits, ModifierKind, PackageAttribute, PackageData, Parameter,
+    Participant, RateRule, Reaction, ReactionMode, SpeciesNode, SpeciesReference, SpeciesSbml,
+    Trigger, Unit, UnitDefinition, is_valid_sid,
 };
 use crate::passes::{self, NullPlace};
 
@@ -35,35 +38,99 @@ fn uses_id(m: &sb::Model, id: &str) -> bool {
         })
 }
 
-/// The value `name` has at the start, for working out an initial
-/// assignment: a parameter's (its number, or its expression worked out), a
-/// species' initial value, a compartment's size, or an assignment rule's
-/// value. `None` for one that is itself still to be assigned, or unknown.
-fn start_value(model: &Model, name: &str, assigned: &[&str]) -> Option<f64> {
-    fn value(model: &Model, name: &str, assigned: &[&str], depth: usize) -> Option<f64> {
-        if depth > 20 || assigned.contains(&name) {
+/// The value `name` has at the start, for showing a starting value that
+/// only a formula gives: its initial assignment worked out, else a rule's
+/// value, a parameter's value, a species' initial value or a compartment's
+/// size. `None` when it can't be worked out.
+fn start_value(
+    model: &Model,
+    functions: &HashMap<String, expr::FunctionDef>,
+    name: &str,
+) -> Option<f64> {
+    fn value(
+        model: &Model,
+        functions: &HashMap<String, expr::FunctionDef>,
+        name: &str,
+        depth: usize,
+    ) -> Option<f64> {
+        if depth > 20 {
             return None;
         }
         let ev = |text: &str| {
             let ast = expr::parse(text).ok()?;
-            expr::evaluate(&ast, &|n: &str| value(model, n, assigned, depth + 1))
+            let ast = expr::expand_functions(&ast, functions).ok()?;
+            expr::evaluate(&ast, &|n: &str| value(model, functions, n, depth + 1))
         };
+        if let Some(a) = model.initial_assignment(name) {
+            return ev(&a.expression);
+        }
         if let Some(r) = model.assignment_rules.iter().find(|r| r.variable == name) {
             return ev(&r.expression);
         }
         if let Some(p) = model.parameters.iter().find(|p| p.variable == name) {
-            return p.expression.parse().ok().or_else(|| ev(&p.expression));
+            return p.value;
         }
         if let Some(s) = model.find_species(name) {
-            return Some(s.initial_value);
+            return (!s.sbml.initial_unset).then_some(s.initial_value);
         }
-        model
-            .compartments
-            .iter()
-            .find(|c| c.id == name)
-            .map(|c| c.size)
+        if let Some(c) = model.compartments.iter().find(|c| c.id == name) {
+            return (!c.sbml.size_unset).then_some(c.size);
+        }
+        match name {
+            "pi" => Some(std::f64::consts::PI),
+            "exponentiale" => Some(std::f64::consts::E),
+            "true" => Some(1.0),
+            "false" => Some(0.0),
+            "avogadro" => Some(6.02214179e23),
+            _ => None,
+        }
     }
-    value(model, name, assigned, 0)
+    value(model, functions, name, 0)
+}
+
+/// A species or compartment given its starting value only by a formula
+/// shows the value the formula gives, worked out here; the file's own
+/// (absent) value is still what is written back.
+pub(crate) fn show_start_values(model: &mut Model, functions: &HashMap<String, expr::FunctionDef>) {
+    let targets: Vec<String> = model
+        .initial_assignments
+        .iter()
+        .map(|a| a.symbol.clone())
+        .collect();
+    for symbol in targets {
+        let Some(v) = start_value(model, functions, &symbol) else {
+            continue;
+        };
+        if let Some(s) = model.find_species_mut(&symbol)
+            && s.sbml.initial_unset
+        {
+            s.initial_value = v;
+            s.initial_is_amount = s.in_amounts;
+        } else if let Some(c) = model.compartments.iter_mut().find(|c| c.id == symbol)
+            && c.sbml.size_unset
+        {
+            c.size = v;
+        }
+    }
+}
+
+/// [`show_start_values`] with the model's own functions.
+pub(crate) fn show_start_values_of(model: &mut Model) {
+    let functions: HashMap<String, expr::FunctionDef> = model
+        .function_definitions
+        .iter()
+        .filter_map(|f| {
+            let body = expr::parse(&f.body).ok()?;
+            Some((
+                f.id.clone(),
+                expr::FunctionDef {
+                    params: f.arguments.clone(),
+                    body,
+                },
+            ))
+        })
+        .collect();
+    show_start_values(model, &functions);
 }
 
 /// A successful import.
@@ -96,11 +163,34 @@ pub fn import(xml: &str, opts: &ImportOptions) -> Result<Imported, Vec<sb::Diagn
         model: Model::new(),
         rng: Rng::new(opts.seed),
         functions: HashMap::new(),
-        broken_functions: HashMap::new(),
         targets: Vec::new(),
-        avogadro_free: !uses_id(m, "avogadro"),
+        taken: [
+            "avogadro",
+            "pi",
+            "exponentiale",
+            "true",
+            "false",
+            "inf",
+            "NaN",
+        ]
+        .into_iter()
+        .filter(|n| uses_id(m, n))
+        .map(str::to_owned)
+        .collect(),
         namespaces: read.document.namespaces.clone(),
+        generated: 0,
+        inline: HashSet::new(),
     };
+    // What other packages put on the document, and their namespaces.
+    b.model.sbml_document = package(&read.document.meta.extra, &read.document.namespaces);
+    b.model.sbml_version = (read.document.level == 3).then_some(read.document.version);
+    b.model.sbml_namespaces = read
+        .document
+        .namespaces
+        .iter()
+        .filter(|(_, uri)| !is_core_namespace(uri))
+        .cloned()
+        .collect();
     let (had_layout, unplaced) = b.build(m, opts);
     // Labelled by name when there are names (or label text) to show: SBML
     // can't say which the diagram shows, and ids such as Reactome's
@@ -130,16 +220,18 @@ struct Builder {
     warnings: Vec<String>,
     model: Model,
     rng: Rng,
-    /// The model's function definitions, written into the expressions that
-    /// call them (S §11.2, §11.5).
+    /// The model's function definitions, to work out starting values with.
     functions: HashMap<String, expr::FunctionDef>,
-    /// Function definitions that couldn't be read, and why.
-    broken_functions: HashMap<String, String>,
     /// Each glyph and what it draws, for its look from Render.
     targets: Vec<(String, Target)>,
-    /// No id in the model is `avogadro`, so the name can stand for SBML's
-    /// constant.
-    avogadro_free: bool,
+    /// The names of SBML's constants (`avogadro`, `pi`, …) that the model
+    /// uses for items of its own, which in formulas mean those items.
+    taken: HashSet<String>,
+    /// The next number for an id libSBML's way, `generatedId_0`.
+    generated: usize,
+    /// Functions written into the formulas that call them, as they can't
+    /// be Level 3 functions.
+    inline: HashSet<String>,
     /// Those declared on `<sbml>`, which an annotation may use.
     namespaces: Vec<(Option<String>, String)>,
 }
@@ -181,6 +273,9 @@ impl Builder {
             notes: meta.notes.clone().filter(|n| !n.trim().is_empty()),
             other: kept_others(self.miriam(meta).other).0,
             metaid: meta.metaid.clone(),
+            history: history(self.miriam(meta).history),
+            package: package(&meta.extra, &self.namespaces),
+            rdf: self.miriam(meta).descriptions,
         }
     }
 
@@ -199,13 +294,34 @@ impl Builder {
         rename: &HashMap<String, String>,
         what: &str,
     ) -> Option<Ast> {
-        let expanded = from_math_with(math?, rename, self.avogadro_free).and_then(|ast| {
-            if let Some((f, why)) = first_call(&ast, &self.broken_functions) {
-                return Err(format!("the function {f}, which {why}"));
+        self.expression_with(math, rename, what, &[])
+    }
+
+    /// [`Self::expression`], with `own` names that mean themselves, not
+    /// SBML's constants: a function's arguments.
+    fn expression_with(
+        &mut self,
+        math: Option<&sb::Math>,
+        rename: &HashMap<String, String>,
+        what: &str,
+        own: &[String],
+    ) -> Option<Ast> {
+        let taken = |n: &str| self.taken.contains(n) || own.iter().any(|a| a == n);
+        // Calls of functions that can't be Level 3 ones, written in.
+        let inline: HashMap<String, expr::FunctionDef> = self
+            .functions
+            .iter()
+            .filter(|(id, _)| self.inline.contains(*id))
+            .map(|(id, f)| (id.clone(), f.clone()))
+            .collect();
+        let read = from_math_with(math?, rename, &taken).and_then(|ast| {
+            if inline.is_empty() {
+                Ok(ast)
+            } else {
+                expr::expand_functions(&ast, &inline)
             }
-            expr::expand_functions(&ast, &self.functions)
         });
-        match expanded {
+        match read {
             Ok(ast) => Some(ast),
             Err(why) => {
                 self.warn(format!("{what} was left out: it uses {why}"));
@@ -214,28 +330,68 @@ impl Builder {
         }
     }
 
-    /// Reads the function definitions, so that expressions can use them.
+    /// A formula as infix text: empty for none, `None` (with a warning) for
+    /// MathML that can't be read, which leaves out what it belongs to.
+    fn formula(&mut self, math: Option<&sb::Math>, what: &str) -> Option<String> {
+        match math {
+            None => Some(String::new()),
+            Some(math) => self
+                .expression(Some(math), &HashMap::new(), what)
+                .map(|ast| expr::to_infix(&ast)),
+        }
+    }
+
+    /// The function definitions, as written (F1), and to work out starting
+    /// values with.
+    ///
+    /// A function that uses the time, or a name that isn't one of its
+    /// arguments, as Level 2 Version 1 allowed, can't be one in Level 3: it is
+    /// written into the formulas that call it, which means the same, with a
+    /// warning.
     fn read_functions(&mut self, m: &sb::Model) {
         for f in &m.function_definitions {
-            let def = match &f.math {
+            let (arguments, body) = match &f.math {
                 Some(sb::Math::Lambda { args, body }) => {
-                    from_math_with(body, &HashMap::new(), self.avogadro_free)
-                        .map(|body| expr::FunctionDef {
-                            params: args.clone(),
-                            body,
-                        })
-                        .map_err(|why| format!("uses {why}"))
+                    let what = format!("The function {}", f.id);
+                    match self.expression_with(Some(body), &HashMap::new(), &what, args) {
+                        Some(ast) => {
+                            self.functions.insert(
+                                f.id.clone(),
+                                expr::FunctionDef {
+                                    params: args.clone(),
+                                    body: ast.clone(),
+                                },
+                            );
+                            // (An argument may be called `time`.)
+                            let outside = expr::identifiers(&ast).into_iter().any(|n| {
+                                !args.iter().any(|a| a == n)
+                                    && (n == "time" || !super::math::is_constant_name(n))
+                            });
+                            if outside {
+                                self.inline.insert(f.id.clone());
+                                self.warn(format!(
+                                    "The function {} uses the time or a name that isn't one of its \
+                                     arguments, which Level 3 doesn't allow in a function, so it was \
+                                     written into the formulas that call it",
+                                    f.id
+                                ));
+                                continue;
+                            }
+                            (args.clone(), expr::to_infix(&ast))
+                        }
+                        None => continue,
+                    }
                 }
-                _ => Err("has no lambda".to_owned()),
+                _ => (Vec::new(), String::new()),
             };
-            match def {
-                Ok(def) => {
-                    self.functions.insert(f.id.clone(), def);
-                }
-                Err(why) => {
-                    self.broken_functions.insert(f.id.clone(), why);
-                }
-            }
+            let annotation = self.annotation(&f.meta);
+            self.model.function_definitions.push(FunctionDefinition {
+                id: f.id.clone(),
+                name: crate::model::display_name(f.name.clone()),
+                arguments,
+                body,
+                annotation,
+            });
         }
     }
 
@@ -243,37 +399,64 @@ impl Builder {
         self.report_unsupported(m);
         self.read_functions(m);
         self.model.model_name = m.name.clone().or_else(|| m.id.clone()).unwrap_or_default();
-        self.model.annotation = self.annotation(&m.meta);
-        let h = self.miriam(&m.meta).history;
-        self.model.history = crate::model::History {
-            creators: h
-                .creators
-                .into_iter()
-                .map(|c| crate::model::Creator {
-                    family: c.family,
-                    given: c.given,
-                    email: c.email,
-                    organization: c.organization,
-                })
-                .collect(),
-            created: h.created,
-            modified: h.modified,
+        self.model.model_id = m.id.clone();
+        self.model.model_id_unset = m.id.is_none();
+        self.model.model_name_unset = m.name.is_none();
+        self.model.units = ModelUnits {
+            substance: m.substance_units.clone(),
+            time: m.time_units.clone(),
+            volume: m.volume_units.clone(),
+            area: m.area_units.clone(),
+            length: m.length_units.clone(),
+            extent: m.extent_units.clone(),
         };
-        let none = HashMap::new();
+        self.model.conversion_factor = m.conversion_factor.clone();
+        self.model.annotation = self.annotation(&m.meta);
+        // The model's history is its own field.
+        self.model.history = std::mem::take(&mut self.model.annotation.history);
 
-        // Compartments. The default one is implied, unless it was changed.
+        for u in &m.unit_definitions {
+            let units = u
+                .units
+                .iter()
+                .map(|x| Unit {
+                    kind: x.kind.clone(),
+                    exponent: x.exponent.unwrap_or(1.0),
+                    scale: x.scale.unwrap_or(0),
+                    multiplier: x.multiplier.unwrap_or(1.0),
+                    annotation: self.annotation(&x.meta),
+                })
+                .collect();
+            let annotation = self.annotation(&u.meta);
+            self.model.unit_definitions.push(UnitDefinition {
+                id: u.id.clone(),
+                name: crate::model::display_name(u.name.clone()),
+                units,
+                annotation,
+            });
+        }
+
+        // Compartments, as written. Level 2 gives a missing number of
+        // dimensions as 3.
         for c in &m.compartments {
-            let comp = Compartment {
+            let mut comp = Compartment {
                 size: c.size.unwrap_or(1.0),
-                dimensions: c.spatial_dimensions.map_or(3, |d| d as u32),
+                dimensions: c.spatial_dimensions.unwrap_or(3.0),
                 display_name: crate::model::display_name(c.name.clone()),
                 annotation: self.annotation(&c.meta),
                 ..Compartment::new(c.id.clone())
             };
-            let implied = c.id == DEFAULT_COMPARTMENT && comp.size == 1.0 && comp.dimensions == 3;
-            if !implied {
-                self.model.compartments.push(comp);
-            }
+            comp.sbml = CompartmentSbml {
+                units: c.units.clone(),
+                constant: c.constant.unwrap_or(true),
+                size_unset: c.size.is_none(),
+                dimensions_unset: c.spatial_dimensions.is_none() && self.level >= 3,
+            };
+            self.model.compartments.push(comp);
+        }
+
+        if self.level < 3 {
+            self.level_2_units(m);
         }
 
         // Species: the initial concentration, or amount, as given; whether
@@ -294,6 +477,15 @@ impl Builder {
             node.is_constant = s.constant.unwrap_or(false);
             node.display_name = crate::model::display_name(s.name.clone());
             node.annotation = self.annotation(&s.meta);
+            node.sbml = SpeciesSbml {
+                // Level 2's default, as for the model's units (below).
+                units: s
+                    .substance_units
+                    .clone()
+                    .or_else(|| (self.level < 3).then(|| "substance".to_owned())),
+                conversion_factor: s.conversion_factor.clone(),
+                initial_unset: s.initial_concentration.is_none() && s.initial_amount.is_none(),
+            };
             if s.compartment != DEFAULT_COMPARTMENT {
                 node.compartment = s.compartment.clone();
             }
@@ -305,151 +497,103 @@ impl Builder {
             }
         }
 
-        // Parameters. One set by an assignment rule is the rule's variable.
-        let rule_vars: HashSet<&str> = m
-            .rules
-            .iter()
-            .filter(|r| matches!(r, sb::Rule::Assignment { .. }))
-            .filter_map(sb::Rule::variable)
-            .collect();
+        // Parameters, those rules set among them.
         for p in &m.parameters {
-            if !rule_vars.contains(p.id.as_str()) {
-                let annotation = self.annotation(&p.meta);
-                self.model.parameters.push(Parameter {
-                    variable: p.id.clone(),
-                    expression: sb::fmt_f64(p.value.unwrap_or(0.0)),
-                    annotation,
-                });
-            }
+            let mut parameter = Parameter::new(p.id.clone(), p.value);
+            parameter.name = crate::model::display_name(p.name.clone());
+            parameter.units = p.units.clone();
+            parameter.constant = p.constant.unwrap_or(true);
+            parameter.annotation = self.annotation(&p.meta);
+            self.model.parameters.push(parameter);
         }
-        // Assignment rules first: an initial assignment may use the value
-        // one gives (found by the SBML Test Suite round trip).
+
+        // Rules, each with its own annotation.
         for r in &m.rules {
-            if let sb::Rule::Assignment { variable, math, .. } = r {
-                let what = format!("The rule for {variable}");
-                if let Some(ast) = self.expression(math.as_ref(), &none, &what) {
-                    // The parameter it sets, which is kept as the rule.
-                    let annotation = m
-                        .parameters
-                        .iter()
-                        .find(|p| p.id == *variable)
-                        .map(|p| self.annotation(&p.meta))
-                        .unwrap_or_default();
-                    self.model.assignment_rules.push(AssignmentRule {
-                        variable: variable.clone(),
-                        expression: expr::to_infix(&ast),
-                        annotation,
-                    });
-                } else if let Some(p) = m.parameters.iter().find(|p| p.id == *variable) {
-                    // A rule with no maths, or maths that can't be read, is
-                    // left out; the parameter it would set stays, with its
-                    // value (found by the SBML Test Suite round trip, where
-                    // it vanished with the rule).
-                    let annotation = self.annotation(&p.meta);
-                    self.model.parameters.push(Parameter {
-                        variable: p.id.clone(),
-                        expression: sb::fmt_f64(p.value.unwrap_or(0.0)),
-                        annotation,
-                    });
+            let annotation = self.annotation(r.meta());
+            match r {
+                sb::Rule::Assignment { variable, math, .. } => {
+                    let what = format!("The rule for {variable}");
+                    if let Some(expression) = self.formula(math.as_ref(), &what) {
+                        self.model.assignment_rules.push(AssignmentRule {
+                            variable: variable.clone(),
+                            expression,
+                            annotation,
+                        });
+                    }
+                }
+                sb::Rule::Rate { variable, math, .. } => {
+                    let what = format!("The rate rule for {variable}");
+                    if let Some(expression) = self.formula(math.as_ref(), &what) {
+                        self.model.rate_rules.push(RateRule {
+                            variable: variable.clone(),
+                            expression,
+                            annotation,
+                        });
+                    }
+                }
+                sb::Rule::Algebraic { math, .. } => {
+                    if let Some(expression) = self.formula(math.as_ref(), "An algebraic rule") {
+                        self.model.algebraic_rules.push(AlgebraicRule {
+                            expression,
+                            annotation,
+                        });
+                    }
                 }
             }
         }
 
-        // Initial assignments: a parameter keeps its expression; a species
-        // or compartment, which holds only a number, gets the expression's
-        // value at the start, worked out from the other values then (found
-        // by the BioModels round trip: these were left out). Those that use
-        // another's assigned value are worked out after it.
-        let mut pending: Vec<(&sb::InitialAssignment, expr::Ast)> = Vec::new();
+        // Initial assignments, kept as formulas (F3).
         for ia in &m.initial_assignments {
             let what = format!("The initial assignment to {}", ia.symbol);
-            if let Some(ast) = self.expression(ia.math.as_ref(), &none, &what) {
-                pending.push((ia, ast));
+            if let Some(expression) = self.formula(ia.math.as_ref(), &what) {
+                let annotation = self.annotation(&ia.meta);
+                self.model.initial_assignments.push(InitialAssignment {
+                    symbol: ia.symbol.clone(),
+                    expression,
+                    annotation,
+                });
             }
         }
-        // Parameters first, as expressions, as before.
-        pending.retain(|(ia, ast)| {
-            match self
-                .model
-                .parameters
-                .iter_mut()
-                .find(|p| p.variable == ia.symbol)
-            {
-                Some(p) => {
-                    p.expression = expr::to_infix(ast);
-                    false
-                }
-                None => true,
-            }
-        });
-        loop {
-            let before = pending.len();
-            let mut i = 0;
-            while i < pending.len() {
-                let value = {
-                    let model = &self.model;
-                    let assigned: Vec<&str> =
-                        pending.iter().map(|(ia, _)| ia.symbol.as_str()).collect();
-                    expr::evaluate(&pending[i].1, &|name: &str| {
-                        start_value(model, name, &assigned)
-                    })
-                };
-                let symbol = pending[i].0.symbol.clone();
-                let set = match value {
-                    Some(v) => {
-                        if let Some(s) = self.model.find_species_mut(&symbol) {
-                            // In the species' own units: an amount if it is
-                            // in amounts, else a concentration, whatever it
-                            // was given before (found by the SBML Test Suite).
-                            s.initial_value = v;
-                            s.initial_is_amount = s.in_amounts;
-                            true
-                        } else if let Some(c) =
-                            self.model.compartments.iter_mut().find(|c| c.id == symbol)
-                        {
-                            c.size = v;
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    None => false,
-                };
-                if set {
-                    pending.remove(i);
-                } else {
-                    i += 1;
-                }
-            }
-            if pending.len() == before {
-                break;
+        show_start_values(&mut self.model, &self.functions);
+
+        for c in &m.constraints {
+            if let Some(expression) = self.formula(c.math.as_ref(), "A constraint") {
+                let annotation = self.annotation(&c.meta);
+                self.model.constraints.push(Constraint {
+                    expression,
+                    message: c.message.clone(),
+                    annotation,
+                });
             }
         }
-        for (ia, ast) in pending {
-            let what = format!("The initial assignment to {}", ia.symbol);
-            let text = expr::to_infix(&ast);
-            let number = text.parse::<f64>().ok();
-            if let Some(p) = self
-                .model
-                .parameters
-                .iter_mut()
-                .find(|p| p.variable == ia.symbol)
-            {
-                p.expression = text;
-            } else if let (Some(v), Some(s)) = (number, self.model.find_species_mut(&ia.symbol)) {
-                s.initial_value = v;
-            } else if let (Some(v), Some(c)) = (
-                number,
+
+        for e in &m.events {
+            if let Some(event) = self.event(e) {
+                self.model.events.push(event);
+            }
+        }
+        // What a rule or an event changes isn't constant, whatever Level 2's
+        // default said.
+        let changed: HashSet<String> = self
+            .model
+            .assignment_rules
+            .iter()
+            .map(|r| r.variable.clone())
+            .chain(self.model.rate_rules.iter().map(|r| r.variable.clone()))
+            .chain(
                 self.model
-                    .compartments
-                    .iter_mut()
-                    .find(|c| c.id == ia.symbol),
-            ) {
-                c.size = v;
-            } else {
-                self.warn(format!("{what} was left out: only parameters can have one"));
-            }
+                    .events
+                    .iter()
+                    .flat_map(|e| e.assignments.iter().map(|a| a.variable.clone())),
+            )
+            .collect();
+        for p in &mut self.model.parameters {
+            p.constant &= !changed.contains(&p.variable);
         }
+        for c in &mut self.model.compartments {
+            c.sbml.constant &= !changed.contains(&c.id);
+        }
+
         // The layout: species first, so reactions can use their aliases. A
         // layout where no species glyph has a position counts as none.
         let layout = m.layouts.first().filter(|l| {
@@ -464,7 +608,7 @@ impl Builder {
         let unplaced = self.place_the_rest(layout);
 
         for r in &m.reactions {
-            self.reaction(m, r, layout, &glyph_node, &nulls, opts);
+            self.reaction(r, layout, &glyph_node, &nulls, opts);
         }
         if let Some(l) = layout {
             self.reaction_names(l);
@@ -561,88 +705,328 @@ impl Builder {
         {
             self.warn(w);
         }
+        self.forget_made_up_reference_ids();
+        self.forget_implied_default_compartment();
         self.model.recompute_id_counter();
+        // A model built from submodels (docs/sbml-app-design.md A8).
+        if self
+            .model
+            .annotation
+            .package
+            .elements
+            .iter()
+            .any(|e| e.contains("listOfSubmodels"))
+        {
+            self.warn(
+                "This model is built from submodels (SBML's comp package). They are kept and \
+                 saved with it, but only the top model is shown and edited here; an edit can break \
+                 what links them"
+                    .to_owned(),
+            );
+        }
         (layout.is_some(), unplaced)
     }
 
-    /// Says what the model has that a diagram can't hold.
-    fn report_unsupported(&mut self, m: &sb::Model) {
-        let rules = m
-            .rules
+    /// The default compartment as export writes it for species in no
+    /// compartment (size 1, three dimensions, constant, nothing more), which
+    /// nothing uses or sets: the model's species are in no compartment again,
+    /// as before it was saved, and saving writes it back the same (found by
+    /// the Gallery's round trip through SBML).
+    fn forget_implied_default_compartment(&mut self) {
+        let m = &self.model;
+        let Some(i) = m
+            .compartments
             .iter()
-            .filter(|r| !matches!(r, sb::Rule::Assignment { .. }))
-            .count();
-        match m.function_definitions.len() {
-            0 => {}
-            1 => {
-                self.warn("1 function definition was written into the rate laws that use it".into())
-            }
-            n => self.warn(format!(
-                "{n} function definitions were written into the rate laws that use them"
-            )),
-        }
-        for (n, one, many) in [
-            (m.events.len(), "event", "events"),
-            (rules, "rate or algebraic rule", "rate and algebraic rules"),
-            (m.constraints.len(), "constraint", "constraints"),
-        ] {
-            match n {
-                0 => {}
-                1 => self.warn(format!("1 {one} was left out")),
-                n => self.warn(format!("{n} {many} were left out")),
-            }
-        }
-        // Conversion factors, and species references named so that maths
-        // can use them, have nowhere to go in a diagram: say so rather than
-        // lose them unannounced (found by the SBML Test Suite round trip).
-        let factors = usize::from(m.conversion_factor.is_some())
-            + m.species
+            .position(|c| c.id == DEFAULT_COMPARTMENT)
+        else {
+            return;
+        };
+        let c = &m.compartments[i];
+        let plain = c.size == 1.0
+            && c.dimensions == 3.0
+            && !c.sbml.size_unset
+            && !c.sbml.dimensions_unset
+            && c.sbml.constant
+            && c.sbml.units.is_none()
+            && c.display_name.is_none()
+            && c.annotation == crate::model::Annotation::default();
+        let used = m.formulas().iter().any(|(_, t)| {
+            crate::model::names_used(t)
                 .iter()
-                .filter(|s| s.conversion_factor.is_some())
-                .count();
-        match factors {
-            0 => {}
-            1 => self.warn("1 conversion factor was left out".into()),
-            n => self.warn(format!("{n} conversion factors were left out")),
+                .any(|n| n == DEFAULT_COMPARTMENT)
+        }) || m.initial_assignment(DEFAULT_COMPARTMENT).is_some()
+            || !crate::sentences::changed_by(m, DEFAULT_COMPARTMENT).is_empty()
+            || m.reactions()
+                .iter()
+                .any(|r| r.sbml.compartment.as_deref() == Some(DEFAULT_COMPARTMENT))
+            || m.species()
+                .iter()
+                .any(|s| s.sbml.conversion_factor.as_deref() == Some(DEFAULT_COMPARTMENT));
+        if plain && !used {
+            self.model.compartments.remove(i);
         }
+    }
+
+    /// Level 2's units by default, made explicit as Level 3 needs them,
+    /// exactly as libSBML converts a model: without, a redefined `substance`
+    /// would no longer be what amounts are in. The model's units are the
+    /// default's names (`substance`, `volume`, `length`) where an item
+    /// relies on that default or the file defines it, else the base units
+    /// (`mole`, `litre`, `metre`); `area` always; `time` if the file defines
+    /// it, else `second`. A default an item relies on that the file doesn't
+    /// define is defined, as Level 2 has it; so is `area`. Compartments and
+    /// species without units get the default's name. An item that names a
+    /// default (`substanceUnits="substance"`) the file doesn't define relies
+    /// on it too.
+    fn level_2_units(&mut self, m: &sb::Model) {
+        let defined = |id: &str| m.unit_definitions.iter().any(|u| u.id == id);
+        // Every unit an item names.
         let named: Vec<&str> = m
-            .reactions
+            .compartments
             .iter()
-            .flat_map(|r| r.reactants.iter().chain(&r.products))
-            .filter_map(|sr| sr.id.as_deref())
+            .filter_map(|c| c.units.as_deref())
+            .chain(
+                m.species
+                    .iter()
+                    .filter_map(|s| s.substance_units.as_deref()),
+            )
+            .chain(m.parameters.iter().filter_map(|p| p.units.as_deref()))
+            .chain(m.reactions.iter().flat_map(|r| {
+                r.kinetic_law
+                    .iter()
+                    .flat_map(|k| k.parameters.iter().filter_map(|p| p.units.as_deref()))
+            }))
             .collect();
-        if !named.is_empty() {
-            let used = |math: Option<&sb::Math>| {
-                math.is_some_and(|math| {
-                    let mut found = false;
-                    math.visit_idents(&mut |id| found |= named.contains(&id));
-                    found
-                })
-            };
-            // Used in maths, or set by a rule or initial assignment.
-            let targeted = m
-                .rules
+        let names = |id: &str| !defined(id) && named.contains(&id);
+        let relies = |dims: f64| {
+            m.compartments
                 .iter()
-                .any(|r| r.variable().is_some_and(|v| named.contains(&v)))
-                || m.initial_assignments
-                    .iter()
-                    .any(|ia| named.contains(&ia.symbol.as_str()));
-            let in_math = targeted
-                || m.rules.iter().any(|r| used(r.math()))
-                || m.initial_assignments
-                    .iter()
-                    .any(|ia| used(ia.math.as_ref()))
-                || m.reactions.iter().any(|r| {
-                    r.kinetic_law
-                        .as_ref()
-                        .is_some_and(|k| used(k.math.as_ref()))
+                .any(|c| c.units.is_none() && c.spatial_dimensions.unwrap_or(3.0) == dims)
+        };
+        let substance = m.species.iter().any(|s| s.substance_units.is_none()) || names("substance");
+        let volume = relies(3.0) || names("volume");
+        let length = relies(1.0) || names("length");
+        let add = |model: &mut Model, id: &str, kind: &str, exponent: f64| {
+            if !defined(id) {
+                model.unit_definitions.push(UnitDefinition {
+                    id: id.to_owned(),
+                    units: vec![Unit {
+                        exponent,
+                        ..Unit::new(kind)
+                    }],
+                    ..UnitDefinition::default()
                 });
-            if in_math {
-                self.warn(
-                    "maths that uses or sets a reaction's stoichiometry by its id was read with the stoichiometry it starts with"
-                        .into(),
-                );
             }
+        };
+        if volume {
+            add(&mut self.model, "volume", "litre", 1.0);
+        }
+        if substance {
+            add(&mut self.model, "substance", "mole", 1.0);
+        }
+        add(&mut self.model, "area", "metre", 2.0);
+        if length {
+            add(&mut self.model, "length", "metre", 1.0);
+        }
+        // Level 2's `time`, which Level 3 doesn't know, named by an item:
+        // defined as Level 2 has it (libSBML's own conversion leaves it
+        // undefined, an error).
+        if names("time") {
+            add(&mut self.model, "time", "second", 1.0);
+        }
+        let named = |used: bool, id: &str, base: &str| {
+            Some(if used || defined(id) { id } else { base }.to_owned())
+        };
+        let substance_units = named(substance, "substance", "mole");
+        self.model.units = ModelUnits {
+            substance: substance_units.clone(),
+            time: named(false, "time", "second"),
+            volume: named(volume, "volume", "litre"),
+            area: Some("area".into()),
+            length: named(length, "length", "metre"),
+            extent: substance_units,
+        };
+        for c in &mut self.model.compartments {
+            if c.sbml.units.is_none() {
+                c.sbml.units = match c.dimensions {
+                    3.0 => Some("volume".into()),
+                    2.0 => Some("area".into()),
+                    1.0 => Some("length".into()),
+                    _ => None,
+                };
+            }
+        }
+    }
+
+    /// A species reference id PathwayDesigner made up when writing, so its
+    /// glyph could name it (`sr_J1_prod_B`), that nothing uses, is no id:
+    /// otherwise each save and open would give the file ids it never had.
+    fn forget_made_up_reference_ids(&mut self) {
+        let used: HashSet<String> = self
+            .model
+            .formulas()
+            .iter()
+            .flat_map(|(_, f)| crate::model::names_used(f))
+            .chain(
+                self.model
+                    .assignment_rules
+                    .iter()
+                    .map(|r| r.variable.clone()),
+            )
+            .chain(self.model.rate_rules.iter().map(|r| r.variable.clone()))
+            .chain(
+                self.model
+                    .initial_assignments
+                    .iter()
+                    .map(|a| a.symbol.clone()),
+            )
+            .chain(
+                self.model
+                    .events
+                    .iter()
+                    .flat_map(|e| e.assignments.iter().map(|a| a.variable.clone())),
+            )
+            .collect();
+        let nodes: HashMap<String, String> = self
+            .model
+            .species()
+            .iter()
+            .map(|s| (s.id.clone(), s.primary_id().to_owned()))
+            .collect();
+        for r in self.model.reactions_mut() {
+            for (tag, list) in [
+                ("sub", &mut r.reactants),
+                ("prod", &mut r.products),
+                ("mod", &mut r.modifiers),
+            ] {
+                for p in list.iter_mut() {
+                    let species = nodes.get(&p.species).cloned().unwrap_or_default();
+                    let made = format!("sr_{}_{tag}_{species}", r.id);
+                    let Some(info) = p.sbml.as_deref_mut() else {
+                        continue;
+                    };
+                    let Some(id) = info.id.as_deref() else {
+                        continue;
+                    };
+                    let suffix = id.strip_prefix(made.as_str());
+                    let ours = suffix.is_some_and(|rest| {
+                        rest.is_empty()
+                            || rest
+                                .strip_prefix('_')
+                                .is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()))
+                    });
+                    if ours && !used.contains(id) {
+                        info.id = None;
+                        if *info == SpeciesReference::default() {
+                            p.sbml = None;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// An id for what needs one, as libSBML makes them: `generatedId_0`,
+    /// `generatedId_1`, …, past any the model uses.
+    fn generated_id(&mut self) -> String {
+        loop {
+            let id = format!("generatedId_{}", self.generated);
+            self.generated += 1;
+            if !self.model.is_id_used(&id) {
+                return id;
+            }
+        }
+    }
+
+    /// An event, or `None` (with a warning) when one of its formulas can't
+    /// be read.
+    fn event(&mut self, e: &sb::Event) -> Option<Event> {
+        let what = match &e.id {
+            Some(id) => format!("The event {id}"),
+            None => "An event".to_owned(),
+        };
+        let trigger = match &e.trigger {
+            Some(t) => Trigger {
+                expression: self.formula(t.math.as_ref(), &what)?,
+                initial_value: t.initial_value.unwrap_or(true),
+                persistent: t.persistent.unwrap_or(true),
+                annotation: self.annotation(&t.meta),
+            },
+            None => Trigger::default(),
+        };
+        let delay = match &e.delay {
+            Some(d) => Some(EventFormula {
+                expression: self.formula(d.math.as_ref(), &what)?,
+                annotation: self.annotation(&d.meta),
+            }),
+            None => None,
+        };
+        let priority = match &e.priority {
+            Some(p) => Some(EventFormula {
+                expression: self.formula(p.math.as_ref(), &what)?,
+                annotation: self.annotation(&p.meta),
+            }),
+            None => None,
+        };
+        let mut assignments = Vec::new();
+        for a in &e.assignments {
+            assignments.push(EventAssignment {
+                variable: a.variable.clone(),
+                expression: self.formula(a.math.as_ref(), &what)?,
+                annotation: self.annotation(&a.meta),
+            });
+        }
+        Some(Event {
+            id: e.id.clone(),
+            name: crate::model::display_name(e.name.clone()),
+            use_values_from_trigger_time: e.use_values_from_trigger_time.unwrap_or(true),
+            trigger,
+            no_trigger: e.trigger.is_none(),
+            delay,
+            priority,
+            assignments,
+            annotation: self.annotation(&e.meta),
+        })
+    }
+
+    /// Says what the model has that PathwayDesigner doesn't keep: parts of
+    /// Level 2 that Level 3 has no place for, and annotations of
+    /// CellDesigner and JDesigner.
+    fn report_unsupported(&mut self, m: &sb::Model) {
+        let mut lost: Vec<&str> = Vec::new();
+        if m.compartments.iter().any(|c| c.outside.is_some()) {
+            lost.push("which compartment is outside another (Level 2's outside)");
+        }
+        if !m.compartment_types.is_empty()
+            || m.compartments.iter().any(|c| c.compartment_type.is_some())
+        {
+            lost.push("compartment types");
+        }
+        if !m.species_types.is_empty() || m.species.iter().any(|s| s.species_type.is_some()) {
+            lost.push("species types");
+        }
+        if m.species.iter().any(|s| s.charge.is_some()) {
+            lost.push("species' charge");
+        }
+        if m.species.iter().any(|s| s.spatial_size_units.is_some()) {
+            lost.push("species' spatial size units");
+        }
+        if m.reactions.iter().any(|r| {
+            r.kinetic_law
+                .as_ref()
+                .is_some_and(|k| k.time_units.is_some() || k.substance_units.is_some())
+        }) || m.events.iter().any(|e| e.time_units.is_some())
+            || m.unit_definitions
+                .iter()
+                .any(|u| u.units.iter().any(|x| x.offset.is_some_and(|o| o != 0.0)))
+        {
+            lost.push("the units of rate laws and events, and unit offsets");
+        }
+        if !lost.is_empty() {
+            self.warn(format!(
+                "Level 2's {} have no place in Level 3, so they aren't kept",
+                lost.join(", ")
+            ));
         }
         if m.layouts.len() > 1 {
             self.warn(format!(
@@ -875,7 +1259,6 @@ impl Builder {
 
     fn reaction(
         &mut self,
-        m: &sb::Model,
         r: &sb::Reaction,
         layout: Option<&sb::Layout>,
         glyph_node: &HashMap<String, String>,
@@ -895,6 +1278,8 @@ impl Builder {
         rx.mode = ReactionMode::Straight;
         // Level 2 makes reactions reversible unless they say otherwise.
         rx.is_reversible = r.reversible.unwrap_or(self.level == 2);
+        rx.sbml.fast = r.fast.unwrap_or(false);
+        rx.sbml.compartment = r.compartment.clone();
 
         // Species references, remembering each one's id for the layout.
         let mut refs: Vec<(Option<String>, crate::model::Role, usize)> = Vec::new();
@@ -911,27 +1296,48 @@ impl Builder {
                     continue;
                 }
                 let mut n = sr.stoichiometry.unwrap_or(1.0);
+                let mut info = SpeciesReference {
+                    id: sr.id.clone(),
+                    name: crate::model::display_name(sr.name.clone()),
+                    constant: sr.constant.unwrap_or(true),
+                    stoichiometry_unset: sr.stoichiometry.is_none() && self.level >= 3,
+                    annotation: self.annotation(&sr.meta),
+                };
+                // Level 2's stoichiometry as a formula is, in Level 3, an
+                // assignment rule on the species reference, as libSBML
+                // converts it: the reference gets an id if it has none.
                 if let Some(math) = &sr.stoichiometry_math {
-                    match from_math_with(math, &HashMap::new(), self.avogadro_free)
-                        .map(|a| expr::to_infix(&a).parse::<f64>())
-                    {
-                        Ok(Ok(v)) => n = v,
-                        _ => self.warn(format!(
-                            "reaction {}: a stoichiometry that isn't a number was read as 1",
-                            r.id
-                        )),
+                    let what = format!("The stoichiometry of {} in {}", sr.species, r.id);
+                    if let Some(expression) = self.formula(Some(math), &what) {
+                        let id = info.id.clone().unwrap_or_else(|| self.generated_id());
+                        n = expression.parse().unwrap_or(1.0);
+                        self.model.assignment_rules.push(AssignmentRule {
+                            variable: id.clone(),
+                            expression,
+                            annotation: Default::default(),
+                        });
+                        info.id = Some(id);
+                        info.constant = false;
+                        info.stoichiometry_unset = true;
                     }
                 }
+                let mut p = Participant::new(sr.species.as_str(), n);
+                p.sbml = reference(info);
                 let list = rx.participants_mut(role);
                 refs.push((sr.id.clone(), role, list.len()));
-                list.push(Participant::new(sr.species.as_str(), n));
+                list.push(p);
             }
         }
         for mr in &r.modifiers {
             if self.model.find_species(&mr.species).is_none() {
+                self.warn(format!(
+                    "reaction {} has {} as a modifier, which isn't a species; it was left out",
+                    r.id, mr.species
+                ));
                 continue;
             }
-            if !rx.modifiers.iter().any(|p| p.species == mr.species) {
+            // A species may be a modifier twice: both are kept.
+            {
                 refs.push((
                     mr.id.clone(),
                     crate::model::Role::Modifier,
@@ -939,49 +1345,37 @@ impl Builder {
                 ));
                 let mut p = Participant::new(mr.species.as_str(), 1.0);
                 // Its kind from its SBO term (S §5.7.1); a layout role
-                // given below wins.
+                // given below wins. The term itself is kept as written.
                 if let Some(term) = &mr.meta.sbo_term {
                     p.kind = ModifierKind::from_sbo(term);
                 }
+                p.sbml = reference(SpeciesReference {
+                    id: mr.id.clone(),
+                    name: crate::model::display_name(mr.name.clone()),
+                    annotation: self.annotation(&mr.meta),
+                    ..SpeciesReference::default()
+                });
                 rx.modifiers.push(p);
             }
         }
 
-        // Local parameters become global ones, renamed if the name is taken.
-        let mut rename = HashMap::new();
+        // The rate law, with its own local parameters (F2).
         let mut law = None;
         if let Some(kl) = &r.kinetic_law {
             for lp in &kl.parameters {
-                // A name a rule sets is taken too: a local `KUI` beside a
-                // global `KUI` that a rule computes (found by the BioModels
-                // round trip) is renamed, not merged with it.
-                let taken = |id: &str, b: &Builder| {
-                    b.model.is_id_used(id)
-                        || b.model.find_parameter(id).is_some()
-                        || b.model.find_compartment(id).is_some()
-                        || b.model.assignment_rules.iter().any(|r| r.variable == id)
-                        || m.parameters.iter().any(|p| p.id == id)
-                        || m.reactions.iter().any(|x| x.id == id)
-                };
-                let mut name = lp.id.clone();
-                if taken(&name, self) {
-                    name = format!("{}_{}", r.id, lp.id);
-                    let mut k = 2;
-                    while taken(&name, self) {
-                        name = format!("{}_{}_{k}", r.id, lp.id);
-                        k += 1;
-                    }
-                    rename.insert(lp.id.clone(), name.clone());
-                }
-                self.model.parameters.push(Parameter {
-                    variable: name,
-                    expression: sb::fmt_f64(lp.value.unwrap_or(0.0)),
-                    annotation: Default::default(),
+                let annotation = self.annotation(&lp.meta);
+                rx.sbml.local_parameters.push(LocalParameter {
+                    id: lp.id.clone(),
+                    name: crate::model::display_name(lp.name.clone()),
+                    value: lp.value,
+                    units: lp.units.clone(),
+                    annotation,
                 });
             }
+            rx.sbml.kinetic_law_annotation = self.annotation(&kl.meta);
             law = self.expression(
                 kl.math.as_ref(),
-                &rename,
+                &HashMap::new(),
                 &format!("The rate law of {}", r.id),
             );
         }
@@ -1113,10 +1507,9 @@ impl Builder {
             }
         }
 
-        // The passes every import gets (SPEC-Rust §8.4).
-        if opts.convert_catalytic {
-            passes::catalytic_rewrite(&mut rx);
-        }
+        // The passes every import gets (SPEC-Rust §8.4); not the catalytic
+        // rewrite, which would change the file's reactions (F6).
+        let _ = opts;
         if let Some(ast) = &law {
             passes::modifiers_from_law(&self.model, &mut rx, ast);
         }
@@ -1163,21 +1556,101 @@ impl Builder {
     }
 }
 
-/// A bounding box that gives a position. libSBML writes an all-zero box
-/// for a glyph that was never given one, so that counts as no box.
-/// The first function in `names` that `ast` calls, with its entry.
-fn first_call<'a>(ast: &Ast, names: &'a HashMap<String, String>) -> Option<(&'a str, &'a str)> {
-    match ast {
-        Ast::Number(..) | Ast::Ident(..) => None,
-        Ast::Unary(_, e, _) => first_call(e, names),
-        Ast::Binary(_, l, r, _) => first_call(l, names).or_else(|| first_call(r, names)),
-        Ast::Call(f, args, _) => names
-            .get_key_value(f)
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .or_else(|| args.iter().find_map(|a| first_call(a, names))),
+/// A species reference's SBML part, or `None` when it says nothing.
+fn reference(r: SpeciesReference) -> Option<Box<SpeciesReference>> {
+    (r != SpeciesReference::default()).then(|| Box::new(r))
+}
+
+/// A history as the model keeps it.
+fn history(h: sb::miriam::History) -> History {
+    History {
+        creators: h
+            .creators
+            .into_iter()
+            .map(|c| crate::model::Creator {
+                family: c.family,
+                given: c.given,
+                email: c.email,
+                organization: c.organization,
+            })
+            .collect(),
+        created: h.created,
+        modified: h.modified,
     }
 }
 
+/// What other packages put on an element (F10).
+/// Layout and Render are written from the drawing, so what they put on an
+/// element isn't kept as another package's; an attribute in no namespace
+/// is SBML core of another level (Level 2's `constant` on a rate law's
+/// parameter), which Level 3 hasn't, not a package's.
+fn package(extra: &sb::Extra, namespaces: &[(Option<String>, String)]) -> PackageData {
+    let drawing = |uri: &str| {
+        uri.contains("/layout/")
+            || uri.contains("/render/")
+            || uri.starts_with("http://projects.eml.org/bcb/sbml")
+    };
+    PackageData {
+        attributes: extra
+            .attributes
+            .iter()
+            .filter(|a| a.namespace.as_deref().is_some_and(|ns| !drawing(ns)))
+            .map(|a| PackageAttribute {
+                name: a.name.clone(),
+                namespace: a.namespace.clone(),
+                value: a.value.clone(),
+            })
+            .collect(),
+        elements: extra
+            .elements
+            .iter()
+            .filter(|x| !element_namespace(x, namespaces).is_some_and(drawing))
+            .cloned()
+            .collect(),
+    }
+}
+
+/// The namespace of an element kept as raw XML: from its own declarations,
+/// else from the document's (`namespaces`).
+fn element_namespace<'a>(
+    xml: &'a str,
+    namespaces: &'a [(Option<String>, String)],
+) -> Option<&'a str> {
+    let start = &xml[..xml.find('>').unwrap_or(xml.len())];
+    let tag_end = start[1..]
+        .find(|c: char| c.is_whitespace() || c == '/')
+        .map_or(start.len(), |i| i + 1);
+    let tag = &start[1..tag_end];
+    let attr = match tag.split_once(':') {
+        Some((prefix, _)) => format!("xmlns:{prefix}=\""),
+        None => "xmlns=\"".to_owned(),
+    };
+    if let Some(at) = start.find(&attr) {
+        let at = at + attr.len();
+        let end = start[at..].find('"')? + at;
+        return Some(&start[at..end]);
+    }
+    let prefix = tag.split_once(':').map(|(p, _)| p);
+    namespaces
+        .iter()
+        .find(|(p, _)| p.as_deref() == prefix)
+        .map(|(_, uri)| uri.as_str())
+}
+
+/// SBML core's own namespaces, and Layout's and Render's, which the writer
+/// declares itself.
+fn is_core_namespace(uri: &str) -> bool {
+    uri.starts_with("http://www.sbml.org/sbml/level1")
+        || uri.starts_with("http://www.sbml.org/sbml/level2")
+        || uri.ends_with("/core")
+        || uri.contains("/layout/")
+        || uri.contains("/render/")
+        || uri == "http://projects.eml.org/bcb/sbml/level2"
+        || uri == "http://projects.eml.org/bcb/sbml/render/level2"
+}
+
+/// A bounding box that gives a position. libSBML writes an all-zero box
+/// for a glyph that was never given one, so that counts as no box.
 fn positioned(bb: Option<&sb::BoundingBox>) -> Option<&sb::BoundingBox> {
     bb.filter(|b| {
         let (p, d) = (&b.position, &b.dimensions);

@@ -220,10 +220,7 @@ fn sbml_legs_end_at_the_stem() {
 }
 
 fn sbml_back(m: &Model) -> Model {
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let xml = crate::sbml::export(m).xml;
     crate::sbml::import(&xml, &opts).unwrap().model
 }
@@ -295,10 +292,7 @@ fn another_tool_s_reaction_curve_is_read_either_way_round() {
             r#"<layout:start layout:x="TMP" layout:y="0""#,
             r#"<layout:start layout:x="240" layout:y="0""#,
         );
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let back = crate::sbml::import(&xml, &opts).unwrap().model;
     assert!(close(back.find_reaction("R1").unwrap().stem, r1(&v).stem));
 }

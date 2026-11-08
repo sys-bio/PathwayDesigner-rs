@@ -7,10 +7,7 @@
 use pd_core::antimony::ImportOptions;
 use pd_core::model::Model;
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: false,
-    seed: 1,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
 /// A species `S` with COPASI's XML and an element in a namespace declared
 /// only on `<sbml>`; a species `T` with CellDesigner's; a reaction `R` with
@@ -86,8 +83,11 @@ fn another_tools_xml_is_kept_and_written_back() {
     assert_eq!(back.find_species("S").unwrap().annotation.other, s.other);
 }
 
+/// CellDesigner's own XML is dropped, with a word (O1). RDF the reader
+/// can't take apart is kept as it is and written back inside the item's RDF
+/// (docs/sbml-full-support-design.md: nothing is lost).
 #[test]
-fn celldesigners_xml_and_rdf_that_cant_be_read_are_dropped_with_a_word() {
+fn celldesigners_xml_is_dropped_with_a_word_and_unread_rdf_kept() {
     let i = opened();
     assert!(
         i.model
@@ -111,12 +111,14 @@ fn celldesigners_xml_and_rdf_that_cant_be_read_are_dropped_with_a_word() {
         .filter(|w| w.contains("aren't kept"))
         .collect();
     assert_eq!(said.len(), 1, "{:?}", i.warnings);
-    assert!(said[0].contains("on 2 items"), "{}", said[0]);
+    assert!(said[0].contains("on 1 item"), "{}", said[0]);
+    let r = &i.model.find_reaction("R").unwrap().annotation;
+    assert_eq!(r.rdf.len(), 1, "{:?}", r.rdf);
     let xml = pd_core::sbml::export(&i.model).xml;
-    assert!(
-        !xml.contains("celldesigner") && !xml.contains("x:unknown"),
-        "{xml}"
-    );
+    assert!(!xml.contains("celldesigner"), "{xml}");
+    assert!(xml.contains("x:unknown"), "{xml}");
+    let back = pd_core::sbml::import(&xml, &OPTS).unwrap().model;
+    assert_eq!(back.find_reaction("R").unwrap().annotation.rdf.len(), 1);
     // Their metaids are kept all the same.
     assert!(
         xml.contains(r#"metaid="meta_T""#) && xml.contains(r#"metaid="meta_R""#),
@@ -188,7 +190,9 @@ fn native_files_keep_them_in_version_22() {
     let m = opened().model;
     let text = pd_core::json::to_json(&m);
     let back = pd_core::json::from_json(&text).unwrap();
-    assert_eq!(back.version, 22);
+    // 22 brought them; a model read from SBML also has what 23 brought (its
+    // model id, for one).
+    assert!(back.version >= 22);
     let annotation = |m: &Model| m.find_species("S").unwrap().annotation.clone();
     assert_eq!(annotation(&back.model), annotation(&m));
     assert_eq!(
@@ -202,22 +206,29 @@ fn native_files_keep_them_in_version_22() {
     );
 }
 
+/// Antimony with the diagram keeps them, in its `sbml` block; without it,
+/// it says it leaves them out (docs/antimony-full-support-design.md S6).
 #[test]
-fn antimony_says_it_cant_hold_them() {
+fn antimony_says_where_it_cant_hold_them() {
     let m = opened().model;
     let notes = pd_core::antimony::diagram_notes(&m, false);
     assert!(
-        notes
-            .iter()
-            .any(|n| n.contains("other tools' annotations on 1 item")),
+        !notes.iter().any(|n| n.contains("annotations")),
         "{notes:?}"
     );
-    assert!(
-        pd_core::antimony::layout_notes(&m)
-            .iter()
-            .any(|n| n.contains("annotations"))
-    );
+    for notes in [
+        pd_core::antimony::plain_notes(&m),
+        pd_core::antimony::layout_notes(&m),
+    ] {
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("annotations Antimony has no words for")),
+            "{notes:?}"
+        );
+    }
     assert!(pd_core::antimony::diagram_notes(&Model::new(), false).is_empty());
+    assert!(pd_core::antimony::plain_notes(&Model::new()).is_empty());
 }
 
 /// SBML Level 3 allows one top-level element per namespace in an
@@ -240,7 +251,7 @@ fn one_element_per_namespace_is_kept() {
         .iter()
         .filter(|w| w.contains("aren't kept"))
         .collect();
-    assert!(said[0].contains("on 3 items"), "{said:?}");
+    assert!(said[0].contains("on 2 items"), "{said:?}");
 }
 
 /// JDesigner's annotations, its own copy of its diagram, are dropped as
@@ -257,5 +268,5 @@ fn jdesigners_diagram_is_dropped() {
         .iter()
         .filter(|w| w.contains("JDesigner"))
         .collect();
-    assert!(said[0].contains("on 3 items"), "{said:?}");
+    assert!(said[0].contains("on 2 items"), "{said:?}");
 }

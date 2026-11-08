@@ -1,6 +1,6 @@
 # A readable diagram format for Antimony models — draft specification
 
-**Status: draft for discussion, version 0.10, 2026-10-28. Read and written by
+**Status: draft for discussion, version 0.11, 2026-11-07. Read and written by
 PathwayDesigner (docs/diagram-format-implementation-design.md).** Version 0.7 is published as a technical report (Zenodo, DOI
 10.5281/zenodo.23608982). 0.2: the file type and COMBINE archives settled (§3). 0.3: made
 consistent with the app and with the minimal Render profile
@@ -38,6 +38,10 @@ species { … }`, which a writer always does, so it looks the same in every read
 for an item's name, which the model gives in Antimony as `S1 is "glucose"`:
 `labels displayName` for the whole diagram (§6.4), `label id` or
 `label displayName` for one item (§6.2).
+0.11: what Antimony can't say of a model read from SBML (a rate law's own
+parameters, metaids, other tools' annotations and the like) is written in a
+second block comment, `/* sbml … end */`, after the diagram, so a saved file
+loses nothing of the SBML (§3.1).
 Working name: *Antimony diagram*.
 
 ## Contents
@@ -141,6 +145,79 @@ end */
   it draws by that model's name. A reader given a diagram file alone looks for
   the model in the same archive. Joining the two gives the one-file form, and
   splitting it gives the two files; nothing is lost either way.
+
+### 3.1 The `sbml` block
+
+Antimony can't say everything an SBML file holds: a rate law's own
+parameters, fast reactions, the ids and annotations of a reaction's species,
+metaids and other tools' annotations, and some details of values and
+formulas. So that a model read from SBML loses nothing when it is saved in
+this format, a writer adds what the Antimony leaves out in a second block
+comment, after the diagram:
+
+```
+/* sbml <model name> v1
+  <notes>
+end */
+```
+
+The block holds no drawing, and to an Antimony tool it is a comment like the
+diagram. It is written only when the model has something Antimony can't
+say. Each line is about one item, named by the id the Antimony uses:
+
+| Line | Means |
+|---|---|
+| `J1_k local J1 k` | The model's parameter `J1_k` is reaction `J1`'s own parameter `k` (Antimony has no rate law parameters, so a writer makes them the model's, named `<reaction>_<parameter>`) |
+| `fast J1` | Reaction `J1` is fast |
+| `units substance mole, time minute` | The model's units: `substance`, `time`, `volume`, `area`, `length`, `extent` |
+| `S1 initial amount 5` | `S1` starts at the amount 5 (or `concentration`) where Antimony would read the other |
+| `S2 unset initial` | The file gave `S2` no starting value; also `unset value` (a parameter) and `unset size` (a compartment) |
+| `compartment_ id compartment` | `compartment_` is the model's `compartment`, an id Antimony reserves, written with `_` added |
+| `unit time_ id time` | The same for a unit; units have ids of their own in SBML |
+| `S1 sbml {…}` | The rest of what SBML says of `S1`, as the native file keeps it (below) |
+
+Items Antimony gives no name are named by kind: `model`, `rule y` (the
+assignment rule for `y`), `rate y`, `initial y` (its initial assignment),
+`algebraic 1`, `constraint 1`, `event 1` (the first event without an id),
+counted from 1 in the model's order; a unit is named `unit u`, since it may
+have the id of something else.
+
+In `sbml {…}`, the data is JSON on one line, with these keys, each written
+only when needed:
+
+| Key | On | Holds |
+|---|---|---|
+| `annotation` | any | What Antimony can't say of the item's annotation: `metaid`, `other` (other tools' XML), `rdf`, `package` (other SBML packages' parts), `history`, `moreReferences` (references with a qualifier Antimony has no word for); on what Antimony gives no name, also `sbo`, `references` and `notes` |
+| `name` | any | A name Antimony can't write: with a double quote or a line break, or that of an item sharing its id with a unit |
+| `modelId`, `modelIdUnset`, `modelNameUnset` | `model` | The model's SBML id, or that the file gave it no id or no name |
+| `namespaces`, `documentPackage`, `sbmlVersion` | `model` | Other SBML packages' namespaces and document parts; the SBML version to write |
+| `noLawParameter` | `model` | The rate `v` written for reactions without a rate law isn't the model's |
+| `dimensions`, `dimensionsUnset` | a compartment | Its spatial dimensions, if not 3, or that the file gave none |
+| `constant` | a species | It is constant without being a boundary species |
+| `noLaw`, `law`, `compartment`, `kineticLawAnnotation` | a reaction | It has no rate law; its rate law exactly as written; the compartment it takes place in; its rate law's annotation |
+| `references` | a reaction | Its species' references: `role`, `species`, `turn` (the first, second, … time that species has that role), then `id`, `name`, `constant`, `stoichiometryUnset`, `annotation`; or `noDetails` and `kind` for a modifier Antimony can't name (not used by the rate law, also a reactant or product, or named twice) |
+| `noBody`, `body` | a function | It has no body (its arguments); its body exactly as written |
+| `units` | a unit | Its units exactly as defined, each `[kind, exponent, scale, multiplier]` |
+| `formula`, `asValue`, `notInText`, `noMath`, `value`, `initial`, `amount`, `size` | `initial y` | Its formula exactly as written, or one Antimony would read as a number, or set for a species reference, which the Antimony has no line for, or none; the item's own value beside it |
+| `formula`, `noMath` | a rule, constraint | Its formula exactly as written, or that it has none |
+| `message` | a constraint | Its message |
+| `noTrigger`, `noTriggerMath`, `trigger`, `delay`, `priority`, `assignments` | an event | It has no trigger, or a trigger without a formula; its formulas exactly as written; its assignments' formulas and annotations, by variable |
+| `annotationAll` | any | `annotation` is all of the item's annotation |
+
+**A note holds only where the Antimony still says what was written.** A
+formula is put back as it was only if the Antimony's formula is what reading
+the written one gives; a rate law's own parameter only if nothing else in the
+model uses it; a species reference's details only if the reaction still has
+that species on that side. Editing the model by hand is so safe: a note on
+an item the model no longer has, or has changed, is ignored. A line the
+reader doesn't know is skipped with a warning.
+
+Written back, the lines come in a fixed order: renamed ids, rate laws' own
+parameters, the model's units, the model, then compartments, species,
+parameters, reactions, functions, units, initial assignments, assignment,
+rate and algebraic rules, constraints, events and rate laws' own
+parameters, each in the model's order; then fast reactions, starting amounts and concentrations, and unset
+values.
 
 ## 4. Lexical rules
 
@@ -673,7 +750,8 @@ compartments, text wrapping) go in PathwayDesigner's existing SBML notes, as now
 EBNF over tokens (§4). `NL` is a line break.
 
 ```
-file        = model-section { NL } [ "/*" diagram "*/" ] ;
+file        = model-section { NL } [ "/*" diagram "*/" ] { NL } [ "/*" sbml "*/" ] ;
+sbml        = "sbml" id "v" number NL { note NL } "end" ;   (* a note: a line of §3.1 *)
 diagram     = "diagram" id "v" number NL { statement NL } "end" ;
 statement   = theme | background | mlines | labels | defaults | colordef | style | compartment | text
             | species | reaction | leg | mline | (* empty *) ;

@@ -11,11 +11,13 @@ pub(crate) mod antimony_colors;
 pub mod antimony_layout;
 pub(crate) mod antimony_layout_out;
 pub(crate) mod antimony_looks;
+pub mod antimony_sbml;
 pub mod bezier;
 pub mod chebi;
 pub mod clipboard;
 pub mod compartments;
 pub mod diagram_format;
+pub mod drafts;
 pub mod entry_names;
 pub mod escher;
 pub mod expr;
@@ -25,12 +27,14 @@ pub mod json;
 pub mod kegg;
 pub mod layout;
 pub mod model;
+pub mod model_core;
 pub mod node_shape;
 pub mod passes;
 pub mod pubchem;
 pub mod reaction_lookup;
 pub mod render;
 pub mod sbml;
+pub mod sentences;
 pub mod structure;
 pub mod styles;
 pub mod text;
@@ -48,10 +52,7 @@ pub fn read_model(text: &str) -> Result<model::Model, String> {
     }
     let t = text.trim_start_matches('\u{FEFF}').trim_start();
     if t.starts_with('<') {
-        let opts = antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = antimony::ImportOptions { seed: 1 };
         return sbml::import(text, &opts).map(|i| i.model).map_err(|e| {
             e.iter()
                 .map(|d| d.to_string())

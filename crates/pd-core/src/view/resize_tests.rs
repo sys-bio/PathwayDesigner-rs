@@ -271,10 +271,7 @@ fn shapes_come_back_from_sbml() {
     v.model.find_species_mut(&alias).unwrap().shape = NodeShape::Hexagon;
     let out = crate::sbml::export(v.model());
     assert!(out.xml.contains("shape=\"circle\""));
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let back = crate::sbml::import(&out.xml, &opts).unwrap().model;
     assert_eq!(back.find_species("S1").unwrap().shape, NodeShape::Circle);
     let a = back.aliases_of("S1").next().unwrap();
@@ -348,10 +345,7 @@ fn a_border_style_is_saved_only_when_set() {
     v.model.find_species_mut("S1").unwrap().shape = NodeShape::Circle;
     v.model.find_species_mut("S1").unwrap().border_dash = BorderDash::Dashed;
     let out = crate::sbml::export(v.model());
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let back = crate::sbml::import(&out.xml, &opts).unwrap().model;
     let s1 = back.find_species("S1").unwrap();
     assert_eq!(

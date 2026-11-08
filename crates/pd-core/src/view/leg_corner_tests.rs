@@ -434,10 +434,7 @@ fn a_smooth_junction_s_handle_drag_leaves_routed_lines() {
 
 // ----- SBML (step 3) ---------------------------------------------------------
 
-const SBML_OPTS: crate::antimony::ImportOptions = crate::antimony::ImportOptions {
-    convert_catalytic: false,
-    seed: 1,
-};
+const SBML_OPTS: crate::antimony::ImportOptions = crate::antimony::ImportOptions { seed: 1 };
 
 /// [`model`] with B's line routed too, up and over from the junction, and A's
 /// with stored handles.

@@ -1,8 +1,8 @@
 //! Cut, Copy and Paste of parts of a network (docs/cut-copy-paste-design.md).
 //!
 //! Copy makes a [`Fragment`]: the selected items, the species the selected
-//! reactions join (C1), and the parameters, rules and compartments their rate
-//! laws and rules use. On the clipboard it is a native JSON document with a
+//! reactions join (C1), and the parameters, rules, initial values, functions
+//! and compartments their rate laws and rules use. On the clipboard it is a native JSON document with a
 //! marker around it. Paste adds a fragment to a model: an id already used
 //! gets `_2`, `_3`, … (C2), expressions follow the new ids, and everything
 //! moves by an offset.
@@ -100,14 +100,13 @@ pub fn copy(model: &Model) -> Option<Fragment> {
         words.extend(words_in(&r.kinetic_law));
         frag.push_reaction(r).expect("ids are unique in a model");
     }
-    let mut rules: HashSet<&str> = HashSet::new();
-    for rule in &model.assignment_rules {
-        if frag.find_species(&rule.variable).is_some() {
-            rules.insert(&rule.variable);
-            words.extend(words_in(&rule.expression));
-        }
+    // What sets a copied species: its rules and its initial value's formula.
+    let set: HashSet<String> = frag.species().iter().map(|s| s.id.clone()).collect();
+    for w in &set {
+        words.extend(setting_words(model, w));
     }
     let mut params: HashSet<&str> = HashSet::new();
+    let mut functions: HashSet<&str> = HashSet::new();
     let mut used_boxes: HashSet<&str> = HashSet::new();
     let mut seen: HashSet<String> = HashSet::new();
     while let Some(w) = words.pop() {
@@ -116,14 +115,14 @@ pub fn copy(model: &Model) -> Option<Fragment> {
         }
         if let Some(p) = model.parameters.iter().find(|p| p.variable == w) {
             params.insert(&p.variable);
-            words.extend(words_in(&p.expression));
+            words.extend(setting_words(model, &w));
         }
-        if let Some(r) = model.assignment_rules.iter().find(|r| r.variable == w) {
-            rules.insert(&r.variable);
-            words.extend(words_in(&r.expression));
+        if let Some(f) = model.function_definitions.iter().find(|f| f.id == w) {
+            functions.insert(&f.id);
         }
         if let Some(c) = model.compartments.iter().find(|c| c.id == w) {
             used_boxes.insert(&c.id);
+            words.extend(setting_words(model, &w));
         }
     }
     for s in frag.species() {
@@ -152,10 +151,54 @@ pub fn copy(model: &Model) -> Option<Fragment> {
         .filter(|p| params.contains(p.variable.as_str()))
         .cloned()
         .collect();
+    // Rules and initial values of what was copied.
+    let copied = |id: &str| {
+        set.contains(id) || params.contains(id) || frag.compartments.iter().any(|c| c.id == id)
+    };
     frag.assignment_rules = model
         .assignment_rules
         .iter()
-        .filter(|r| rules.contains(r.variable.as_str()))
+        .filter(|r| copied(&r.variable))
+        .cloned()
+        .collect();
+    frag.rate_rules = model
+        .rate_rules
+        .iter()
+        .filter(|r| copied(&r.variable))
+        .cloned()
+        .collect();
+    frag.initial_assignments = model
+        .initial_assignments
+        .iter()
+        .filter(|a| copied(&a.symbol))
+        .cloned()
+        .collect();
+    frag.function_definitions = model
+        .function_definitions
+        .iter()
+        .filter(|f| functions.contains(f.id.as_str()))
+        .cloned()
+        .collect();
+    // The units the copied items are in.
+    let units: HashSet<&str> = frag
+        .parameters
+        .iter()
+        .filter_map(|p| p.units.as_deref())
+        .chain(
+            frag.compartments
+                .iter()
+                .filter_map(|c| c.sbml.units.as_deref()),
+        )
+        .chain(
+            frag.species()
+                .iter()
+                .filter_map(|s| s.sbml.units.as_deref()),
+        )
+        .collect();
+    frag.unit_definitions = model
+        .unit_definitions
+        .iter()
+        .filter(|u| units.contains(u.id.as_str()))
         .cloned()
         .collect();
     for t in model.selected_texts() {
@@ -297,15 +340,20 @@ pub fn paste(model: &mut Model, fragment: &Fragment, offset: Pt) {
     for r in f.reactions() {
         names.insert(r.id.clone(), fresh(&r.id));
     }
-    for v in f
-        .parameters
-        .iter()
-        .map(|p| &p.variable)
-        .chain(f.assignment_rules.iter().map(|r| &r.variable))
-    {
+    for v in f.parameters.iter().map(|p| &p.variable) {
         if !names.contains_key(v) {
             let new = fresh(v);
             names.insert(v.clone(), new);
+        }
+    }
+    // A function the document already has, the same, is used as it is.
+    let mut same_functions: HashSet<&Id> = HashSet::new();
+    for fd in &f.function_definitions {
+        let mine = model.function_definitions.iter().find(|g| g.id == fd.id);
+        if mine.is_some_and(|g| g.arguments == fd.arguments && g.body == fd.body) {
+            same_functions.insert(&fd.id);
+        } else {
+            names.insert(fd.id.clone(), fresh(&fd.id));
         }
     }
     let mut added_used: Vec<Id> = Vec::new();
@@ -367,7 +415,6 @@ pub fn paste(model: &mut Model, fragment: &Fragment, offset: Pt) {
     for p in &f.parameters {
         let mut p = p.clone();
         p.variable = name(&p.variable);
-        p.expression = rename_words(&p.expression, &names);
         model.parameters.push(p);
     }
     for r in &f.assignment_rules {
@@ -375,6 +422,31 @@ pub fn paste(model: &mut Model, fragment: &Fragment, offset: Pt) {
         r.variable = name(&r.variable);
         r.expression = rename_words(&r.expression, &names);
         model.assignment_rules.push(r);
+    }
+    for r in &f.rate_rules {
+        let mut r = r.clone();
+        r.variable = name(&r.variable);
+        r.expression = rename_words(&r.expression, &names);
+        model.rate_rules.push(r);
+    }
+    for a in &f.initial_assignments {
+        let mut a = a.clone();
+        a.symbol = name(&a.symbol);
+        a.expression = rename_words(&a.expression, &names);
+        model.initial_assignments.push(a);
+    }
+    for fd in &f.function_definitions {
+        if !same_functions.contains(&fd.id) {
+            let mut fd = fd.clone();
+            fd.id = name(&fd.id);
+            model.function_definitions.push(fd);
+        }
+    }
+    for u in &f.unit_definitions {
+        // One of that id here already stands for it.
+        if !model.unit_definitions.iter().any(|v| v.id == u.id) {
+            model.unit_definitions.push(u.clone());
+        }
     }
     for c in &f.compartments {
         let used = fragment.compartments_used.contains(&c.id);
@@ -422,7 +494,10 @@ pub fn paste(model: &mut Model, fragment: &Fragment, offset: Pt) {
                 .species()
                 .iter()
                 .any(|s| s.compartment.eq_ignore_ascii_case(id))
-                && !expressions(model).any(|e| words_in(e).iter().any(|w| w == id))
+                && !model
+                    .formulas()
+                    .iter()
+                    .any(|(_, e)| words_in(e).iter().any(|w| w == id))
         })
         .collect();
     model.compartments.retain(|c| !unwanted.contains(&c.id));
@@ -430,13 +505,30 @@ pub fn paste(model: &mut Model, fragment: &Fragment, offset: Pt) {
     model.refresh_labels();
 }
 
-fn expressions(model: &Model) -> impl Iterator<Item = &str> {
+/// The names in the formulas that set `id`: its rules and its initial
+/// value's.
+fn setting_words(model: &Model, id: &str) -> Vec<String> {
     model
-        .reactions()
+        .assignment_rules
         .iter()
-        .map(|r| r.kinetic_law.as_str())
-        .chain(model.parameters.iter().map(|p| p.expression.as_str()))
-        .chain(model.assignment_rules.iter().map(|r| r.expression.as_str()))
+        .filter(|r| r.variable == id)
+        .map(|r| r.expression.as_str())
+        .chain(
+            model
+                .rate_rules
+                .iter()
+                .filter(|r| r.variable == id)
+                .map(|r| r.expression.as_str()),
+        )
+        .chain(
+            model
+                .initial_assignments
+                .iter()
+                .filter(|a| a.symbol == id)
+                .map(|a| a.expression.as_str()),
+        )
+        .flat_map(words_in)
+        .collect()
 }
 
 /// The names in an expression: runs of letters, digits and `_` that don't

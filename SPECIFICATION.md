@@ -2279,16 +2279,16 @@ as in Antimony, the arrow says whether the reaction is reversible: `->` (and
 `<->`) makes it reversible, `=>` irreversible. The reference treated `=>` as a
 plain synonym and made every reaction irreversible.
 
-**Functions.** *(Rust version.)* A diagram keeps each rate law in its reaction, so
-a function the model defines (Antimony's `function … end`, SBML's function
-definitions) is not kept as a function. Each call is replaced by the function's
-body, with the call's arguments in place of its parameters, in rate laws,
-assignment rules and parameter values alike; a function that calls another is
-expanded all the way down. `function mm(s, v, k) v*s/(k + s) end` and
-`J1: S -> P; E*mm(S, Vm, Km)` give the rate law `E*(Vm*S/(Km + S))`. One
-warning says how many functions were written in. A call with the wrong number of
-arguments is an error. Export therefore writes no functions, and an exported
-model calls none.
+**Functions, events and the rest.** *(Rust version, from 2026-11; before then,
+functions were written into the formulas that call them and events, rules,
+units and constraints were skipped.)* Everything the model says is kept:
+functions (`function … end`) and the calls to them, unit definitions and `has`
+units, conversion factors, events, rate and algebraic rules, constraints,
+starting values given by a formula, `const` and `var`, names and annotations
+(SPEC-Rust §8.2, docs/antimony-full-support-design.md). They are shown and
+edited in the Events & Rules tab (docs/sbml-app-design.md). Only other models
+in the file and objectives are skipped, with a warning. A preference writes
+functions into the formulas that call them on saving (§12).
 
 **Layout statements.** *(Rust version.)* Antimony 3 can describe a drawing in the
 model text, as libAntimony reads and writes it: `model.layout = on`,
@@ -2339,7 +2339,8 @@ format maps onto the diagram: `docs/diagram-format-implementation-design.md`.
    species, its node goes there instead, at the size they give (see Layout
    statements above). Ids keep their declared spelling. If a reaction refers to a species
    with different letter case, it resolves to the declared spelling, matched
-   case-insensitively (the reference does this). Copy `isBoundary`, `isConstant`,
+   case-insensitively (the reference does this). *(Rust version: ids are matched
+   exactly, as Antimony and SBML do, so `A` and `a` are two things.)* Copy `isBoundary`, `isConstant`,
    `compartment` and `initialValue`.
 6. For each reaction:
    - Create it with the declared id, or `R<k>` if it has none.
@@ -2352,7 +2353,9 @@ format maps onto the diagram: `docs/diagram-format-implementation-design.md`.
      sides and becomes a **modifier**. So `A -> A + B; k*A` becomes `-> B; k*A`
      with `A` as a modifier, and so does `A -> A + B` with no rate law. (The
      reference only makes `A` a modifier through the rate law, so without one `A`
-     ends up connected to nothing.)
+     ends up connected to nothing.) *(Rust version: removed, with its
+     preference: it changed the reactions the text states, and drawing `A` as a
+     catalyst is the diagram's job; docs/sbml-app-design.md A5.)*
    - **Modifiers:** every species identifier in the rate law that is not a
      participant becomes a modifier. If it has no node yet, create one. After
      conversion, this is how `A` above becomes a modifier.
@@ -2467,12 +2470,17 @@ A multi-line text editor beside the canvas, with two buttons:
   and Antimony's layout statements (both, with both ticked).
 
 The application remembers the last imported Antimony text, so it can re-import it
-when the catalytic-conversion preference changes (§12).
+when the catalytic-conversion preference changes (§12). *(Rust version: there is
+no such preference. Load Antimony keeps what Antimony can't say from the
+diagram it replaces, and Get Antimony without the diagram says what the text
+leaves out; SPEC-Rust §11.1.)*
 
-### 11.5 SBML export (Level 3 Version 1, or Version 2 when needed, + Layout)
+### 11.5 SBML export (Level 3 + Layout)
 
 File ▸ *Save to SBML* writes a UTF-8 `.xml` file. A re-implementation MAY use
-libSBML. The reference writes the XML itself.
+libSBML. The reference writes the XML itself, as Level 3 Version 1. *(Rust
+version: Level 3 Version 2, Version 1 for a model that needs it, with every
+part of the model as read; SPEC-Rust §8.3.)*
 
 **Document element.**
 
@@ -2488,7 +2496,7 @@ libSBML. The reference writes the XML itself.
 | Element | Content |
 |---|---|
 | compartments | Add `defaultCompartment` (size 1, 3-D, constant) if it is missing, then every model compartment (`constant="true"`). |
-| species | One per **primary** species. Null nodes SHOULD be left out. Attributes: `name` (its display name, §5.14, when it has one; Rust version), `compartment` (defaults to `defaultCompartment`), `initialConcentration`, `hasOnlySubstanceUnits="false"`, `boundaryCondition`, `constant`. *Rust version:* `initialAmount` instead when the species' value is an amount, and `hasOnlySubstanceUnits="true"` for a species in amounts, as read (SPEC-Rust §8.3); a model that uses `rateOf` is written as Level 3 Version 2. |
+| species | One per **primary** species. Null nodes SHOULD be left out. Attributes: `name` (its display name, §5.14, when it has one; Rust version), `compartment` (defaults to `defaultCompartment`), `initialConcentration`, `hasOnlySubstanceUnits="false"`, `boundaryCondition`, `constant`. *Rust version:* `initialAmount` instead when the species' value is an amount, and `hasOnlySubstanceUnits="true"` for a species in amounts, as read (SPEC-Rust §8.3). |
 | parameters | One per parameter whose expression is a number, with `constant="true"`. Parameters with non-numeric expressions SHOULD become an `initialAssignment`. |
 | reactions | `reversible`, `fast="false"`. Reactants and products as `speciesReference` elements with `stoichiometry` and `constant="true"`. Modifiers SHOULD be written as `modifierSpeciesReference` (§15, D-10). |
 | kineticLaw | The rate law converted to Content MathML (table below). If the law is empty or cannot be parsed, leave out the `<kineticLaw>` element entirely. |
@@ -2564,9 +2572,9 @@ mapping, the minimal profile it keeps to and the rules for writing it so that
 other readers agree are in `docs/render-design.md`; SPEC-Rust §8.3 summarises them.
 
 **SBML import** is not part of the reference release (the code for it is disabled).
-See milestone F-1. *(Rust version:)* function definitions are expanded into the
-expressions that call them, as in Antimony import (§11.2); a function whose body
-can't be read leaves out each expression that calls it, with a warning.
+See milestone F-1. *(Rust version:)* everything in the file is kept and written
+back, so a model opened and saved unchanged means what it meant (SPEC-Rust
+§8.3, docs/sbml-full-support-design.md).
 
 ### 11.6 Graphics output
 
@@ -2798,7 +2806,8 @@ OK and when the application exits.
 
 | Preference | Default | Effect |
 |---|---|---|
-| **Convert catalytic reactions** | true | During Antimony import, `A -> A + B` becomes `-> B` with `A` as a modifier (§11.2). If this setting changes and an Antimony source has been imported, that source is imported **again** so the change takes effect. (The user SHOULD be warned that this throws away edits made since the import.) |
+| **Convert catalytic reactions** | true | During Antimony import, `A -> A + B` becomes `-> B` with `A` as a modifier (§11.2). If this setting changes and an Antimony source has been imported, that source is imported **again** so the change takes effect. (The user SHOULD be warned that this throws away edits made since the import.) *Removed in the Rust version (§11.2).* |
+| **Write functions into the formulas that use them** | false | Saving SBML and Antimony writes each function call out in full, for tools that don't read functions; the diagram keeps its functions. Added in the Rust version. |
 | **Show null species** | true | Draw null nodes and the legs that touch them (§5.4). |
 | **Selected reaction colour** | `#1144CC` | The colour a selected reaction's lines, arrowheads and modifier arcs are drawn in (§5.5), with a Reset button. Added in the Rust version. Never used in exports. |
 | **My Styles** | none | The saved styles kept with the app (§8.6), changed from the Styles tab and Save Style…, not from the dialog. Added in the Rust version. |
@@ -3266,7 +3275,7 @@ These come from the README's "Not yet supported" list and from gaps in the code.
 | F-7 | **Arrange in a circle** | Put the selected nodes on a circle. |
 | F-8 | **Human-readable layout format** | Convert between the JSON format and a text format for layout ("Alcuin"). The reference lexer already has keywords for it (`layout`, `at`, `size`, `style`, `bezier`, `cp`, …). |
 | F-9 | **Several documents** | Tabs or several windows. |
-| F-10 | **Full Antimony** | Events, functions, modules and units, through a complete parser. |
+| F-10 | **Full Antimony** | Events, functions, modules and units, through a complete parser. **Done in the Rust version** (SPEC-Rust §8.2), all but modules: a file's other models are skipped with a warning. |
 
 ---
 

@@ -363,10 +363,7 @@ fn no_border_is_saved_only_when_used_and_needs_version_6() {
     // And SBML, by PathwayDesigner's notes.
     let out = crate::sbml::export(&back);
     assert_eq!(out.xml.matches("noBorder=\"true\"").count(), 2);
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let m = crate::sbml::import(&out.xml, &opts).unwrap().model;
     assert!(m.find_species("S1").unwrap().style.no_border);
     assert!(!m.find_species("S2").unwrap().style.no_border);

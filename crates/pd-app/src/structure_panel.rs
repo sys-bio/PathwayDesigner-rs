@@ -144,6 +144,9 @@ pub struct StructurePanel {
     /// Which matrix the panel under the canvas shows.
     pub matrix_tab: MatrixTab,
     pub picked: Option<Picked>,
+    /// The species rules or events also change, which the analysis leaves
+    /// out, as the diagram names them (docs/sbml-full-support-design.md F11).
+    also_changed: Vec<String>,
 }
 
 impl StructurePanel {
@@ -151,6 +154,10 @@ impl StructurePanel {
     /// (cheap), and factorized only if it changed and isn't too large; the
     /// sparse bases are made if they are shown and not made yet.
     pub fn refresh(&mut self, model: &Model) {
+        self.also_changed = pd_core::sentences::changed_otherwise(model)
+            .iter()
+            .map(|id| pd_core::sentences::shown_name(model, id))
+            .collect();
         let key = structure::stoichiometry(model);
         if !self.cache.as_ref().is_some_and(|(k, _)| *k == key) {
             let (rows, cols) = (key.2.rows, key.2.cols);
@@ -271,6 +278,15 @@ impl StructurePanel {
             _ => format!("Computed in {millis:.1} ms"),
         };
         ui.label(egui::RichText::new(timing).weak().small());
+        if !self.also_changed.is_empty() {
+            ui.label(
+                egui::RichText::new(format!(
+                    "Also changed by rules or events, which the analysis leaves out: {}.",
+                    self.also_changed.join(", ")
+                ))
+                .small(),
+            );
+        }
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.toggle_value(&mut self.show_matrix, "Matrices")

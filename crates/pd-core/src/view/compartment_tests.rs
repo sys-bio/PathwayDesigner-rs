@@ -400,10 +400,7 @@ fn a_compartment_name_can_be_bigger() {
     );
     let xml = crate::sbml::export(v.model()).xml;
     assert!(xml.contains("fontSize=\"24\""), "{xml}");
-    let opts = crate::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = crate::antimony::ImportOptions { seed: 1 };
     let back = crate::sbml::import(&xml, &opts).unwrap().model;
     assert_eq!(
         compartment_label_size(back.find_compartment(&c).unwrap()),

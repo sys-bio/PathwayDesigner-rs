@@ -426,10 +426,7 @@ fn the_background_is_also_on_a_global_render_information() {
     // Read back with only the global one giving it, the background is kept.
     let without = xml.replacen("render:backgroundColor=\"#FF00FF\"", "", 1);
     assert!(without.contains("render:backgroundColor=\"#FF00FF\""));
-    let opts = pd_core::antimony::ImportOptions {
-        convert_catalytic: false,
-        seed: 1,
-    };
+    let opts = pd_core::antimony::ImportOptions { seed: 1 };
     let back = pd_core::sbml::import(&without, &opts).unwrap().model;
     assert_eq!(back.background, Rgba::rgb(0xFF, 0x00, 0xFF));
 }

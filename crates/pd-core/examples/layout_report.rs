@@ -42,10 +42,7 @@ use std::path::Path;
 use pd_core::antimony::ImportOptions;
 use serde_json::Value;
 
-const OPTS: ImportOptions = ImportOptions {
-    convert_catalytic: false,
-    seed: 1,
-};
+const OPTS: ImportOptions = ImportOptions { seed: 1 };
 
 /// Numbers closer than this are the same (positions come back through text).
 const TOLERANCE: f64 = 1e-6;
@@ -415,7 +412,7 @@ fn biochemistry(model: &pd_core::model::Model) -> Value {
     let parameters: Vec<Value> = model
         .parameters
         .iter()
-        .map(|p| json!({"variable": p.variable, "expression": p.expression}))
+        .map(|p| json!({"variable": p.variable, "expression": model.parameter_text(&p.variable)}))
         .collect();
     let rules: Vec<Value> = model
         .assignment_rules

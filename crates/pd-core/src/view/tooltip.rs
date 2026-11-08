@@ -45,6 +45,7 @@ impl DiagramView {
                 }
                 let primary = self.model.find_species(node.primary_id()).unwrap_or(node);
                 let first = format!("{}: {}", primary.id, format_value(primary.initial_value));
+                let first = also_changed(&self.model, &primary.id, first);
                 Some(with_annotation(
                     &self.model.reference_names,
                     first,
@@ -77,6 +78,7 @@ impl DiagramView {
             Target::Compartment(id) | Target::CompartmentCorner(id, _) => {
                 let c = self.model.find_compartment(id)?;
                 let first = format!("{}: volume {}", c.id, format_value(c.size));
+                let first = also_changed(&self.model, &c.id, first);
                 Some(with_annotation(
                     &self.model.reference_names,
                     first,
@@ -143,6 +145,20 @@ impl DiagramView {
 /// its SBO term, its references a line per qualifier (`is CHEBI:4170 ·
 /// kegg.compound:C00092`, the fifth on as "+ n more"), and its notes' first
 /// line, cut short.
+/// `first`, with a line saying what else changes `id`, if anything does
+/// (docs/sbml-app-design.md A2).
+fn also_changed(model: &crate::model::Model, id: &str, first: String) -> String {
+    let by: Vec<String> = crate::sentences::changed_by(model, id)
+        .into_iter()
+        .map(|(_, words)| words)
+        .collect();
+    if by.is_empty() {
+        first
+    } else {
+        format!("{first}\nAlso changed by {}", by.join(", "))
+    }
+}
+
 fn with_annotation(
     names: &std::collections::BTreeMap<String, String>,
     first: String,
@@ -266,6 +282,29 @@ mod tests {
         assert_eq!(t(Target::Leg("R3".into())).as_deref(), Some("R3: k3*S1"));
         assert_eq!(t(Target::Empty), None);
         assert_eq!(t(Target::Species("nope".into())), None);
+    }
+
+    /// docs/sbml-app-design.md A2: what else changes a species, its alias
+    /// too, on a line of its own.
+    #[test]
+    fn what_else_changes_it() {
+        let mut m = view().model().clone();
+        m.rate_rules.push(crate::model::RateRule {
+            variable: "S1".into(),
+            expression: "1".into(),
+            ..Default::default()
+        });
+        let v = DiagramView::new(m);
+        for id in ["S1", "S4"] {
+            assert_eq!(
+                v.tooltip_text(&Target::Species(id.into())).as_deref(),
+                Some("S1: 0.3333\nAlso changed by its rate rule")
+            );
+        }
+        assert_eq!(
+            v.tooltip_text(&Target::Species("S2".into())).as_deref(),
+            Some("S2: 0")
+        );
     }
 
     /// M1, M2: the display name and annotation below, for species (an alias

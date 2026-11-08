@@ -35,6 +35,11 @@ const PAGES: &[Page] = &[
         title: "The diagram language",
         text: include_str!("../../../help/diagram-language.md"),
     },
+    Page {
+        file: "events-and-rules.md",
+        title: "Events and rules",
+        text: include_str!("../../../help/events-and-rules.md"),
+    },
 ];
 
 pub struct Help {

@@ -145,7 +145,7 @@ fn a_three_reaction_network_with_the_mouse_alone() {
     assert_eq!(law(&v, "R7"), "k7*S4");
     // k<N> parameters, each 0.1.
     for k in ["k5", "k6", "k7"] {
-        assert_eq!(m.find_parameter(k).unwrap().expression, "0.1");
+        assert_eq!(m.parameter_text(k), "0.1");
     }
     // Junction: halfway between the reactant and product centroids.
     let r6 = m.find_reaction("R6").unwrap();
@@ -183,11 +183,7 @@ fn default_bezier_and_smooth_junction() {
 fn an_existing_parameter_is_not_duplicated() {
     let mut v = four_species();
     let mut m = v.model().clone();
-    m.parameters.push(Parameter {
-        variable: "k5".into(),
-        expression: "3".into(),
-        annotation: Default::default(),
-    });
+    m.parameters.push(Parameter::new("k5", Some(3.0)));
     v.set_model(m);
     v.set_tool(Tool::UNI_UNI);
     click(&mut v, 0.0, 0.0);
@@ -199,7 +195,7 @@ fn an_existing_parameter_is_not_duplicated() {
         .filter(|p| p.variable == "k5")
         .collect();
     assert_eq!(ks.len(), 1);
-    assert_eq!(ks[0].expression, "3");
+    assert_eq!(ks[0].value, Some(3.0));
 }
 
 #[test]

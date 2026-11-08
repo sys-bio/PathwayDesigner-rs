@@ -19,10 +19,7 @@ use serde_json::{Value, json};
 fn read(path: &str) -> Model {
     let text = std::fs::read_to_string(path).expect("readable");
     if path.ends_with(".xml") || path.ends_with(".sbml") {
-        let opts = pd_core::antimony::ImportOptions {
-            convert_catalytic: false,
-            seed: 1,
-        };
+        let opts = pd_core::antimony::ImportOptions { seed: 1 };
         return pd_core::sbml::import(&text, &opts).expect("SBML").model;
     }
     if pd_core::escher::looks_like_escher(&text) {
