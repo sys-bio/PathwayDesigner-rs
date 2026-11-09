@@ -29,6 +29,8 @@ enum Field {
     LineWidth,
     ReactionFontSize,
     KineticLaw,
+    /// A reaction's gene rule (docs/gene-rules-design.md G2).
+    GeneRule,
     TextSize,
     TextWrap,
     /// Ids: typing one renames the item, everywhere it is used.
@@ -65,6 +67,7 @@ impl Field {
                 | Field::SpeciesLabelText
                 | Field::ReactionLabelText
                 | Field::CompartmentLabelText
+                | Field::GeneRule
         )
     }
 }
@@ -90,6 +93,7 @@ pub struct Inspector {
     line_width: Draft,
     reaction_font_size: Draft,
     law: Draft,
+    genes: Draft,
     text_size: Draft,
     text_wrap: Draft,
     species_id: Draft,
@@ -241,6 +245,7 @@ impl Inspector {
             (Field::LineWidth, &one_reaction),
             (Field::ReactionFontSize, &first_reaction),
             (Field::KineticLaw, &one_reaction),
+            (Field::GeneRule, &one_reaction),
             (Field::TextSize, &first_text),
             (Field::TextWrap, &one_text),
             (Field::SpeciesId, &one_species),
@@ -615,6 +620,8 @@ impl Inspector {
                     ui.label("Rate law");
                     self.law_field(ui, view, one_reaction.is_some());
                     self.modifiers(ui, view, one_reaction.as_deref());
+                    ui.label("Genes");
+                    self.genes_field(ui, view, one_reaction.is_some());
                 }
             });
             if !look_only && let Some(id) = &one_reaction {
@@ -951,6 +958,7 @@ impl Inspector {
             Field::LineWidth => &self.line_width,
             Field::ReactionFontSize => &self.reaction_font_size,
             Field::KineticLaw => &self.law,
+            Field::GeneRule => &self.genes,
             Field::TextSize => &self.text_size,
             Field::TextWrap => &self.text_wrap,
             Field::SpeciesId => &self.species_id,
@@ -980,6 +988,7 @@ impl Inspector {
             Field::LineWidth => &mut self.line_width,
             Field::ReactionFontSize => &mut self.reaction_font_size,
             Field::KineticLaw => &mut self.law,
+            Field::GeneRule => &mut self.genes,
             Field::TextSize => &mut self.text_size,
             Field::TextWrap => &mut self.text_wrap,
             Field::SpeciesId => &mut self.species_id,
@@ -1024,6 +1033,13 @@ impl Inspector {
                 .find_reaction(target)
                 .map(|r| size_text(draw::reaction_label_size(r))),
             Field::KineticLaw => m.find_reaction(target).map(|r| r.kinetic_law.clone()),
+            Field::GeneRule => m.find_reaction(target).map(|r| {
+                r.sbml
+                    .gene_rule
+                    .as_deref()
+                    .map(|rule| pd_core::genes::editable(m, rule))
+                    .unwrap_or_default()
+            }),
             Field::TextSize => m.find_text(target).map(|t| t.size.to_string()),
             Field::TextWrap => m.find_text(target).map(|t| t.wrap_width.to_string()),
             Field::SpeciesId => species().map(|s| s.id.clone()),
@@ -1101,6 +1117,10 @@ impl Inspector {
             }
             (Field::KineticLaw, _) => {
                 view.set_kinetic_law(&target, &text);
+            }
+            // Not applied if it doesn't read; the field says why.
+            (Field::GeneRule, _) => {
+                let _ = view.set_gene_rule(&target, &text);
             }
             // The size goes to every selected text.
             (Field::TextSize, Some(v)) => {
@@ -1283,6 +1303,65 @@ impl Inspector {
                     .color(ERROR)
                     .small(),
             );
+        }
+    }
+
+    /// A reaction's gene rule, typed with the genes' labels (`b3916 or
+    /// b1723`); below it, as their names read (`pfkA or pfkB`), and what is
+    /// wrong or new (docs/gene-rules-design.md G2).
+    fn genes_field(&mut self, ui: &mut egui::Ui, view: &mut DiagramView, enabled: bool) {
+        self.refresh(Field::GeneRule, view);
+        let d = &mut self.genes;
+        let r = ui.add_enabled(
+            enabled,
+            egui::TextEdit::singleline(&mut d.text)
+                .desired_width(f32::INFINITY)
+                .hint_text(if enabled {
+                    "e.g. b3916 or b1723"
+                } else {
+                    "select one reaction"
+                }),
+        );
+        if r.changed() {
+            d.dirty = true;
+        }
+        let enter = r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+        if enter {
+            r.surrender_focus();
+        }
+        let typed = self.genes.text.clone();
+        let check = pd_core::genes::check_typed(view.model(), &typed);
+        if (r.lost_focus() || enter) && check.is_ok() {
+            self.commit(Field::GeneRule, view);
+        }
+        if !enabled {
+            return;
+        }
+        match check {
+            Err(e) => {
+                ui.label(RichText::new(e).color(ERROR).small());
+            }
+            Ok(new) if !new.is_empty() => {
+                ui.label(
+                    RichText::new(format!("New genes: {}", new.join(", ")))
+                        .weak()
+                        .small(),
+                );
+            }
+            Ok(_) => {
+                let rule = self
+                    .genes
+                    .target
+                    .as_deref()
+                    .and_then(|t| view.model().find_reaction(t))
+                    .and_then(|r| r.sbml.gene_rule.clone());
+                if let Some(rule) = rule {
+                    let names = pd_core::genes::shown(view.model(), &rule);
+                    if names != pd_core::genes::editable(view.model(), &rule) {
+                        ui.label(RichText::new(names).weak().small());
+                    }
+                }
+            }
         }
     }
 

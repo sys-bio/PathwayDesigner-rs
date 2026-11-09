@@ -22,6 +22,7 @@ pub mod entry_names;
 pub mod escher;
 pub mod expr;
 pub mod generate;
+pub mod genes;
 pub mod geometry;
 pub mod json;
 pub mod kegg;

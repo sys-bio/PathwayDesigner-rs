@@ -707,6 +707,7 @@ impl Builder {
         }
         self.forget_made_up_reference_ids();
         self.forget_implied_default_compartment();
+        crate::genes::from_packages(&mut self.model);
         self.model.recompute_id_counter();
         // A model built from submodels (docs/sbml-app-design.md A8).
         if self

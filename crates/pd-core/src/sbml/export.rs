@@ -85,6 +85,25 @@ pub fn export(model: &Model) -> Exported {
     } else {
         model
     };
+    // Genes and gene rules into the fbc XML kept with the model
+    // (docs/gene-rules-design.md).
+    let with_genes;
+    let model = if !model.genes.is_empty()
+        || model.reactions().iter().any(|r| r.sbml.gene_rule.is_some())
+        || model
+            .annotation
+            .package
+            .elements
+            .iter()
+            .any(|x| x.contains("listOfGeneProducts"))
+    {
+        let mut m = model.clone();
+        crate::genes::to_packages(&mut m);
+        with_genes = m;
+        &with_genes
+    } else {
+        model
+    };
     let mut problems = Vec::new();
     let mut notes = Vec::new();
     let doc = document(model, &mut problems, &mut notes);

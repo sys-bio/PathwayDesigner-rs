@@ -4,6 +4,17 @@ What changed in each version, for the GitHub release. The packages for
 Windows, macOS and Linux and the web zip are attached to each release; the web
 version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
 
+## Unreleased
+
+**New**
+
+- **Genes.** A reaction's gene rule (`b3916 or b1723`: either gene's product
+  catalyses it; `and` for a complex) and its genes are kept: read from Escher
+  maps and from SBML's fbc package, written to SBML with fbc, and kept in
+  PathwayDesigner's own file and in Antimony saved with its diagram. A
+  reaction's properties show them by name (`pfkA or pfkB`) and edit them by
+  gene id.
+
 ## 1.0.0 (2026-11-08)
 
 **New**

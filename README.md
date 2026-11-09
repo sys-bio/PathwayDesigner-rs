@@ -190,7 +190,10 @@ Delphi version does, and some more (see [Status](#status)).
   centre line and the map's own curves, its labels, and each extra drawing of a
   metabolite as an alias, in the Escher theme, each at the size the map gives it.
   Maps whose lines are routed through chains of markers (such as the BiGG maps
-  drawn by MetaCarto) keep their routes as corner points.
+  drawn by MetaCarto) keep their routes as corner points. Each reaction's
+  gene rule (`b3916 or b1723`) and its genes are kept, shown and edited in the
+  reaction's properties, and written to SBML with the fbc package
+  ([docs/gene-rules-design.md](docs/gene-rules-design.md)).
 - **KEGG maps**: *File ▸ Open* reads a [KEGG](https://www.kegg.jp) metabolic
   pathway map (a KGML file, `.xml`) at KEGG's positions: compounds as circles,
   enzymes as boxes catalysing their reactions, links to other maps as grey text.

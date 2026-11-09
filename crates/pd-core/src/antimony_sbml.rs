@@ -314,6 +314,17 @@ pub fn gather(
     {
         m.insert("noLawParameter".into(), json!(true));
     }
+    // Genes (docs/gene-rules-design.md), where the fbc XML kept with the
+    // model doesn't say them.
+    if !model.genes.is_empty() && crate::genes::genes_as_read(model).as_ref() != Some(&model.genes)
+    {
+        let genes: Vec<Value> = model
+            .genes
+            .iter()
+            .map(|g| json!([g.id, g.label, g.name]))
+            .collect();
+        m.insert("genes".into(), Value::Array(genes));
+    }
     sbml(Subject::Model, m);
 
     for c in &model.compartments {
@@ -437,6 +448,12 @@ pub fn gather(
         }
         if !refs.is_empty() {
             m.insert("references".into(), Value::Array(refs));
+        }
+        // Its gene rule, where its fbc XML doesn't say it.
+        if r.sbml.gene_rule.is_some()
+            && crate::genes::rule_as_read(r, &model.sbml_namespaces) != r.sbml.gene_rule
+        {
+            m.insert("geneRule".into(), json!(r.sbml.gene_rule));
         }
         sbml(Subject::Item(r.id.clone()), m);
     }
@@ -730,6 +747,7 @@ pub fn left_out(notes: &[Note], written: &str) -> Vec<&'static str> {
         EXACT_UNITS,
         NAMES,
         MESSAGES,
+        GENES,
         ANNOTATIONS,
         MODEL,
         PACKAGES,
@@ -755,6 +773,7 @@ const UNITS: &str = "the model's units";
 const EXACT_UNITS: &str = "units exactly as defined";
 const NAMES: &str = "some names";
 const MESSAGES: &str = "constraints' messages";
+const GENES: &str = "genes and reactions' gene rules";
 const ANNOTATIONS: &str = "metaids, and annotations Antimony has no words for";
 const MODEL: &str = "the model's SBML id and name";
 const PACKAGES: &str = "other SBML packages' parts and the SBML version";
@@ -776,6 +795,7 @@ fn in_words(subject: &Subject, key: &str) -> Option<&'static str> {
         "compartment" => PLACE,
         "units" => EXACT_UNITS,
         "message" => MESSAGES,
+        "genes" | "geneRule" => GENES,
         "name" if *subject == Subject::Model => MODEL,
         "name" => NAMES,
         "noMath" | "noTrigger" | "noTriggerMath" => NO_MATH,
@@ -1135,6 +1155,36 @@ pub fn apply(model: &mut Model, notes: &[Note]) {
         } = n
         {
             make_local(model, param, reaction, id);
+        }
+    }
+    // Genes: out of the fbc XML the notes gave back, then those the notes
+    // say themselves (docs/gene-rules-design.md).
+    crate::genes::from_packages(model);
+    for n in notes {
+        let Note::Sbml(subject, map) = n else {
+            continue;
+        };
+        match subject {
+            Subject::Model => {
+                if let Some(Value::Array(genes)) = map.get("genes") {
+                    model.genes = genes
+                        .iter()
+                        .filter_map(|g| {
+                            Some(crate::model::Gene {
+                                id: g.get(0)?.as_str()?.to_owned(),
+                                label: g.get(1)?.as_str()?.to_owned(),
+                                name: text(g.get(2)),
+                            })
+                        })
+                        .collect();
+                }
+            }
+            Subject::Item(id) if map.contains_key("geneRule") => {
+                if let Some(r) = model.find_reaction_mut(id) {
+                    r.sbml.gene_rule = text(map.get("geneRule"));
+                }
+            }
+            _ => {}
         }
     }
     // A rule's variable that is a reaction's species reference again, not

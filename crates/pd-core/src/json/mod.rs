@@ -16,7 +16,7 @@ use crate::geometry::pt;
 use crate::model::{
     AlgebraicRule, Annotation, AssignmentRule, BorderDash, Compartment, CompartmentSbml,
     Constraint, Creator, DEFAULT_SPECIES_HEIGHT, DEFAULT_SPECIES_WIDTH, DEFAULT_TEXT_SIZE, Event,
-    EventAssignment, EventFormula, Frame, FunctionDefinition, History, InitialAssignment,
+    EventAssignment, EventFormula, Frame, FunctionDefinition, Gene, History, InitialAssignment,
     LabelChoice, LinePattern, LocalParameter, Look, Model, ModelUnits, ModifierKind, ModifierLook,
     NodeShape, PackageAttribute, PackageData, Parameter, Participant, RateRule, Reaction,
     ReactionMode, ReactionSbml, Reference, Rgba, SavedStyle, SpeciesNode, SpeciesReference,
@@ -25,12 +25,16 @@ use crate::model::{
 };
 
 /// The newest version this code understands, and writes when it must: the
-/// one that brought the rest of SBML (docs/sbml-full-support-design.md F13):
-/// functions, units, initial assignments, rate and algebraic rules,
-/// constraints and events, and what parameters, species, compartments,
-/// reactions and their species references carry beyond what was kept
-/// before.
-pub const FORMAT_VERSION: u32 = 23;
+/// one that brought genes and reactions' gene rules
+/// (docs/gene-rules-design.md).
+pub const FORMAT_VERSION: u32 = 24;
+
+/// The version that brought the rest of SBML
+/// (docs/sbml-full-support-design.md F13): functions, units, initial
+/// assignments, rate and algebraic rules, constraints and events, and what
+/// parameters, species, compartments, reactions and their species references
+/// carry beyond what was kept before.
+pub const FULL_SBML_VERSION: u32 = 23;
 
 /// The version that brought other tools' annotations and the SBML `metaid`
 /// in an annotation (`other`, `metaid`, docs/other-annotations-design.md).
@@ -211,8 +215,12 @@ pub fn needed_version(model: &Model) -> u32 {
     let label_text = model.species().iter().any(|s| s.label_text.is_some())
         || model.reactions().iter().any(|r| r.label_text.is_some())
         || model.compartments.iter().any(|c| c.label_text.is_some());
-    if full_sbml(model) {
+    let genes =
+        !model.genes.is_empty() || model.reactions().iter().any(|r| r.sbml.gene_rule.is_some());
+    if genes {
         FORMAT_VERSION
+    } else if full_sbml(model) {
+        FULL_SBML_VERSION
     } else if other_annotations(model) {
         OTHER_ANNOTATIONS_VERSION
     } else if label_text {
@@ -442,6 +450,9 @@ struct FileModel {
     conversion_factor: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     functions: Vec<FileFunction>,
+    /// Version 24: the genes reactions' gene rules name.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    genes: Vec<FileGene>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     unit_definitions: Vec<FileUnitDefinition>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -808,6 +819,16 @@ struct FileModelUnits {
     length: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     extent: Option<String>,
+}
+
+/// A gene (version 24, docs/gene-rules-design.md).
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileGene {
+    id: String,
+    label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
 }
 
 /// A function definition (version 23): `id(arguments) = body`.
@@ -1276,6 +1297,9 @@ struct FileReaction {
     local_parameters: Vec<FileLocalParameter>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kinetic_law_annotation: Option<FileAnnotation>,
+    /// Version 24: which genes' products catalyse it, as text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gene_rule: Option<String>,
 }
 
 /// Version 1 lists participants as bare species ids; later versions use objects.
@@ -1540,6 +1564,15 @@ impl FileModel {
             })
             .unwrap_or_default();
         model.conversion_factor = self.conversion_factor;
+        model.genes = self
+            .genes
+            .into_iter()
+            .map(|g| Gene {
+                id: g.id,
+                label: g.label,
+                name: g.name,
+            })
+            .collect();
         model.function_definitions = self
             .functions
             .into_iter()
@@ -1582,7 +1615,7 @@ impl FileModel {
                 annotation: annotation_from_file(a.annotation),
             })
             .collect();
-        if version >= FORMAT_VERSION {
+        if version >= FULL_SBML_VERSION {
             model.initial_assignments = listed;
         } else {
             model.initial_assignments.extend(listed);
@@ -1774,6 +1807,7 @@ impl FileModel {
                     })
                     .collect(),
                 kinetic_law_annotation: annotation_from_file(r.kinetic_law_annotation),
+                gene_rule: r.gene_rule,
             };
             reaction.stem = match r.stem.as_deref() {
                 None => None,
@@ -1890,6 +1924,10 @@ impl FileModel {
         model.reference_names = self.reference_names;
         model.history = history_from_file(self.history);
         declare_rule_variables(&mut model, version);
+        // Genes, before version 24 only in the fbc XML kept with the model.
+        if version < FORMAT_VERSION {
+            crate::genes::from_packages(&mut model);
+        }
         model.refresh_labels();
 
         model.recompute_id_counter();
@@ -1915,7 +1953,7 @@ fn declare_rule_variables(model: &mut Model, version: u32) {
                 .parameters
                 .push(Parameter::new(variable.clone(), None));
         }
-        let old = version < FORMAT_VERSION;
+        let old = version < FULL_SBML_VERSION;
         if let Some(p) = model.parameters.iter_mut().find(|p| p.variable == variable) {
             p.constant = false;
             if old && p.annotation == Annotation::default() {
@@ -2237,7 +2275,7 @@ impl FileModel {
                 .iter()
                 // Written by its rule alone in older versions, in its place
                 // in version 23.
-                .filter(|p| version == FORMAT_VERSION || !implied_parameter(m, p))
+                .filter(|p| version >= FULL_SBML_VERSION || !implied_parameter(m, p))
                 .map(|p| {
                     let formula = m.initial_assignment(&p.variable);
                     let ruled = m.assignment_rules.iter().any(|r| r.variable == p.variable);
@@ -2348,6 +2386,15 @@ impl FileModel {
                 extent: m.units.extent.clone(),
             }),
             conversion_factor: m.conversion_factor.clone(),
+            genes: m
+                .genes
+                .iter()
+                .map(|g| FileGene {
+                    id: g.id.clone(),
+                    label: g.label.clone(),
+                    name: g.name.clone(),
+                })
+                .collect(),
             functions: m
                 .function_definitions
                 .iter()
@@ -2385,7 +2432,7 @@ impl FileModel {
                 .initial_assignments
                 .iter()
                 .filter(|a| {
-                    version == FORMAT_VERSION
+                    version >= FULL_SBML_VERSION
                         || !m.parameters.iter().any(|p| p.variable == a.symbol)
                 })
                 .map(|a| FileExpression::new(&a.symbol, &a.expression, &a.annotation))
@@ -2642,6 +2689,7 @@ fn reaction_to_file(r: &Reaction) -> FileReaction {
             })
             .collect(),
         kinetic_law_annotation: annotation_to_file(&r.sbml.kinetic_law_annotation),
+        gene_rule: r.sbml.gene_rule.clone(),
     }
 }
 
@@ -2876,7 +2924,7 @@ mod tests {
         // A rule's own annotation needs version 23, and is kept as the rule's.
         let mut own = m.clone();
         own.assignment_rules[0].annotation.sbo = Some(64);
-        assert_eq!(needed_version(&own), FORMAT_VERSION);
+        assert_eq!(needed_version(&own), FULL_SBML_VERSION);
         let back = from_json(&to_json(&own)).unwrap().model;
         assert_eq!(back.assignment_rules[0].annotation.sbo, Some(64));
         assert_eq!(back.find_parameter("kr").unwrap().annotation.sbo, Some(186));
@@ -3468,6 +3516,7 @@ mod tests {
                 annotation: note(2),
             }],
             kinetic_law_annotation: note(3),
+            gene_rule: None,
         };
         m.push_reaction(r).unwrap();
         // A constant parameter with a value, one with a formula and a value,
@@ -3580,7 +3629,7 @@ mod tests {
     #[test]
     fn the_rest_of_sbml_is_kept_in_version_23() {
         let m = full_sbml_model();
-        assert_eq!(needed_version(&m), FORMAT_VERSION);
+        assert_eq!(needed_version(&m), FULL_SBML_VERSION);
         let loaded = from_json(&to_json(&m)).unwrap();
         assert!(loaded.warnings.is_empty(), "{:?}", loaded.warnings);
         assert_eq!(loaded.model, m);
@@ -3713,7 +3762,7 @@ mod tests {
         for (what, change) in changes {
             let mut m = base();
             change(&mut m);
-            assert_eq!(needed_version(&m), FORMAT_VERSION, "{what}");
+            assert_eq!(needed_version(&m), FULL_SBML_VERSION, "{what}");
         }
     }
 

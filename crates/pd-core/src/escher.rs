@@ -323,6 +323,7 @@ pub fn import(text: &str) -> Result<Imported, String> {
         if let Some(l) = point(r, "label_x", "label_y") {
             reaction_labels.push((id.clone(), l));
         }
+        genes_of_reaction(&mut model, &mut rx, r, &mut warnings);
         model.push_reaction(rx).expect("checked unused");
     }
 
@@ -475,6 +476,64 @@ fn handle(segment: &Value, key: &str) -> Option<Pt> {
 /// A BiGG id as an SBML id: as it is when it is one, otherwise with what
 /// isn't allowed made `_` and BiGG's own prefix (`M_` for a metabolite, `R_`
 /// for a reaction) in front, as BiGG's SBML writes them.
+/// A reaction's genes and gene rule (docs/gene-rules-design.md): each of
+/// its genes in the model's list once, by BiGG's SBML id (`G_b3916`), with
+/// its b-number or other id as its label and its name; the rule in those ids.
+fn genes_of_reaction(model: &mut Model, rx: &mut Reaction, r: &Value, warnings: &mut Vec<String>) {
+    let listed: Vec<(String, Option<String>)> = r
+        .get("genes")
+        .and_then(Value::as_array)
+        .map(|genes| {
+            genes
+                .iter()
+                .filter_map(|g| {
+                    let bigg = g.get("bigg_id").and_then(Value::as_str)?.to_owned();
+                    let name = g.get("name").and_then(Value::as_str).map(str::to_owned);
+                    Some((bigg, name))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let add = |model: &mut Model, label: &str| {
+        let id = crate::genes::gene_id(label);
+        if !model.genes.iter().any(|g| g.id == id) {
+            let name = listed
+                .iter()
+                .find(|(b, _)| b == label)
+                .and_then(|(_, n)| n.clone())
+                .filter(|n| !n.trim().is_empty());
+            model.genes.push(crate::model::Gene {
+                id,
+                label: label.to_owned(),
+                name,
+            });
+        }
+    };
+    for (bigg, _) in &listed {
+        add(model, bigg);
+    }
+    let Some(text) = r
+        .get("gene_reaction_rule")
+        .and_then(Value::as_str)
+        .filter(|t| !t.trim().is_empty())
+    else {
+        return;
+    };
+    match crate::genes::parse(text) {
+        Ok(rule) => {
+            for g in crate::genes::genes_of(&rule) {
+                add(model, &g);
+            }
+            let by_id = crate::genes::renamed(&rule, &|g| crate::genes::gene_id(g));
+            rx.sbml.gene_rule = Some(crate::genes::text(&by_id));
+        }
+        Err(why) => warnings.push(format!(
+            "Reaction {}'s gene rule couldn't be read ({why}); it was left out.",
+            rx.id
+        )),
+    }
+}
+
 fn sid(bigg: &str, prefix: char) -> Id {
     if crate::model::is_valid_sid(bigg) {
         return bigg.to_owned();

@@ -212,6 +212,21 @@ pub struct ReactionSbml {
     pub local_parameters: Vec<LocalParameter>,
     /// The `kineticLaw` element's own notes and annotation.
     pub kinetic_law_annotation: Annotation,
+    /// Which genes' products catalyse it, as text: gene ids joined by `and`
+    /// (a complex) and `or` (alternatives), with brackets
+    /// (docs/gene-rules-design.md, [`crate::genes`]).
+    pub gene_rule: Option<String>,
+}
+
+/// A gene, as SBML's fbc package has it (a gene product): what reactions'
+/// gene rules name, by `id`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Gene {
+    pub id: Id,
+    /// The gene's own identifier, such as a b-number (`b3916`).
+    pub label: String,
+    /// Its name, such as `pfkA`.
+    pub name: Option<String>,
 }
 
 /// What SBML says of one species in a reaction beyond the species and its

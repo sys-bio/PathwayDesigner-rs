@@ -128,6 +128,16 @@ impl DiagramView {
         self.record_if_changed("Edit Rate Law", before)
     }
 
+    /// Sets a reaction's gene rule from what was typed: genes by label or id,
+    /// a new gene for a word that names none (docs/gene-rules-design.md G2).
+    /// One undo step; nothing changes if the rule doesn't read, and the
+    /// reason is returned.
+    pub fn set_gene_rule(&mut self, id: &str, typed: &str) -> Result<ViewResponse, String> {
+        let before = self.model.clone();
+        crate::genes::set_typed(&mut self.model, id, typed)?;
+        Ok(self.record_if_changed("Edit Genes", before))
+    }
+
     /// Sets a species' initial value. For an alias, its primary's. One undo step.
     pub fn set_initial_value(&mut self, id: &str, value: f64) -> ViewResponse {
         if !value.is_finite() {

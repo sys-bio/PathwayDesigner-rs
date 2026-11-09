@@ -204,7 +204,9 @@ saved means what it meant: function definitions, unit definitions and the
 model's units, initial assignments, assignment, rate and algebraic rules,
 constraints and events, and on each item what SBML says of it beyond what is
 drawn (a species reference's id, a rate law's own parameters, a compartment's
-dimensions, unset values, other packages' parts: the items' `sbml` fields). A
+dimensions, unset values, other packages' parts: the items' `sbml` fields), and
+the genes reactions' gene rules name (`Model::genes`, `ReactionSbml::gene_rule`,
+`pd-core::genes`, docs/gene-rules-design.md). A
 parameter is `{variable, value: Option<f64>, name, units, constant}`; a formula
 for a starting value is an initial assignment. Renaming an item renames it in
 every formula and wherever it is named; deleting one deletes with it only what
@@ -359,6 +361,13 @@ doesn't know is read as the rounded rectangle, and a border style it doesn't
 know as automatic, each with a warning. An older Rust
 version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
+
+**Version 24: genes** (docs/gene-rules-design.md). The model may have
+`"genes"`, a list of `{"id", "label", "name"}` (SBML fbc's gene products), and
+a reaction `"geneRule"`, the gene ids it needs joined by `and` and `or`, with
+brackets (`"G_b3916 or G_b1723"`). A document with any is version 24. Read
+from an older version, a model's genes are read out of the fbc XML kept with
+it (version 23).
 
 **Version 23: the rest of SBML** (docs/sbml-full-support-design.md F13). Each
 key is left out when empty or at its usual value, and a document with any is
@@ -1217,6 +1226,14 @@ replace `sbml-io` behind the same bridge.
   warning. The preference *Write functions into the formulas that use them*
   (docs/sbml-app-design.md A4) does that for all of them on saving
   (`Model::with_functions_written_in`); the diagram keeps them.
+- **Genes** (docs/gene-rules-design.md): fbc version 2's gene products and
+  each reaction's gene product association are read into the model's genes
+  and rules (`genes::from_packages`), and written back from them
+  (`genes::to_packages`): the fbc XML as read wherever the genes and rule still
+  say the same, so its SBO terms and annotations come back exactly; new XML
+  where they don't, with fbc declared, `fbc:required="false"` and
+  `fbc:strict="false"`. Gene ids as BiGG writes them (`G_b3916`), labels the
+  plain ids.
 - **Nothing else is left out.** Events, rules, constraints, units and conversion
   factors are kept, and a whole number stays an integer or a real as the file
   had it. The constants are names in formulas (`true`, `pi`, `inf`, `NaN`, …,
@@ -1465,6 +1482,14 @@ status bar.
   diagram, the panel says what the text leaves out.
 - Parse errors are shown next to the text and in a list below it. Clicking an error
   moves the cursor to it.
+
+### 11.0a A reaction's genes
+
+docs/gene-rules-design.md G2. Below the rate law, **Genes**: the reaction's gene
+rule, typed with the genes' labels (`b3916 or b1723`), checked as typed
+(`genes::check_typed`), applied on Enter or leaving the field as one undo step
+(`DiagramView::set_gene_rule`); a word that names no gene becomes a new one.
+Below it, the rule with the genes' names (`pfkA or pfkB`).
 
 ### 11.1a The Events & Rules tab
 

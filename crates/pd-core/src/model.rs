@@ -1211,6 +1211,8 @@ pub struct Model {
     pub function_definitions: Vec<FunctionDefinition>,
     pub unit_definitions: Vec<UnitDefinition>,
     pub units: ModelUnits,
+    /// The genes reactions' gene rules name (docs/gene-rules-design.md).
+    pub genes: Vec<Gene>,
     pub conversion_factor: Option<Id>,
     pub initial_assignments: Vec<InitialAssignment>,
     pub rate_rules: Vec<RateRule>,
@@ -1275,6 +1277,7 @@ impl Default for Model {
             parameters: Vec::new(),
             assignment_rules: Vec::new(),
             function_definitions: Vec::new(),
+            genes: Vec::new(),
             unit_definitions: Vec::new(),
             units: ModelUnits::default(),
             conversion_factor: None,

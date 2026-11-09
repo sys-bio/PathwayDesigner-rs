@@ -3706,6 +3706,64 @@ k = 0.1",
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// docs/gene-rules-design.md G2: a reaction's genes are shown by name
+    /// and typed by label, as one undo step.
+    #[test]
+    fn a_reactions_genes_are_shown_and_typed() {
+        let mut h = Harness::new();
+        // Tall enough for the whole reaction group.
+        h.size = egui::vec2(1400.0, 1600.0);
+        h.app.perform(Action::OpenText {
+            name: "e_coli_core.json".into(),
+            text: include_str!("../../../Escher/e_coli_core.Core metabolism.json").into(),
+            target: None,
+        });
+        h.run(vec![]);
+        h.app.right_tab = RightTab::Properties;
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg("PFK".into()), false);
+        h.run(vec![]);
+        h.run(vec![]);
+        h.text("Genes");
+        // The names below the field.
+        h.text("pfkA or pfkB");
+        // Typed by label: one gene now.
+        h.click(h.text("Genes") + egui::vec2(80.0, 22.0));
+        h.key(Key::A, Modifiers::COMMAND);
+        h.run(vec![Event::Text("b3916".into())]);
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        let rule = |h: &Harness| {
+            h.app
+                .view
+                .model()
+                .find_reaction("PFK")
+                .unwrap()
+                .sbml
+                .gene_rule
+                .clone()
+        };
+        assert_eq!(rule(&h).as_deref(), Some("G_b3916"));
+        assert_eq!(h.app.view.undo_description(), Some("Edit Genes"));
+        h.app.view.undo();
+        h.run(vec![]);
+        assert_eq!(rule(&h).as_deref(), Some("G_b3916 or G_b1723"));
+        // A rule that doesn't read says why, and isn't applied.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg("PFK".into()), false);
+        h.run(vec![]);
+        h.click(h.text("Genes") + egui::vec2(80.0, 22.0));
+        h.key(Key::A, Modifiers::COMMAND);
+        h.run(vec![Event::Text("b3916 or".into())]);
+        h.run(vec![]);
+        h.text("A gene is missing at the end");
+        h.key(Key::Enter, Modifiers::NONE);
+        h.run(vec![]);
+        assert_eq!(rule(&h).as_deref(), Some("G_b3916 or G_b1723"));
+    }
+
     /// docs/display-names-design.md D3: the species panel shows the id and
     /// a display name that can be typed, as one undo step.
     #[test]
