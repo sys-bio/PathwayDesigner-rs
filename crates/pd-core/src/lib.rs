@@ -42,6 +42,7 @@ pub mod text;
 pub mod textbox;
 pub mod themes;
 pub mod undo;
+pub mod uniprot;
 pub mod view;
 
 /// A model from a file's text, by what it holds: an Escher map, SBML, or

@@ -248,6 +248,7 @@ pub fn set_typed(model: &mut Model, reaction: &str, typed: &str) -> Result<(), S
                     id,
                     label: word,
                     name: None,
+                    ..Default::default()
                 });
             }
         }
@@ -262,6 +263,43 @@ pub fn set_typed(model: &mut Model, reaction: &str, typed: &str) -> Result<(), S
         .sbml
         .gene_rule = rule;
     Ok(())
+}
+
+// ----- The organism ---------------------------------------------------------------
+
+/// The NCBI Taxonomy number in a taxonomy reference, as files write it
+/// (`https://identifiers.org/taxonomy:83333`, `…/taxonomy/83333`,
+/// `urn:miriam:taxonomy:83333`).
+fn taxon_of(resource: &str) -> Option<String> {
+    let at = resource.find("taxonomy")? + "taxonomy".len();
+    let n: String = resource[at..]
+        .trim_start_matches([':', '/'])
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    (!n.is_empty()).then_some(n)
+}
+
+/// The model's organism, as SBML holds it: its `bqbiol:hasTaxon` reference
+/// to NCBI Taxonomy, as a number (`83333`) (docs/uniprot-genes-design.md U2).
+pub fn organism(model: &Model) -> Option<String> {
+    model
+        .annotation
+        .references
+        .iter()
+        .filter(|r| r.qualifier == "bqbiol:hasTaxon")
+        .find_map(|r| taxon_of(&r.resource))
+}
+
+/// Sets the model's organism to NCBI Taxonomy's `taxon`, in place of any
+/// other.
+pub fn set_organism(model: &mut Model, taxon: &str) {
+    let refs = &mut model.annotation.references;
+    refs.retain(|r| r.qualifier != "bqbiol:hasTaxon" || taxon_of(&r.resource).is_none());
+    refs.push(crate::model::Reference {
+        qualifier: "bqbiol:hasTaxon".to_owned(),
+        resource: format!("https://identifiers.org/taxonomy:{taxon}"),
+    });
 }
 
 // ----- fbc XML --------------------------------------------------------------------
@@ -323,11 +361,85 @@ pub fn genes_from_fbc(xml: &str, namespaces: &[(Option<String>, String)]) -> Opt
             genes.push(Gene {
                 label: fbc_attr(&n, "label").unwrap_or(&id).to_owned(),
                 name: fbc_attr(&n, "name").map(str::to_owned),
+                annotation: gene_annotation(&n, namespaces),
                 id,
             });
         }
         Some(genes)
     })
+}
+
+/// The inner XML of `n`, as written.
+fn inner(n: &roxmltree::Node) -> String {
+    let text = n.document().input_text();
+    match (n.first_child(), n.last_child()) {
+        (Some(a), Some(b)) => text[a.range().start..b.range().end].to_owned(),
+        _ => String::new(),
+    }
+}
+
+/// A gene product's annotation: its metaid, SBO term, notes and annotation,
+/// read as any SBML element's.
+fn gene_annotation(
+    n: &roxmltree::Node,
+    namespaces: &[(Option<String>, String)],
+) -> crate::model::Annotation {
+    let child = |name: &str| {
+        n.children()
+            .find(|c| c.is_element() && c.tag_name().name() == name)
+            .map(|c| inner(&c))
+    };
+    let meta = sbml_io::Meta {
+        metaid: n.attribute("metaid").map(str::to_owned),
+        sbo_term: n.attribute("sboTerm").map(str::to_owned),
+        notes: child("notes"),
+        annotation: child("annotation"),
+        extra: Default::default(),
+    };
+    crate::sbml::import::annotation_of(&meta, namespaces)
+}
+
+/// A gene product as fbc XML, `p` the fbc prefix.
+fn gene_product_xml(g: &Gene, p: &str) -> String {
+    let a = &g.annotation;
+    let mut attrs = String::new();
+    let has_rdf = !a.references.is_empty()
+        || !a.history.is_empty()
+        || !a.rdf.is_empty()
+        || !a.other.is_empty();
+    let metaid = a
+        .metaid
+        .clone()
+        .or_else(|| has_rdf.then(|| format!("meta_{}", g.id)));
+    if let Some(m) = &metaid {
+        attrs.push_str(&format!(" metaid=\"{}\"", escape(m)));
+    }
+    if let Some(sbo) = a.sbo {
+        attrs.push_str(&format!(" sboTerm=\"SBO:{sbo:07}\""));
+    }
+    attrs.push_str(&format!(
+        " {p}:id=\"{}\" {p}:label=\"{}\"",
+        escape(&g.id),
+        escape(&g.label)
+    ));
+    if let Some(n) = &g.name {
+        attrs.push_str(&format!(" {p}:name=\"{}\"", escape(n)));
+    }
+    let mut body = String::new();
+    if let Some(notes) = &a.notes {
+        body.push_str(&format!("<notes>{notes}</notes>"));
+    }
+    if let Some(inner) = metaid
+        .as_deref()
+        .and_then(|m| crate::sbml::export::annotation_inner(m, a, &a.history))
+    {
+        body.push_str(&format!("<annotation>{inner}</annotation>"));
+    }
+    if body.is_empty() {
+        format!("<{p}:geneProduct{attrs}/>")
+    } else {
+        format!("<{p}:geneProduct{attrs}>{body}</{p}:geneProduct>")
+    }
 }
 
 /// Each gene product's own XML in a raw `listOfGeneProducts`, by id.
@@ -497,20 +609,7 @@ pub fn to_packages(model: &mut Model) {
             let items: String = model
                 .genes
                 .iter()
-                .map(|g| {
-                    as_read(g).unwrap_or_else(|| {
-                        let name = g
-                            .name
-                            .as_deref()
-                            .map(|n| format!(" {p}:name=\"{}\"", escape(n)))
-                            .unwrap_or_default();
-                        format!(
-                            "<{p}:geneProduct {p}:id=\"{}\" {p}:label=\"{}\"{name}/>",
-                            escape(&g.id),
-                            escape(&g.label)
-                        )
-                    })
-                })
+                .map(|g| as_read(g).unwrap_or_else(|| gene_product_xml(g, &p)))
                 .collect();
             Some(format!(
                 "<{p}:listOfGeneProducts>{items}</{p}:listOfGeneProducts>"
@@ -637,6 +736,7 @@ mod tests {
             id: "G_b3916".into(),
             label: "b3916".into(),
             name: Some("pfkA".into()),
+            ..Default::default()
         });
         assert_eq!(check_typed(&m, "b3916 or b1723").unwrap(), ["b1723"]);
         assert!(check_typed(&m, "b3916 or").is_err());
@@ -686,7 +786,11 @@ mod tests {
             Some(vec![Gene {
                 id: "G_a".into(),
                 label: "a".into(),
-                name: Some("pfkA".into())
+                name: Some("pfkA".into()),
+                annotation: crate::model::Annotation {
+                    sbo: Some(243),
+                    ..Default::default()
+                },
             }])
         );
         // A list with more than genes is left alone.
@@ -714,6 +818,7 @@ mod tests {
             id: "G_b".into(),
             label: "b".into(),
             name: Some("pfkB".into()),
+            ..Default::default()
         });
         let mut out = m.clone();
         to_packages(&mut out);

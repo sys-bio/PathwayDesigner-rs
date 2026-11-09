@@ -156,3 +156,121 @@ fn genes_from_sbml_go_through_antimony() {
     assert_eq!(back.genes, m.genes);
     assert_eq!(rule(&back, "PFK"), rule(&m, "PFK"));
 }
+
+/// docs/uniprot-genes-design.md U1: a gene's annotation (its SBO term,
+/// references and notes) goes through SBML, the native file and Antimony.
+#[test]
+fn a_genes_annotation_is_kept() {
+    use pd_core::model::{Annotation, Reference};
+    let mut m = map();
+    let pfka = m.genes.iter_mut().find(|g| g.id == "G_b3916").unwrap();
+    pfka.annotation = Annotation {
+        sbo: Some(243),
+        references: vec![Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: "https://identifiers.org/uniprot:P0A796".into(),
+        }],
+        notes: Some("<p xmlns=\"http://www.w3.org/1999/xhtml\">Isozyme 1.</p>".into()),
+        ..Annotation::default()
+    };
+    let gene = |m: &Model| {
+        m.genes
+            .iter()
+            .find(|g| g.id == "G_b3916")
+            .unwrap()
+            .annotation
+            .clone()
+    };
+    let want = gene(&m);
+    let xml = sbml::export(&m).xml;
+    assert!(xml.contains("uniprot:P0A796"), "the RDF is written");
+    let back = sbml::import(&xml, &OPTS).unwrap().model;
+    let got = gene(&back);
+    assert_eq!(
+        (got.sbo, &got.references, &got.notes),
+        (want.sbo, &want.references, &want.notes)
+    );
+    let json = pd_core::json::from_json(&pd_core::json::to_json(&back))
+        .unwrap()
+        .model;
+    assert_eq!(gene(&json), got);
+    let ant = pd_core::antimony::import(&pd_core::antimony::export_with_diagram(&back), &OPTS)
+        .unwrap()
+        .model;
+    assert_eq!(gene(&ant), got);
+    // A gene from the map, whose annotation no fbc XML holds yet: Antimony's
+    // block has it.
+    let ant = pd_core::antimony::import(&pd_core::antimony::export_with_diagram(&m), &OPTS)
+        .unwrap()
+        .model;
+    assert_eq!(gene(&ant), want);
+    // Unchanged, written as read.
+    assert_eq!(
+        sbml::export(&back).xml.matches("uniprot:P0A796").count(),
+        xml.matches("uniprot:P0A796").count()
+    );
+}
+
+/// A gene product with references in its RDF, as BiGG writes them, is read
+/// with them.
+#[test]
+fn a_bigg_gene_products_references_are_read() {
+    let xml = r##"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" xmlns:fbc="http://www.sbml.org/sbml/level3/version1/fbc/version2" level="3" version="1" fbc:required="false">
+  <model id="m" fbc:strict="false">
+    <fbc:listOfGeneProducts>
+      <fbc:geneProduct metaid="G_b3916" sboTerm="SBO:0000243" fbc:id="G_b3916" fbc:label="b3916" fbc:name="pfkA">
+        <annotation>
+          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:bqbiol="http://biomodels.net/biology-qualifiers/">
+            <rdf:Description rdf:about="#G_b3916">
+              <bqbiol:is><rdf:Bag><rdf:li rdf:resource="http://identifiers.org/uniprot/P0A796"/></rdf:Bag></bqbiol:is>
+            </rdf:Description>
+          </rdf:RDF>
+        </annotation>
+      </fbc:geneProduct>
+    </fbc:listOfGeneProducts>
+  </model>
+</sbml>"##;
+    let m = sbml::import(xml, &OPTS).unwrap().model;
+    let a = &m.genes[0].annotation;
+    assert_eq!(a.sbo, Some(243));
+    assert_eq!(a.metaid.as_deref(), Some("G_b3916"));
+    assert_eq!(
+        a.references[0].resource,
+        "http://identifiers.org/uniprot/P0A796"
+    );
+}
+
+/// docs/uniprot-genes-design.md U2: the model's organism, a taxonomy
+/// reference, read in its spellings, set, and kept through SBML, the native
+/// file and Antimony.
+#[test]
+fn the_organism_is_kept() {
+    use pd_core::genes::{organism, set_organism};
+    let mut m = map();
+    assert_eq!(organism(&m), None);
+    for spelling in [
+        "https://identifiers.org/taxonomy:562",
+        "http://identifiers.org/taxonomy/562",
+        "urn:miriam:taxonomy:562",
+    ] {
+        m.annotation.references = vec![pd_core::model::Reference {
+            qualifier: "bqbiol:hasTaxon".into(),
+            resource: spelling.into(),
+        }];
+        assert_eq!(organism(&m).as_deref(), Some("562"), "{spelling}");
+    }
+    set_organism(&mut m, "83333");
+    assert_eq!(organism(&m).as_deref(), Some("83333"));
+    assert_eq!(m.annotation.references.len(), 1, "in place of the other");
+    let back = sbml::import(&sbml::export(&m).xml, &OPTS).unwrap().model;
+    assert_eq!(organism(&back).as_deref(), Some("83333"));
+    let json = pd_core::json::from_json(&pd_core::json::to_json(&m))
+        .unwrap()
+        .model;
+    assert_eq!(organism(&json).as_deref(), Some("83333"));
+    let ant = pd_core::antimony::import(&pd_core::antimony::export_with_diagram(&m), &OPTS)
+        .unwrap()
+        .model;
+    assert_eq!(organism(&ant).as_deref(), Some("83333"));
+}

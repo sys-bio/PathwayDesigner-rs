@@ -1119,6 +1119,25 @@ impl Metaids {
 /// metaid when there is RDF, other XML, or one was read: its own as read,
 /// else one made from its id ([`Metaids`]).
 fn meta(metaids: &mut Metaids, id: &str, a: &Annotation, history: &History) -> sb::Meta {
+    let rdf = !a.references.is_empty() || !history.is_empty() || !a.rdf.is_empty();
+    let metaid = (rdf || !a.other.is_empty() || a.metaid.is_some()).then(|| metaids.pick(id, a));
+    let annotation = metaid
+        .as_deref()
+        .and_then(|m| annotation_inner(m, a, history));
+    sb::Meta {
+        metaid,
+        sbo_term: a.sbo.map(|n| format!("SBO:{n:07}")),
+        notes: a.notes.clone(),
+        annotation,
+        extra: extra(&a.package),
+    }
+}
+
+/// What goes inside an element's `<annotation>`, its metaid `metaid`: the
+/// RDF of its references and `history`, then other tools' XML. Gene
+/// products, written as fbc's raw XML, use it too
+/// (docs/uniprot-genes-design.md U1).
+pub(crate) fn annotation_inner(metaid: &str, a: &Annotation, history: &History) -> Option<String> {
     let mut terms: Vec<sb::miriam::CvTerm> = Vec::new();
     for r in &a.references {
         let (model, qualifier) = match r.qualifier.split_once(':') {
@@ -1152,11 +1171,7 @@ fn meta(metaids: &mut Metaids, id: &str, a: &Annotation, history: &History) -> s
         created: history.created.clone(),
         modified: history.modified.clone(),
     };
-    let rdf = !terms.is_empty() || !history.is_empty() || !a.rdf.is_empty();
-    let metaid = (rdf || !a.other.is_empty() || a.metaid.is_some()).then(|| metaids.pick(id, a));
-    let mut annotation = metaid
-        .as_deref()
-        .and_then(|m| sb::miriam::write_annotation(m, &terms, &history, &a.rdf));
+    let mut annotation = sb::miriam::write_annotation(metaid, &terms, &history, &a.rdf);
     if !a.other.is_empty() {
         let mut all = annotation.unwrap_or_default();
         for x in &a.other {
@@ -1164,13 +1179,7 @@ fn meta(metaids: &mut Metaids, id: &str, a: &Annotation, history: &History) -> s
         }
         annotation = Some(all);
     }
-    sb::Meta {
-        metaid,
-        sbo_term: a.sbo.map(|n| format!("SBO:{n:07}")),
-        notes: a.notes.clone(),
-        annotation,
-        extra: extra(&a.package),
-    }
+    annotation
 }
 
 /// What other packages put on an element, as `sbml-io` writes it (F10).

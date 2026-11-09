@@ -506,6 +506,7 @@ fn genes_of_reaction(model: &mut Model, rx: &mut Reaction, r: &Value, warnings: 
                 id,
                 label: label.to_owned(),
                 name,
+                ..Default::default()
             });
         }
     };

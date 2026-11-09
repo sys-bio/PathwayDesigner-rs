@@ -829,6 +829,8 @@ struct FileGene {
     label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotation: Option<FileAnnotation>,
 }
 
 /// A function definition (version 23): `id(arguments) = body`.
@@ -1571,6 +1573,7 @@ impl FileModel {
                 id: g.id,
                 label: g.label,
                 name: g.name,
+                annotation: annotation_from_file(g.annotation),
             })
             .collect();
         model.function_definitions = self
@@ -2393,6 +2396,7 @@ impl FileModel {
                     id: g.id.clone(),
                     label: g.label.clone(),
                     name: g.name.clone(),
+                    annotation: annotation_to_file(&g.annotation),
                 })
                 .collect(),
             functions: m

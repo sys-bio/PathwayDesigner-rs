@@ -252,31 +252,7 @@ impl Builder {
     /// An item's SBO term, database references and notes
     /// (docs/annotations-design.md).
     fn annotation(&self, meta: &sb::Meta) -> crate::model::Annotation {
-        crate::model::Annotation {
-            sbo: meta.sbo_term.as_deref().and_then(sbo_number),
-            references: self
-                .miriam(meta)
-                .terms
-                .iter()
-                .flat_map(|t| {
-                    let q = format!(
-                        "{}:{}",
-                        if t.model { "bqmodel" } else { "bqbiol" },
-                        t.qualifier
-                    );
-                    t.resources.iter().map(move |r| crate::model::Reference {
-                        qualifier: q.clone(),
-                        resource: r.clone(),
-                    })
-                })
-                .collect(),
-            notes: meta.notes.clone().filter(|n| !n.trim().is_empty()),
-            other: kept_others(self.miriam(meta).other).0,
-            metaid: meta.metaid.clone(),
-            history: history(self.miriam(meta).history),
-            package: package(&meta.extra, &self.namespaces),
-            rdf: self.miriam(meta).descriptions,
-        }
+        annotation_of(meta, &self.namespaces)
     }
 
     /// The MIRIAM part of an item's annotation, taken apart.
@@ -1910,6 +1886,45 @@ fn find_participant(
 }
 
 /// `SBO:0000247` → 247; `None` for anything else.
+/// An element's annotation as the model holds it: its SBO term, MIRIAM
+/// references, notes, metaid, history, other tools' XML and other packages'
+/// parts. Gene products, read from fbc's raw XML, use it too
+/// (docs/uniprot-genes-design.md U1).
+pub(crate) fn annotation_of(
+    meta: &sb::Meta,
+    namespaces: &[(Option<String>, String)],
+) -> crate::model::Annotation {
+    let miriam = meta
+        .annotation
+        .as_deref()
+        .map(|a| sb::miriam::read_annotation(a, namespaces))
+        .unwrap_or_default();
+    crate::model::Annotation {
+        sbo: meta.sbo_term.as_deref().and_then(sbo_number),
+        references: miriam
+            .terms
+            .iter()
+            .flat_map(|t| {
+                let q = format!(
+                    "{}:{}",
+                    if t.model { "bqmodel" } else { "bqbiol" },
+                    t.qualifier
+                );
+                t.resources.iter().map(move |r| crate::model::Reference {
+                    qualifier: q.clone(),
+                    resource: r.clone(),
+                })
+            })
+            .collect(),
+        notes: meta.notes.clone().filter(|n| !n.trim().is_empty()),
+        other: kept_others(miriam.other).0,
+        metaid: meta.metaid.clone(),
+        history: history(miriam.history),
+        package: package(&meta.extra, namespaces),
+        rdf: miriam.descriptions,
+    }
+}
+
 fn sbo_number(term: &str) -> Option<u32> {
     term.trim().strip_prefix("SBO:")?.parse().ok()
 }

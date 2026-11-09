@@ -227,6 +227,9 @@ pub struct Gene {
     pub label: String,
     /// Its name, such as `pfkA`.
     pub name: Option<String>,
+    /// Its SBO term, references (its UniProt entry), notes and the rest, as
+    /// its fbc gene product has them (docs/uniprot-genes-design.md U1).
+    pub annotation: Annotation,
 }
 
 /// What SBML says of one species in a reaction beyond the species and its

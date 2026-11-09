@@ -321,7 +321,7 @@ pub fn gather(
         let genes: Vec<Value> = model
             .genes
             .iter()
-            .map(|g| json!([g.id, g.label, g.name]))
+            .map(|g| json!([g.id, g.label, g.name, annotation_value(&g.annotation, true)]))
             .collect();
         m.insert("genes".into(), Value::Array(genes));
     }
@@ -1170,10 +1170,13 @@ pub fn apply(model: &mut Model, notes: &[Note]) {
                     model.genes = genes
                         .iter()
                         .filter_map(|g| {
+                            let mut annotation = Annotation::default();
+                            merge_annotation(&mut annotation, g.get(3));
                             Some(crate::model::Gene {
                                 id: g.get(0)?.as_str()?.to_owned(),
                                 label: g.get(1)?.as_str()?.to_owned(),
                                 name: text(g.get(2)),
+                                annotation,
                             })
                         })
                         .collect();
