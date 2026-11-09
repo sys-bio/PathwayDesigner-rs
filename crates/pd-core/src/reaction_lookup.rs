@@ -27,6 +27,9 @@ use serde_json::Value;
 use crate::chebi::{bigg_name, encode, link, same};
 use crate::model::{Id, Reference};
 
+// BiGG's version 2 interface, which still answers; BiGG has moved to
+// https://bigg.bio, whose version 3 interface needs several requests for what
+// one gives here (docs/gene-rules-design.md, BiGG). Pages link to bigg.bio.
 const BIGG: &str = "https://bigg.ucsd.edu/api/v2/universal/reactions";
 const BIGG_SEARCH: &str = "https://bigg.ucsd.edu/api/v2/search";
 const RHEA: &str = "https://www.rhea-db.org/rhea";
@@ -144,7 +147,7 @@ impl Candidate {
     pub fn page(&self) -> String {
         match self.id.strip_prefix("RHEA:") {
             Some(n) => format!("https://www.rhea-db.org/rhea/{n}"),
-            None => format!("http://bigg.ucsd.edu/universal/reactions/{}", self.id),
+            None => format!("https://bigg.bio/universal/reactions/{}", self.id),
         }
     }
 }
@@ -776,7 +779,7 @@ mod tests {
                 "bqbiol:is https://identifiers.org/metanetx.reaction:MNXR103096",
             ]
         );
-        assert_eq!(c.page(), "http://bigg.ucsd.edu/universal/reactions/PPC");
+        assert_eq!(c.page(), "https://bigg.bio/universal/reactions/PPC");
         // Rhea's entry named by its equation, the rest by BiGG's name.
         let names = c.reference_names();
         assert_eq!(names.len(), 4);

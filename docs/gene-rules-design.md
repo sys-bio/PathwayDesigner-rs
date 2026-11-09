@@ -59,6 +59,15 @@ database links (EC, Rhea, KEGG) in the same answer. *Proposed:* move the
 lookups to version 3, with links to entries on bigg.bio, once its way of
 giving a reaction's references is worked out; until then version 2.
 
+*Found (2026-11-09):* version 3 gives a species' ChEBI entry through a
+curated reference compound (the charge form, `CHEBI:61548` for g6p) and its
+other references (KEGG, MetaCyc, SEED) through annotation records, about five
+chained requests where version 2 needs one; a reaction about four. Bulk
+downloads exist (4.6 MB metabolites, 14 MB reactions). *Settled with the
+author:* links to entries go to bigg.bio now, the lookups stay on version 2
+while it answers, and move to version 3, an item at a time, in a later
+version.
+
 ## Steps
 
 1. The model, the native file, SBML (fbc read and written), Escher import;
@@ -66,4 +75,5 @@ giving a reaction's references is worked out; until then version 2.
 2. Antimony's `sbml` block.
 3. The app: the Genes line, editing (G2). Shown in the browser.
 4. Docs.
-5. BiGG version 3.
+5. BiGG: links to bigg.bio (done 2026-11-09); the lookups on version 3 in a
+   later version.

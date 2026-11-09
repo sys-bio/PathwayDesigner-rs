@@ -15,6 +15,10 @@ version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
   reaction's properties show them by name (`pfkA or pfkB`) and edit them by
   gene id.
 
+**Changed**
+
+- Links to BiGG entries go to its new site, https://bigg.bio.
+
 ## 1.0.0 (2026-11-08)
 
 **New**

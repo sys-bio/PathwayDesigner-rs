@@ -32,6 +32,9 @@ use crate::model::{Id, Reference};
 /// The least time between two requests (C8), for the app to keep to.
 pub const MIN_INTERVAL_MS: u64 = 100;
 
+// BiGG's version 2 interface, which still answers; BiGG has moved to
+// https://bigg.bio, whose version 3 interface needs several requests for what
+// one gives here (docs/gene-rules-design.md, BiGG). Pages link to bigg.bio.
 const BIGG: &str = "https://bigg.ucsd.edu/api/v2/universal/metabolites";
 const BIGG_SEARCH: &str = "https://bigg.ucsd.edu/api/v2/search";
 /// ChEBI's molecular entities, the branch an exact search keeps to.

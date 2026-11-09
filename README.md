@@ -105,7 +105,7 @@ Delphi version does, and some more (see [Status](#status)).
   on an item shows its annotation.
 - **Annotate a whole model from its names**: *Annotate Species from Names* and
   *Annotate Reactions from Names* look the items up in
-  [BiGG](http://bigg.ucsd.edu), [ChEBI](https://www.ebi.ac.uk/chebi/),
+  [BiGG](https://bigg.bio), [ChEBI](https://www.ebi.ac.uk/chebi/),
   [PubChem](https://pubchem.ncbi.nlm.nih.gov) and [Rhea](https://www.rhea-db.org)
   and list what they find to check before anything is added.
 - **Find in ChEBI** and **Find in Rhea** for one species or reaction at a time,
