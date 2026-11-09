@@ -14,6 +14,13 @@ version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
   PathwayDesigner's own file and in Antimony saved with its diagram. A
   reaction's properties show them by name (`pfkA or pfkB`) and edit them by
   gene id.
+- **Genes looked up in UniProt.** *Edit ▸ Annotate Genes from Names…* finds
+  each gene's UniProt entry, within the model's organism, which it asks for
+  once and keeps with the model (for an Escher map drawn for a BiGG model, it
+  suggests that model's organism). What is found is reviewed before anything
+  is added, as for species and reactions; a reaction's Genes line then links
+  each gene's entry. A gene's annotation is kept in SBML's fbc package,
+  Antimony and PathwayDesigner's own file.
 
 **Changed**
 

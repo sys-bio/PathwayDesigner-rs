@@ -363,7 +363,8 @@ version opening a version 5 file sees that it is newer and makes Save behave as
 Save As (§4).
 
 **Version 24: genes** (docs/gene-rules-design.md). The model may have
-`"genes"`, a list of `{"id", "label", "name"}` (SBML fbc's gene products), and
+`"genes"`, a list of `{"id", "label", "name", "annotation"}` (SBML fbc's gene
+products; the annotation as an item's, docs/uniprot-genes-design.md U1), and
 a reaction `"geneRule"`, the gene ids it needs joined by `and` and `or`, with
 brackets (`"G_b3916 or G_b1723"`). A document with any is version 24. Read
 from an older version, a model's genes are read out of the fbc XML kept with
@@ -1233,7 +1234,10 @@ replace `sbml-io` behind the same bridge.
   say the same, so its SBO terms and annotations come back exactly; new XML
   where they don't, with fbc declared, `fbc:required="false"` and
   `fbc:strict="false"`. Gene ids as BiGG writes them (`G_b3916`), labels the
-  plain ids.
+  plain ids. A gene product's metaid, SBO term, notes and references are its
+  gene's annotation, read and written as any item's
+  (docs/uniprot-genes-design.md U1). The model's organism is its
+  `bqbiol:hasTaxon` reference to NCBI Taxonomy (`genes::organism`).
 - **Nothing else is left out.** Events, rules, constraints, units and conversion
   factors are kept, and a whole number stays an integer or a real as the file
   had it. The constants are names in formulas (`true`, `pi`, `inf`, `NaN`, …,
@@ -1489,7 +1493,18 @@ docs/gene-rules-design.md G2. Below the rate law, **Genes**: the reaction's gene
 rule, typed with the genes' labels (`b3916 or b1723`), checked as typed
 (`genes::check_typed`), applied on Enter or leaving the field as one undo step
 (`DiagramView::set_gene_rule`); a word that names no gene becomes a new one.
-Below it, the rule with the genes' names (`pfkA or pfkB`).
+Below it, the rule with the genes' names (`pfkA or pfkB`), and each gene's
+UniProt entry beside its name, a link to its page (`uniprot::entry_of`).
+
+**Annotate Genes from Names…** (Edit menu; docs/uniprot-genes-design.md):
+the genes of the selected reactions' rules, else all, none with a UniProt
+entry (`DiagramView::genes_to_annotate`). Without a model organism, the
+Annotate tab first asks for one: typed and searched in UniProt's taxonomy
+(`uniprot::taxonomy_searches`, `best_taxa`), or, for a map named after a BiGG
+model, BiGG's organism for it searched for; confirmed, it is set as one undo
+step, *Set Organism*. The search (`uniprot::GeneSearch`) is the review of
+§13.3 for genes: no diagram marks; **Apply** adds the ticked entries
+(`uniprot::accept`) as one undo step, *Annotate Genes*.
 
 ### 11.1a The Events & Rules tab
 

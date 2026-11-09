@@ -89,8 +89,8 @@ typed as a link or a short identifier such as `CHEBI:15422`, and clicking it
 opens the entry in your browser. Annotations come and go with SBML and
 Antimony files.
 
-PathwayDesigner can also look species and reactions up for you, in BiGG,
-ChEBI, PubChem and Rhea:
+PathwayDesigner can also look species, reactions and genes up for you, in
+BiGG, ChEBI, PubChem, Rhea and UniProt:
 
 - **Find in ChEBI**, in a species' Annotations, searches for its name (or any
   words you type) and lists what it finds; **Add** puts one in.
@@ -109,6 +109,13 @@ ChEBI, PubChem and Rhea:
   Rhea. Compare the equation shown with your reaction before ticking it.
   Species without a ChEBI entry are looked up by name for this, but annotating
   the species first gives better matches.
+- **Edit ▸ Annotate Genes from Names…** does the same for the genes of the
+  selected reactions, or all genes, in UniProt. It first asks which organism
+  the genes are from, since a gene's name is unique only within one; for an
+  Escher map drawn for a BiGG model it suggests that model's organism. The
+  organism is kept with the model. Each gene found gets its UniProt entry, and
+  its name if it has none; a reaction's **Genes** line then links each gene's
+  entry.
 
 While you review, and after **Apply**, the diagram marks what is left to do:
 an **orange** ring for an item found but not ticked, a **blue** one for an

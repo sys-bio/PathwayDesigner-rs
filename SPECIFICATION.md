@@ -2660,7 +2660,10 @@ Save never writes over the map. Opening it is not an edit, so the status bar say
   differ. A drawing without the flag keeps the theme's choice by name (§8.7), as
   do items added later.
 - **Text labels** become free text (§7.8) at their points.
-- Left out: genes and gene rules, and the canvas size.
+- **Genes.** Each reaction's `gene_reaction_rule` and the map's `genes` (id
+  and name) become its gene rule and the model's genes (Rust version,
+  docs/gene-rules-design.md).
+- Left out: the canvas size.
 
 ### 11.8 The Gallery (online examples)
 
@@ -2829,7 +2832,7 @@ file name when a file is open).
 | Menu | Items |
 |---|---|
 | **File** | New · Open… · Open from Gallery… (§11.8) · Save… · *(separator)* · Import Antimony… · Export Antimony… · *(separator)* · Import SBML… · Save to SBML… · *(separator)* · Export ▸ {SVG…, PNG…, PDF…} · Print… · Quit |
-| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Annotate Species from Names… · Annotate Reactions from Names… (§13.3; Rust version) · *(separator)* · Preferences… |
+| **Edit** | Undo · Redo · *(separator)* · Select All · Select All Species · Select All Reactions · *(separator)* · Copy Style · Paste Style (§8.5) · *(separator)* · Annotate Species from Names… · Annotate Reactions from Names… · Annotate Genes from Names… (§13.3; Rust version) · *(separator)* · Preferences… |
 | **Help** | Mouse and Keyboard (added in the Rust version: a window, not modal, listing the mouse actions and keyboard shortcuts as the README does; on the macOS desktop app it names Cmd and Option, elsewhere it notes them) · About (shows the version and build date, and the funding acknowledgement: NIH Biomedical Imaging and Bioengineering award P41 EB023912, through HMS at the Center for Reproducible Biomedical Modeling, with a link to https://reproduciblebiomodels.org/) |
 
 File dialogs: Open and Save use `*.json`. Antimony uses `*.ant` and `*.txt`. SBML
@@ -2923,6 +2926,33 @@ the Species and Reaction groups; there was no room left for more.)*
   adds the EC numbers (`bqbiol:isVersionOf`) and the Rhea master reaction, KEGG
   and MetaNetX reactions (`bqbiol:is`), and the ticked display names, as one undo
   step, *Annotate Reactions*.
+
+  **Annotate Genes from Names…** *(docs/uniprot-genes-design.md; Edit menu,
+  when the model has genes)* uses the same tab for genes: those in the selected
+  reactions' gene rules, else all; none that already has a UniProt entry. If
+  the model has no organism (its `hasTaxon` reference to NCBI Taxonomy), the
+  tab first asks *Which organism are the genes from?*: a field and **Find**,
+  which searches UniProt's taxonomy for the words as a whole scientific or
+  common name and as words, those named exactly so first; the taxa found, one
+  chosen; **Search UniProt**, which sets the chosen one as the model's
+  organism (one undo step, *Set Organism*) and searches within it; **Without
+  an organism**, which searches by label only; and **Cancel**. For a map
+  named after a BiGG model (`e_coli_core.Core metabolism`), BiGG's organism
+  for that model is filled in and searched for, with *Suggested by BiGG's
+  model …: check it.* The search asks UniProt's taxonomy first: a taxon with
+  no reviewed proteins (*E. coli* MG1655) is searched as its parent (K-12), up
+  to three steps. Then each gene by its label (a locus name, `b3916`), 25 a
+  request, within the taxon; then, with an organism, those not found by their
+  name (`pfkA`). A gene's candidates are the entries that list the label or
+  name among their gene names, reviewed ones first; the tick is on when there
+  is only one. The review lists each gene found: the tick, its name and label
+  (a link that selects a reaction it is in), the protein; the entries, in a
+  list, with their gene and protein names and whether reviewed, and a link to
+  the chosen one's page; and, for a gene without a name, the name it will be
+  given. **Apply (n)** adds each ticked entry (`bqbiol:is`), SBO:0000243
+  (gene) where the gene has no SBO term, and the entry's gene name where it has
+  no name, as one undo step, *Annotate Genes*. Genes aren't drawn, so the
+  review has no marks.
 
 The Text group has the words of the one
 selected text (applied as they are typed), then Typeface, Size, Style (Bold,

@@ -103,11 +103,12 @@ Delphi version does, and some more (see [Status](#status)).
 - Each reference shows what its entry is called (`CHEBI:16452` —
   oxaloacetate), and opens the entry's page in the browser. Resting the pointer
   on an item shows its annotation.
-- **Annotate a whole model from its names**: *Annotate Species from Names* and
-  *Annotate Reactions from Names* look the items up in
-  [BiGG](https://bigg.bio), [ChEBI](https://www.ebi.ac.uk/chebi/),
-  [PubChem](https://pubchem.ncbi.nlm.nih.gov) and [Rhea](https://www.rhea-db.org)
-  and list what they find to check before anything is added.
+- **Annotate a whole model from its names**: *Annotate Species from Names*,
+  *Annotate Reactions from Names* and *Annotate Genes from Names* look the items
+  up in [BiGG](https://bigg.bio), [ChEBI](https://www.ebi.ac.uk/chebi/),
+  [PubChem](https://pubchem.ncbi.nlm.nih.gov), [Rhea](https://www.rhea-db.org)
+  and [UniProt](https://www.uniprot.org) and list what they find to check
+  before anything is added.
 - **Find in ChEBI** and **Find in Rhea** for one species or reaction at a time,
   and marks on the diagram for what is still to check
   (see [How to annotate a model](#how-to-annotate-a-model)).
@@ -366,6 +367,18 @@ the reactions that have all of its reactants and products (species without a
 ChEBI entry are looked up by name for this); failing that, it tries BiGG's
 search. Each match shows its equation: compare it with your reaction before
 ticking it. Annotating the species first gives better reaction matches.
+
+**Genes, all at once.** **Edit ▸ Annotate Genes from Names…** looks up the
+genes of the selected reactions, or all genes, in UniProt. It first asks which
+organism they are from, since a gene's name (`pfkA`) is unique only within
+one: type a name and press **Find**, or, for an Escher map drawn for a BiGG
+model, check the organism BiGG gives for it. The organism is kept with the
+model. Each gene is looked up by its label (a locus name such as `b3916`),
+then by its name, reviewed UniProt entries first; a gene with one entry is
+ticked. **Apply** gives each ticked gene its UniProt entry, and its name if it
+has none, in one step you can undo. A reaction's **Genes** line then links
+each gene's entry. On BiGG's *E. coli* core map, 136 of its 137 genes are
+found, each with one entry.
 
 **One item at a time.** In a species' Annotations, **Find in ChEBI** searches
 for its name, or any words you type, and **Add** puts in the entry you choose.

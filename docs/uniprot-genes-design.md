@@ -10,7 +10,9 @@ search in `pd-core/src/uniprot.rs` (`GeneSearch`: taxon, labels, names;
 built (2026-11-09): Edit ▸ Annotate Genes from Names…, the organism asked
 for in the Annotate tab (BiGG's suggested, set as its own undo step), the
 review, Apply as *Annotate Genes*; the Genes line links each gene's entry.
-On e_coli_core, live: 136 of 137 genes found, each a clear match. Follows docs/gene-rules-design.md (genes
+On e_coli_core, live: 136 of 137 genes found, each a clear match. Step 4
+done (2026-11-09): help, README, SPECIFICATION §13.3, SPEC-Rust, release
+notes; the paper's Limitations already says genes are looked up. Follows docs/gene-rules-design.md (genes
 are now part of the model) and the species and reaction lookups
 (docs/chebi-lookup-design.md, docs/reaction-lookup-design.md).
 
