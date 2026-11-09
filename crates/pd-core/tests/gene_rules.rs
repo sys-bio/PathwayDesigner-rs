@@ -274,3 +274,57 @@ fn the_organism_is_kept() {
         .model;
     assert_eq!(organism(&ant).as_deref(), Some("83333"));
 }
+
+/// docs/uniprot-genes-design.md step 3: the genes looked up, the organism
+/// set, what is accepted applied, each one undo step.
+#[test]
+fn genes_to_annotate_and_applied() {
+    use pd_core::view::DiagramView;
+    let mut m = map();
+    let all = m.genes.len();
+    m.find_reaction_mut("PFK").unwrap().selected = true;
+    let mut v = DiagramView::new(m);
+    let ids = |v: &DiagramView| -> Vec<String> {
+        v.genes_to_annotate().into_iter().map(|q| q.gene).collect()
+    };
+    let mut picked = ids(&v);
+    picked.sort();
+    assert_eq!(picked, ["G_b1723", "G_b3916"]);
+    assert_eq!(v.reaction_of_gene("G_b3916").as_deref(), Some("PFK"));
+    assert_eq!(v.reaction_of_gene("G_none"), None);
+
+    assert_eq!(v.organism(), None);
+    v.set_organism("83333");
+    assert_eq!(v.organism().as_deref(), Some("83333"));
+    assert_eq!(v.undo_description(), Some("Set Organism"));
+    // Another reference after it: the same organism again adds no step.
+    let mut a = v.model().annotation.clone();
+    a.references.push(pd_core::model::Reference {
+        qualifier: "bqbiol:is".into(),
+        resource: "https://identifiers.org/bigg.model:e_coli_core".into(),
+    });
+    v.set_annotation(None, a);
+    v.set_organism("83333");
+    assert_eq!(v.undo_description(), Some("Edit Annotation"));
+
+    let entry = pd_core::uniprot::Entry {
+        accession: "P0A796".into(),
+        protein: "PFK 1".into(),
+        gene_names: vec!["pfkA".into()],
+        locus_names: vec!["b3916".into()],
+        reviewed: true,
+    };
+    v.annotate_genes(&[("G_b3916".into(), entry)]);
+    assert_eq!(v.undo_description(), Some("Annotate Genes"));
+    let g = v.model().genes.iter().find(|g| g.id == "G_b3916").unwrap();
+    assert_eq!(
+        pd_core::uniprot::entry_of(&g.annotation).as_deref(),
+        Some("P0A796")
+    );
+    // Annotated, it isn't looked up again.
+    assert_eq!(ids(&v), ["G_b1723"]);
+    // Nothing selected: every gene not yet annotated.
+    let mut m = v.model().clone();
+    m.find_reaction_mut("PFK").unwrap().selected = false;
+    assert_eq!(ids(&DiagramView::new(m)).len(), all - 1);
+}

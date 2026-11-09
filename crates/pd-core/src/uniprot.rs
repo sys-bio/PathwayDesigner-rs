@@ -19,7 +19,7 @@
 //! ticked in the review, when it is the only one.
 
 use crate::chebi::encode;
-use crate::model::{Gene, Id, Model, Reference};
+use crate::model::{Annotation, Gene, Id, Model, Reference};
 
 /// The least time between two requests, for the app to keep to.
 pub const MIN_INTERVAL_MS: u64 = 100;
@@ -376,6 +376,22 @@ fn protein_name(all: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// The UniProt entry an annotation names, if any (`P0A796`).
+pub fn entry_of(a: &Annotation) -> Option<String> {
+    a.references.iter().find_map(|r| {
+        let at = r
+            .resource
+            .find("uniprot:")
+            .map(|i| i + 8)
+            .or_else(|| r.resource.find("identifiers.org/uniprot/").map(|i| i + 24))?;
+        let acc: String = r.resource[at..]
+            .chars()
+            .take_while(char::is_ascii_alphanumeric)
+            .collect();
+        (!acc.is_empty()).then_some(acc)
+    })
+}
+
 /// Gives `gene` what the review accepted (U4): `entry`'s reference, the gene
 /// SBO term (SBO:0000243) if it has none, and the entry's gene name if it
 /// has none. Returns whether anything changed.
@@ -405,12 +421,50 @@ pub struct Taxon {
     pub common: Option<String>,
 }
 
-/// The address that searches UniProt's taxonomy for `name`.
-pub fn taxonomy_search(name: &str) -> String {
-    format!(
-        "{TAXONOMY}/search?query={}&fields=id,scientific_name,common_name&format=tsv&size=10",
-        encode(name)
-    )
+/// The addresses that search UniProt's taxonomy for `name`: as a whole
+/// scientific or common name (`Escherichia coli` finds the species first),
+/// then as words (`mouse` finds *Mus musculus*). Their taxa go through
+/// [`best_taxa`].
+pub fn taxonomy_searches(name: &str) -> Vec<String> {
+    let name = name.replace('"', "");
+    let name = name.trim();
+    let url = |q: &str| {
+        format!(
+            "{TAXONOMY}/search?query={}&fields=id,scientific_name,common_name&format=tsv&size=25",
+            encode(q)
+        )
+    };
+    vec![
+        url(&format!("scientific:\"{name}\" OR common:\"{name}\"")),
+        url(name),
+    ]
+}
+
+/// The taxa found for `name`, once each, those named `name` first, then
+/// those whose name starts with it, then the rest as UniProt ranked them.
+pub fn best_taxa(name: &str, found: Vec<Taxon>) -> Vec<Taxon> {
+    let name = name.trim().to_lowercase();
+    let mut out: Vec<Taxon> = Vec::new();
+    for t in found {
+        if !out.iter().any(|o| o.id == t.id) {
+            out.push(t);
+        }
+    }
+    let rank = |t: &Taxon| {
+        let names = [
+            Some(t.name.to_lowercase()),
+            t.common.as_ref().map(|c| c.to_lowercase()),
+        ];
+        if names.iter().flatten().any(|n| *n == name) {
+            0
+        } else if names.iter().flatten().any(|n| n.starts_with(&name)) {
+            1
+        } else {
+            2
+        }
+    };
+    out.sort_by_key(rank);
+    out
 }
 
 /// The taxa in a taxonomy search's answer.
@@ -671,7 +725,42 @@ mod tests {
         assert_eq!(t[0].id, "83333");
         assert_eq!(t[0].common, None);
         assert_eq!(t[1].common.as_deref(), Some("Baker's yeast"));
-        assert!(taxonomy_search("E. coli").contains("query=E.%20coli"));
+        let urls = taxonomy_searches("E. coli");
+        assert!(urls[1].contains("query=E.%20coli&"), "{urls:?}");
+        assert!(urls[0].contains("scientific%3A%22E.%20coli%22"), "{urls:?}");
+        let taxon = |id: &str, name: &str, common: Option<&str>| Taxon {
+            id: id.into(),
+            name: name.into(),
+            common: common.map(str::to_owned),
+        };
+        let best = best_taxa(
+            "Mouse",
+            vec![
+                taxon("1", "Mouse coronavirus", None),
+                taxon("2", "Apodemus", Some("field mouse")),
+                taxon("10090", "Mus musculus", Some("Mouse")),
+                taxon("1", "Mouse coronavirus", None),
+            ],
+        );
+        let ids: Vec<&str> = best.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["10090", "1", "2"]);
+        let mut a = Annotation::default();
+        assert_eq!(entry_of(&a), None);
+        a.references.push(Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: "http://identifiers.org/ncbigene/948412".into(),
+        });
+        a.references.push(Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: "http://identifiers.org/uniprot/P0A796".into(),
+        });
+        assert_eq!(entry_of(&a).as_deref(), Some("P0A796"));
+        a.references.remove(1);
+        a.references.push(Reference {
+            qualifier: "bqbiol:is".into(),
+            resource: "urn:miriam:uniprot:P0A799".into(),
+        });
+        assert_eq!(entry_of(&a).as_deref(), Some("P0A799"));
         let mut m = Model::new();
         m.model_name = "e_coli_core.Core metabolism".into();
         assert_eq!(bigg_model_of(&m).as_deref(), Some("e_coli_core"));

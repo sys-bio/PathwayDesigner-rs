@@ -6,7 +6,11 @@ a gene's annotation read from and written to its fbc gene product
 (`Gene::annotation`), the native file, Antimony's block; the model's organism
 (`genes::organism`, `set_organism`). Step 2 built (2026-11-09): the
 search in `pd-core/src/uniprot.rs` (`GeneSearch`: taxon, labels, names;
-`accept`; the organism from UniProt's taxonomy or the BiGG model). Follows docs/gene-rules-design.md (genes
+`accept`; the organism from UniProt's taxonomy or the BiGG model). Step 3
+built (2026-11-09): Edit ▸ Annotate Genes from Names…, the organism asked
+for in the Annotate tab (BiGG's suggested, set as its own undo step), the
+review, Apply as *Annotate Genes*; the Genes line links each gene's entry.
+On e_coli_core, live: 136 of 137 genes found, each a clear match. Follows docs/gene-rules-design.md (genes
 are now part of the model) and the species and reaction lookups
 (docs/chebi-lookup-design.md, docs/reaction-lookup-design.md).
 

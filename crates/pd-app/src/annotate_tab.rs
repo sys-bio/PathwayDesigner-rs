@@ -1,14 +1,17 @@
-//! Annotate Species from Names (docs/chebi-lookup-design.md, step 3) and
-//! Annotate Reactions from Names (docs/reaction-lookup-design.md, step 2):
+//! Annotate Species from Names (docs/chebi-lookup-design.md, step 3),
+//! Annotate Reactions from Names (docs/reaction-lookup-design.md, step 2)
+//! and Annotate Genes from Names (docs/uniprot-genes-design.md, step 3):
 //! the items are looked up one request at a time, then reviewed in a
 //! temporary Annotate tab in the right-hand panel (C6). Nothing changes
-//! until Apply, which adds what is ticked as one undo step.
+//! until Apply, which adds what is ticked as one undo step. For genes, the
+//! model's organism is asked for first if it has none (U2).
 
 use eframe::egui::{self, RichText};
 use pd_core::annotation::resource_url;
 use pd_core::chebi::{self, MIN_INTERVAL_MS};
 use pd_core::reaction_lookup as rl;
 use pd_core::render::draw::{Mark, Marks};
+use pd_core::uniprot;
 
 use crate::marks::{MarkState, Review};
 
@@ -22,6 +25,10 @@ pub enum TabAction {
     Apply(Vec<chebi::Accepted>),
     /// Apply these to reactions, then close the tab.
     ApplyReactions(Vec<rl::Accepted>),
+    /// Give these genes these UniProt entries, then close the tab.
+    ApplyGenes(Vec<(String, uniprot::Entry)>),
+    /// Set the model's organism; the search goes on.
+    SetOrganism(String),
     /// Close the tab, changing nothing.
     Close,
     /// Select this species or reaction and centre the diagram on it, the
@@ -33,6 +40,7 @@ pub enum TabAction {
 enum Lookup {
     Species(Box<chebi::Search>),
     Reactions(Box<rl::Search>),
+    Genes(Box<uniprot::GeneSearch>),
 }
 
 impl Lookup {
@@ -40,6 +48,7 @@ impl Lookup {
         match self {
             Lookup::Species(s) => s.next_url(),
             Lookup::Reactions(s) => s.next_url(),
+            Lookup::Genes(s) => s.next_url(),
         }
     }
 
@@ -47,6 +56,7 @@ impl Lookup {
         match self {
             Lookup::Species(s) => s.answer(result),
             Lookup::Reactions(s) => s.answer(result),
+            Lookup::Genes(s) => s.answer(result),
         }
     }
 
@@ -54,6 +64,7 @@ impl Lookup {
         match self {
             Lookup::Species(s) => s.progress(),
             Lookup::Reactions(s) => s.progress(),
+            Lookup::Genes(s) => s.progress(),
         }
     }
 
@@ -61,6 +72,7 @@ impl Lookup {
         match self {
             Lookup::Species(s) => s.unreachable(),
             Lookup::Reactions(s) => s.unreachable(),
+            Lookup::Genes(s) => s.unreachable(),
         }
     }
 
@@ -78,6 +90,12 @@ impl Lookup {
                 find: "Find a reaction",
                 services: "BiGG, then Rhea, then BiGG's search, one reaction at a time.",
                 offline: "BiGG and Rhea couldn't be reached, so nothing was found.",
+            },
+            Lookup::Genes(_) => Words {
+                items: "genes",
+                find: "Find a gene",
+                services: "UniProt, many genes a request.",
+                offline: "UniProt couldn't be reached, so nothing was found.",
             },
         }
     }
@@ -124,6 +142,7 @@ impl<F> Row<F> {
 
 type SpeciesRow = Row<chebi::Found>;
 type ReactionRow = Row<rl::Found>;
+type GeneRow = Row<uniprot::GeneFound>;
 
 impl SpeciesRow {
     fn found_any(&self) -> bool {
@@ -163,10 +182,229 @@ impl ReactionRow {
     }
 }
 
+impl GeneRow {
+    fn found_any(&self) -> bool {
+        !self.found.candidates.is_empty()
+    }
+
+    fn keeps(&self, words: &str) -> bool {
+        let c = self.found.candidates.get(self.chosen);
+        self.matches(
+            words,
+            &[
+                c.map(|c| c.protein.as_str()),
+                c.and_then(uniprot::Entry::gene_name),
+            ],
+        )
+    }
+}
+
 /// The rows to review, once the searching is done.
 enum Rows {
     Species(Vec<SpeciesRow>),
     Reactions(Vec<ReactionRow>),
+    Genes(Vec<GeneRow>),
+}
+
+/// A request the organism prompt makes.
+#[derive(Clone)]
+enum Ask {
+    /// BiGG's record of the model an Escher map names, for its organism.
+    Bigg(String),
+    /// A search of UniProt's taxonomy.
+    Taxa(String),
+}
+
+/// What the organism prompt asks for.
+enum PromptAction {
+    /// Search UniProt, within this organism or without one.
+    Start(Option<String>),
+    Cancel,
+}
+
+/// Which organism the genes are from, asked for once, before the search
+/// (docs/uniprot-genes-design.md U2): typed and found in UniProt's
+/// taxonomy, or suggested from the BiGG model an Escher map names.
+struct OrganismPrompt {
+    /// The genes to look for, once the organism is known.
+    queries: Vec<uniprot::GeneQuery>,
+    bigg: Option<String>,
+    text: String,
+    /// The words the taxa found were searched for.
+    searched: Option<String>,
+    asks: Vec<Ask>,
+    waiting: Option<(Ask, Pending)>,
+    found: Vec<uniprot::Taxon>,
+    chosen: Option<String>,
+    note: Option<String>,
+}
+
+impl OrganismPrompt {
+    fn new(queries: Vec<uniprot::GeneQuery>, bigg: Option<String>) -> Self {
+        OrganismPrompt {
+            queries,
+            asks: bigg
+                .iter()
+                .map(|id| Ask::Bigg(uniprot::bigg_model_url(id)))
+                .collect(),
+            bigg,
+            text: String::new(),
+            searched: None,
+            waiting: None,
+            found: Vec::new(),
+            chosen: None,
+            note: None,
+        }
+    }
+
+    fn busy(&self) -> bool {
+        !self.asks.is_empty() || self.waiting.is_some()
+    }
+
+    /// Searches the taxonomy for what is typed, in place of any search
+    /// under way.
+    fn find(&mut self) {
+        let words = self.text.trim().to_owned();
+        if words.is_empty() {
+            return;
+        }
+        self.asks = uniprot::taxonomy_searches(&words)
+            .into_iter()
+            .map(Ask::Taxa)
+            .collect();
+        self.waiting = None;
+        self.searched = Some(words);
+        self.found.clear();
+        self.chosen = None;
+    }
+
+    fn poll(&mut self, ctx: &egui::Context, fetch: Fetch, last: &mut f64) {
+        if let Some((ask, waiting)) = &self.waiting {
+            let Some(result) = take(waiting) else {
+                return;
+            };
+            let ask = ask.clone();
+            self.waiting = None;
+            self.answer(ask, result);
+        }
+        let Some(ask) = self.asks.first().cloned() else {
+            return;
+        };
+        let now = ctx.input(|i| i.time);
+        let wait = uniprot::MIN_INTERVAL_MS as f64 / 1000.0;
+        if now - *last < wait {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait));
+            return;
+        }
+        self.asks.remove(0);
+        *last = now;
+        let url = match &ask {
+            Ask::Bigg(u) | Ask::Taxa(u) => u.clone(),
+        };
+        self.waiting = Some((ask, fetch(ctx, url)));
+        ctx.request_repaint();
+    }
+
+    fn answer(&mut self, ask: Ask, result: Result<String, String>) {
+        match ask {
+            Ask::Bigg(_) => {
+                if let Some(o) = result.ok().as_deref().and_then(uniprot::bigg_organism) {
+                    self.note = Some(format!(
+                        "Suggested by BiGG's model {}: check it.",
+                        self.bigg.as_deref().unwrap_or_default()
+                    ));
+                    self.text = o;
+                    self.find();
+                }
+            }
+            Ask::Taxa(_) => {
+                if let Ok(tsv) = result {
+                    let mut all = std::mem::take(&mut self.found);
+                    all.extend(uniprot::taxa(&tsv));
+                    let words = self.searched.clone().unwrap_or_default();
+                    self.found = uniprot::best_taxa(&words, all);
+                }
+                if !self.busy() && self.chosen.is_none() {
+                    self.chosen = self.found.first().map(|t| t.id.clone());
+                }
+            }
+        }
+    }
+
+    fn show(&mut self, ui: &mut egui::Ui) -> Option<PromptAction> {
+        ui.label(RichText::new("Which organism are the genes from?").strong());
+        ui.label(
+            RichText::new(
+                "UniProt is searched within it: a gene's name is unique only within \
+                 one organism. It is kept as the model's organism.",
+            )
+            .weak(),
+        );
+        let mut find = false;
+        ui.horizontal(|ui| {
+            let r = ui.add(
+                egui::TextEdit::singleline(&mut self.text)
+                    .hint_text("e.g. Escherichia coli K-12")
+                    .desired_width((ui.available_width() - 50.0).max(80.0)),
+            );
+            find = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if ui
+                .add_enabled(!self.text.trim().is_empty(), egui::Button::new("Find"))
+                .on_hover_text("Search UniProt's taxonomy")
+                .clicked()
+            {
+                find = true;
+            }
+        });
+        if find {
+            self.find();
+        }
+        if let Some(note) = &self.note {
+            ui.label(RichText::new(note).weak());
+        }
+        if self.busy() {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Searching…");
+            });
+        } else if self.searched.is_some() && self.found.is_empty() {
+            ui.label("No organism found by that name; try its scientific name.");
+        }
+        // Long taxon names cut short, the whole on hover; only here, so the
+        // buttons below keep their words.
+        ui.scope(|ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+            for t in &self.found {
+                let text = match &t.common {
+                    Some(c) => format!("{} ({c}) · {}", t.name, t.id),
+                    None => format!("{} · {}", t.name, t.id),
+                };
+                ui.radio_value(&mut self.chosen, Some(t.id.clone()), &text)
+                    .on_hover_text(format!("{text}: its NCBI Taxonomy number"));
+            }
+        });
+        let mut action = None;
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(self.chosen.is_some(), egui::Button::new("Search UniProt"))
+                .on_hover_text("Look the genes up within this organism")
+                .clicked()
+            {
+                action = Some(PromptAction::Start(self.chosen.clone()));
+            }
+            if ui
+                .button("Without an organism")
+                .on_hover_text("Look the genes up by their labels (such as b3916) only")
+                .clicked()
+            {
+                action = Some(PromptAction::Start(None));
+            }
+            if ui.button("Cancel").clicked() {
+                action = Some(PromptAction::Cancel);
+            }
+        });
+        action
+    }
 }
 
 pub struct AnnotateTab {
@@ -180,6 +418,11 @@ pub struct AnnotateTab {
     unreachable: bool,
     /// The words in the review's Find box.
     filter: String,
+    /// Annotate Genes from Names: the organism, being asked for.
+    organism: Option<OrganismPrompt>,
+    /// Annotate Genes from Names: the genes without a name, which the
+    /// entry accepted names.
+    unnamed: Vec<String>,
 }
 
 impl AnnotateTab {
@@ -204,6 +447,46 @@ impl AnnotateTab {
         Self::with(Lookup::Reactions(Box::new(rl::Search::new(queries))), names)
     }
 
+    /// Annotate Genes from Names: within `organism`, the model's, else
+    /// after asking for it, BiGG's for `bigg_model` suggested.
+    pub fn genes(
+        queries: Vec<uniprot::GeneQuery>,
+        organism: Option<String>,
+        bigg_model: Option<String>,
+    ) -> Self {
+        let names = queries
+            .iter()
+            .map(|q| {
+                let shown = match &q.name {
+                    Some(n) => format!("{n} ({})", q.label),
+                    None => q.label.clone(),
+                };
+                (q.gene.clone(), Some(shown))
+            })
+            .collect();
+        let unnamed = queries
+            .iter()
+            .filter(|q| q.name.is_none())
+            .map(|q| q.gene.clone())
+            .collect();
+        let mut tab = match organism {
+            Some(t) => Self::with(
+                Lookup::Genes(Box::new(uniprot::GeneSearch::new(queries, Some(&t)))),
+                names,
+            ),
+            None => {
+                let mut tab = Self::with(
+                    Lookup::Genes(Box::new(uniprot::GeneSearch::new(Vec::new(), None))),
+                    names,
+                );
+                tab.organism = Some(OrganismPrompt::new(queries, bigg_model));
+                tab
+            }
+        };
+        tab.unnamed = unnamed;
+        tab
+    }
+
     fn with(search: Lookup, names: Vec<(String, Option<String>)>) -> Self {
         AnnotateTab {
             search,
@@ -213,12 +496,18 @@ impl AnnotateTab {
             rows: None,
             unreachable: false,
             filter: String::new(),
+            organism: None,
+            unnamed: Vec::new(),
         }
     }
 
     /// Takes the search a step further, at most one request every
     /// `MIN_INTERVAL_MS` (C8). Runs whichever tab is shown.
     pub fn poll(&mut self, ctx: &egui::Context, fetch: Fetch) {
+        if let Some(p) = &mut self.organism {
+            p.poll(ctx, fetch, &mut self.last);
+            return;
+        }
         if self.rows.is_some() {
             return;
         }
@@ -291,6 +580,20 @@ impl AnnotateTab {
                     })
                     .collect(),
             ),
+            Lookup::Genes(s) => Rows::Genes(
+                s.results()
+                    .iter()
+                    .map(|f| Row {
+                        id: f.gene.clone(),
+                        name: name(&f.gene),
+                        chosen: f.chosen.unwrap_or(0),
+                        add: f.sure,
+                        // U4: named after the entry if it has no name.
+                        rename: self.unnamed.contains(&f.gene),
+                        found: f.clone(),
+                    })
+                    .collect(),
+            ),
         });
     }
 
@@ -300,6 +603,10 @@ impl AnnotateTab {
     /// searching.
     pub fn review_marks(&self) -> Option<Review> {
         self.rows.as_ref()?;
+        // Genes aren't drawn.
+        if matches!(self.search, Lookup::Genes(_)) {
+            return None;
+        }
         Some(Review {
             reactions: matches!(self.search, Lookup::Reactions(_)),
             looked_up: self.names.iter().map(|(id, _)| id.clone()).collect(),
@@ -315,7 +622,7 @@ impl AnnotateTab {
         };
         let mut marks = Marks::default();
         match &self.rows {
-            None => {}
+            None | Some(Rows::Genes(_)) => {}
             Some(Rows::Species(r)) => {
                 marks.species = r
                     .iter()
@@ -333,6 +640,20 @@ impl AnnotateTab {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, marks: &mut MarkState) -> Option<TabAction> {
+        if let Some(p) = &mut self.organism {
+            let action = p.show(ui)?;
+            let p = self.organism.take()?;
+            return match action {
+                PromptAction::Cancel => Some(TabAction::Close),
+                PromptAction::Start(organism) => {
+                    self.search = Lookup::Genes(Box::new(uniprot::GeneSearch::new(
+                        p.queries,
+                        organism.as_deref(),
+                    )));
+                    organism.map(TabAction::SetOrganism)
+                }
+            };
+        }
         let words = self.search.words();
         let Some(rows) = &mut self.rows else {
             let (done, total) = self.search.progress();
@@ -361,7 +682,14 @@ impl AnnotateTab {
                 r.iter().filter(|r| r.found.sure).count(),
                 r.iter().filter(|r| r.add || r.rename).count(),
             ),
+            Rows::Genes(r) => (
+                r.len(),
+                r.iter().filter(|r| r.found_any()).count(),
+                r.iter().filter(|r| r.found.sure).count(),
+                r.iter().filter(|r| r.found_any() && r.add).count(),
+            ),
         };
+        let genes = matches!(rows, Rows::Genes(_));
         if self.unreachable && found == 0 {
             ui.label(words.offline);
             return ui.button("Close").clicked().then_some(TabAction::Close);
@@ -383,6 +711,10 @@ impl AnnotateTab {
                 "Check each before ticking it: compare the equation found with the \
                  reaction. Nothing changes until Apply."
             }
+            Rows::Genes(_) => {
+                "Check each before ticking it: compare the protein found with what \
+                 the reaction does. Nothing changes until Apply."
+            }
         };
         ui.label(RichText::new(hint).weak());
         // M6: the marks on the diagram, each kind with this review's count,
@@ -396,10 +728,12 @@ impl AnnotateTab {
                 .count()
         };
         let counts = (count(Mark::NotSure), count(Mark::NothingFound));
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Mark on the diagram:");
-            marks.ticks(ui, counts);
-        });
+        if !genes {
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Mark on the diagram:");
+                marks.ticks(ui, counts);
+            });
+        }
         let Some(rows) = &mut self.rows else {
             return None;
         };
@@ -425,6 +759,7 @@ impl AnnotateTab {
                 action = Some(match &*rows {
                     Rows::Species(r) => TabAction::Apply(accepted_species(r)),
                     Rows::Reactions(r) => TabAction::ApplyReactions(accepted_reactions(r)),
+                    Rows::Genes(r) => TabAction::ApplyGenes(accepted_genes(r)),
                 });
             }
             if ui.button("Cancel").clicked() {
@@ -443,6 +778,20 @@ impl AnnotateTab {
                 for (i, row) in r.iter_mut().enumerate() {
                     if row.found_any() && row.keeps(&find) {
                         if species_row(ui, i, row) {
+                            action = Some(TabAction::Show(row.id.clone()));
+                        }
+                        ui.add_space(6.0);
+                    }
+                }
+                r.iter()
+                    .filter(|r| !r.found_any() && r.keeps(&find))
+                    .map(|r| (r.label(), r.id.clone()))
+                    .collect()
+            }
+            Rows::Genes(r) => {
+                for (i, row) in r.iter_mut().enumerate() {
+                    if row.found_any() && row.keeps(&find) {
+                        if gene_row(ui, i, row) {
                             action = Some(TabAction::Show(row.id.clone()));
                         }
                         ui.add_space(6.0);
@@ -636,6 +985,59 @@ fn reaction_row(ui: &mut egui::Ui, i: usize, row: &mut ReactionRow) -> bool {
         rename(ui, &mut row.rename, &name);
     }
     show
+}
+
+/// One gene found: its tick and name, the UniProt entries to choose from,
+/// reviewed ones first, and the name it gives a gene without one (U4). True
+/// if its name was clicked.
+fn gene_row(ui: &mut egui::Ui, i: usize, row: &mut GeneRow) -> bool {
+    let source = match row.found.by {
+        Some(uniprot::By::Name) => "UniProt, by name",
+        _ => "UniProt",
+    };
+    let protein = row.found.candidates[row.chosen].protein.clone();
+    let label = row.label();
+    let show = heading(
+        ui,
+        &mut row.add,
+        "Add the UniProt entry below as the protein this gene makes",
+        &label,
+        source,
+        &protein,
+    );
+    let texts: Vec<String> = row
+        .found
+        .candidates
+        .iter()
+        .map(|c| {
+            let reviewed = if c.reviewed { "reviewed" } else { "unreviewed" };
+            format!(
+                "{}  {} · {}  ({reviewed})",
+                c.accession,
+                c.gene_name().unwrap_or_default(),
+                c.protein
+            )
+        })
+        .collect();
+    let page = resource_url(&row.found.candidates[row.chosen].reference().resource);
+    choice(ui, i, &mut row.chosen, &texts, page);
+    if row.rename
+        && let Some(name) = row.found.candidates[row.chosen].gene_name()
+    {
+        ui.horizontal(|ui| {
+            ui.add_space(20.0);
+            ui.label(RichText::new(format!("Gives it the name “{name}”")).weak());
+        });
+    }
+    show
+}
+
+/// What is ticked, as the view applies it to genes.
+fn accepted_genes(rows: &[GeneRow]) -> Vec<(String, uniprot::Entry)> {
+    rows.iter()
+        .filter(|r| r.found_any() && r.add)
+        .map(|r| (r.id.clone(), r.found.candidates[r.chosen].clone()))
+        .collect()
 }
 
 /// What is ticked, as the view applies it to species.

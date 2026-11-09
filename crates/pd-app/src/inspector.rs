@@ -1356,9 +1356,34 @@ impl Inspector {
                     .and_then(|t| view.model().find_reaction(t))
                     .and_then(|r| r.sbml.gene_rule.clone());
                 if let Some(rule) = rule {
-                    let names = pd_core::genes::shown(view.model(), &rule);
-                    if names != pd_core::genes::editable(view.model(), &rule) {
+                    let m = view.model();
+                    let names = pd_core::genes::shown(m, &rule);
+                    if names != pd_core::genes::editable(m, &rule) {
                         ui.label(RichText::new(names).weak().small());
+                    }
+                    // Each gene's UniProt entry, a link to its page
+                    // (docs/uniprot-genes-design.md U5).
+                    let entries: Vec<(String, String)> = pd_core::genes::parse(&rule)
+                        .map(|r| pd_core::genes::genes_of(&r))
+                        .unwrap_or_default()
+                        .iter()
+                        .filter_map(|id| {
+                            let g = m.genes.iter().find(|g| g.id == *id)?;
+                            let entry = pd_core::uniprot::entry_of(&g.annotation)?;
+                            Some((g.name.clone().unwrap_or_else(|| g.label.clone()), entry))
+                        })
+                        .collect();
+                    if !entries.is_empty() {
+                        ui.horizontal_wrapped(|ui| {
+                            for (name, entry) in entries {
+                                ui.label(RichText::new(&name).weak().small());
+                                ui.hyperlink_to(
+                                    RichText::new(&entry).small(),
+                                    format!("https://www.uniprot.org/uniprotkb/{entry}"),
+                                )
+                                .on_hover_text(format!("{name}'s protein in UniProt"));
+                            }
+                        });
                     }
                 }
             }

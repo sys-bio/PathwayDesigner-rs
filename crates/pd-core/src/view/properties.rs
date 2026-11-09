@@ -374,6 +374,68 @@ impl DiagramView {
         self.record_if_changed("Annotate Reactions", before)
     }
 
+    /// The genes Annotate Genes from Names looks for
+    /// (docs/uniprot-genes-design.md U5): those in the selected reactions'
+    /// gene rules, if any, else every gene; none that already has a UniProt
+    /// entry. In the model's order.
+    pub fn genes_to_annotate(&self) -> Vec<crate::uniprot::GeneQuery> {
+        let m = &self.model;
+        let selected: Vec<String> = m
+            .reactions()
+            .iter()
+            .filter(|r| r.selected)
+            .filter_map(|r| r.sbml.gene_rule.as_deref())
+            .filter_map(|t| crate::genes::parse(t).ok())
+            .flat_map(|rule| crate::genes::genes_of(&rule))
+            .collect();
+        m.genes
+            .iter()
+            .filter(|g| selected.is_empty() || selected.contains(&g.id))
+            .filter(|g| crate::uniprot::entry_of(&g.annotation).is_none())
+            .map(crate::uniprot::GeneQuery::of)
+            .collect()
+    }
+
+    /// The model's organism, as an NCBI Taxonomy number (U2).
+    pub fn organism(&self) -> Option<String> {
+        crate::genes::organism(&self.model)
+    }
+
+    /// Sets the model's organism. One undo step, *Set Organism*.
+    pub fn set_organism(&mut self, taxon: &str) -> ViewResponse {
+        if self.organism().as_deref() == Some(taxon) {
+            return ViewResponse::default();
+        }
+        let before = self.model.clone();
+        crate::genes::set_organism(&mut self.model, taxon);
+        self.record_if_changed("Set Organism", before)
+    }
+
+    /// Applies what the gene review accepted: each gene's UniProt entry
+    /// (U4). One undo step, *Annotate Genes*.
+    pub fn annotate_genes(&mut self, items: &[(Id, crate::uniprot::Entry)]) -> ViewResponse {
+        let before = self.model.clone();
+        for (gene, entry) in items {
+            crate::uniprot::accept(&mut self.model, gene, entry);
+        }
+        self.record_if_changed("Annotate Genes", before)
+    }
+
+    /// The first reaction whose gene rule names `gene`.
+    pub fn reaction_of_gene(&self, gene: &str) -> Option<Id> {
+        self.model
+            .reactions()
+            .iter()
+            .find(|r| {
+                r.sbml
+                    .gene_rule
+                    .as_deref()
+                    .and_then(|t| crate::genes::parse(t).ok())
+                    .is_some_and(|rule| crate::genes::genes_of(&rule).iter().any(|g| g == gene))
+            })
+            .map(|r| r.id.clone())
+    }
+
     /// Whether labels show display names (View ▸ Show Display Names,
     /// docs/display-names-design.md D4). A setting of the diagram, saved in
     /// its file.

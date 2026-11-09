@@ -998,6 +998,21 @@ impl PathwayApp {
                     self.start_annotating_reactions(None);
                     ui.close();
                 }
+                if ui
+                    .add_enabled(
+                        self.annotate.is_none() && !self.view.model().genes.is_empty(),
+                        egui::Button::new("Annotate Genes from Names…"),
+                    )
+                    .on_hover_text(
+                        "Look up the selected reactions' genes (or all) in UniProt, \
+                         and review what is found",
+                    )
+                    .on_disabled_hover_text("The model has no genes")
+                    .clicked()
+                {
+                    self.start_annotating_genes();
+                    ui.close();
+                }
             });
             // Align and distribute, also in the context menu (SPEC-Rust §6.3).
             ui.menu_button("Arrange", |ui| {
@@ -1439,9 +1454,42 @@ impl PathwayApp {
         self.right_tab = RightTab::Annotate;
     }
 
+    /// Annotate Genes from Names (docs/uniprot-genes-design.md U5): the
+    /// selected reactions' genes (or all), within the model's organism, else
+    /// after asking for it.
+    pub(crate) fn start_annotating_genes(&mut self) {
+        if self.annotate.is_some() {
+            return;
+        }
+        let queries = self.view.genes_to_annotate();
+        if queries.is_empty() {
+            self.notice = Some("Each gene already has a UniProt entry".into());
+            return;
+        }
+        let bigg = pd_core::uniprot::bigg_model_of(self.view.model());
+        self.annotate = Some(crate::annotate_tab::AnnotateTab::genes(
+            queries,
+            self.view.organism(),
+            bigg,
+        ));
+        self.right_tab = RightTab::Annotate;
+    }
+
     fn finish_annotating(&mut self, action: crate::annotate_tab::TabAction) {
+        if let crate::annotate_tab::TabAction::SetOrganism(taxon) = &action {
+            // The search goes on within it.
+            self.view.set_organism(taxon);
+            return;
+        }
         if let crate::annotate_tab::TabAction::Show(id) = action {
-            // Selected and brought into view; the review stays.
+            // Selected and brought into view; the review stays. A gene, by
+            // a reaction it is in.
+            let id = match self.view.model().find_species(&id) {
+                None if self.view.model().find_reaction(&id).is_none() => {
+                    self.view.reaction_of_gene(&id).unwrap_or(id)
+                }
+                _ => id,
+            };
             let m = self.view.model();
             let found = match m.find_species(&id) {
                 Some(s) => Some((pd_core::view::Target::Species(id), s.center)),
@@ -1474,6 +1522,12 @@ impl PathwayApp {
                 self.view.annotate_reactions(&items);
                 let s = if n == 1 { "" } else { "s" };
                 self.notice = Some(format!("Annotated {n} reaction{s}"));
+            }
+            crate::annotate_tab::TabAction::ApplyGenes(items) => {
+                let n = items.len();
+                self.view.annotate_genes(&items);
+                let s = if n == 1 { "" } else { "s" };
+                self.notice = Some(format!("Annotated {n} gene{s}"));
             }
             _ => {}
         }
@@ -4824,6 +4878,121 @@ k = 1",
         h.run(vec![]);
         assert!(h.app.annotate.is_none());
         assert_eq!(*h.app.view.model(), before);
+    }
+
+    /// UniProt and BiGG, as recorded: BiGG's e_coli_core is MG1655, which
+    /// has no reviewed proteins, so K-12 is searched; b3916 is pfkA.
+    fn uniprot_services(_: &egui::Context, url: String) -> crate::gallery::Pending {
+        const HEAD: &str =
+            "Entry\tGene Names\tGene Names (ordered locus)\tProtein names\tReviewed\n";
+        let answer = if url.contains("/api/v2/models/e_coli_core") {
+            Ok(r#"{"organism": "Escherichia coli str. K-12 substr. MG1655"}"#.to_owned())
+        } else if url.contains("/taxonomy/search") {
+            Ok("Taxon Id\tScientific name\tCommon name\n\
+                511145\tEscherichia coli str. K-12 substr. MG1655\t\n"
+                .to_owned())
+        } else if url.contains("/taxonomy/511145") {
+            Ok(
+                r#"{"statistics": {"reviewedProteinCount": 0}, "parent": {"taxonId": 83333}}"#
+                    .to_owned(),
+            )
+        } else if url.contains("/taxonomy/83333") {
+            Ok(r#"{"statistics": {"reviewedProteinCount": 6067}}"#.to_owned())
+        } else if url.contains("uniprotkb/search") && url.contains("taxonomy_id%3A83333") {
+            Ok(format!(
+                "{HEAD}P0A796\tpfkA b3916 JW3887\tb3916 JW3887\t\
+                 ATP-dependent 6-phosphofructokinase isozyme 1 (ATP-PFK 1)\treviewed\n\
+                 P06999\tpfkB b1723 JW5280\tb1723 JW5280\t\
+                 ATP-dependent 6-phosphofructokinase isozyme 2\treviewed\n\
+                 A0A0X1\tb1723\tb1723\tPhosphofructokinase\tunreviewed\n"
+            ))
+        } else {
+            Err("not found (404)".to_owned())
+        };
+        std::sync::Arc::new(std::sync::Mutex::new(Some(answer)))
+    }
+
+    /// docs/uniprot-genes-design.md step 3: Edit ▸ Annotate Genes from
+    /// Names asks for the organism, suggested from the BiGG model, then
+    /// reviews what UniProt found; Apply as one step; the Genes line links
+    /// each gene's entry.
+    #[test]
+    fn annotate_genes_from_names_asks_the_organism_then_applies() {
+        let mut h = Harness::new();
+        h.app.gallery.fetch = uniprot_services;
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("PFK: F6P -> FDP; k*F6P\nk = 1", &opts)
+            .unwrap();
+        let mut m = h.app.view.model().clone();
+        m.model_name = "e_coli_core.Core metabolism".into();
+        h.app.view.set_model(m);
+        h.app
+            .view
+            .set_gene_rule("PFK", "b3916 or b1723 or b9999")
+            .unwrap();
+        h.run(vec![]);
+        h.click(h.widget("Edit"));
+        h.run(vec![]);
+        h.click(h.widget("Annotate Genes from Names…"));
+        for _ in 0..40 {
+            h.run(vec![]);
+        }
+        assert_eq!(h.app.right_tab, RightTab::Annotate);
+        h.text("Which organism are the genes from?");
+        h.text("Suggested by BiGG's model e_coli_core: check it.");
+        h.widget("Escherichia coli str. K-12 substr. MG1655 · 511145");
+        assert_eq!(h.app.view.organism(), None, "not until confirmed");
+        h.click(h.widget("Search UniProt"));
+        h.run(vec![]);
+        assert_eq!(h.app.view.organism().as_deref(), Some("511145"));
+        assert_eq!(h.app.view.undo_description(), Some("Set Organism"));
+        for _ in 0..80 {
+            h.run(vec![]);
+        }
+        // b1723 has two entries: offered, not ticked.
+        h.text("Found 2 of 3 genes; 1 ticked as clear matches.");
+        h.text("Gives it the name “pfkA”");
+        h.text("Nothing found for");
+        // A gene's name in the review shows its reaction.
+        h.click(h.widget("b3916"));
+        h.run(vec![]);
+        assert!(h.app.view.model().find_reaction("PFK").unwrap().selected);
+        assert!(h.app.annotate.is_some(), "the review stays");
+        h.click(h.widget("Apply (1)"));
+        h.run(vec![]);
+        assert!(h.app.annotate.is_none());
+        assert_eq!(h.app.view.undo_description(), Some("Annotate Genes"));
+        let m = h.app.view.model();
+        let g = m.genes.iter().find(|g| g.id == "G_b3916").unwrap();
+        assert_eq!(
+            pd_core::uniprot::entry_of(&g.annotation).as_deref(),
+            Some("P0A796")
+        );
+        assert_eq!(g.name.as_deref(), Some("pfkA"));
+        let other = m.genes.iter().find(|g| g.id == "G_b1723").unwrap();
+        assert!(other.annotation.is_empty());
+        // The reaction's Genes line: the names, and pfkA's entry as a link.
+        h.app
+            .view
+            .select_item(&pd_core::view::Target::Leg("PFK".into()), false);
+        for _ in 0..3 {
+            h.run(vec![]);
+        }
+        h.text("P0A796");
+
+        // Again: the organism is known now, so UniProt is searched at once;
+        // offline, said so.
+        h.app.gallery.fetch = offline;
+        h.app.start_annotating_genes();
+        for _ in 0..40 {
+            h.run(vec![]);
+        }
+        h.text("UniProt couldn't be reached, so nothing was found.");
+        h.click(h.widget("Close"));
+        h.run(vec![]);
+        assert!(h.app.annotate.is_none());
     }
 
     /// docs/annotation-marks-design.md step 2: when the review shows, what
