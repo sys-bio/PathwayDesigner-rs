@@ -385,8 +385,9 @@ pub fn draw_marks(model: &Model, opts: &DrawOptions, marks: &Marks, out: &mut dy
 /// The lightning bolt's size, in world units (docs/sbml-app-design.md A2).
 const BOLT_WIDTH: f64 = 10.0;
 const BOLT_HEIGHT: f64 = 15.0;
-/// The gap between the bolt and the outside of the border.
-const BOLT_GAP: f64 = 2.0;
+/// How much of a border the bolt can sit at the box's corner without
+/// touching: the rounded corner leaves that much room.
+const BOLT_ROOM: f64 = 2.0;
 
 /// Draws a small lightning bolt beside the top-right corner of every drawing
 /// of a species, and of every compartment box, that a rule or an event also
@@ -421,8 +422,9 @@ pub fn draw_rule_marks(model: &Model, opts: &DrawOptions, out: &mut dyn Renderer
             }),
     );
     for (corner, border) in corners {
-        // Its box's lower left just out from the corner, past the border.
-        let gap = border + BOLT_GAP;
+        // Its box's lower left at the corner, in the room the rounding
+        // leaves; out a little more only for a thick border.
+        let gap = (border - BOLT_ROOM).max(0.0);
         let at = |x: f64, y: f64| {
             d.to_screen(pt(
                 corner.x + gap + x * BOLT_WIDTH / 8.0,
@@ -2624,7 +2626,7 @@ mod tests {
             );
         }
         // Close to the corner: just past the border.
-        let near = species_border_width(node) / 2.0 + 3.0;
+        let near = 1.0;
         let left = shown[0]
             .iter()
             .chain(&shown[1])
