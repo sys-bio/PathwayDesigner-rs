@@ -385,8 +385,8 @@ pub fn draw_marks(model: &Model, opts: &DrawOptions, marks: &Marks, out: &mut dy
 /// The lightning bolt's size, in world units (docs/sbml-app-design.md A2).
 const BOLT_WIDTH: f64 = 10.0;
 const BOLT_HEIGHT: f64 = 15.0;
-/// How far out from the corner it is: past the selection's corner handle.
-const BOLT_OUTSET: f64 = HALO_OUTSET + 4.0;
+/// The gap between the bolt and the outside of the border.
+const BOLT_GAP: f64 = 2.0;
 
 /// Draws a small lightning bolt beside the top-right corner of every drawing
 /// of a species, and of every compartment box, that a rule or an event also
@@ -395,11 +395,19 @@ const BOLT_OUTSET: f64 = HALO_OUTSET + 4.0;
 pub fn draw_rule_marks(model: &Model, opts: &DrawOptions, out: &mut dyn Renderer) {
     let d = Drawer { model, opts };
     let (species, compartments) = crate::sentences::marked(model);
-    let mut corners: Vec<Pt> = model
+    // Each top-right corner, with how far the border reaches out of it.
+    let mut corners: Vec<(Pt, f64)> = model
         .species()
         .iter()
         .filter(|s| !s.is_null_node && species.iter().any(|id| id == s.primary_id()))
-        .map(|s| pt(s.center.x + s.width / 2.0, s.center.y - s.height / 2.0))
+        .map(|s| {
+            let mut border = species_border_width(s);
+            if is_boundary(model, s) {
+                border *= BOUNDARY_BORDER_FACTOR;
+            }
+            let corner = pt(s.center.x + s.width / 2.0, s.center.y - s.height / 2.0);
+            (corner, border / 2.0)
+        })
         .collect();
     corners.extend(
         model
@@ -407,14 +415,18 @@ pub fn draw_rule_marks(model: &Model, opts: &DrawOptions, out: &mut dyn Renderer
             .iter()
             .filter(|c| compartments.contains(&c.id))
             .filter_map(|c| c.drawn_frame())
-            .map(|f| pt(f.center.x + f.width / 2.0, f.center.y - f.height / 2.0)),
+            .map(|f| {
+                let corner = pt(f.center.x + f.width / 2.0, f.center.y - f.height / 2.0);
+                (corner, 0.0)
+            }),
     );
-    for corner in corners {
-        // Its box's lower left out from the corner, clear of the handles.
+    for (corner, border) in corners {
+        // Its box's lower left just out from the corner, past the border.
+        let gap = border + BOLT_GAP;
         let at = |x: f64, y: f64| {
             d.to_screen(pt(
-                corner.x + BOLT_OUTSET + x * BOLT_WIDTH / 8.0,
-                corner.y - BOLT_OUTSET - BOLT_HEIGHT + y * BOLT_HEIGHT / 12.0,
+                corner.x + gap + x * BOLT_WIDTH / 8.0,
+                corner.y - gap - BOLT_HEIGHT + y * BOLT_HEIGHT / 12.0,
             ))
         };
         // Two convex pieces, as the renderer fills only convex polygons.
@@ -2611,6 +2623,19 @@ mod tests {
                 "{p:?} beside {corner:?}"
             );
         }
+        // Close to the corner: just past the border.
+        let near = species_border_width(node) / 2.0 + 3.0;
+        let left = shown[0]
+            .iter()
+            .chain(&shown[1])
+            .map(|p| f64::from(p.x - corner.x))
+            .fold(f64::INFINITY, f64::min);
+        let low = shown[0]
+            .iter()
+            .chain(&shown[1])
+            .map(|p| f64::from(corner.y - p.y))
+            .fold(f64::INFINITY, f64::min);
+        assert!(left <= near && low <= near, "{left} {low} within {near}");
     }
 
     fn opts_point(opts: &DrawOptions, x: f64, y: f64) -> SPt {
