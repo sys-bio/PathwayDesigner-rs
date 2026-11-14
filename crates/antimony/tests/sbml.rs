@@ -644,6 +644,47 @@ fn the_model_itself_can_carry_an_sbo_term() {
 }
 
 #[test]
+fn sbo_terms_reach_the_sbml() {
+    // Every `X.sboTerm = n` must come out as an sboTerm attribute, with or
+    // without other annotations on the same element.
+    let source = "function mm(x)\n  x/(1+x)\nend\n\nmodel *m()\n  \
+         compartment cyt = 1;\n  species Glc in cyt = 1, G6P in cyt = 0;\n  \
+         J0: Glc -> G6P; k1*mm(Glc);\n  k1 = 0.1;\n  E1: at time > 1: k1 = 0.2;\n  \
+         model.sboTerm = 4\n  cyt.sboTerm = 290\n  Glc.sboTerm = 247\n  \
+         J0.sboTerm = 176\n  k1.sboTerm = 9\n  E1.sboTerm = 231\n  mm.sboTerm = 28\n  \
+         Glc identity \"http://identifiers.org/chebi/CHEBI:4167\"\nend";
+    // Valid, and reads back.
+    let xml = x(source);
+    assert_eq!(occurrences(&xml, "sboTerm="), 7, "{xml}");
+
+    let sbml = to_sbml(&flatten(&m(source)));
+    let sbo = |meta: &sbml_io::Meta| meta.sbo_term.clone();
+    let model = sbml.model.expect("a model");
+    assert_eq!(sbo(&model.meta).as_deref(), Some("SBO:0000004"));
+    assert_eq!(
+        sbo(&model.compartments[0].meta).as_deref(),
+        Some("SBO:0000290")
+    );
+    let species = |id: &str| model.species.iter().find(|s| s.id == id).unwrap();
+    // With a CV term beside it, and without.
+    assert_eq!(sbo(&species("Glc").meta).as_deref(), Some("SBO:0000247"));
+    assert_eq!(sbo(&species("G6P").meta), None);
+    assert_eq!(
+        sbo(&model.reactions[0].meta).as_deref(),
+        Some("SBO:0000176")
+    );
+    assert_eq!(
+        sbo(&model.parameters[0].meta).as_deref(),
+        Some("SBO:0000009")
+    );
+    assert_eq!(sbo(&model.events[0].meta).as_deref(), Some("SBO:0000231"));
+    assert_eq!(
+        sbo(&model.function_definitions[0].meta).as_deref(),
+        Some("SBO:0000028")
+    );
+}
+
+#[test]
 fn notes_keep_their_trailing_whitespace() {
     let source = "model *m()\n  S1 = 1;\n  model notes ```\na line with trailing space   \nand another\n```\nend";
     assert_eq!(

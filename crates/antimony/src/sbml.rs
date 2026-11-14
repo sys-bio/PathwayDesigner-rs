@@ -295,23 +295,35 @@ fn annotation_xml(
     Some(format!("\n{out}"))
 }
 
+/// An SBO term number as SBML writes it: 247 is `SBO:0000247`.
+fn sbo_text(sbo: Option<u32>) -> Option<String> {
+    sbo.map(|n| format!("SBO:{n:07}"))
+}
+
 /// The `meta` of an element with this id and annotation: a metaid only
-/// where there is RDF or a note to anchor.
+/// where there is RDF or a note to anchor. The SBO term is an attribute and
+/// needs no metaid.
 fn meta(
     id: &str,
     terms: &[CvTerm],
     metadata: &Metadata,
     notes: &Option<String>,
+    sbo: Option<u32>,
     for_model: bool,
 ) -> sbml_io::Meta {
+    let sbo_term = sbo_text(sbo);
     if !has_annotation(terms, metadata, notes) {
-        return sbml_io::Meta::default();
+        return sbml_io::Meta {
+            sbo_term,
+            ..sbml_io::Meta::default()
+        };
     }
     let metaid = meta_id(id);
     sbml_io::Meta {
         notes: present(notes).map(|n| notes_xml(&n)),
         annotation: annotation_xml(&metaid, terms, metadata, for_model),
         metaid: Some(metaid),
+        sbo_term,
         ..sbml_io::Meta::default()
     }
 }
@@ -322,6 +334,7 @@ fn symbol_meta(symbol: &Symbol) -> sbml_io::Meta {
         &symbol.cv_terms,
         &symbol.metadata,
         &symbol.notes,
+        symbol.sbo_term,
         false,
     )
 }
@@ -538,7 +551,14 @@ fn unit_definition(unit: &UnitDef) -> sbml_io::UnitDefinition {
     sbml_io::UnitDefinition {
         id: unit.name.clone(),
         units,
-        meta: meta(&unit.name, &unit.cv_terms, &unit.metadata, &None, false),
+        meta: meta(
+            &unit.name,
+            &unit.cv_terms,
+            &unit.metadata,
+            &None,
+            None,
+            false,
+        ),
         ..sbml_io::UnitDefinition::default()
     }
 }
@@ -577,7 +597,7 @@ impl Converter<'_> {
             constraints: self.constraints(),
             reactions: self.reactions(),
             events: self.events(),
-            meta: meta(&id, &m.cv_terms, &m.metadata, &m.notes, true),
+            meta: meta(&id, &m.cv_terms, &m.metadata, &m.notes, m.sbo_term, true),
             ..sbml_io::Model::default()
         }
     }
@@ -592,6 +612,15 @@ impl Converter<'_> {
                     args: f.args.clone(),
                     body: Box::new(to_math(body)),
                 }),
+                // `MM.sboTerm = 28` lands on the symbol named after the
+                // function.
+                meta: sbml_io::Meta {
+                    sbo_term: self
+                        .module
+                        .symbol(&f.name)
+                        .and_then(|s| sbo_text(s.sbo_term)),
+                    ..sbml_io::Meta::default()
+                },
                 ..sbml_io::FunctionDefinition::default()
             })
             .collect()
