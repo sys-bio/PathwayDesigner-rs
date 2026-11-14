@@ -1845,6 +1845,13 @@ impl<'a> Parser<'a> {
                 self.parse_module_attribute_for(module);
                 return;
             }
+            // `m identity "…"`: an annotation on the model, caught before a
+            // symbol named after it is declared.
+            if self.looks_like_annotation_at(0)
+                && self.try_parse_annotation(&name, name_span, false)
+            {
+                return;
+            }
         }
 
         // `time_unit is "time"`: a unit is not a symbol either.

@@ -644,6 +644,21 @@ fn the_model_itself_can_carry_an_sbo_term() {
 }
 
 #[test]
+fn an_annotation_by_the_models_own_name_makes_no_parameter() {
+    let source = "model *m()\n  S1 = 1;\n  m identity \"http://identifiers.org/biomodels.db/MODEL0001\"\nend";
+    let document = m(source);
+    let module = document.main_module();
+    assert!(
+        module.symbol("m").is_none(),
+        "no phantom parameter called m"
+    );
+    assert_eq!(module.cv_terms.len(), 1, "the model's own annotation");
+    let xml = x(source);
+    assert!(!xml.contains("<parameter id=\"m\""), "{xml}");
+    assert!(xml.contains("biomodels.db/MODEL0001"), "{xml}");
+}
+
+#[test]
 fn sbo_terms_reach_the_sbml() {
     // Every `X.sboTerm = n` must come out as an sboTerm attribute, with or
     // without other annotations on the same element.
