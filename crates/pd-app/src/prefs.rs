@@ -6,6 +6,7 @@
 //! saved values are applied when the app starts (fixes D-2).
 
 use pd_core::json::colour::{from_hex, to_hex};
+use pd_core::layout::LayoutMethod;
 use pd_core::model::Rgba;
 use pd_core::render::constants::SELECTED_REACTION;
 
@@ -15,9 +16,13 @@ const KEY_SELECTED_REACTION: &str = "pathwayDesigner.selectedReactionColour";
 const KEY_REVERSIBLE: &str = "pathwayDesigner.showReversible";
 const KEY_GRID: &str = "pathwayDesigner.showGrid";
 const KEY_SNAP: &str = "pathwayDesigner.snapToGrid";
+const KEY_LAYOUT_METHOD: &str = "pathwayDesigner.layoutMethod";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preferences {
+    /// The auto-layout's method, chosen beside its button and remembered
+    /// (docs/layout-algorithms-design.md L3).
+    pub layout_method: LayoutMethod,
     /// Draw null nodes and the legs that touch them.
     pub show_null_species: bool,
     /// Saving SBML and Antimony writes functions into the formulas that use
@@ -44,6 +49,7 @@ impl Default for Preferences {
             show_reversible: true,
             show_grid: false,
             snap_to_grid: false,
+            layout_method: LayoutMethod::Organic,
         }
     }
 }
@@ -63,6 +69,12 @@ impl Preferences {
             p.show_reversible = flag(KEY_REVERSIBLE, p.show_reversible);
             p.show_grid = flag(KEY_GRID, p.show_grid);
             p.snap_to_grid = flag(KEY_SNAP, p.snap_to_grid);
+            if let Some(m) = s
+                .get_string(KEY_LAYOUT_METHOD)
+                .and_then(|k| LayoutMethod::from_key(&k))
+            {
+                p.layout_method = m;
+            }
             if let Some(c) = s
                 .get_string(KEY_SELECTED_REACTION)
                 .and_then(|h| from_hex(&h))
@@ -80,6 +92,7 @@ impl Preferences {
         storage.set_string(KEY_REVERSIBLE, self.show_reversible.to_string());
         storage.set_string(KEY_GRID, self.show_grid.to_string());
         storage.set_string(KEY_SNAP, self.snap_to_grid.to_string());
+        storage.set_string(KEY_LAYOUT_METHOD, self.layout_method.key().to_owned());
     }
 }
 
@@ -123,8 +136,10 @@ mod tests {
             show_reversible: false,
             show_grid: true,
             snap_to_grid: true,
+            layout_method: LayoutMethod::Stress,
         };
         p.save(&mut m);
+        assert_eq!(m.0["pathwayDesigner.layoutMethod"], "stress");
         assert_eq!(m.0["pathwayDesigner.writeFunctionsIn"], "true");
         assert_eq!(m.0["pathwayDesigner.showReversible"], "false");
         assert_eq!(m.0["pathwayDesigner.showGrid"], "true");

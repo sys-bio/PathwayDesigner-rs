@@ -4,7 +4,8 @@
 the rest proposed. Step 1 built (2026-11-14): the measures
 (`pd_core::layout_measures`) and the report (`pd-export` example
 `layout_quality`); the baseline is below. Step 2 built (2026-11-14):
-separating cofactors, with its results below.
+separating cofactors, with its results below. Step 3 built (2026-11-14):
+*Stress* and the Method list, below.
 
 Models without a drawing (Antimony without layout statements, SBML without a
 Layout, generated networks) are drawn by the automatic layout. This proposes
@@ -182,6 +183,44 @@ force layout packs the drawing more tightly when the cofactors are out of
 it, and a cofactor beside one reaction can sit on another's line. A heavier
 junction (4 or 6 for each cofactor) gives fewer overlaps and more
 crossings; 2 is the middle. Models without cofactors are unchanged.
+
+## Stress (step 3)
+
+`layout/stress.rs`, chosen in the **Method** list beside Auto-layout
+(*Organic*, *Stress*), remembered as a preference; *Randomize* is greyed
+for Stress, which needs no seed. As built, beyond L4:
+
+- **Lines.** Each species–junction line is 130 long (100 left too many
+  lines through boxes; 160 a much larger drawing), longer into a junction
+  with more than four lines (by the square root of how many more), so a
+  busy reaction's species fit round it. Modifier lines count too, so a
+  regulator is drawn by the reaction it regulates.
+- **Parts.** Each part of the network not joined to the rest is laid out on
+  its own and the parts are packed in rows, the largest first; before, they
+  were pushed to a fixed distance, scattered round the drawing.
+- **Boxes.** Stress places points: afterwards, boxes that overlap are pushed
+  apart, each pair along the axis it overlaps less on.
+- **Cofactors.** With Stress, separated cofactors stay in the layout as
+  nodes of their own, one line from their junction, instead of being put
+  beside it afterwards: placed in free space by the method itself, they
+  overlap nothing (put beside afterwards, 78–107 overlaps on the two
+  *E. coli* models).
+- It stops once an iteration improves the stress by less than 1 in 10⁵, at
+  most 300 iterations; the same model gives the same drawing, about where
+  its species were.
+
+| Model | Organic + cofactors | Stress + cofactors |
+|---|---|---|
+| TCA cycle | 3.7 crossings, 6.7 through | 0, 0 |
+| Yeast glycolysis | 13, 8.7 | 0, 0 |
+| Millard *E. coli* | 513, 178, 5.3 overlaps | 326, 136, 0 |
+| *E. coli* core | 738, 356, 18 overlaps | 138, 117, 0 |
+| Recon3D glutathione | 13, 13 | 1, 0 |
+| BioModels 1, 7, 9, 11 (no cofactors) | 12.7, 12.3, 41.7, 95 crossings | 0, 1, 7, 25 |
+
+Stress gives fewer crossings and no overlaps on every model; line lengths
+are even (spread 0.1–0.4 against 0.3–0.8). About half the reactions point
+down, as with Organic: direction is for *Layered*.
 
 ## Steps
 

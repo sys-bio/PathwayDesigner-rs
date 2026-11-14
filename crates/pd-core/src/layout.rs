@@ -7,6 +7,8 @@
 
 use std::collections::HashMap;
 
+mod stress;
+
 use crate::bezier::apply_smooth_handles;
 use crate::geometry::{Pt, normalize, perp, pt};
 use crate::model::{Id, Model, ReactionMode, Role};
@@ -47,6 +49,53 @@ impl Rng {
     }
 }
 
+/// How the layout places things (docs/layout-algorithms-design.md L3).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LayoutMethod {
+    /// Force-directed, as before (S §10.1).
+    #[default]
+    Organic,
+    /// Stress majorization: distances on the screen match distances in the
+    /// network (L4). Needs no seed.
+    Stress,
+}
+
+impl LayoutMethod {
+    pub const ALL: [LayoutMethod; 2] = [LayoutMethod::Organic, LayoutMethod::Stress];
+
+    /// Its name in the app.
+    pub fn name(self) -> &'static str {
+        match self {
+            LayoutMethod::Organic => "Organic",
+            LayoutMethod::Stress => "Stress",
+        }
+    }
+
+    /// What it does, for a hint.
+    pub fn hint(self) -> &'static str {
+        match self {
+            LayoutMethod::Organic => {
+                "Force-directed: species that react together are pulled together, all others pushed apart"
+            }
+            LayoutMethod::Stress => {
+                "Distances on the screen match distances in the network; the same model always gives the same drawing"
+            }
+        }
+    }
+
+    /// Its name as saved (a preference).
+    pub fn key(self) -> &'static str {
+        match self {
+            LayoutMethod::Organic => "organic",
+            LayoutMethod::Stress => "stress",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<LayoutMethod> {
+        LayoutMethod::ALL.into_iter().find(|m| m.key() == key)
+    }
+}
+
 /// Layout settings, with the values the app uses (S §10.1, §17.1).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LayoutParams {
@@ -68,6 +117,8 @@ pub struct LayoutParams {
     /// layout (docs/layout-algorithms-design.md L2); with
     /// [`separate_cofactors`] first, one drawing per reaction.
     pub separate_cofactors: bool,
+    /// How it places things.
+    pub method: LayoutMethod,
 }
 
 impl Default for LayoutParams {
@@ -82,6 +133,7 @@ impl Default for LayoutParams {
             randomize: false,
             deckard: false,
             separate_cofactors: false,
+            method: LayoutMethod::Organic,
         }
     }
 }
@@ -115,6 +167,8 @@ struct Node {
     pos: Pt,
     mass: f64,
     fixed: bool,
+    /// Half the box drawn, for keeping boxes apart; none for a junction.
+    half: Pt,
 }
 
 /// One end of a spring: a node, plus a fixed offset for an alias that rides
@@ -156,6 +210,13 @@ const SATELLITE_CROWD: f64 = 200.0;
 const SATELLITE_TRIES: usize = 3;
 const SATELLITE_STEP: f64 = 40.0;
 const SATELLITE_GAP: f64 = 4.0;
+/// Stress: a junction with more lines than this has longer ones, by the
+/// square root of how many more.
+const BUSY_JUNCTION: f64 = 4.0;
+/// Stress: the gap left between boxes pushed apart, and how many times over
+/// they are pushed at most.
+const BOX_GAP: f64 = 6.0;
+const SEPARATE_PASSES: usize = 100;
 /// What each cofactor beside a reaction adds to its junction's mass.
 const SATELLITE_MASS: f64 = 2.0;
 
@@ -168,6 +229,8 @@ pub struct LayoutRun {
     springs: Vec<(usize, End)>,
     riders: Vec<Rider>,
     satellites: Vec<Satellite>,
+    /// With [`LayoutMethod::Stress`]: the network's distances.
+    stress: Option<stress::Stress>,
     /// Gravity pulls towards the centroid of the starting positions.
     centre: Pt,
     speed: f64,
@@ -210,7 +273,9 @@ impl LayoutRun {
         }
 
         // Cofactors drawn beside their reaction take no part.
-        let satellites = if params.separate_cofactors {
+        // With Stress each separated cofactor stays a node of its own: one
+        // line from its junction, it is put in free space there.
+        let satellites = if params.separate_cofactors && params.method == LayoutMethod::Organic {
             satellites(model)
         } else {
             Vec::new()
@@ -247,6 +312,7 @@ impl LayoutRun {
                         pos: start[s.id.as_str()],
                         mass: 1.0 + *uses.get(s.id.as_str()).unwrap_or(&0) as f64,
                         fixed: s.locked,
+                        half: pt(s.width / 2.0, s.height / 2.0),
                     });
                 }
             }
@@ -271,6 +337,7 @@ impl LayoutRun {
 
         // Junctions, and one spring per unique species of each reaction.
         let mut springs = Vec::new();
+        let mut regulators: Vec<(usize, usize)> = Vec::new();
         for r in model.reactions() {
             let ends: Vec<&str> = r
                 .reactants
@@ -296,12 +363,22 @@ impl LayoutRun {
                     + SATELLITE_MASS
                         * satellites.iter().filter(|s| s.reaction == r.id).count() as f64,
                 fixed: false,
+                half: Pt::ZERO,
             });
             let mut seen: Vec<&str> = Vec::new();
             for id in ends {
                 if !seen.contains(&id) {
                     seen.push(id);
                     springs.push((j, index[id]));
+                }
+            }
+            // Modifier lines are not springs, but join the network for Stress.
+            for p in &r.modifiers {
+                if let Some(e) = index.get(p.species.as_str())
+                    && !seen.contains(&p.species.as_str())
+                {
+                    seen.push(&p.species);
+                    regulators.push((j, e.node));
                 }
             }
         }
@@ -328,6 +405,38 @@ impl LayoutRun {
         } else {
             min.distance(max)
         };
+        // Stress starts from the network's own distances, about the same
+        // centre; with nodes locked, from where everything is.
+        let stress = (params.method == LayoutMethod::Stress).then(|| {
+            // A line into a busy junction is longer, so its species fit
+            // round it.
+            let lines: Vec<(usize, usize)> = springs
+                .iter()
+                .map(|&(j, e)| (j, e.node))
+                .chain(regulators.iter().copied())
+                .collect();
+            let mut busy = vec![0usize; nodes.len()];
+            for &(j, _) in &lines {
+                busy[j] += 1;
+            }
+            let edges: Vec<(usize, usize, f64)> = lines
+                .iter()
+                .map(|&(j, s)| {
+                    (
+                        j,
+                        s,
+                        stress::EDGE * (busy[j] as f64 / BUSY_JUNCTION).sqrt().max(1.0),
+                    )
+                })
+                .collect();
+            let s = stress::Stress::new(nodes.len(), &edges);
+            if !nodes.iter().any(|n| n.fixed) {
+                for (n, at) in nodes.iter_mut().zip(s.initial()) {
+                    n.pos = centre + at;
+                }
+            }
+            s
+        });
         Self {
             params,
             speed: params.speed_start.max(0.05 * diagonal),
@@ -335,6 +444,7 @@ impl LayoutRun {
             springs,
             riders,
             satellites,
+            stress,
             centre,
             done: 0,
             rng,
@@ -344,23 +454,43 @@ impl LayoutRun {
     pub fn progress(&self) -> Progress {
         Progress {
             done: self.done,
-            total: self.params.iterations,
+            total: self.total(),
+        }
+    }
+
+    /// Iterations in all: Stress stops at most here, sooner when done.
+    fn total(&self) -> u32 {
+        match self.stress {
+            Some(_) => stress::ITERATIONS,
+            None => self.params.iterations,
         }
     }
 
     /// Runs up to `iterations` more iterations (S §10.1). Never reads a clock.
     pub fn step(&mut self, iterations: u32) -> Progress {
         for _ in 0..iterations {
-            if self.done >= self.params.iterations {
+            if self.done >= self.total() {
                 break;
             }
             self.iterate();
             self.done += 1;
+            if self.stress.as_ref().is_some_and(|s| s.converged) {
+                self.done = self.total();
+            }
         }
         self.progress()
     }
 
     fn iterate(&mut self) {
+        if let Some(s) = &mut self.stress {
+            let mut x: Vec<Pt> = self.nodes.iter().map(|n| n.pos).collect();
+            let fixed: Vec<bool> = self.nodes.iter().map(|n| n.fixed).collect();
+            s.iterate(&mut x, &fixed);
+            for (n, at) in self.nodes.iter_mut().zip(x) {
+                n.pos = at;
+            }
+            return;
+        }
         let p = self.params;
         let n = self.nodes.len();
         let mut force = vec![Pt::ZERO; n];
@@ -434,8 +564,18 @@ impl LayoutRun {
     /// Deckard pass sets them for Bézier reactions, and smooth junctions get
     /// theirs recomputed.
     pub fn finish(mut self, model: &mut Model) {
-        let remaining = self.params.iterations.saturating_sub(self.done);
+        let remaining = self.total().saturating_sub(self.done);
         self.step(remaining);
+        // Stress places points: boxes that overlap are pushed apart.
+        if self.stress.is_some() {
+            let mut x: Vec<Pt> = self.nodes.iter().map(|n| n.pos).collect();
+            let half: Vec<Pt> = self.nodes.iter().map(|n| n.half).collect();
+            let fixed: Vec<bool> = self.nodes.iter().map(|n| n.fixed).collect();
+            stress::separate(&mut x, &half, &fixed, BOX_GAP, SEPARATE_PASSES);
+            for (n, at) in self.nodes.iter_mut().zip(x) {
+                n.pos = at;
+            }
+        }
         // Re-centre, unless locked nodes pin the drawing where it is.
         if !self.nodes.iter().any(|n| n.fixed) && !self.nodes.is_empty() {
             let now = self.nodes.iter().fold(Pt::ZERO, |a, n| a + n.pos) / self.nodes.len() as f64;
@@ -1055,6 +1195,144 @@ mod tests {
             place_satellites(&mut m, &beside);
             assert!(!overlapping(&m), "X at {at:?}");
         }
+    }
+
+    fn stress() -> LayoutParams {
+        LayoutParams {
+            method: LayoutMethod::Stress,
+            ..LayoutParams::default()
+        }
+    }
+
+    fn import(text: &str) -> Model {
+        crate::antimony::import(text, &crate::antimony::ImportOptions { seed: 1 })
+            .unwrap()
+            .model
+    }
+
+    #[test]
+    fn stress_needs_no_seed_and_stops_when_done() {
+        let text = "J0: A -> B; 1\nJ1: B -> C; 1\nJ2: C -> A; 1\nJ3: C -> D; 1";
+        let m = import(text);
+        let a = run(&m, stress(), 1);
+        // From elsewhere: species read at other random places.
+        let other = crate::antimony::import(text, &crate::antimony::ImportOptions { seed: 7 })
+            .unwrap()
+            .model;
+        assert_ne!(
+            other.find_species("A").unwrap().center,
+            m.find_species("A").unwrap().center
+        );
+        let b = run(&other, stress(), 99);
+        // The same drawing, about where each started.
+        let from_a = |m: &Model, id: &str| {
+            m.find_species(id).unwrap().center - m.find_species("A").unwrap().center
+        };
+        for s in a.species() {
+            let (p, q) = (from_a(&a, &s.id), from_a(&b, &s.id));
+            assert!(p.distance(q) < 1e-6, "{}: {p:?} {q:?}", s.id);
+        }
+        // It ends before its last iteration, once nothing improves.
+        let mut r = LayoutRun::new(&m, stress(), 1);
+        assert_eq!(r.progress().total, stress::ITERATIONS);
+        let mut steps = 0;
+        while !r.step(1).finished() {
+            steps += 1;
+        }
+        assert!(steps < stress::ITERATIONS as usize - 1, "{steps}");
+        // Each line about as long as asked.
+        for r in a.reactions() {
+            for p in r.reactants.iter().chain(&r.products) {
+                let d = a
+                    .find_species(&p.species)
+                    .unwrap()
+                    .center
+                    .distance(r.junction);
+                assert!(
+                    (d - stress::EDGE).abs() < 0.35 * stress::EDGE,
+                    "{} {d}",
+                    r.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn stress_keeps_locked_species_and_puts_regulators_near() {
+        // M only regulates J0, at the end of a chain: it is drawn by J0,
+        // not packed apart as a part of its own.
+        let mut m = import(
+            "species M = 1\nJ0: A -> B; k*M*A\nJ1: B -> C; 1\nJ2: C -> D; 1\n\
+             J3: D -> E; 1\nJ4: E -> F; 1\nJ5: F -> G; 1\nk = 1",
+        );
+        let out = run(&m, stress(), 1);
+        let j0 = out.find_reaction("J0").unwrap().junction;
+        let near = out.find_species("M").unwrap().center.distance(j0);
+        assert!(near < 1.3 * stress::EDGE, "{near}");
+        // A locked species stays put.
+        m.find_species_mut("A").unwrap().locked = true;
+        let at = m.find_species("A").unwrap().center;
+        let out = run(&m, stress(), 1);
+        assert_eq!(out.find_species("A").unwrap().center, at);
+    }
+
+    #[test]
+    fn stress_pushes_crowded_boxes_apart() {
+        // Forty species round one junction: even with longer lines they
+        // would overlap without the last pass.
+        let side = |p: &str| {
+            (1..=20)
+                .map(|i| format!("{p}{i}"))
+                .collect::<Vec<_>>()
+                .join(" + ")
+        };
+        let out = run(
+            &import(&format!("J0: {} -> {}; 1", side("S"), side("P"))),
+            stress(),
+            1,
+        );
+        assert!(!overlapping(&out));
+    }
+
+    #[test]
+    fn with_stress_separated_cofactors_are_laid_out() {
+        // Each drawing of ATP and ADP is a node of the network, one line
+        // from its junction, not placed beside it afterwards.
+        let mut m = glycolysis("");
+        separate_cofactors(&mut m);
+        let params = LayoutParams {
+            separate_cofactors: true,
+            ..stress()
+        };
+        let r = LayoutRun::new(&m, params, 1);
+        assert!(r.satellites.is_empty());
+        let atp = drawn_to(&m, "J1", Role::Reactant, 1);
+        assert!(
+            r.nodes
+                .iter()
+                .any(|n| matches!(&n.kind, NodeKind::Species(id) if *id == atp))
+        );
+    }
+
+    #[test]
+    fn stress_leaves_no_boxes_on_top_of_each_other() {
+        // Eight species round one busy junction, and a part of its own.
+        let out = run(
+            &import("J0: A + B + C + D -> E + F + G + H; 1\nJ1: X -> Y; 1"),
+            stress(),
+            1,
+        );
+        assert!(!overlapping(&out));
+        for s in out.species() {
+            assert!(s.center.x.is_finite() && s.center.y.is_finite());
+        }
+        // The lines into the busy junction are longer than one into a
+        // junction with two.
+        let j0 = out.find_reaction("J0").unwrap().junction;
+        let j1 = out.find_reaction("J1").unwrap().junction;
+        let busy = out.find_species("A").unwrap().center.distance(j0);
+        let quiet = out.find_species("X").unwrap().center.distance(j1);
+        assert!(busy > 1.2 * quiet, "{busy} {quiet}");
     }
 
     #[test]

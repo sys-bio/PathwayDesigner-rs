@@ -342,6 +342,7 @@ impl PathwayApp {
         app.view.show_reversible = app.prefs.show_reversible;
         app.view.show_grid = app.prefs.show_grid;
         app.view.snap_to_grid = app.prefs.snap_to_grid;
+        app.layout_params.method = app.prefs.layout_method;
         app.view.set_my_styles(crate::my_styles::load(cc.storage));
         app.perform(Action::OpenSample(START_SAMPLE));
         app.notice = None;
@@ -1269,19 +1270,40 @@ impl PathwayApp {
         }
         if ui
             .button("Auto-layout")
-            .on_hover_text("Force-directed layout; locked nodes stay where they are")
+            .on_hover_text("Lay out the diagram; locked nodes stay where they are")
             .clicked()
         {
             self.start_layout();
         }
+        // The method (docs/layout-algorithms-design.md L3), remembered.
+        let method = &mut self.layout_params.method;
+        egui::ComboBox::from_id_salt("layout-method")
+            .selected_text(method.name())
+            .show_ui(ui, |ui| {
+                for m in pd_core::layout::LayoutMethod::ALL {
+                    ui.selectable_value(method, m, m.name())
+                        .on_hover_text(m.hint());
+                }
+            })
+            .response
+            .on_hover_text(format!("Layout method: {}", method.hint()));
         ui.checkbox(&mut self.layout_params.deckard, "Deckard")
             .on_hover_text("Afterwards, shape the Bézier curves with the Deckard & Bergmann pass");
-        ui.checkbox(&mut self.layout_params.randomize, "Randomize")
-            .on_hover_text("Scatter the unlocked species at random before the layout");
-        ui.checkbox(&mut self.layout_params.separate_cofactors, "Separate cofactors")
-            .on_hover_text(
-                "Draw ATP, NADH, water and other cofactors once for each reaction,                  beside it, as metabolic maps do",
-            );
+        let organic = self.layout_params.method == pd_core::layout::LayoutMethod::Organic;
+        ui.add_enabled(
+            organic,
+            egui::Checkbox::new(&mut self.layout_params.randomize, "Randomize"),
+        )
+        .on_hover_text("Scatter the unlocked species at random before the layout")
+        .on_disabled_hover_text("Only the Organic layout starts from where things are");
+        ui.checkbox(
+            &mut self.layout_params.separate_cofactors,
+            "Separate cofactors",
+        )
+        .on_hover_text(
+            "Draw ATP, NADH, water and other cofactors once for each reaction, \
+                 beside it, as metabolic maps do",
+        );
     }
 
     /// Runs this frame's share of the layout: as many iterations as take
@@ -1936,6 +1958,7 @@ impl eframe::App for PathwayApp {
         self.prefs.show_reversible = self.view.show_reversible;
         self.prefs.show_grid = self.view.show_grid;
         self.prefs.snap_to_grid = self.view.snap_to_grid;
+        self.prefs.layout_method = self.layout_params.method;
         self.prefs.save(storage);
         crate::my_styles::save(self.view.my_styles(), storage);
         self.autosave(storage);
@@ -2213,6 +2236,7 @@ mod tests {
     use super::*;
     use eframe::App as _;
     use eframe::egui::{Event, PointerButton, Pos2, RawInput, Rect, Vec2};
+    use pd_core::layout::LayoutMethod;
 
     struct Harness {
         app: PathwayApp,
@@ -3412,6 +3436,66 @@ end */
         assert!(!h.app.layout_params.separate_cofactors);
         lay_out(&mut h);
         assert_eq!(h.app.view.model().species().len(), species);
+    }
+
+    /// docs/layout-algorithms-design.md L3: the Method list beside
+    /// Auto-layout; Stress needs no seed, so Randomize is greyed out and two
+    /// runs give the same drawing.
+    #[test]
+    fn the_layout_method_is_chosen_beside_auto_layout() {
+        let mut h = Harness::new();
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("J0: A -> B; 1\nJ1: B -> C; 1\nJ2: C -> D; 1", &opts)
+            .unwrap();
+        h.run(vec![]);
+        assert_eq!(h.app.layout_params.method, LayoutMethod::Organic);
+        let list = format!("Layout method: {}", LayoutMethod::Organic.hint());
+        h.click(h.widget(&list));
+        h.run(vec![]);
+        h.click(h.widget("Stress"));
+        h.run(vec![]);
+        assert_eq!(h.app.layout_params.method, LayoutMethod::Stress);
+        // Randomize can't be ticked.
+        h.click(h.widget("Randomize"));
+        h.run(vec![]);
+        assert!(!h.app.layout_params.randomize);
+        let lay_out = |h: &mut Harness| {
+            h.click(h.widget("Auto-layout"));
+            for _ in 0..400 {
+                if !h.app.view.is_laying_out() {
+                    break;
+                }
+                h.run(vec![]);
+            }
+            assert!(!h.app.view.is_laying_out());
+            h.app.view.model().clone()
+        };
+        let once = lay_out(&mut h);
+        h.app.view.undo();
+        h.run(vec![]);
+        let again = lay_out(&mut h);
+        for s in once.species() {
+            assert_eq!(s.center, again.find_species(&s.id).unwrap().center);
+        }
+        // Remembered.
+        let mut store = std::collections::HashMap::new();
+        struct Store<'a>(&'a mut std::collections::HashMap<String, String>);
+        impl eframe::Storage for Store<'_> {
+            fn get_string(&self, key: &str) -> Option<String> {
+                self.0.get(key).cloned()
+            }
+            fn set_string(&mut self, key: &str, value: String) {
+                self.0.insert(key.to_owned(), value);
+            }
+            fn remove_string(&mut self, key: &str) {
+                self.0.remove(key);
+            }
+            fn flush(&mut self) {}
+        }
+        eframe::App::save(&mut h.app, &mut Store(&mut store));
+        assert_eq!(store["pathwayDesigner.layoutMethod"], "stress");
     }
 
     #[test]

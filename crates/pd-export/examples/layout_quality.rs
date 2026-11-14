@@ -20,7 +20,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use pd_core::antimony::ImportOptions;
-use pd_core::layout::{LayoutParams, LayoutRun};
+use pd_core::layout::{LayoutMethod, LayoutParams, LayoutRun};
 use pd_core::layout_measures::{Measures, measure};
 use pd_core::model::Model;
 use pd_core::render::draw::Shown;
@@ -47,6 +47,7 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: false,
+            method: LayoutMethod::Organic,
         },
     ),
     (
@@ -61,6 +62,37 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: true,
+            method: LayoutMethod::Organic,
+        },
+    ),
+    (
+        "stress",
+        LayoutParams {
+            iterations: 800,
+            kr: 8000.0,
+            ka: 0.02,
+            kg: 0.01,
+            speed_start: 20.0,
+            speed_decay: 0.98,
+            randomize: false,
+            deckard: false,
+            separate_cofactors: false,
+            method: LayoutMethod::Stress,
+        },
+    ),
+    (
+        "stress + cofactors",
+        LayoutParams {
+            iterations: 800,
+            kr: 8000.0,
+            ka: 0.02,
+            kg: 0.01,
+            speed_start: 20.0,
+            speed_decay: 0.98,
+            randomize: false,
+            deckard: false,
+            separate_cofactors: true,
+            method: LayoutMethod::Stress,
         },
     ),
 ];
