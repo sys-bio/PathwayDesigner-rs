@@ -6,7 +6,10 @@ the rest proposed. Step 1 built (2026-11-14): the measures
 `layout_quality`); the baseline is below. Step 2 built (2026-11-14):
 separating cofactors, with its results below. Step 3 built (2026-11-14):
 *Stress* and the Method list, below. Step 4 built (2026-11-14): *Layered*,
-below.
+below. Step 5 done (2026-11-14): Stress is the app's default method (the
+author's choice, from the report; `pd-core`'s `LayoutParams` default stays
+Organic for the random network and the diagram format's reader); help,
+README, SPECIFICATION §10.3–10.5 and §13.2, SPEC-Rust, release notes.
 
 Models without a drawing (Antimony without layout statements, SBML without a
 Layout, generated networks) are drawn by the automatic layout. This proposes

@@ -143,8 +143,14 @@ Delphi version does, and some more (see [Status](#status)).
 - Arrowheads grow with thick reaction lines.
 
 **Layout**
-- Force-directed **auto-layout**, animated, with an optional pass that shapes the
-  Bézier curves. Locked nodes stay where they are.
+- **Auto-layout** by three methods: *Stress* (the default: distances on the
+  screen match distances in the network, few crossings, the same drawing every
+  time), *Layered* (top to bottom, each reaction's products below its
+  reactants, long lines routed between boxes) and *Organic* (force-directed,
+  animated). *Separate cofactors* draws ATP, NADH and the other cofactors once
+  for each reaction, beside it, as metabolic maps do. An optional pass shapes
+  the Bézier curves; locked nodes stay where they are
+  ([docs/layout-algorithms-design.md](docs/layout-algorithms-design.md)).
 - **Align and distribute** species and junctions, and **Arrange in Circle**.
 - A **grid** to line things up, and **Snap to grid**: dragged items, new items,
   corners, Bézier handles, names and arrow-key moves land on grid points (hold Alt

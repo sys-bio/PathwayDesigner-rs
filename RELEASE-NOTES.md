@@ -22,9 +22,22 @@ version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
   each gene's entry. A gene's annotation is kept in SBML's fbc package,
   Antimony and PathwayDesigner's own file.
 
+- **Two new ways to lay out a diagram.** The list beside Auto-layout chooses
+  *Stress* (now the default: distances on the screen match distances in the
+  network, with far fewer crossing lines and no boxes on top of each other,
+  and the same drawing every time), *Layered* (top to bottom, each reaction's
+  products below its reactants, as pathways are drawn) or *Organic* (the
+  force-directed layout of earlier versions).
+- **Separate cofactors**, on by default, draws ATP, NADH, water and the other
+  cofactors once for each reaction that uses them, beside it, as metabolic
+  maps do. On BiGG's *E. coli* core model, laid out from scratch, crossing
+  lines fall from about 3,300 to 140.
+
 **Changed**
 
 - Links to BiGG entries go to its new site, https://bigg.bio.
+- The lightning bolt that marks what a rule or an event changes sits at the
+  node's corner, not off beyond it.
 
 ## 1.0.0 (2026-11-08)
 

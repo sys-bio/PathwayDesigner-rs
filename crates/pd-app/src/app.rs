@@ -3454,8 +3454,9 @@ end */
     }
 
     /// docs/layout-algorithms-design.md L3: the Method list beside
-    /// Auto-layout; Stress needs no seed, so Randomize is greyed out and two
-    /// runs give the same drawing.
+    /// Auto-layout, Stress by default; Stress needs no seed, so Randomize is
+    /// greyed out and two runs give the same drawing; the choice is
+    /// remembered.
     #[test]
     fn the_layout_method_is_chosen_beside_auto_layout() {
         let mut h = Harness::new();
@@ -3465,13 +3466,11 @@ end */
             .import_antimony("J0: A -> B; 1\nJ1: B -> C; 1\nJ2: C -> D; 1", &opts)
             .unwrap();
         h.run(vec![]);
-        assert_eq!(h.app.layout_params.method, LayoutMethod::Organic);
-        let list = format!("Layout method: {}", LayoutMethod::Organic.hint());
-        h.click(h.widget(&list));
-        h.run(vec![]);
-        h.click(h.widget("Stress"));
-        h.run(vec![]);
-        assert_eq!(h.app.layout_params.method, LayoutMethod::Stress);
+        assert_eq!(
+            h.app.layout_params.method,
+            LayoutMethod::Stress,
+            "the default"
+        );
         // Randomize can't be ticked.
         h.click(h.widget("Randomize"));
         h.run(vec![]);
@@ -3511,6 +3510,18 @@ end */
         }
         eframe::App::save(&mut h.app, &mut Store(&mut store));
         assert_eq!(store["pathwayDesigner.layoutMethod"], "stress");
+        // Organic, chosen from the list: Randomize can be ticked again.
+        let list = format!("Layout method: {}", LayoutMethod::Stress.hint());
+        h.click(h.widget(&list));
+        h.run(vec![]);
+        h.click(h.widget("Organic"));
+        h.run(vec![]);
+        assert_eq!(h.app.layout_params.method, LayoutMethod::Organic);
+        h.click(h.widget("Randomize"));
+        h.run(vec![]);
+        assert!(h.app.layout_params.randomize);
+        eframe::App::save(&mut h.app, &mut Store(&mut store));
+        assert_eq!(store["pathwayDesigner.layoutMethod"], "organic");
     }
 
     /// docs/layout-algorithms-design.md L5: Layered, from the Method list,

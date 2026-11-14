@@ -2178,6 +2178,60 @@ For every Bézier reaction:
 7. **Looped species:** with `p = perp(unit(J − A))`, do reactant `A`'s
    `ctrl1 += 30·p` and product `A`'s `ctrl2 −= 30·p`.
 
+### 10.3 Stress (Rust version)
+
+docs/layout-algorithms-design.md L4. Every species and junction is a node;
+a reactant or product line, and a modifier line, joins a species to its
+junction, 130 long, or `130·√(n/4)` into a junction with `n > 4` lines.
+The distances wanted are the shortest paths. Each part of the network not
+joined to the rest is laid out on its own: started from classical scaling
+(the two leading eigenvectors of the double-centred squared distances, by
+power iteration from fixed starts), then the localized majorization, every
+node from the others' places before it with weights `1/d²`, until an
+iteration improves the stress by less than 1 in 10⁵ (at most 300); the
+parts are then packed in rows, the largest first, 130 apart. Boxes that
+overlap are pushed apart afterwards, each pair along the axis it overlaps
+less on, 6 apart. Locked species stay put (the run then starts from where
+everything is); aliases ride on their primary. The same model gives the same
+drawing, about where its species were. Run in steps like §10.1.
+
+### 10.4 Layered (Rust version)
+
+docs/layout-algorithms-design.md L5. Lines point from a reactant to its
+junction and from the junction to a product. Cycles are broken by the greedy
+order of Eades, Lin & Smyth (sinks last, sources first, else the node with
+the most more lines out than in); a line against it is drawn upwards. Each
+node goes one layer below its lowest predecessor, then, from the bottom up,
+one above its highest successor. A line across several layers gets a corner
+point in each (§5.6.5). Each layer is ordered by 24 sweeps, down and up, by
+the barycentre of its neighbours, each followed by swapping neighbours
+wherever that leaves fewer crossings, keeping the order with the fewest.
+Places across are, for each layer in turn, the least-squares fit to the
+mean of its neighbours keeping the order and 40 between boxes (pool
+adjacent violators), 8 rounds down and up, the last looking both ways;
+layers are 50 apart. Parts not joined are packed in rows. A species that
+only regulates goes left of the junction of the first reaction it
+regulates, and cofactors put beside their reaction (§10.5) on either side;
+room is kept for both. One step; it moves locked species too, so the app
+offers it only with none locked.
+
+### 10.5 Separating cofactors (Rust version)
+
+docs/layout-algorithms-design.md L2. With *Separate cofactors*, before the
+layout every cofactor (§8.7's list) that two or more reactions use as a
+reactant or product gets one drawing per reaction: the first reaction in the
+model keeps the species, each other gets an alias (modifiers are left
+alone); in the layout's one undo step. With Organic and Layered, a cofactor
+drawn to one reaction only, not locked and not a modifier elsewhere, of a
+reaction with a species that is not a cofactor, takes no part in the layout:
+it goes beside its reaction, a reactant 45 before the junction and a product
+45 after it along the line from the reaction's other reactants to its other
+products (50 more for each further one on that side), 55 to the side with
+fewer species within 200, or, where that place is taken, 40 or 80 farther
+out, then on the other side. With Organic each adds 2 to its junction's
+mass. With Stress every drawing is a node of its own, one line from its
+junction.
+
 ---
 
 ## 11. File formats and interchange
@@ -2848,7 +2902,12 @@ changes on New, Open and Quit. The reference has none of these.
 - **Top toolbar:** New · Open · Save · Toggle Alias indicator · Auto-layout · Linear
   UniUni · Random network · Set Bézier · Smooth junction · Make Nice, then the
   checkboxes **Deckard** and **Randomize** (both off by default), which apply to
-  auto-layout.
+  auto-layout. *(Rust version, docs/layout-algorithms-design.md:)* beside
+  Auto-layout, the **Method** list (Organic, Stress, Layered; Stress by
+  default, remembered as a preference, §10.3–10.4), and a **Separate
+  cofactors** tick, on by default (§10.5). Randomize is greyed for Stress and
+  Layered; with a species locked, Layered and Auto-layout with it are greyed,
+  "Unlock species to use Layered: it moves everything".
 - **Left tool palette** (modes): Select · Add Species · Add Text (§7.8) · Add
   Compartment (§7.9) · Add BiBi · Add UniBi · Add BiUni · Add UniUni.
 - Each tool button MUST have a tooltip. The current mode SHOULD be highlighted.

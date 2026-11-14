@@ -18,6 +18,24 @@ There are two ways to make a network: write it in Antimony, or draw it.
    canvas. If the text says nothing about where they go, they are placed at
    random; press **Auto-layout** under the text to arrange them.
 
+**Auto-layout** in the toolbar arranges the whole diagram. The list beside it
+chooses how:
+
+- **Stress** (the default) places species so that those a few reactions apart
+  are drawn that far apart: few crossing lines, no boxes on top of each other,
+  and the same drawing every time.
+- **Layered** draws a pathway top to bottom, each reaction's products below
+  its reactants, as textbooks do. A reaction that closes a cycle points up.
+  It moves everything, so it is greyed out while any species is locked.
+- **Organic** is the force-directed layout of earlier versions, which you can
+  watch settle; **Randomize** scatters the species first.
+
+**Separate cofactors** (on by default) draws ATP, NADH, water and the other
+cofactors once for each reaction that uses them, beside it, as metabolic maps
+do, instead of once with lines to every reaction. **Deckard** shapes the
+curves afterwards. Locked species stay where they are, and Auto-layout is one
+step you can undo.
+
 If a line has a mistake, it is marked in the text and listed below it. Click
 the message to go to the line. The drawing is not changed until the model
 loads without errors.

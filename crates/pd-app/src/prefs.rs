@@ -49,7 +49,7 @@ impl Default for Preferences {
             show_reversible: true,
             show_grid: false,
             snap_to_grid: false,
-            layout_method: LayoutMethod::Organic,
+            layout_method: LayoutMethod::Stress,
         }
     }
 }
@@ -136,10 +136,10 @@ mod tests {
             show_reversible: false,
             show_grid: true,
             snap_to_grid: true,
-            layout_method: LayoutMethod::Stress,
+            layout_method: LayoutMethod::Layered,
         };
         p.save(&mut m);
-        assert_eq!(m.0["pathwayDesigner.layoutMethod"], "stress");
+        assert_eq!(m.0["pathwayDesigner.layoutMethod"], "layered");
         assert_eq!(m.0["pathwayDesigner.writeFunctionsIn"], "true");
         assert_eq!(m.0["pathwayDesigner.showReversible"], "false");
         assert_eq!(m.0["pathwayDesigner.showGrid"], "true");

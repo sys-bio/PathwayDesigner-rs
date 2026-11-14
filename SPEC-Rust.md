@@ -63,7 +63,7 @@ PathwayDesigner/                (the repository root is the Cargo workspace, §1
       json/                     S §11.1 — read v1, v2 and v3, write v3, colour codec
       expr/                     S §8.3 — lexer, parser, syntax tree, list of identifiers
       undo/                     S §9 — commands and history
-      layout/                   S §10 — force-directed layout (run in steps) and the Deckard handle pass
+      layout/                   S §10 — the layout methods (Organic, Stress, Layered), separating cofactors, the Deckard handle pass
       antimony                  S §11.2, §11.3 — the bridge: maps the antimony crate's model
                                 onto the diagram (import), and writes the diagram as Antimony
                                 (export)
@@ -839,7 +839,10 @@ pub enum Command {
 
 ### 7.2 Auto-layout in steps, with no threads
 
-The force-directed layout (S §10.1) is the only operation that uses a lot of CPU.
+Auto-layout (S §10.1, and §10.3–10.5 for the Stress and Layered methods and
+separating cofactors, `LayoutParams::method`, `separate_cofactors`) is the only
+operation that uses a lot of CPU. Stress runs in steps the same way and stops
+once it no longer improves; Layered is one step.
 Running it in one go would freeze the window, and a background thread isn't
 available in the browser build. So **one stepping version is used on every target**:
 
