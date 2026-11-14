@@ -659,6 +659,23 @@ fn an_annotation_by_the_models_own_name_makes_no_parameter() {
 }
 
 #[test]
+fn a_functions_annotation_reaches_the_sbml() {
+    let source = "function mm(x)\n  x/(1+x)\nend\n\nmodel *m()\n  S1 = 1;\n  \
+         mm identity \"http://identifiers.org/sbo/SBO:0000028\"\n  \
+         mm notes \"Michaelis-Menten\"\nend";
+    let xml = x(source);
+    let function = xml
+        .split("<functionDefinition")
+        .nth(1)
+        .and_then(|f| f.split("</functionDefinition>").next())
+        .expect("a function definition");
+    has(function, "http://identifiers.org/sbo/SBO:0000028");
+    has(function, "Michaelis-Menten");
+    // Annotating the function adds no parameter for it.
+    assert!(!xml.contains("<parameter id=\"mm\""), "{xml}");
+}
+
+#[test]
 fn sbo_terms_reach_the_sbml() {
     // Every `X.sboTerm = n` must come out as an sboTerm attribute, with or
     // without other annotations on the same element.
@@ -1040,5 +1057,45 @@ fn every_corpus_file_converts_to_valid_sbml() {
         "{} of {tried} failed:\n{}",
         failed.len(),
         failed.join("\n")
+    );
+}
+
+fn losses(source: &str) -> Vec<String> {
+    let flat = flatten(&m(source));
+    antimony::sbml::information_loss(&flat)
+        .iter()
+        .map(|d| {
+            assert_eq!(d.code, antimony::Code::InformationLoss);
+            assert_eq!(d.severity, antimony::Severity::Warning);
+            d.message.clone()
+        })
+        .collect()
+}
+
+#[test]
+fn what_the_sbml_cannot_carry_is_reported() {
+    // Every kind of annotation written: nothing to report.
+    let written = "function mm(x)\n  x/(1+x)\nend\n\nmodel *m()\n  \
+         compartment cyt = 1;\n  species Glc in cyt = 1;\n  J0: Glc -> ; k1*mm(Glc);\n  \
+         k1 = 0.1;\n  E1: at time > 1: k1 = 0.2;\n  model.sboTerm = 4\n  \
+         cyt.sboTerm = 290\n  J0.sboTerm = 176\n  E1.sboTerm = 231\n  \
+         Glc identity \"http://identifiers.org/chebi/CHEBI:4167\"\n  \
+         mm identity \"http://identifiers.org/sbo/SBO:0000028\"\n  \
+         k1 notes \"a rate constant\"\n  \
+         m identity \"http://identifiers.org/biomodels.db/MODEL0001\"\nend";
+    assert_eq!(losses(written), Vec::<String>::new());
+
+    // A vocabulary the library does not know, and an interaction, which
+    // becomes a modifier with no annotation of its own: each named.
+    let lost = losses(
+        "S1 = 1\nS1 frobnicates \"http://example.org/x\"\nJ0: -> S1; 1\n\
+         J1: S1 -| J0\nJ1 identity \"http://example.org/y\"",
+    );
+    assert_eq!(
+        lost,
+        [
+            "annotations on J1 are not written to SBML",
+            "annotations on S1 are not written to SBML"
+        ]
     );
 }

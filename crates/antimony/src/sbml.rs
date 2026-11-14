@@ -7,9 +7,10 @@
 //! the result of flattening, never the parse tree (Delphi §2.2.2 seam 2).
 //!
 //! Not written: the `fbc` package (objectives and flux bounds are modelled,
-//! not emitted; Delphi §9.1.5), and SBO terms on the model and its symbols,
-//! which the Delphi writer did not write either. The mapping is described in
-//! `SPEC.md` §5.7.
+//! not emitted; Delphi §9.1.5). Annotations are written on the model and on
+//! each element a symbol becomes; [`information_loss`] names any that are
+//! not, so none is dropped silently. The mapping is described in `SPEC.md`
+//! §5.7.
 //!
 //! ```
 //! let loaded = antimony::parse("J1: S1 -> S2; k1*S1\nS1 = 10; S2 = 0; k1 = 0.1");
@@ -27,13 +28,14 @@ use std::collections::BTreeSet;
 
 use sbml_io::math::{Constant as MathConstant, Math, Number, Op, Symbol as CSymbol};
 
+use crate::diagnostics::{Code, Diagnostics};
 use crate::expr::{BinaryOp, Constant, Expr, ExprKind, UnaryOp};
 use crate::flatten::flatten;
 use crate::model::{
     Constness, ConstraintKind, CvTerm, Document, Metadata, Module, Participant, Qualifier, Symbol,
     SymbolKind, UnitDef,
 };
-use crate::number;
+use crate::{messages, number};
 
 const XHTML: &str = "http://www.w3.org/1999/xhtml";
 const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
@@ -103,6 +105,66 @@ pub fn to_sbml(module: &Module) -> sbml_io::Document {
     let mut document = sbml_io::Document::new(3, 2);
     document.model = Some(Converter { module }.model());
     document
+}
+
+/// The annotations of `module` (as given to [`to_sbml`]) that its SBML does
+/// not carry, one [`Code::InformationLoss`] warning each: an annotated
+/// symbol whose element is not written or has no annotation, and an
+/// annotation in a vocabulary this library does not know, which is kept for
+/// Antimony only.
+///
+/// ```
+/// let loaded = antimony::parse("S1 = 1\nS1 frobnicates \"http://example.org/x\"");
+/// let flat = antimony::flatten::flatten(&loaded.document);
+/// let losses = antimony::sbml::information_loss(&flat);
+/// assert_eq!(losses.len(), 1);
+/// ```
+pub fn information_loss(module: &Module) -> Diagnostics {
+    let mut losses = Diagnostics::new();
+    let mut lose = |what: &str, span| {
+        losses.add(
+            Code::InformationLoss,
+            span,
+            messages::annotation_dropped(what),
+        );
+    };
+    let written = to_sbml(module).model.unwrap_or_default();
+    let carried = |id: &str| {
+        let m = &written;
+        m.compartments
+            .iter()
+            .map(|c| (c.id.as_str(), &c.meta))
+            .chain(m.species.iter().map(|s| (s.id.as_str(), &s.meta)))
+            .chain(m.parameters.iter().map(|p| (p.id.as_str(), &p.meta)))
+            .chain(m.reactions.iter().map(|r| (r.id.as_str(), &r.meta)))
+            .chain(
+                m.events
+                    .iter()
+                    .filter_map(|e| Some((e.id.as_deref()?, &e.meta))),
+            )
+            .chain(
+                m.function_definitions
+                    .iter()
+                    .map(|f| (f.id.as_str(), &f.meta)),
+            )
+            .any(|(i, meta)| i == id && *meta != sbml_io::Meta::default())
+    };
+    for symbol in &module.symbols {
+        let annotated = has_annotation(&symbol.cv_terms, &symbol.metadata, &symbol.notes)
+            || symbol.sbo_term.is_some();
+        if annotated && !carried(&symbol.name) {
+            lose(&symbol.name, symbol.span);
+        }
+    }
+    for section in &module.unparsed_sections {
+        let subject = section
+            .text
+            .split_whitespace()
+            .next()
+            .unwrap_or("the model");
+        lose(subject, section.span);
+    }
+    losses
 }
 
 // --- text ------------------------------------------------------------------
@@ -612,15 +674,9 @@ impl Converter<'_> {
                     args: f.args.clone(),
                     body: Box::new(to_math(body)),
                 }),
-                // `MM.sboTerm = 28` lands on the symbol named after the
-                // function.
-                meta: sbml_io::Meta {
-                    sbo_term: self
-                        .module
-                        .symbol(&f.name)
-                        .and_then(|s| sbo_text(s.sbo_term)),
-                    ..sbml_io::Meta::default()
-                },
+                // `mm.sboTerm = 28`, `mm identity "…"` and `mm notes` land
+                // on the symbol named after the function.
+                meta: self.annotation_meta(&f.name),
                 ..sbml_io::FunctionDefinition::default()
             })
             .collect()

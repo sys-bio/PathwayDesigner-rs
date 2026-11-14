@@ -459,7 +459,9 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
   a caller that wants to change it or validate it first; `sbml::to_math`
   converts one expression to MathML; `xml_escape` and `xml_escape_text` are
   the escapers; `DEFAULT_COMPARTMENT` is the id of the compartment made for
-  species that name none.
+  species that name none. `sbml::information_loss(&Module) -> Diagnostics`
+  names, as `InformationLoss` warnings, the annotations the SBML does not
+  carry (below), so none is dropped silently.
 - It follows `uAntSBMLWriter` element by element, but builds an
   `sbml_io::Document` instead of writing text (R10): `sbml-io` writes the
   XML, so the attribute order is `sbml-io`'s (`metaid` first) and lines end
@@ -491,10 +493,17 @@ as `sbml-io`. Delphi wrote `6.02214076E23`; both read back the same.
     escaped in a `<p>`; CV terms, creators and dates go in one RDF
     annotation, terms sharing a qualifier in one `rdf:Bag`, `bqmodel` or
     `bqbiol` by subject; a `meta_<id>` metaid is made only where there is
-    something to anchor.
+    something to anchor;
+  - SBO terms go on the model and on every element a symbol becomes (an
+    attribute, needing no metaid); a function definition takes the
+    annotation, notes and SBO term of the symbol named after it. Delphi
+    wrote no SBO terms.
 - Not written, as in Delphi: the `fbc` package (objectives and flux bounds
-  are read and kept, not emitted), SBO terms on the model and its symbols,
-  and the `comp` package (flattening is still a copy of the main module).
+  are read and kept, not emitted) and the `comp` package (flattening is
+  still a copy of the main module). Annotations not written, each named by
+  `information_loss`: an interaction's (it becomes a modifier, which has
+  none of its own), and one in a vocabulary this library does not know
+  (kept for Antimony only).
 - A compartment or parameter changed by a rule or an event is
   `constant="false"` even when not declared `var` (R30).
 - **Checked:** every parseable non-`comp` corpus case (1657) and all 689
