@@ -3,7 +3,8 @@
 2026-11-14. Design; L1, L2, L5 and L7 settled with the author as proposed,
 the rest proposed. Step 1 built (2026-11-14): the measures
 (`pd_core::layout_measures`) and the report (`pd-export` example
-`layout_quality`); the baseline is below.
+`layout_quality`); the baseline is below. Step 2 built (2026-11-14):
+separating cofactors, with its results below.
 
 Models without a drawing (Antimony without layout statements, SBML without a
 Layout, generated networks) are drawn by the automatic layout. This proposes
@@ -149,6 +150,38 @@ crossings. What it shows:
 - About half of the force layout's reactions point down, as chance would
   have it; a layered layout should be near 100%, as the Recon3D map's 81%
   suggests a drawn pathway is.
+
+## Separating cofactors (step 2)
+
+`layout::separate_cofactors` gives every cofactor two or more reactions
+use one drawing per reaction: the first reaction keeps the species, each
+other gets an alias. In the layout (`LayoutParams::separate_cofactors`), a
+cofactor drawn to one reaction only, not locked and not a modifier
+elsewhere, of a reaction with a species that is not a cofactor, takes no
+part: it is put beside its reaction, a reactant before the junction and a
+product after it along the reaction's direction, on the side with fewer
+species near the junction, and, where that place is taken, farther out or
+on the other side. Each such cofactor adds 2 to its junction's mass, so the
+layout leaves room for it. A reaction of cofactors only (ATP → ADP) is laid
+out as before. The app's **Separate cofactors** tick, beside Auto-layout,
+is on by default; the aliases are part of the layout's undo step, and
+Cancel takes them back.
+
+The force layout with and without it (the mean of three seeds):
+
+| Model | Crossings | Lines through species | Overlaps |
+|---|---|---|---|
+| TCA cycle | 11 → 3.7 | 3.7 → 6.7 | 0 → 0 |
+| Yeast glycolysis (Gepasi) | 55 → 13 | 9 → 8.7 | 0.3 → 0.3 |
+| Millard *E. coli* | 1,084 → 513 | 106 → 178 | 0.7 → 5.3 |
+| *E. coli* core | 3,336 → 738 | 163 → 356 | 0.3 → 18 |
+| Recon3D glutathione map | 35 → 13 | 6.7 → 13 | 0 → 0.3 |
+
+Crossings fall by half to four fifths. Lines through species rise: the
+force layout packs the drawing more tightly when the cofactors are out of
+it, and a cofactor beside one reaction can sit on another's line. A heavier
+junction (4 or 6 for each cofactor) gives fewer overlaps and more
+crossings; 2 is the middle. Models without cofactors are unchanged.
 
 ## Steps
 

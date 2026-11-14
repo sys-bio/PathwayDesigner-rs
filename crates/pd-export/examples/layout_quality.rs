@@ -33,6 +33,37 @@ const EXAMPLES: &[&str] = &[
     "E_coli_Millard2016.json",
 ];
 const SEEDS: [u64; 3] = [1, 2, 3];
+/// The methods compared, by name.
+const METHODS: &[(&str, LayoutParams)] = &[
+    (
+        "organic",
+        LayoutParams {
+            iterations: 800,
+            kr: 8000.0,
+            ka: 0.02,
+            kg: 0.01,
+            speed_start: 20.0,
+            speed_decay: 0.98,
+            randomize: false,
+            deckard: false,
+            separate_cofactors: false,
+        },
+    ),
+    (
+        "organic + cofactors",
+        LayoutParams {
+            iterations: 800,
+            kr: 8000.0,
+            ka: 0.02,
+            kg: 0.01,
+            speed_start: 20.0,
+            speed_decay: 0.98,
+            randomize: false,
+            deckard: false,
+            separate_cofactors: true,
+        },
+    ),
+];
 /// BioModels taken: this many, with this many reactions.
 const BIOMODELS: usize = 8;
 const REACTIONS: std::ops::RangeInclusive<usize> = 10..=60;
@@ -91,8 +122,8 @@ fn main() {
          through another species' box. Overlaps: species boxes that overlap. \
          Spread: how much line lengths differ (0 = all equal). Down: share of \
          reactions drawn with products below reactants. Area: bounding box \
-         per species, in thousands of square units. Force layout: the mean \
-         of three seeds.\n\n\
+         per species, in thousands of square units. Each method: the mean of \
+         three seeds; *+ cofactors* separates the cofactors first.\n\n\
          | Model | Method | Species | Reactions | Crossings | Through | Overlaps | Spread | Down | Area | Aspect |\n\
          |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
     );
@@ -121,34 +152,40 @@ fn main() {
             row("as drawn", &measure(&case.model));
             picture(&out, &case.name, "drawn", &case.model, &mut pictures);
         }
-        // The force layout, from a model read without a drawing.
-        let runs: Vec<(Model, Measures)> = SEEDS
-            .iter()
-            .map(|&seed| {
-                let bare = bare(&case.model, seed);
-                let mut laid = bare.clone();
-                LayoutRun::new(&bare, LayoutParams::default(), seed).finish(&mut laid);
-                let m = measure(&laid);
-                (laid, m)
-            })
-            .collect();
-        let mean = mean(runs.iter().map(|(_, m)| m));
-        writeln!(
-            report,
-            "| {} | organic | {} | {} | {:.1} | {:.1} | {:.1} | {:.2} | {} | {:.0} | {:.2} |",
-            case.name,
-            mean.species,
-            mean.reactions,
-            mean.crossings,
-            mean.through,
-            mean.overlaps,
-            mean.spread,
-            percent(mean.down),
-            mean.area / 1000.0,
-            mean.aspect,
-        )
-        .unwrap();
-        picture(&out, &case.name, "organic", &runs[0].0, &mut pictures);
+        // Each method, from a model read without a drawing.
+        for (method, params) in METHODS {
+            let runs: Vec<(Model, Measures)> = SEEDS
+                .iter()
+                .map(|&seed| {
+                    let mut bare = bare(&case.model, seed);
+                    if params.separate_cofactors {
+                        pd_core::layout::separate_cofactors(&mut bare);
+                    }
+                    let mut laid = bare.clone();
+                    LayoutRun::new(&bare, *params, seed).finish(&mut laid);
+                    let m = measure(&laid);
+                    (laid, m)
+                })
+                .collect();
+            let mean = mean(runs.iter().map(|(_, m)| m));
+            writeln!(
+                report,
+                "| {} | {method} | {} | {} | {:.1} | {:.1} | {:.1} | {:.2} | {} | {:.0} | {:.2} |",
+                case.name,
+                mean.species,
+                mean.reactions,
+                mean.crossings,
+                mean.through,
+                mean.overlaps,
+                mean.spread,
+                percent(mean.down),
+                mean.area / 1000.0,
+                mean.aspect,
+            )
+            .unwrap();
+            let file = method.replace([' ', '+'], "");
+            picture(&out, &case.name, &file, &runs[0].0, &mut pictures);
+        }
     }
     report.push_str(&pictures);
     std::fs::write(out.join("report.md"), report).unwrap();

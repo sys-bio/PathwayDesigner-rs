@@ -327,7 +327,12 @@ impl PathwayApp {
             opening: None,
             pending_shortcut: None,
             tree: crate::tree::TreeState::default(),
-            layout_params: LayoutParams::default(),
+            // Cofactors drawn beside their reactions by default
+            // (docs/layout-algorithms-design.md L2).
+            layout_params: LayoutParams {
+                separate_cofactors: true,
+                ..LayoutParams::default()
+            },
             layout_iterations: LAYOUT_START_ITERATIONS,
         };
         // Saved preferences apply from the start (fixes D-2).
@@ -1273,6 +1278,10 @@ impl PathwayApp {
             .on_hover_text("Afterwards, shape the Bézier curves with the Deckard & Bergmann pass");
         ui.checkbox(&mut self.layout_params.randomize, "Randomize")
             .on_hover_text("Scatter the unlocked species at random before the layout");
+        ui.checkbox(&mut self.layout_params.separate_cofactors, "Separate cofactors")
+            .on_hover_text(
+                "Draw ATP, NADH, water and other cofactors once for each reaction,                  beside it, as metabolic maps do",
+            );
     }
 
     /// Runs this frame's share of the layout: as many iterations as take
@@ -3367,6 +3376,42 @@ end */
         });
         assert_eq!(h.app.view.model().species().len(), before);
         assert!(h.app.warnings[0].contains("couldn't be read as SBML"));
+    }
+
+    /// docs/layout-algorithms-design.md L2: Separate cofactors, on by
+    /// default, gives each reaction its own ATP and ADP when laying out.
+    #[test]
+    fn auto_layout_separates_cofactors_unless_unticked() {
+        let mut h = Harness::new();
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony(
+                "J0: A + ATP -> B + ADP; 1\nJ1: B + ATP -> C + ADP; 1",
+                &opts,
+            )
+            .unwrap();
+        h.run(vec![]);
+        let species = h.app.view.model().species().len();
+        let lay_out = |h: &mut Harness| {
+            h.click(h.widget("Auto-layout"));
+            for _ in 0..400 {
+                if !h.app.view.is_laying_out() {
+                    break;
+                }
+                h.run(vec![]);
+            }
+            assert!(!h.app.view.is_laying_out());
+        };
+        lay_out(&mut h);
+        assert_eq!(h.app.view.model().species().len(), species + 2);
+        h.app.view.undo();
+        h.run(vec![]);
+        h.click(h.widget("Separate cofactors"));
+        h.run(vec![]);
+        assert!(!h.app.layout_params.separate_cofactors);
+        lay_out(&mut h);
+        assert_eq!(h.app.view.model().species().len(), species);
     }
 
     #[test]

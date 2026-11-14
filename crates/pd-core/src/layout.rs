@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::bezier::apply_smooth_handles;
 use crate::geometry::{Pt, normalize, perp, pt};
-use crate::model::{Id, Model, ReactionMode};
+use crate::model::{Id, Model, ReactionMode, Role};
 use crate::render::constants::HANDLE_FRACTION;
 
 /// A small, fast, seeded random generator (SplitMix64). Written here rather
@@ -64,6 +64,10 @@ pub struct LayoutParams {
     pub randomize: bool,
     /// Run the Deckard & Bergmann handle pass afterwards (S §10.2).
     pub deckard: bool,
+    /// Draw each cofactor beside the reaction it belongs to, out of the
+    /// layout (docs/layout-algorithms-design.md L2); with
+    /// [`separate_cofactors`] first, one drawing per reaction.
+    pub separate_cofactors: bool,
 }
 
 impl Default for LayoutParams {
@@ -77,6 +81,7 @@ impl Default for LayoutParams {
             speed_decay: 0.98,
             randomize: false,
             deckard: false,
+            separate_cofactors: false,
         }
     }
 }
@@ -128,6 +133,32 @@ struct Rider {
     offset: Pt,
 }
 
+/// A cofactor drawn beside its reaction, out of the layout: the `index`th
+/// of its reaction's cofactors on its side.
+#[derive(Clone, Debug)]
+struct Satellite {
+    id: Id,
+    reaction: Id,
+    role: Role,
+    index: usize,
+}
+
+/// A cofactor's place beside its reaction: this far along the reaction's
+/// direction from the junction (and as much again for each further one on
+/// the same side), and this far to the side.
+const SATELLITE_ALONG: f64 = 45.0;
+const SATELLITE_SPACING: f64 = 50.0;
+const SATELLITE_SIDE: f64 = 55.0;
+/// Species nearer the junction than this decide which side is free.
+const SATELLITE_CROWD: f64 = 200.0;
+/// Where a cofactor's place is taken it tries this many places each side,
+/// this much farther out each time, and keeps this gap from other boxes.
+const SATELLITE_TRIES: usize = 3;
+const SATELLITE_STEP: f64 = 40.0;
+const SATELLITE_GAP: f64 = 4.0;
+/// What each cofactor beside a reaction adds to its junction's mass.
+const SATELLITE_MASS: f64 = 2.0;
+
 /// A layout in progress (SPEC-Rust §7.2).
 #[derive(Clone, Debug)]
 pub struct LayoutRun {
@@ -136,6 +167,7 @@ pub struct LayoutRun {
     /// (junction node, species end): one spring per unique species of a reaction.
     springs: Vec<(usize, End)>,
     riders: Vec<Rider>,
+    satellites: Vec<Satellite>,
     /// Gravity pulls towards the centroid of the starting positions.
     centre: Pt,
     speed: f64,
@@ -177,13 +209,28 @@ impl LayoutRun {
             start.insert(s.id.as_str(), at);
         }
 
+        // Cofactors drawn beside their reaction take no part.
+        let satellites = if params.separate_cofactors {
+            satellites(model)
+        } else {
+            Vec::new()
+        };
+        let beside = |id: &str| satellites.iter().any(|s| s.id == id);
+
         // Primaries (and aliases that can't ride) are layout nodes.
         let mut riders_todo = Vec::new();
         for s in model.species() {
+            if beside(&s.id) {
+                continue;
+            }
+            // With cofactors separated, each drawing of one is laid out on
+            // its own, as is an alias whose primary is beside a reaction.
+            let separate =
+                |p: &str| params.separate_cofactors && crate::themes::is_cofactor(p) || beside(p);
             let primary = s
                 .alias_of
                 .as_deref()
-                .filter(|p| model.find_species(p).is_some());
+                .filter(|p| model.find_species(p).is_some() && !separate(p));
             match primary {
                 // A locked alias stays put, so it can't ride on its primary.
                 Some(p) if !s.locked => riders_todo.push((s.id.as_str(), p)),
@@ -242,7 +289,12 @@ impl LayoutRun {
             nodes.push(Node {
                 kind: NodeKind::Junction(r.id.clone()),
                 pos: junction,
-                mass: 1.0 + (r.reactants.len() + r.products.len()) as f64,
+                // Each cofactor drawn beside it makes it heavier, so the
+                // layout leaves room for them.
+                mass: 1.0
+                    + (r.reactants.len() + r.products.len()) as f64
+                    + SATELLITE_MASS
+                        * satellites.iter().filter(|s| s.reaction == r.id).count() as f64,
                 fixed: false,
             });
             let mut seen: Vec<&str> = Vec::new();
@@ -282,6 +334,7 @@ impl LayoutRun {
             nodes,
             springs,
             riders,
+            satellites,
             centre,
             done: 0,
             rng,
@@ -372,6 +425,7 @@ impl LayoutRun {
                 s.center = self.nodes[rider.primary].pos + rider.offset;
             }
         }
+        place_satellites(model, &self.satellites);
     }
 
     /// Finishes the run: the remaining iterations, the final positions,
@@ -410,6 +464,200 @@ impl LayoutRun {
             .collect();
         for id in smooth {
             apply_smooth_handles(model, &id);
+        }
+    }
+}
+
+/// Gives every cofactor (`themes::is_cofactor`) that two or more reactions
+/// use as a reactant or product one drawing per reaction, as an Escher map
+/// draws them (docs/layout-algorithms-design.md L2): the first reaction in
+/// the model's order keeps the species, each other one gets an alias. A
+/// reaction already drawn to an alias of it keeps that. Modifiers are left
+/// as they are. Returns how many aliases were made.
+pub fn separate_cofactors(model: &mut Model) -> usize {
+    let cofactors: Vec<Id> = model
+        .species()
+        .iter()
+        .filter(|s| !s.is_alias() && !s.is_null_node && crate::themes::is_cofactor(&s.id))
+        .map(|s| s.id.clone())
+        .collect();
+    let mut made = 0;
+    for c in cofactors {
+        let users: Vec<Id> = model
+            .reactions()
+            .iter()
+            .filter(|r| {
+                r.reactants
+                    .iter()
+                    .chain(&r.products)
+                    .any(|p| p.species == c)
+            })
+            .map(|r| r.id.clone())
+            .collect();
+        let at = model.find_species(&c).map(|s| s.center).unwrap_or(Pt::ZERO);
+        for r in users.iter().skip(1) {
+            let Some(alias) = model.add_alias(&c, at) else {
+                continue;
+            };
+            made += 1;
+            if let Some(r) = model.find_reaction_mut(r) {
+                for p in r.reactants.iter_mut().chain(&mut r.products) {
+                    if p.species == c {
+                        p.species = alias.clone();
+                    }
+                }
+            }
+        }
+    }
+    made
+}
+
+/// The cofactor drawings to place beside their reaction: each drawn to one
+/// reaction only, as a reactant or product, not locked, of a reaction that
+/// has a species that is not a cofactor, which sets its direction.
+fn satellites(model: &Model) -> Vec<Satellite> {
+    let cofactor = |id: &str| {
+        model
+            .find_species(id)
+            .is_some_and(|s| !s.is_null_node && crate::themes::is_cofactor(s.primary_id()))
+    };
+    let mut uses: HashMap<&str, usize> = HashMap::new();
+    for r in model.reactions() {
+        let mut seen: Vec<&str> = Vec::new();
+        for p in r.reactants.iter().chain(&r.products).chain(&r.modifiers) {
+            if !seen.contains(&p.species.as_str()) {
+                seen.push(&p.species);
+                *uses.entry(&p.species).or_default() += 1;
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for r in model.reactions() {
+        let main = r
+            .reactants
+            .iter()
+            .chain(&r.products)
+            .any(|p| !cofactor(&p.species));
+        if !main {
+            continue;
+        }
+        for role in [Role::Reactant, Role::Product] {
+            let mut index = 0;
+            for p in r.participants(role) {
+                let free = model.find_species(&p.species).is_some_and(|s| !s.locked);
+                let placed = out.iter().any(|s: &Satellite| s.id == p.species);
+                if cofactor(&p.species)
+                    && free
+                    && !placed
+                    && uses.get(p.species.as_str()) == Some(&1)
+                {
+                    out.push(Satellite {
+                        id: p.species.clone(),
+                        reaction: r.id.clone(),
+                        role,
+                        index,
+                    });
+                    index += 1;
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Puts each cofactor beside its reaction: reactants before the junction,
+/// products after it, along the line from the reaction's other reactants to
+/// its other products, to the side with fewer species near the junction.
+fn place_satellites(model: &mut Model, satellites: &[Satellite]) {
+    let mut reactions: Vec<&str> = satellites.iter().map(|s| s.reaction.as_str()).collect();
+    reactions.dedup();
+    let size = |id: &str| {
+        model
+            .find_species(id)
+            .map_or(Pt::ZERO, |s| pt(s.width / 2.0, s.height / 2.0))
+    };
+    // The boxes taken: every other species', then each cofactor's as it is
+    // placed (centre, half size).
+    let mut taken: Vec<(Pt, Pt)> = model
+        .species()
+        .iter()
+        .filter(|s| !satellites.iter().any(|x| x.id == s.id))
+        .map(|s| (s.center, pt(s.width / 2.0, s.height / 2.0)))
+        .collect();
+    let free = |taken: &[(Pt, Pt)], at: Pt, half: Pt| {
+        taken.iter().all(|(c, h)| {
+            (at.x - c.x).abs() >= half.x + h.x + SATELLITE_GAP
+                || (at.y - c.y).abs() >= half.y + h.y + SATELLITE_GAP
+        })
+    };
+    let mut places: Vec<(Id, Pt)> = Vec::new();
+    for rid in reactions {
+        let Some(r) = model.find_reaction(rid) else {
+            continue;
+        };
+        let beside = |id: &str| satellites.iter().any(|s| s.id == id);
+        let centre = |role: Role| {
+            let pts: Vec<Pt> = r
+                .participants(role)
+                .iter()
+                .filter(|p| !beside(&p.species))
+                .filter_map(|p| model.find_species(&p.species).map(|s| s.center))
+                .collect();
+            (!pts.is_empty()).then(|| pts.iter().fold(Pt::ZERO, |a, &p| a + p) / pts.len() as f64)
+        };
+        let j = r.junction;
+        let along = match (centre(Role::Reactant), centre(Role::Product)) {
+            (Some(a), Some(b)) => b - a,
+            (Some(a), None) => j - a,
+            (None, Some(b)) => b - j,
+            (None, None) => pt(0.0, 1.0),
+        };
+        let u = match normalize(along) {
+            v if v == Pt::ZERO => pt(0.0, 1.0),
+            v => v,
+        };
+        let side = perp(u);
+        // The side with fewer of the other species near the junction.
+        let (mut left, mut right) = (0, 0);
+        for s in model.species() {
+            let d = s.center - j;
+            if beside(&s.id) || d.length() > SATELLITE_CROWD {
+                continue;
+            }
+            let along_side = d.x * side.x + d.y * side.y;
+            if along_side > 0.0 {
+                left += 1;
+            } else if along_side < 0.0 {
+                right += 1;
+            }
+        }
+        let side = if left <= right { side } else { side * -1.0 };
+        // The first free place: on the chosen side, farther out, then on
+        // the other; else the first.
+        for s in satellites.iter().filter(|s| s.reaction == rid) {
+            let sign = if s.role == Role::Reactant { -1.0 } else { 1.0 };
+            let base = j + u * (sign * (SATELLITE_ALONG + SATELLITE_SPACING * s.index as f64));
+            let half = size(&s.id);
+            let tries: Vec<Pt> = [1.0, -1.0]
+                .iter()
+                .flat_map(|&flip| {
+                    (0..SATELLITE_TRIES)
+                        .map(move |k| side * (flip * (SATELLITE_SIDE + SATELLITE_STEP * k as f64)))
+                })
+                .map(|offset| base + offset)
+                .collect();
+            let at = tries
+                .iter()
+                .copied()
+                .find(|&at| free(&taken, at, half))
+                .unwrap_or(tries[0]);
+            taken.push((at, half));
+            places.push((s.id.clone(), at));
+        }
+    }
+    for (id, at) in places {
+        if let Some(s) = model.find_species_mut(&id) {
+            s.center = at;
         }
     }
 }
@@ -640,6 +888,173 @@ mod tests {
                     && (s[i].center.y - s[k].center.y).abs() < (s[i].height + s[k].height) / 2.0
             })
         })
+    }
+
+    /// Two steps of glycolysis that share ATP and ADP, and X → Y.
+    fn glycolysis(extra: &str) -> Model {
+        let text = format!(
+            "J0: G6P + ATP -> F6P + ADP; 1\nJ1: F6P + ATP -> FBP + ADP; 1\nJ2: X -> Y; 1\n{extra}"
+        );
+        crate::antimony::import(&text, &crate::antimony::ImportOptions { seed: 1 })
+            .unwrap()
+            .model
+    }
+
+    fn drawn_to(m: &Model, reaction: &str, role: Role, index: usize) -> String {
+        m.find_reaction(reaction).unwrap().participants(role)[index]
+            .species
+            .clone()
+    }
+
+    #[test]
+    fn cofactors_get_one_drawing_per_reaction() {
+        let mut m = glycolysis("");
+        let species = m.species().len();
+        assert_eq!(separate_cofactors(&mut m), 2, "ATP and ADP for J1");
+        assert_eq!(m.species().len(), species + 2);
+        // J0 keeps the species, J1 is drawn to aliases of them.
+        assert_eq!(drawn_to(&m, "J0", Role::Reactant, 1), "ATP");
+        let atp = drawn_to(&m, "J1", Role::Reactant, 1);
+        assert_eq!(m.find_species(&atp).unwrap().primary_id(), "ATP");
+        assert_ne!(atp, "ATP");
+        let adp = drawn_to(&m, "J1", Role::Product, 1);
+        assert_eq!(m.find_species(&adp).unwrap().primary_id(), "ADP");
+        // F6P is not a cofactor: one drawing, shared.
+        assert_eq!(drawn_to(&m, "J1", Role::Reactant, 0), "F6P");
+        // Already separate: nothing more.
+        assert_eq!(separate_cofactors(&mut m), 0);
+    }
+
+    #[test]
+    fn cofactors_are_drawn_beside_their_reaction() {
+        let mut m = glycolysis("");
+        separate_cofactors(&mut m);
+        let params = LayoutParams {
+            separate_cofactors: true,
+            randomize: true,
+            ..LayoutParams::default()
+        };
+        let out = run(&m, params, 3);
+        assert!(!overlapping(&out), "no two boxes overlap");
+        for (r, main_in, main_out) in [("J0", "G6P", "F6P"), ("J1", "F6P", "FBP")] {
+            let rx = out.find_reaction(r).unwrap();
+            let j = rx.junction;
+            let u = normalize(
+                out.find_species(main_out).unwrap().center
+                    - out.find_species(main_in).unwrap().center,
+            );
+            let at = |role: Role| {
+                out.find_species(&drawn_to(&out, r, role, 1))
+                    .unwrap()
+                    .center
+            };
+            let (atp, adp) = (at(Role::Reactant), at(Role::Product));
+            let along = |p: Pt| (p - j).x * u.x + (p - j).y * u.y;
+            // ATP before the junction, ADP after it, both close by.
+            assert!(
+                along(atp) < 0.0 && along(adp) > 0.0,
+                "{r}: {atp:?} {adp:?} {j:?}"
+            );
+            for p in [atp, adp] {
+                assert!((p - j).length() < 250.0, "{r}: {p:?} near {j:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn which_cofactors_are_drawn_beside() {
+        // J3 has only cofactors: they are laid out as species. A locked
+        // cofactor, and one that is also a modifier, stay in the layout too.
+        let mut m = glycolysis("J3: ATP -> ADP; 1\nJ4: NAD -> NADH; k*X\nJ5: G + NAD -> H; 1");
+        separate_cofactors(&mut m);
+        let beside: Vec<(String, String)> = satellites(&m)
+            .into_iter()
+            .map(|s| {
+                (
+                    s.reaction,
+                    m.find_species(&s.id).unwrap().primary_id().to_owned(),
+                )
+            })
+            .collect();
+        for (r, c) in [("J0", "ATP"), ("J0", "ADP"), ("J1", "ATP"), ("J1", "ADP")] {
+            assert!(
+                beside.contains(&(r.into(), c.into())),
+                "{r} {c}: {beside:?}"
+            );
+        }
+        assert!(
+            !beside.iter().any(|(r, _)| r == "J3" || r == "J4"),
+            "{beside:?}"
+        );
+        assert!(beside.contains(&("J5".into(), "NAD".into())));
+        let nad = drawn_to(&m, "J5", Role::Reactant, 1);
+        m.find_species_mut(&nad).unwrap().locked = true;
+        assert!(!satellites(&m).iter().any(|s| s.id == nad), "locked");
+        // Off unless asked: every drawing is a layout node, aliases ride.
+        let out = run(&m, LayoutParams::default(), 1);
+        assert_eq!(out.species().len(), m.species().len());
+    }
+
+    #[test]
+    fn a_cofactor_that_is_also_a_modifier_stays_in_the_layout() {
+        // J6's rate uses ATP, so ATP's drawing for J0 has a modifier line
+        // to J6 as well: it is laid out, not put beside J0.
+        let mut m = glycolysis("J6: P -> Q; k*ATP");
+        separate_cofactors(&mut m);
+        let beside = satellites(&m);
+        assert!(!beside.iter().any(|s| s.id == "ATP"), "ATP itself");
+        let atp1 = drawn_to(&m, "J1", Role::Reactant, 1);
+        assert!(beside.iter().any(|s| s.id == atp1), "J1's ATP");
+    }
+
+    #[test]
+    fn cofactors_beside_take_no_part_in_the_layout() {
+        let mut m = glycolysis("");
+        separate_cofactors(&mut m);
+        let params = LayoutParams {
+            separate_cofactors: true,
+            ..LayoutParams::default()
+        };
+        let run = LayoutRun::new(&m, params, 1);
+        let beside: Vec<Id> = satellites(&m).into_iter().map(|s| s.id).collect();
+        assert_eq!(beside.len(), 4);
+        for n in &run.nodes {
+            if let NodeKind::Species(id) = &n.kind {
+                assert!(!beside.contains(id), "{id} is a layout node");
+            }
+        }
+        assert!(!run.riders.iter().any(|r| beside.contains(&r.id)));
+    }
+
+    #[test]
+    fn a_cofactor_finds_a_free_place() {
+        // A → B left to right, with ATP; X locked where ATP would go first.
+        let text = "J0: A + ATP -> B; 1\nJ1: C + NADH -> D; 1";
+        let mut m = crate::antimony::import(text, &crate::antimony::ImportOptions { seed: 1 })
+            .unwrap()
+            .model;
+        for (id, at) in [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(400.0, 0.0)),
+            ("C", pt(0.0, 600.0)),
+            ("D", pt(400.0, 600.0)),
+        ] {
+            m.find_species_mut(id).unwrap().center = at;
+        }
+        // J1 on top of J0, the same way round: their cofactors want the
+        // same place.
+        m.find_reaction_mut("J0").unwrap().junction = pt(200.0, 0.0);
+        m.find_reaction_mut("J1").unwrap().junction = pt(200.0, 0.0);
+        let x = m.add_species(pt(0.0, 0.0), 80.0, 36.0);
+        let beside = satellites(&m);
+        assert_eq!(beside.len(), 2);
+        // Where ATP would go first, on either side.
+        let first = pt(200.0 - SATELLITE_ALONG, SATELLITE_SIDE);
+        for at in [first, pt(first.x, -first.y)] {
+            m.find_species_mut(&x).unwrap().center = at;
+            place_satellites(&mut m, &beside);
+            assert!(!overlapping(&m), "X at {at:?}");
+        }
     }
 
     #[test]

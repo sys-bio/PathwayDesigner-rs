@@ -120,6 +120,10 @@ impl DiagramView {
         }
         self.cancel_gesture();
         let before = Box::new(self.model.clone());
+        // Cofactors get one drawing per reaction (L2), in the same undo step.
+        if params.separate_cofactors {
+            crate::layout::separate_cofactors(&mut self.model);
+        }
         // A layout places everything anew: routed lines are drawn straight
         // again (S §5.6.5).
         for r in self.model.reactions_mut() {
@@ -1097,5 +1101,41 @@ mod tests {
         assert_eq!(v.undo_description(), Some("Random Network"));
         v.undo();
         assert_eq!(v.model().species().len(), 3);
+    }
+
+    /// docs/layout-algorithms-design.md L2: separating cofactors is part of
+    /// the layout's one undo step, and Cancel takes it back too.
+    #[test]
+    fn separated_cofactors_are_one_undo_step_with_the_layout() {
+        let model = crate::antimony::import(
+            "J0: A + ATP -> B + ADP; 1\nJ1: B + ATP -> C + ADP; 1",
+            &crate::antimony::ImportOptions { seed: 1 },
+        )
+        .unwrap()
+        .model;
+        let params = LayoutParams {
+            separate_cofactors: true,
+            ..LayoutParams::default()
+        };
+        let mut v = DiagramView::new(model.clone());
+        let species = v.model().species().len();
+        v.start_layout(params, 1);
+        assert_eq!(v.model().species().len(), species + 2, "while it runs");
+        v.cancel_layout();
+        assert_eq!(v.model().species().len(), species, "cancelled");
+        v.start_layout(params, 1);
+        while v.is_laying_out() {
+            v.layout_step(200);
+        }
+        assert_eq!(v.model().species().len(), species + 2);
+        assert_eq!(v.undo_description(), Some("Auto-layout"));
+        v.undo();
+        assert_eq!(v.model().species().len(), species, "one undo");
+        // Off: no aliases.
+        v.start_layout(LayoutParams::default(), 1);
+        while v.is_laying_out() {
+            v.layout_step(200);
+        }
+        assert_eq!(v.model().species().len(), species);
     }
 }
