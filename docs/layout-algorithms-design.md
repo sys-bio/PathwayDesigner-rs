@@ -1,7 +1,9 @@
 # Other layout methods — design
 
 2026-11-14. Design; L1, L2, L5 and L7 settled with the author as proposed,
-the rest proposed.
+the rest proposed. Step 1 built (2026-11-14): the measures
+(`pd_core::layout_measures`) and the report (`pd-export` example
+`layout_quality`); the baseline is below.
 
 Models without a drawing (Antimony without layout statements, SBML without a
 Layout, generated networks) are drawn by the automatic layout. This proposes
@@ -121,6 +123,32 @@ written here from the papers.
   without its Escher map (and compared with the map), a sample of BioModels
   without drawings, and a Recon3D subsystem. A report of every method on
   every model, measures and pictures, before choosing defaults.
+
+## Baseline (step 1)
+
+The force layout on each test model read without a drawing (the mean of
+three seeds), against the model's own drawing where it has one:
+
+| Model | Species (drawn / laid out) | Crossings | Lines through species | Down |
+|---|---|---|---|---|
+| MAPK cascade | 8 / 8 | 0 / 0.7 | 0 / 0 | 0% / 50% |
+| TCA cycle | 25 / 18 | 0 / 11 | 0 / 3.7 | 50% / 58% |
+| Yeast glycolysis (Gepasi) | 45 / 25 | 1 / 55 | 0 / 9 | 79% / 46% |
+| Millard *E. coli* | 234 / 78 | 3 / 1,084 | 23 / 106 | 54% / 46% |
+| *E. coli* core, Escher's map | 244 / 72 | 4 / 3,336 | 0 / 163 | 45% / 50% |
+| Recon3D glutathione map | 47 / 31 | 6 / 35 | 2 / 6.7 | 81% / 54% |
+
+Eight BioModels without drawings (10 to 30 reactions) get 0.3 to 95
+crossings. What it shows:
+
+- The hand-drawn and Escher drawings have a few crossings; the force
+  layout has hundreds to thousands on the metabolic models.
+- The drawings have far more species than the models laid out: they draw
+  cofactors as one alias per reaction (244 drawn against 72 species in the
+  core model). That is L2's separation, and much of the gap.
+- About half of the force layout's reactions point down, as chance would
+  have it; a layered layout should be near 100%, as the Recon3D map's 81%
+  suggests a drawn pathway is.
 
 ## Steps
 

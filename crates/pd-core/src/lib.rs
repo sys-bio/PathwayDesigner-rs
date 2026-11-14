@@ -27,6 +27,7 @@ pub mod geometry;
 pub mod json;
 pub mod kegg;
 pub mod layout;
+pub mod layout_measures;
 pub mod model;
 pub mod model_core;
 pub mod node_shape;
