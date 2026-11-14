@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 
+mod layered;
 mod stress;
 
 use crate::bezier::apply_smooth_handles;
@@ -58,16 +59,24 @@ pub enum LayoutMethod {
     /// Stress majorization: distances on the screen match distances in the
     /// network (L4). Needs no seed.
     Stress,
+    /// Top to bottom: reactants above, products below (L5). Needs no seed;
+    /// moves locked species too, so the app offers it only with none.
+    Layered,
 }
 
 impl LayoutMethod {
-    pub const ALL: [LayoutMethod; 2] = [LayoutMethod::Organic, LayoutMethod::Stress];
+    pub const ALL: [LayoutMethod; 3] = [
+        LayoutMethod::Organic,
+        LayoutMethod::Stress,
+        LayoutMethod::Layered,
+    ];
 
     /// Its name in the app.
     pub fn name(self) -> &'static str {
         match self {
             LayoutMethod::Organic => "Organic",
             LayoutMethod::Stress => "Stress",
+            LayoutMethod::Layered => "Layered",
         }
     }
 
@@ -80,6 +89,9 @@ impl LayoutMethod {
             LayoutMethod::Stress => {
                 "Distances on the screen match distances in the network; the same model always gives the same drawing"
             }
+            LayoutMethod::Layered => {
+                "Top to bottom: each reaction's products below its reactants, as pathways are drawn"
+            }
         }
     }
 
@@ -88,6 +100,7 @@ impl LayoutMethod {
         match self {
             LayoutMethod::Organic => "organic",
             LayoutMethod::Stress => "stress",
+            LayoutMethod::Layered => "layered",
         }
     }
 
@@ -231,6 +244,9 @@ pub struct LayoutRun {
     satellites: Vec<Satellite>,
     /// With [`LayoutMethod::Stress`]: the network's distances.
     stress: Option<stress::Stress>,
+    /// With [`LayoutMethod::Layered`]: lines' corner points, by reaction,
+    /// side and species.
+    corners: Vec<(Id, Role, Id, Vec<Pt>)>,
     /// Gravity pulls towards the centroid of the starting positions.
     centre: Pt,
     speed: f64,
@@ -275,7 +291,7 @@ impl LayoutRun {
         // Cofactors drawn beside their reaction take no part.
         // With Stress each separated cofactor stays a node of its own: one
         // line from its junction, it is put in free space there.
-        let satellites = if params.separate_cofactors && params.method == LayoutMethod::Organic {
+        let satellites = if params.separate_cofactors && params.method != LayoutMethod::Stress {
             satellites(model)
         } else {
             Vec::new()
@@ -338,6 +354,10 @@ impl LayoutRun {
         // Junctions, and one spring per unique species of each reaction.
         let mut springs = Vec::new();
         let mut regulators: Vec<(usize, usize)> = Vec::new();
+        // For Layered: each line, reactant to junction or junction to
+        // product, with what it is.
+        let mut lines: Vec<(usize, usize)> = Vec::new();
+        let mut line_of: Vec<(Id, Role, Id)> = Vec::new();
         for r in model.reactions() {
             let ends: Vec<&str> = r
                 .reactants
@@ -370,6 +390,24 @@ impl LayoutRun {
                 if !seen.contains(&id) {
                     seen.push(id);
                     springs.push((j, index[id]));
+                }
+            }
+            for role in [Role::Reactant, Role::Product] {
+                let mut done: Vec<&str> = Vec::new();
+                for p in r.participants(role) {
+                    let Some(e) = index.get(p.species.as_str()) else {
+                        continue;
+                    };
+                    if done.contains(&p.species.as_str()) {
+                        continue;
+                    }
+                    done.push(&p.species);
+                    lines.push(if role == Role::Reactant {
+                        (e.node, j)
+                    } else {
+                        (j, e.node)
+                    });
+                    line_of.push((r.id.clone(), role, p.species.clone()));
                 }
             }
             // Modifier lines are not springs, but join the network for Stress.
@@ -437,6 +475,21 @@ impl LayoutRun {
             }
             s
         });
+        let mut corners = Vec::new();
+        if params.method == LayoutMethod::Layered {
+            // It moves everything (the app offers it with nothing locked).
+            for n in &mut nodes {
+                n.fixed = false;
+            }
+            corners = layered(
+                &mut nodes,
+                &lines,
+                &line_of,
+                &regulators,
+                &satellites,
+                centre,
+            );
+        }
         Self {
             params,
             speed: params.speed_start.max(0.05 * diagonal),
@@ -445,6 +498,7 @@ impl LayoutRun {
             riders,
             satellites,
             stress,
+            corners,
             centre,
             done: 0,
             rng,
@@ -460,9 +514,10 @@ impl LayoutRun {
 
     /// Iterations in all: Stress stops at most here, sooner when done.
     fn total(&self) -> u32 {
-        match self.stress {
-            Some(_) => stress::ITERATIONS,
-            None => self.params.iterations,
+        match (&self.stress, self.params.method) {
+            (Some(_), _) => stress::ITERATIONS,
+            (None, LayoutMethod::Layered) => 1,
+            (None, _) => self.params.iterations,
         }
     }
 
@@ -482,6 +537,10 @@ impl LayoutRun {
     }
 
     fn iterate(&mut self) {
+        // Layered is placed when the run is set up.
+        if self.params.method == LayoutMethod::Layered {
+            return;
+        }
         if let Some(s) = &mut self.stress {
             let mut x: Vec<Pt> = self.nodes.iter().map(|n| n.pos).collect();
             let fixed: Vec<bool> = self.nodes.iter().map(|n| n.fixed).collect();
@@ -555,6 +614,15 @@ impl LayoutRun {
                 s.center = self.nodes[rider.primary].pos + rider.offset;
             }
         }
+        for (reaction, role, species, points) in &self.corners {
+            if let Some(r) = model.find_reaction_mut(reaction) {
+                for p in r.participants_mut(*role) {
+                    if p.species == *species {
+                        p.points = points.clone();
+                    }
+                }
+            }
+        }
         place_satellites(model, &self.satellites);
     }
 
@@ -583,6 +651,9 @@ impl LayoutRun {
             for n in &mut self.nodes {
                 n.pos += shift;
             }
+            for (_, _, _, points) in &mut self.corners {
+                points.iter_mut().for_each(|p| *p += shift);
+            }
         }
         self.apply_positions(model);
         for r in model.reactions_mut() {
@@ -606,6 +677,87 @@ impl LayoutRun {
             apply_smooth_handles(model, &id);
         }
     }
+}
+
+/// Room kept at a junction for each side's cofactors beside it, and for each
+/// regulator put beside it (Layered).
+const JUNCTION_WIDTH: f64 = 20.0;
+const BESIDE_ROOM: f64 = SATELLITE_SIDE + 45.0;
+
+/// Places `nodes` top to bottom (`layout::layered`), about `centre`:
+/// reactants above their junction and products below. A species that only
+/// regulates is put beside the first reaction it regulates, left of its
+/// junction; room is kept there, and either side for the reaction's
+/// cofactors put beside it. Returns the lines' corner points.
+fn layered(
+    nodes: &mut [Node],
+    lines: &[(usize, usize)],
+    line_of: &[(Id, Role, Id)],
+    regulators: &[(usize, usize)],
+    satellites: &[Satellite],
+    centre: Pt,
+) -> Vec<(Id, Role, Id, Vec<Pt>)> {
+    let in_lines: std::collections::HashSet<usize> =
+        lines.iter().flat_map(|&(a, b)| [a, b]).collect();
+    // Regulators and nothing else, each by its first reaction.
+    let mut beside: Vec<(usize, usize)> = Vec::new();
+    for &(j, s) in regulators {
+        let species = matches!(nodes[s].kind, NodeKind::Species(_));
+        if species && !in_lines.contains(&s) && !beside.iter().any(|&(_, b)| b == s) {
+            beside.push((j, s));
+        }
+    }
+    let size: Vec<Pt> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| match &n.kind {
+            NodeKind::Species(_) => n.half * 2.0,
+            NodeKind::Junction(id) => {
+                let cofactors = satellites.iter().any(|s| s.reaction == *id);
+                let regs: f64 = beside
+                    .iter()
+                    .filter(|&&(j, _)| j == i)
+                    .map(|&(_, s)| 2.0 * (nodes[s].half.x * 2.0 + layered::GAP))
+                    .sum();
+                pt(
+                    JUNCTION_WIDTH + if cofactors { 2.0 * BESIDE_ROOM } else { 0.0 } + regs,
+                    0.0,
+                )
+            }
+        })
+        .collect();
+    let placed = layered::lay_out(&layered::Graph {
+        size: size.clone(),
+        lines: lines.to_vec(),
+    });
+    let mid = placed.pos.iter().fold(Pt::ZERO, |a, &p| a + p) / placed.pos.len().max(1) as f64;
+    let shift = centre - mid;
+    for (n, p) in nodes.iter_mut().zip(&placed.pos) {
+        n.pos = *p + shift;
+    }
+    // Regulators left of their junction, one after another.
+    let mut used: HashMap<usize, f64> = HashMap::new();
+    for &(j, s) in &beside {
+        let edge = used.entry(j).or_insert(JUNCTION_WIDTH / 2.0 + layered::GAP);
+        let w = nodes[s].half.x * 2.0;
+        let mut at = nodes[j].pos;
+        at.x -= *edge + w / 2.0;
+        *edge += w + layered::GAP;
+        nodes[s].pos = at;
+    }
+    line_of
+        .iter()
+        .zip(&placed.corners)
+        .filter(|(_, c)| !c.is_empty())
+        .map(|((r, role, s), c)| {
+            // A product's points are listed from the species.
+            let mut points: Vec<Pt> = c.iter().map(|&p| p + shift).collect();
+            if *role == Role::Product {
+                points.reverse();
+            }
+            (r.clone(), *role, s.clone(), points)
+        })
+        .collect()
 }
 
 /// Gives every cofactor (`themes::is_cofactor`) that two or more reactions
@@ -1333,6 +1485,163 @@ mod tests {
         let busy = out.find_species("A").unwrap().center.distance(j0);
         let quiet = out.find_species("X").unwrap().center.distance(j1);
         assert!(busy > 1.2 * quiet, "{busy} {quiet}");
+    }
+
+    fn layered_params() -> LayoutParams {
+        LayoutParams {
+            method: LayoutMethod::Layered,
+            ..LayoutParams::default()
+        }
+    }
+
+    #[test]
+    fn layered_draws_every_reaction_downwards_in_one_step() {
+        let m = import("J0: A -> B; 1\nJ1: B -> C + D; 1\nJ2: C -> E; 1");
+        let mut r = LayoutRun::new(&m, layered_params(), 1);
+        assert_eq!(r.progress().total, 1);
+        assert!(r.step(1).finished());
+        let out = run(&m, layered_params(), 1);
+        for rx in out.reactions() {
+            let j = rx.junction;
+            for p in &rx.reactants {
+                assert!(
+                    out.find_species(&p.species).unwrap().center.y < j.y,
+                    "{}",
+                    rx.id
+                );
+            }
+            for p in &rx.products {
+                assert!(
+                    out.find_species(&p.species).unwrap().center.y > j.y,
+                    "{}",
+                    rx.id
+                );
+            }
+        }
+        assert!(!overlapping(&out));
+        // Locked species move too: the app offers Layered only with none.
+        let mut locked = m.clone();
+        locked.find_species_mut("A").unwrap().locked = true;
+        let r = LayoutRun::new(&locked, layered_params(), 1);
+        assert!(r.nodes.iter().all(|n| !n.fixed));
+    }
+
+    #[test]
+    fn layered_routes_a_long_line_through_corner_points() {
+        // A → B → C → D, and A → D directly: J3's lines cross the layers
+        // between, through corner points, kept where they are drawn.
+        // M regulates J0 and is put beside it, which moves the drawing's
+        // centre: the corner points move with it.
+        let m = import(
+            "species M = 1\nJ0: A -> B; k*M*A\nJ1: B -> C; 1\nJ2: C -> D; 1\nJ3: A -> D; 1\nk = 1",
+        );
+        let out = run(&m, layered_params(), 1);
+        let j3 = out.find_reaction("J3").unwrap();
+        let points: Vec<Pt> = j3
+            .reactants
+            .iter()
+            .chain(&j3.products)
+            .flat_map(|p| p.points.clone())
+            .collect();
+        assert!(!points.is_empty());
+        let (a, d) = (
+            out.find_species("A").unwrap().center,
+            out.find_species("D").unwrap().center,
+        );
+        for q in &points {
+            assert!(q.y > a.y && q.y < d.y, "{q:?} between {a:?} and {d:?}");
+        }
+        // Each corner point on a layer, with the drawing.
+        let layers: Vec<f64> = out
+            .species()
+            .iter()
+            .map(|s| s.center.y)
+            .chain(out.reactions().iter().map(|r| r.junction.y))
+            .collect();
+        for q in &points {
+            assert!(layers.iter().any(|y| (y - q.y).abs() < 1e-6), "{q:?}");
+        }
+        // No line through another species' box.
+        assert_eq!(
+            crate::layout_measures::measure(&out).lines_through_species,
+            0
+        );
+        // A product's long line, listed from the product: J3 makes E just
+        // below it and D far down.
+        let m = import("J0: A -> B; 1\nJ1: B -> C; 1\nJ2: C -> D; 1\nJ3: A -> E + D; 1");
+        let out = run(&m, layered_params(), 1);
+        let j3 = out.find_reaction("J3").unwrap();
+        let d = out.find_species("D").unwrap().center;
+        let to_d = &j3
+            .products
+            .iter()
+            .find(|p| p.species == "D")
+            .unwrap()
+            .points;
+        assert!(to_d.len() > 1, "{to_d:?}");
+        assert!(
+            to_d[0].distance(d) < to_d[to_d.len() - 1].distance(d),
+            "{to_d:?}"
+        );
+    }
+
+    #[test]
+    fn layered_keeps_room_beside_a_junction() {
+        // J0 and J1 side by side, both from A; M regulates J0, so J0 keeps
+        // room on its left for it.
+        let m = import("species M = 1\nJ0: A -> B; k*M*A\nJ1: A -> D; 1\nk = 1");
+        let out = run(&m, layered_params(), 1);
+        let (j0, j1) = (
+            out.find_reaction("J0").unwrap().junction,
+            out.find_reaction("J1").unwrap().junction,
+        );
+        let w = out.find_species("M").unwrap().width;
+        let room = JUNCTION_WIDTH / 2.0 + (w + layered::GAP) + JUNCTION_WIDTH / 2.0 + layered::GAP;
+        assert_eq!(j0.y, j1.y, "one layer");
+        assert!((j0.x - j1.x).abs() >= room - 1e-6, "{j0:?} {j1:?}");
+        // Two reactions with cofactors beside them: room either side.
+        let mut g = import("J0: A + ATP -> B + ADP; 1\nJ1: A + ATP -> D + ADP; 1");
+        separate_cofactors(&mut g);
+        let out = run(
+            &g,
+            LayoutParams {
+                separate_cofactors: true,
+                ..layered_params()
+            },
+            1,
+        );
+        let (j0, j1) = (
+            out.find_reaction("J0").unwrap().junction,
+            out.find_reaction("J1").unwrap().junction,
+        );
+        assert_eq!(j0.y, j1.y, "one layer");
+        assert!(
+            (j0.x - j1.x).abs() >= JUNCTION_WIDTH + 2.0 * BESIDE_ROOM + layered::GAP - 1e-6,
+            "{j0:?} {j1:?}"
+        );
+    }
+
+    #[test]
+    fn layered_puts_regulators_and_cofactors_beside() {
+        // M only regulates J0: left of J0's junction, at its height.
+        let m = import("species M = 1\nJ0: A -> B; k*M*A\nJ1: B -> C; 1\nk = 1");
+        let out = run(&m, layered_params(), 1);
+        let j0 = out.find_reaction("J0").unwrap().junction;
+        let mm = out.find_species("M").unwrap().center;
+        assert_eq!(mm.y, j0.y);
+        assert!(mm.x < j0.x);
+        assert!(!overlapping(&out));
+        // Separated cofactors are put beside their reaction.
+        let mut g = glycolysis("");
+        separate_cofactors(&mut g);
+        let params = LayoutParams {
+            separate_cofactors: true,
+            ..layered_params()
+        };
+        let r = LayoutRun::new(&g, params, 1);
+        assert_eq!(r.satellites.len(), 4);
+        let out = run(&g, params, 1);
+        assert!(!overlapping(&out));
     }
 
     #[test]

@@ -5,7 +5,8 @@ the rest proposed. Step 1 built (2026-11-14): the measures
 (`pd_core::layout_measures`) and the report (`pd-export` example
 `layout_quality`); the baseline is below. Step 2 built (2026-11-14):
 separating cofactors, with its results below. Step 3 built (2026-11-14):
-*Stress* and the Method list, below.
+*Stress* and the Method list, below. Step 4 built (2026-11-14): *Layered*,
+below.
 
 Models without a drawing (Antimony without layout statements, SBML without a
 Layout, generated networks) are drawn by the automatic layout. This proposes
@@ -221,6 +222,38 @@ for Stress, which needs no seed. As built, beyond L4:
 Stress gives fewer crossings and no overlaps on every model; line lengths
 are even (spread 0.1–0.4 against 0.3–0.8). About half the reactions point
 down, as with Organic: direction is for *Layered*.
+
+## Layered (step 4)
+
+`layout/layered.rs`, the third entry in the Method list. Each reaction is
+a reactant → junction → product chain; cycles are broken by the greedy
+order of Eades, Lin & Smyth, those lines drawn upwards; each node goes one
+layer below its lowest predecessor and then as low as its successors allow,
+so an input sits just above its use; a line across several layers gets a
+corner point in each (kept on the line's leg, S §5.6.5), so it runs between
+boxes, not through them; each layer is ordered by barycentre sweeps with
+Gansner et al.'s transpose, keeping the order with the fewest crossings;
+places across are each layer's least-squares fit to its neighbours, in
+order and with gaps, exact (pool adjacent violators). Parts not joined to
+the rest are packed in rows. Cofactors, when separated, are put beside
+their reaction as with Organic, and a species that only regulates is put
+left of the junction of the first reaction it regulates; the layout keeps
+room for both. One step, not animated. With a species locked, Layered and
+Auto-layout with it are greyed out: "Unlock species to use Layered".
+
+| Model | Stress + cofactors | Layered + cofactors |
+|---|---|---|
+| TCA cycle | 0 crossings, 38% down | 0, 88% |
+| Yeast glycolysis | 0, 47% | 2, 100% |
+| Millard *E. coli* | 326, 54% | 266, 76% |
+| *E. coli* core | 138, 51% | 273, 91% |
+| Recon3D glutathione | 1, 56% | 13, 75% |
+| BioModels 7, 9, 11 (signalling) | 1, 7, 25 crossings | 9, 23, 90 |
+
+*Layered* draws most reactions downwards, as pathways are drawn (yeast
+glycolysis entirely), where *Stress* points them any way; *Stress* has
+fewer crossings on dense and signalling networks. So: *Layered* for a
+pathway, *Stress* for a network without one direction.
 
 ## Steps
 

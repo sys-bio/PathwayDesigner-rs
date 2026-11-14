@@ -180,6 +180,9 @@ pub(crate) enum RightTab {
     Annotate,
 }
 
+/// Why Layered is greyed out (docs/layout-algorithms-design.md L5).
+const UNLOCK_FOR_LAYERED: &str = "Unlock species to use Layered: it moves everything";
+
 pub struct PathwayApp {
     pub(crate) ctx: egui::Context,
     pub(crate) view: DiagramView,
@@ -1268,9 +1271,15 @@ impl PathwayApp {
             }
             return;
         }
+        // Layered moves everything, so with species locked it isn't offered
+        // (docs/layout-algorithms-design.md L5).
+        let locked = self.view.model().species().iter().any(|s| s.locked);
+        let layered = pd_core::layout::LayoutMethod::Layered;
+        let blocked = locked && self.layout_params.method == layered;
         if ui
-            .button("Auto-layout")
+            .add_enabled(!blocked, egui::Button::new("Auto-layout"))
             .on_hover_text("Lay out the diagram; locked nodes stay where they are")
+            .on_disabled_hover_text(UNLOCK_FOR_LAYERED)
             .clicked()
         {
             self.start_layout();
@@ -1281,8 +1290,14 @@ impl PathwayApp {
             .selected_text(method.name())
             .show_ui(ui, |ui| {
                 for m in pd_core::layout::LayoutMethod::ALL {
-                    ui.selectable_value(method, m, m.name())
-                        .on_hover_text(m.hint());
+                    let offered = !(locked && m == layered);
+                    let item = ui
+                        .add_enabled(offered, egui::Button::selectable(*method == m, m.name()))
+                        .on_hover_text(m.hint())
+                        .on_disabled_hover_text(UNLOCK_FOR_LAYERED);
+                    if item.clicked() {
+                        *method = m;
+                    }
                 }
             })
             .response
@@ -3496,6 +3511,58 @@ end */
         }
         eframe::App::save(&mut h.app, &mut Store(&mut store));
         assert_eq!(store["pathwayDesigner.layoutMethod"], "stress");
+    }
+
+    /// docs/layout-algorithms-design.md L5: Layered, from the Method list,
+    /// draws products below reactants in one step; with a species locked it
+    /// is greyed out, and Auto-layout with it.
+    #[test]
+    fn layered_from_the_method_list_unless_species_are_locked() {
+        let mut h = Harness::new();
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("J0: A -> B; 1\nJ1: B -> C; 1\nJ2: C -> D; 1", &opts)
+            .unwrap();
+        h.run(vec![]);
+        let list = |h: &Harness| {
+            let m = h.app.layout_params.method;
+            h.widget(&format!("Layout method: {}", m.hint()))
+        };
+        h.click(list(&h));
+        h.run(vec![]);
+        h.click(h.widget("Layered"));
+        h.run(vec![]);
+        assert_eq!(h.app.layout_params.method, LayoutMethod::Layered);
+        h.click(h.widget("Auto-layout"));
+        h.run(vec![]);
+        h.run(vec![]);
+        assert!(!h.app.view.is_laying_out(), "one step");
+        let m = h.app.view.model();
+        let y = |id: &str| m.find_species(id).unwrap().center.y;
+        assert!(y("A") < y("B") && y("B") < y("C") && y("C") < y("D"));
+        assert_eq!(h.app.view.undo_description(), Some("Auto-layout"));
+
+        // A locked species: Auto-layout does nothing, and Layered can't be
+        // chosen again once another method is.
+        let mut locked = h.app.view.model().clone();
+        locked.find_species_mut("A").unwrap().locked = true;
+        // Moved, so a layout would change it.
+        locked.find_species_mut("B").unwrap().center += pt(300.0, 0.0);
+        h.app.view.set_model(locked);
+        h.run(vec![]);
+        let before = h.app.view.model().clone();
+        h.click(h.widget("Auto-layout"));
+        h.run(vec![]);
+        assert!(!h.app.view.is_laying_out());
+        assert_eq!(*h.app.view.model(), before);
+        h.app.layout_params.method = LayoutMethod::Stress;
+        h.run(vec![]);
+        h.click(list(&h));
+        h.run(vec![]);
+        h.click(h.widget("Layered"));
+        h.run(vec![]);
+        assert_eq!(h.app.layout_params.method, LayoutMethod::Stress);
     }
 
     #[test]

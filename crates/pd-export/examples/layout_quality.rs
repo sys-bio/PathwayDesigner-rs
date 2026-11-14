@@ -95,6 +95,36 @@ const METHODS: &[(&str, LayoutParams)] = &[
             method: LayoutMethod::Stress,
         },
     ),
+    (
+        "layered",
+        LayoutParams {
+            iterations: 800,
+            kr: 8000.0,
+            ka: 0.02,
+            kg: 0.01,
+            speed_start: 20.0,
+            speed_decay: 0.98,
+            randomize: false,
+            deckard: false,
+            separate_cofactors: false,
+            method: LayoutMethod::Layered,
+        },
+    ),
+    (
+        "layered + cofactors",
+        LayoutParams {
+            iterations: 800,
+            kr: 8000.0,
+            ka: 0.02,
+            kg: 0.01,
+            speed_start: 20.0,
+            speed_decay: 0.98,
+            randomize: false,
+            deckard: false,
+            separate_cofactors: true,
+            method: LayoutMethod::Layered,
+        },
+    ),
 ];
 /// BioModels taken: this many, with this many reactions.
 const BIOMODELS: usize = 8;
