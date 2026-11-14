@@ -1,0 +1,160 @@
+# Other layout methods — design
+
+2026-11-14. Design; L1, L2, L5 and L7 settled with the author as proposed,
+the rest proposed.
+
+Models without a drawing (Antimony without layout statements, SBML without a
+Layout, generated networks) are drawn by the automatic layout. This proposes
+methods besides the one there is, and what goes with them.
+
+## Now
+
+- **One method**, force-directed in the style of ForceAtlas2 (Jacomy et al.
+  2014), for networks with reaction junctions (S §10.1, `pd-core/src/layout.rs`).
+  Every species and every junction is a node; springs join a reaction's
+  species to its junction; every pair of nodes repels; gravity pulls towards
+  the centre. 800 iterations, a few per frame, so the app animates it.
+- **Options**: *Randomize* scatters the unlocked species first (seeded);
+  *Deckard* runs the Deckard & Bergmann handle pass afterwards (S §10.2).
+- Locked species stay put, and an alias rides on its primary.
+- A model read without a drawing has its species put at random in
+  [0, 600)², and the app offers Auto-layout (Antimony panel, SBML import).
+  The diagram format's reader lays out what its text doesn't place.
+- The result depends on the starting positions and the seed. It tends to a
+  round cloud: it shows which species are near which, not the direction of
+  the pathway, and a few species used by many reactions (ATP, NADH, H₂O, H⁺)
+  pull everything into a knot at the centre.
+- The Escher theme already knows cofactors by name
+  (`themes::is_cofactor`: ATP, ADP, NAD(P)(H), H₂O, Pi, CO₂, H⁺, CoA, … with
+  BiGG's `M_` prefix and compartment suffix ignored).
+
+## Methods considered
+
+- **Layered** (Sugiyama, Tagawa & Toda 1981; Graphviz *dot*, Gansner et al.
+  1993). Every reaction's substrates go above its junction and its products
+  below, so the network reads top to bottom, as pathways are drawn in
+  textbooks. Steps: break cycles by turning the fewest edges round (Eades, Lin
+  & Smyth 1993); put nodes in layers (longest path, or dot's network simplex
+  for shorter edges); reduce crossings by reordering each layer (barycentre
+  sweeps); set x positions (Brandes & Köpf 2001). Best for metabolism; a
+  cycle such as TCA comes out as a long loop, not a ring.
+- **Stress majorization** (Gansner, Koren & North 2004; Graphviz *neato*).
+  Places nodes so that distances on the screen match distances in the
+  network (shortest paths). Deterministic (started from the network's own
+  distances, not at random), keeps related parts together and unrelated ones
+  apart, and honours fixed nodes naturally. A few hundred lines. All-pairs
+  distances are O(n²) in memory: fine to a few thousand nodes; a sparse
+  version (Ortmann, Klimenta & Brandes 2016) is the way past that.
+- **Stress with constraints** (IPSep-CoLa, Dwyer, Koren & Marriott 2006; the
+  *cola* layout in Cytoscape). Stress, plus rules kept exactly: a reaction's
+  products below its substrates, no two nodes overlapping, chosen nodes in a
+  line, a compartment's species inside its box. The flow of *Layered* with
+  the shape of *Stress*. A constraint solver is the larger part of the work.
+- **Templates** (Karp & Paley 1994, Pathway Tools). Find linear chains,
+  cycles and branches, draw each as a line, a ring or a fork, then arrange
+  the pieces. The most textbook-like for metabolism; only for networks made
+  of such pieces.
+- **Compartments first.** Lay out the compartments as boxes, then each one's
+  species inside it, transport reactions across the borders. Goes with any of
+  the others.
+
+**Graphviz's code is not used.** Graphviz is under the Eclipse Public
+License; a translation of it into Rust would be a derivative work under that
+licence, which PathwayDesigner's MIT licence does not allow, and *dot* alone is
+tens of thousands of lines of C. The algorithms are published, and are
+written here from the papers.
+
+## Decisions
+
+- **L1. Which methods, in what order.** *Settled:* separating cofactors
+  first (L2), since it helps every method; then *Stress* (L4); then
+  *Layered* (L5). Stress with constraints and templates later, if those two
+  leave gaps.
+- **L2. Cofactors.** A cofactor used by many reactions draws them all
+  together. *Settled:* a **Separate cofactors** tick beside Auto-layout,
+  on by default: before the layout, every cofactor (the Escher theme's list)
+  used by more than one reaction gets one alias per reaction, which takes no
+  part in the layout and is then put beside its reaction, off the main line,
+  as Escher maps draw them. Part of the same undo step. Aliases are drawings,
+  so the model's meaning does not change. Cofactors are the built-in list
+  only: nothing new to store.
+- **L3. Choosing the method.** *Proposed:* a **Method** list beside
+  Auto-layout: *Organic* (the force layout, as now), *Stress*, *Layered*
+  (top to bottom), and later *Layered, left to right*. The choice is a
+  preference, remembered. *Randomize* applies to *Organic* only; the others
+  need no seed. *Deckard* applies to all.
+- **L4. Stress.** *Proposed:* species and junctions are nodes, as now;
+  distances are counted in species–junction steps, a step 100 units long
+  (a node's width and a gap). Locked species are fixed; aliases ride on their
+  primary, as now. Run in steps, a few per frame, so it animates like the
+  force layout and can be cancelled. Started from classical scaling
+  (positions from the distances alone), so the same model always gives the
+  same drawing.
+- **L5. Layered.** *Settled:*
+  - Each reaction is a substrate → junction → product chain; a reversible
+    reaction is drawn the way it is written. A modifier takes no part in the
+    layers and is put beside its reaction.
+  - Cycles are broken by turning round the fewest reactions; those are drawn
+    upwards.
+  - Locked species: *Layered* rearranges everything, so with species locked
+    it is offered greyed, with the hint "Unlock species to use Layered".
+  - One step, not animated: it is fast.
+  - Then the handles: straight lines between layers, or the Deckard pass when
+    ticked.
+- **L6. Compartments.** *Proposed:* for now, species keep their
+  compartments and each compartment's box is refitted around its species
+  afterwards (as `compartments::place_unplaced` does for a box it fits).
+  Laying out each compartment as a block is a later step, with constraints.
+- **L7. A model read without a drawing.** *Settled:* as now, species at
+  random and Auto-layout offered, which then uses the method chosen. Once
+  the new methods are proven (L9), the default may change, so that a model
+  read without a drawing is drawn by *Stress* or *Layered* at once.
+- **L8. Our own code.** *Proposed:* written in `pd-core` from the papers,
+  with no new dependency: deterministic on every platform, works in the
+  browser, and knows junctions, aliases and locks, which general graph
+  layout crates (`layout-rs`, `rust-sugiyama`) do not. Their code is looked
+  at only if their licences allow.
+- **L9. How to judge.** *Proposed:* measures computed in `pd-core` for any
+  drawing: line crossings, overlapping nodes, spread of line lengths, and,
+  for directed methods, the share of reactions drawn downwards. A test set:
+  the MAPK cascade, the Millard *E. coli* model, the *E. coli* core model
+  without its Escher map (and compared with the map), a sample of BioModels
+  without drawings, and a Recon3D subsystem. A report of every method on
+  every model, measures and pictures, before choosing defaults.
+
+## Steps
+
+1. The measures and the test set (L9), with the force layout as the
+   baseline.
+2. Separate cofactors (L2), with tests; shown in the browser.
+3. *Stress* (L4) and the Method list (L3); measured against the baseline;
+   shown in the browser.
+4. *Layered* (L5); measured; shown in the browser.
+5. Defaults chosen from the report (L7); docs: help, README, SPECIFICATION
+   §10, SPEC-Rust.
+6. Later: stress with constraints (flow, no overlaps, compartments as
+   blocks, L6); templates for chains and cycles.
+
+## References
+
+- Brandes U, Köpf B. Fast and simple horizontal coordinate assignment.
+  Graph Drawing 2001.
+- Deckard A, Bergmann FT, Sauro HM. Supporting the SBML layout extension.
+  Bioinformatics 2006.
+- Dwyer T, Koren Y, Marriott K. IPSep-CoLa: an incremental procedure for
+  separation constraint layout of graphs. IEEE TVCG 2006.
+- Eades P, Lin X, Smyth WF. A fast and effective heuristic for the feedback
+  arc set problem. Information Processing Letters 1993.
+- Gansner ER, Koutsofios E, North SC, Vo KP. A technique for drawing directed
+  graphs. IEEE Transactions on Software Engineering 1993.
+- Gansner ER, Koren Y, North S. Graph drawing by stress majorization. Graph
+  Drawing 2004.
+- Jacomy M, Venturini T, Heymann S, Bastian M. ForceAtlas2, a continuous
+  graph layout algorithm. PLoS ONE 2014.
+- Karp PD, Paley SM. Automated drawing of metabolic pathways. Third
+  International Conference on Bioinformatics and Genome Research, 1994.
+- Ortmann M, Klimenta M, Brandes U. A sparse stress model. Graph Drawing
+  2016.
+- Sugiyama K, Tagawa S, Toda M. Methods for visual understanding of
+  hierarchical system structures. IEEE Transactions on Systems, Man, and
+  Cybernetics 1981.
