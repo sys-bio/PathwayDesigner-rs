@@ -659,7 +659,7 @@ fn grid(ui: &mut egui::Ui, t: &Table, shaded_rows: &[usize], shaded_cols: &[usiz
                 egui::vec2(name_w, view.height()),
             );
             painter.rect_filled(column, 0.0, visuals.panel_fill);
-            for r in first_row..last_row {
+            for (r, name) in t.rows.iter().enumerate().take(last_row).skip(first_row) {
                 let y = origin.y + row_h * (r as f32 + 1.0);
                 if y < top + row_h - 0.5 {
                     continue;
@@ -670,7 +670,7 @@ fn grid(ui: &mut egui::Ui, t: &Table, shaded_rows: &[usize], shaded_cols: &[usiz
                 }
                 text(
                     rr.left_center() + egui::vec2(char_w, 0.0),
-                    &t.rows[r],
+                    name,
                     egui::Align2::LEFT_CENTER,
                     true,
                 );
