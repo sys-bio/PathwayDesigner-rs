@@ -10,7 +10,8 @@
 //! (`Escher/`), BioModels without a drawing from `$BIOMODELS` (a folder of
 //! SBML files; the first few with 10 to 60 reactions), and the Escher maps
 //! named in `$ESCHER_MAPS` (paths separated by `;`), such as a Recon3D
-//! subsystem. The force layout runs with three seeds.
+//! subsystem. The force layout runs with three seeds. `$SPACING` (a share,
+//! 1 by default) sets the layout spacing.
 //!
 //! ```text
 //! cargo run -p pd-export --release --example layout_quality -- <out>
@@ -47,6 +48,7 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: false,
+            spacing: 1.0,
             method: LayoutMethod::Organic,
         },
     ),
@@ -62,6 +64,7 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: true,
+            spacing: 1.0,
             method: LayoutMethod::Organic,
         },
     ),
@@ -77,6 +80,7 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: false,
+            spacing: 1.0,
             method: LayoutMethod::Stress,
         },
     ),
@@ -92,6 +96,7 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: true,
+            spacing: 1.0,
             method: LayoutMethod::Stress,
         },
     ),
@@ -107,6 +112,7 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: false,
+            spacing: 1.0,
             method: LayoutMethod::Layered,
         },
     ),
@@ -122,6 +128,7 @@ const METHODS: &[(&str, LayoutParams)] = &[
             randomize: false,
             deckard: false,
             separate_cofactors: true,
+            spacing: 1.0,
             method: LayoutMethod::Layered,
         },
     ),
@@ -216,6 +223,10 @@ fn main() {
         }
         // Each method, from a model read without a drawing.
         for (method, params) in METHODS {
+            let params = &LayoutParams {
+                spacing: spacing(),
+                ..*params
+            };
             let runs: Vec<(Model, Measures)> = SEEDS
                 .iter()
                 .map(|&seed| {
@@ -252,6 +263,14 @@ fn main() {
     report.push_str(&pictures);
     std::fs::write(out.join("report.md"), report).unwrap();
     eprintln!("wrote {}", out.join("report.md").display());
+}
+
+/// The spacing to lay out at: `$SPACING`, a share (1 by default).
+fn spacing() -> f64 {
+    std::env::var("SPACING")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1.0)
 }
 
 /// The model as one read without a drawing is: through Antimony, without

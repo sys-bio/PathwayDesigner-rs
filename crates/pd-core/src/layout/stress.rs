@@ -7,7 +7,8 @@
 
 use crate::geometry::{Pt, pt};
 
-/// The length of one line, a species to its reaction's junction.
+/// The length of one line, a species to its reaction's junction, at 100%
+/// spacing.
 pub(super) const EDGE: f64 = 130.0;
 /// Iterations at most; a run stops sooner once it no longer improves.
 pub(super) const ITERATIONS: u32 = 300;
@@ -15,8 +16,6 @@ pub(super) const ITERATIONS: u32 = 300;
 const TOLERANCE: f64 = 1e-5;
 /// Power iteration steps for classical scaling.
 const POWER_STEPS: usize = 200;
-/// The gap between packed parts.
-const PART_GAP: f64 = EDGE;
 
 /// The distances between nodes, and the run's progress.
 #[derive(Clone, Debug)]
@@ -27,13 +26,16 @@ pub(super) struct Stress {
     d: Vec<f64>,
     /// Each node's part, numbered from the largest.
     part: Vec<usize>,
+    /// The gap between packed parts.
+    part_gap: f64,
     last: f64,
     pub converged: bool,
 }
 
 impl Stress {
-    /// `n` nodes joined by `edges` of the given lengths.
-    pub fn new(n: usize, edges: &[(usize, usize, f64)]) -> Self {
+    /// `n` nodes joined by `edges` of the given lengths; parts not joined
+    /// are packed `part_gap` apart.
+    pub fn new(n: usize, edges: &[(usize, usize, f64)], part_gap: f64) -> Self {
         let mut next: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
         for &(a, b, len) in edges {
             if a != b {
@@ -86,6 +88,7 @@ impl Stress {
             n,
             d,
             part,
+            part_gap,
             last: f64::INFINITY,
             converged: n < 2,
         }
@@ -119,7 +122,7 @@ impl Stress {
         // Rows about as wide as all the parts would be square.
         let area: f64 = boxes
             .iter()
-            .map(|(lo, hi)| (hi.x - lo.x + PART_GAP) * (hi.y - lo.y + PART_GAP))
+            .map(|(lo, hi)| (hi.x - lo.x + self.part_gap) * (hi.y - lo.y + self.part_gap))
             .sum();
         let width = area
             .sqrt()
@@ -130,11 +133,11 @@ impl Stress {
             let (w, h) = (hi.x - lo.x, hi.y - lo.y);
             if cx > 0.0 && cx + w > width {
                 cx = 0.0;
-                cy += row + PART_GAP;
+                cy += row + self.part_gap;
                 row = 0.0;
             }
             shift[p] = pt(cx, cy) - *lo;
-            cx += w + PART_GAP;
+            cx += w + self.part_gap;
             row = row.max(h);
         }
         for (i, q) in x.iter_mut().enumerate() {
@@ -347,7 +350,7 @@ mod tests {
     #[test]
     fn distances_follow_the_lines() {
         // 0 – 1 – 2, a longer line 2 – 3, and 4 on its own.
-        let s = Stress::new(5, &[(0, 1, EDGE), (1, 2, EDGE), (2, 3, 2.5 * EDGE)]);
+        let s = Stress::new(5, &[(0, 1, EDGE), (1, 2, EDGE), (2, 3, 2.5 * EDGE)], EDGE);
         assert_eq!(s.dist(0, 1), EDGE);
         assert_eq!(s.dist(0, 2), 2.0 * EDGE);
         assert_eq!(s.dist(3, 0), 4.5 * EDGE);
@@ -360,7 +363,7 @@ mod tests {
     fn a_chain_comes_out_straight() {
         // A path is drawn exactly: each line EDGE long, the ends 4 apart.
         let edges: Vec<(usize, usize)> = (0..4).map(|i| (i, i + 1)).collect();
-        let mut s = Stress::new(5, &unit(&edges));
+        let mut s = Stress::new(5, &unit(&edges), EDGE);
         let mut x = s.initial();
         converge(&mut s, &mut x, &[false; 5]);
         for (a, b) in &edges {
@@ -374,7 +377,7 @@ mod tests {
     fn iterations_lower_the_stress_and_fixed_nodes_stay() {
         // A ring of six, started from scaling, with node 0 held.
         let edges: Vec<(usize, usize)> = (0..6).map(|i| (i, (i + 1) % 6)).collect();
-        let mut s = Stress::new(6, &unit(&edges));
+        let mut s = Stress::new(6, &unit(&edges), EDGE);
         let mut x = s.initial();
         let start = s.stress(&x);
         let mut fixed = vec![false; 6];
@@ -394,7 +397,7 @@ mod tests {
     fn parts_are_packed_side_by_side() {
         // Two chains of three, not joined: each drawn as a chain, and the
         // two apart, not on top of each other.
-        let mut s = Stress::new(6, &unit(&[(0, 1), (1, 2), (3, 4), (4, 5)]));
+        let mut s = Stress::new(6, &unit(&[(0, 1), (1, 2), (3, 4), (4, 5)]), EDGE);
         let mut x = s.initial();
         converge(&mut s, &mut x, &[false; 6]);
         assert!((x[0].distance(x[2]) - 2.0 * EDGE).abs() < 1.0, "{x:?}");
@@ -403,16 +406,16 @@ mod tests {
             .flat_map(|i| (3..6).map(move |j| (i, j)))
             .map(|(i, j)| x[i].distance(x[j]))
             .fold(f64::INFINITY, f64::min);
-        assert!(nearest >= PART_GAP - 1.0, "{nearest}: {x:?}");
+        assert!(nearest >= EDGE - 1.0, "{nearest}: {x:?}");
         // Not far apart either: within a few lines of each other.
         assert!(nearest < 4.0 * EDGE, "{nearest}");
     }
 
     #[test]
     fn small_networks() {
-        assert!(Stress::new(0, &[]).initial().is_empty());
-        assert_eq!(Stress::new(1, &[]).initial(), vec![Pt::ZERO]);
-        let s = Stress::new(2, &[(0, 1, EDGE)]);
+        assert!(Stress::new(0, &[], EDGE).initial().is_empty());
+        assert_eq!(Stress::new(1, &[], EDGE).initial(), vec![Pt::ZERO]);
+        let s = Stress::new(2, &[(0, 1, EDGE)], EDGE);
         let x = s.initial();
         assert!((x[0].distance(x[1]) - EDGE).abs() < 1e-6, "{x:?}");
     }

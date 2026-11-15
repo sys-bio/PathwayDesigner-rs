@@ -446,8 +446,10 @@ impl DiagramView {
     /// Straighten Chain (down if `vertical`, else across): the longest chain
     /// the selected species make through reactions (one's reactant, the
     /// next's product), in that order, from the end that is a reactant;
-    /// put on a line from its first species, as long as it was along the
-    /// chain, never so close that boxes meet. Each reaction's junction goes halfway
+    /// put on a line from its first species, a step apart: the largest
+    /// species' size along the line plus twice [`CHAIN_LEG`], times the
+    /// spacing ([`DiagramView::layout_spacing`], docs/layout-tab-design.md
+    /// T4). Each reaction's junction goes halfway
     /// between its two, its other species (drawn for it alone) move with
     /// the junction, and its handles, corners and stem are made straight
     /// along the line. Locked species stay put. One undo step; what was left
@@ -475,13 +477,13 @@ impl DiagramView {
                 .map_or(0.0, |s| if vertical { s.height } else { s.width })
         };
         let first = centre(&chain[0].0);
-        // Its length along the chain, one species to the next.
-        let length: f64 = chain
-            .windows(2)
-            .map(|w| centre(&w[0].0).distance(centre(&w[1].0)))
-            .sum();
         let widest = chain.iter().map(|(id, _)| along(id)).fold(0.0, f64::max);
-        let step = (length / (chain.len() - 1) as f64).max(widest + 2.0 * CHAIN_GAP);
+        let spacing = LayoutParams {
+            spacing: self.layout_spacing,
+            ..LayoutParams::default()
+        }
+        .scale();
+        let step = (widest + 2.0 * CHAIN_LEG) * spacing;
         let place = |i: usize| first + axis * (step * i as f64);
 
         let before = self.model.clone();
@@ -813,9 +815,9 @@ impl DiagramView {
     }
 }
 
-/// Straighten Chain: the gap kept either side of a junction between two
-/// species on the line.
-const CHAIN_GAP: f64 = 30.0;
+/// Straighten Chain: how far a junction sits from each box beside it on the
+/// line, at 100% spacing.
+pub const CHAIN_LEG: f64 = 60.0;
 
 /// The longest chain among `selected` species joined by reactions (one a
 /// reactant, the next a product of the same reaction), each with the
@@ -1452,19 +1454,11 @@ mod tests {
             assert_eq!(c(b).x, 0.0);
             assert!(c(b).y > c(a).y, "{b} below {a}");
         }
-        // Evenly, and the junctions halfway, straight.
+        // Evenly, a species' height and twice the leg apart, and the
+        // junctions halfway, straight.
         let step = c("B").y - c("A").y;
         assert!((c("D").y - c("C").y - step).abs() < 1e-9);
-        assert!(step >= m.find_species("A").unwrap().height + 2.0 * CHAIN_GAP);
-        // As long as the chain was, species to species, not end to end.
-        let was: f64 = [("A", "B"), ("B", "C"), ("C", "D")]
-            .iter()
-            .map(|(a, b)| {
-                let p = |id: &str| at.iter().find(|(i, _)| *i == id).unwrap().1;
-                p(a).distance(p(b))
-            })
-            .sum();
-        assert!((3.0 * step - was).abs() < 1e-9, "{step} {was}");
+        assert_eq!(step, m.find_species("A").unwrap().height + 2.0 * CHAIN_LEG);
         for (r, a, b) in [("J0", "A", "B"), ("J1", "B", "C"), ("J2", "C", "D")] {
             let rx = m.find_reaction(r).unwrap();
             assert_eq!(rx.junction, (c(a) + c(b)) * 0.5, "{r}");
@@ -1490,23 +1484,32 @@ mod tests {
     }
 
     #[test]
-    fn across_from_the_reactant_end_keeping_its_length() {
-        // D on the left, A on the right, far apart: across from A, as long
-        // as it was along the chain (300 a step).
+    fn across_from_the_reactant_end_at_the_spacing() {
+        // D on the left, A on the right, far apart: across from A, a
+        // species' width and twice the leg a step, whatever the chain's
+        // length was; at 150% spacing, half as far again.
         let at = [
             ("A", pt(900.0, 0.0)),
-            ("B", pt(600.0, 0.0)),
-            ("C", pt(300.0, 0.0)),
+            ("B", pt(600.0, 40.0)),
+            ("C", pt(300.0, -40.0)),
             ("D", pt(0.0, 0.0)),
         ];
         let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
         v.arrange(Arrange::StraightenHorizontally);
-        let m = v.model();
-        let c = |id: &str| m.find_species(id).unwrap().center;
-        assert_eq!(c("A"), pt(900.0, 0.0));
-        assert_eq!(c("B"), pt(1200.0, 0.0));
-        assert_eq!(c("D"), pt(1800.0, 0.0));
+        let w = v.model().find_species("A").unwrap().width;
+        let step = w + 2.0 * CHAIN_LEG;
+        let c = |v: &DiagramView, id: &str| v.model().find_species(id).unwrap().center;
+        assert_eq!(c(&v, "A"), pt(900.0, 0.0));
+        assert_eq!(c(&v, "B"), pt(900.0 + step, 0.0));
+        assert_eq!(c(&v, "D"), pt(900.0 + 3.0 * step, 0.0));
         assert_eq!(v.undo_description(), Some("Straighten Chain Horizontally"));
+        // At 150%, half as far again; kept within 50% to 200%.
+        for (spacing, used) in [(1.5, 1.5), (9.0, 2.0)] {
+            let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
+            v.layout_spacing = spacing;
+            v.arrange(Arrange::StraightenHorizontally);
+            assert_eq!(c(&v, "B"), pt(900.0 + used * step, 0.0), "{spacing}");
+        }
     }
 
     #[test]
@@ -1634,7 +1637,7 @@ mod tests {
         let m = v.model();
         let h = m.find_species("A").unwrap().height;
         let c = |id: &str| m.find_species(id).unwrap().center;
-        assert_eq!(c("B").y - c("A").y, h + 2.0 * CHAIN_GAP);
+        assert_eq!(c("B").y - c("A").y, h + 2.0 * CHAIN_LEG);
     }
 
     #[test]

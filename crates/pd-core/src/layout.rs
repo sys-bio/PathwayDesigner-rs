@@ -132,6 +132,25 @@ pub struct LayoutParams {
     pub separate_cofactors: bool,
     /// How it places things.
     pub method: LayoutMethod,
+    /// How far apart things go, as a share of each method's own distances
+    /// (docs/layout-tab-design.md T3): 1 is as designed; kept within
+    /// [`MIN_SPACING`] and [`MAX_SPACING`].
+    pub spacing: f64,
+}
+
+/// The least and most spacing ([`LayoutParams::spacing`]).
+pub const MIN_SPACING: f64 = 0.5;
+pub const MAX_SPACING: f64 = 2.0;
+
+impl LayoutParams {
+    /// The spacing, kept within its bounds.
+    pub fn scale(&self) -> f64 {
+        if self.spacing.is_finite() {
+            self.spacing.clamp(MIN_SPACING, MAX_SPACING)
+        } else {
+            1.0
+        }
+    }
 }
 
 impl Default for LayoutParams {
@@ -147,6 +166,7 @@ impl Default for LayoutParams {
             deckard: false,
             separate_cofactors: false,
             method: LayoutMethod::Organic,
+            spacing: 1.0,
         }
     }
 }
@@ -279,8 +299,8 @@ impl LayoutRun {
         for s in model.species() {
             let at = if params.randomize && !s.locked {
                 pt(
-                    rng.range(RANDOM_MIN, RANDOM_MAX),
-                    rng.range(RANDOM_MIN, RANDOM_MAX),
+                    rng.range(RANDOM_MIN, RANDOM_MAX) * params.scale(),
+                    rng.range(RANDOM_MIN, RANDOM_MAX) * params.scale(),
                 )
             } else {
                 s.center
@@ -463,11 +483,13 @@ impl LayoutRun {
                     (
                         j,
                         s,
-                        stress::EDGE * (busy[j] as f64 / BUSY_JUNCTION).sqrt().max(1.0),
+                        stress::EDGE
+                            * params.scale()
+                            * (busy[j] as f64 / BUSY_JUNCTION).sqrt().max(1.0),
                     )
                 })
                 .collect();
-            let s = stress::Stress::new(nodes.len(), &edges);
+            let s = stress::Stress::new(nodes.len(), &edges, stress::EDGE * params.scale());
             if !nodes.iter().any(|n| n.fixed) {
                 for (n, at) in nodes.iter_mut().zip(s.initial()) {
                     n.pos = centre + at;
@@ -488,11 +510,12 @@ impl LayoutRun {
                 &regulators,
                 &satellites,
                 centre,
+                params.scale(),
             );
         }
         Self {
             params,
-            speed: params.speed_start.max(0.05 * diagonal),
+            speed: (params.speed_start * params.scale()).max(0.05 * diagonal),
             nodes,
             springs,
             riders,
@@ -564,8 +587,12 @@ impl LayoutRun {
                     delta = pt(a.cos(), a.sin());
                 }
                 let d = delta.length().max(1.0);
-                let f =
-                    normalize(delta) * (p.kr * self.nodes[i].mass * self.nodes[k].mass / (d * d));
+                // Springs and gravity grow with distance and repulsion
+                // falls with its square: scaling repulsion by the cube of
+                // the spacing scales the whole drawing by it.
+                let f = normalize(delta)
+                    * (p.kr * p.scale().powi(3) * self.nodes[i].mass * self.nodes[k].mass
+                        / (d * d));
                 force[i] += f;
                 force[k] -= f;
             }
@@ -623,7 +650,7 @@ impl LayoutRun {
                 }
             }
         }
-        place_satellites(model, &self.satellites);
+        place_satellites(model, &self.satellites, self.params.scale());
     }
 
     /// Finishes the run: the remaining iterations, the final positions,
@@ -696,7 +723,9 @@ fn layered(
     regulators: &[(usize, usize)],
     satellites: &[Satellite],
     centre: Pt,
+    scale: f64,
 ) -> Vec<(Id, Role, Id, Vec<Pt>)> {
+    let gap = layered::GAP * scale;
     let in_lines: std::collections::HashSet<usize> =
         lines.iter().flat_map(|&(a, b)| [a, b]).collect();
     // Regulators and nothing else, each by its first reaction.
@@ -717,10 +746,16 @@ fn layered(
                 let regs: f64 = beside
                     .iter()
                     .filter(|&&(j, _)| j == i)
-                    .map(|&(_, s)| 2.0 * (nodes[s].half.x * 2.0 + layered::GAP))
+                    .map(|&(_, s)| 2.0 * (nodes[s].half.x * 2.0 + gap))
                     .sum();
                 pt(
-                    JUNCTION_WIDTH + if cofactors { 2.0 * BESIDE_ROOM } else { 0.0 } + regs,
+                    JUNCTION_WIDTH
+                        + if cofactors {
+                            2.0 * BESIDE_ROOM * scale
+                        } else {
+                            0.0
+                        }
+                        + regs,
                     0.0,
                 )
             }
@@ -729,6 +764,7 @@ fn layered(
     let placed = layered::lay_out(&layered::Graph {
         size: size.clone(),
         lines: lines.to_vec(),
+        scale,
     });
     let mid = placed.pos.iter().fold(Pt::ZERO, |a, &p| a + p) / placed.pos.len().max(1) as f64;
     let shift = centre - mid;
@@ -738,11 +774,11 @@ fn layered(
     // Regulators left of their junction, one after another.
     let mut used: HashMap<usize, f64> = HashMap::new();
     for &(j, s) in &beside {
-        let edge = used.entry(j).or_insert(JUNCTION_WIDTH / 2.0 + layered::GAP);
+        let edge = used.entry(j).or_insert(JUNCTION_WIDTH / 2.0 + gap);
         let w = nodes[s].half.x * 2.0;
         let mut at = nodes[j].pos;
         at.x -= *edge + w / 2.0;
-        *edge += w + layered::GAP;
+        *edge += w + gap;
         nodes[s].pos = at;
     }
     line_of
@@ -860,7 +896,7 @@ fn satellites(model: &Model) -> Vec<Satellite> {
 /// Puts each cofactor beside its reaction: reactants before the junction,
 /// products after it, along the line from the reaction's other reactants to
 /// its other products, to the side with fewer species near the junction.
-fn place_satellites(model: &mut Model, satellites: &[Satellite]) {
+fn place_satellites(model: &mut Model, satellites: &[Satellite], scale: f64) {
     let mut reactions: Vec<&str> = satellites.iter().map(|s| s.reaction.as_str()).collect();
     reactions.dedup();
     let size = |id: &str| {
@@ -913,7 +949,7 @@ fn place_satellites(model: &mut Model, satellites: &[Satellite]) {
         let (mut left, mut right) = (0, 0);
         for s in model.species() {
             let d = s.center - j;
-            if beside(&s.id) || d.length() > SATELLITE_CROWD {
+            if beside(&s.id) || d.length() > SATELLITE_CROWD * scale {
                 continue;
             }
             let along_side = d.x * side.x + d.y * side.y;
@@ -928,13 +964,15 @@ fn place_satellites(model: &mut Model, satellites: &[Satellite]) {
         // the other; else the first.
         for s in satellites.iter().filter(|s| s.reaction == rid) {
             let sign = if s.role == Role::Reactant { -1.0 } else { 1.0 };
-            let base = j + u * (sign * (SATELLITE_ALONG + SATELLITE_SPACING * s.index as f64));
+            let base =
+                j + u * (sign * scale * (SATELLITE_ALONG + SATELLITE_SPACING * s.index as f64));
             let half = size(&s.id);
             let tries: Vec<Pt> = [1.0, -1.0]
                 .iter()
                 .flat_map(|&flip| {
-                    (0..SATELLITE_TRIES)
-                        .map(move |k| side * (flip * (SATELLITE_SIDE + SATELLITE_STEP * k as f64)))
+                    (0..SATELLITE_TRIES).map(move |k| {
+                        side * (flip * scale * (SATELLITE_SIDE + SATELLITE_STEP * k as f64))
+                    })
                 })
                 .map(|offset| base + offset)
                 .collect();
@@ -1344,7 +1382,7 @@ mod tests {
         let first = pt(200.0 - SATELLITE_ALONG, SATELLITE_SIDE);
         for at in [first, pt(first.x, -first.y)] {
             m.find_species_mut(&x).unwrap().center = at;
-            place_satellites(&mut m, &beside);
+            place_satellites(&mut m, &beside, 1.0);
             assert!(!overlapping(&m), "X at {at:?}");
         }
     }
@@ -1642,6 +1680,180 @@ mod tests {
         assert_eq!(r.satellites.len(), 4);
         let out = run(&g, params, 1);
         assert!(!overlapping(&out));
+    }
+
+    /// The mean length of the lines, species centre to junction.
+    fn mean_line(m: &Model) -> f64 {
+        let mut total = (0.0, 0);
+        for r in m.reactions() {
+            for p in r.reactants.iter().chain(&r.products) {
+                total.0 += m
+                    .find_species(&p.species)
+                    .unwrap()
+                    .center
+                    .distance(r.junction);
+                total.1 += 1;
+            }
+        }
+        total.0 / total.1 as f64
+    }
+
+    #[test]
+    fn spacing_is_kept_within_bounds() {
+        let at = |spacing: f64| {
+            LayoutParams {
+                spacing,
+                ..LayoutParams::default()
+            }
+            .scale()
+        };
+        assert_eq!(at(1.0), 1.0);
+        assert_eq!(at(0.1), MIN_SPACING);
+        assert_eq!(at(7.0), MAX_SPACING);
+        assert_eq!(at(f64::NAN), 1.0);
+    }
+
+    #[test]
+    fn every_method_draws_farther_apart_with_more_spacing() {
+        let m = import("J0: A -> B; 1\nJ1: B -> C; 1\nJ2: C -> D; 1");
+        for method in LayoutMethod::ALL {
+            let params = |spacing: f64| LayoutParams {
+                method,
+                spacing,
+                ..LayoutParams::default()
+            };
+            let one = mean_line(&run(&m, params(1.0), 1));
+            let two = mean_line(&run(&m, params(2.0), 1));
+            let ratio = two / one;
+            match method {
+                // A chain is drawn exactly: twice as long.
+                LayoutMethod::Stress => assert!((ratio - 2.0).abs() < 1e-3, "{ratio}"),
+                // The gaps double, the boxes don't.
+                LayoutMethod::Layered => assert!(ratio > 1.3 && ratio < 2.0, "{ratio}"),
+                // The balance of forces scales.
+                LayoutMethod::Organic => assert!(ratio > 1.6 && ratio < 2.4, "{ratio}"),
+            }
+        }
+        // Layered: the gap between layers doubles exactly.
+        let gap = |spacing: f64| {
+            let out = run(
+                &m,
+                LayoutParams {
+                    method: LayoutMethod::Layered,
+                    spacing,
+                    ..LayoutParams::default()
+                },
+                1,
+            );
+            out.find_reaction("J0").unwrap().junction.y - out.find_species("A").unwrap().center.y
+        };
+        let half = m.find_species("A").unwrap().height / 2.0;
+        assert!((gap(2.0) - half - 2.0 * (gap(1.0) - half)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn at_double_spacing_every_gap_doubles() {
+        let at = |method: LayoutMethod| LayoutParams {
+            method,
+            spacing: 2.0,
+            ..LayoutParams::default()
+        };
+        // Two parts, packed apart: twice as far.
+        let parts = import("J0: A -> B; 1\nJ1: C -> D; 1");
+        let apart = |out: &Model| {
+            let one = ["A", "B"].map(|id| out.find_species(id).unwrap());
+            let two = ["C", "D"].map(|id| out.find_species(id).unwrap());
+            let mut nearest = f64::INFINITY;
+            for a in one {
+                for b in two {
+                    let gx = (a.center.x - b.center.x).abs() - (a.width + b.width) / 2.0;
+                    let gy = (a.center.y - b.center.y).abs() - (a.height + b.height) / 2.0;
+                    nearest = nearest.min(gx.max(gy));
+                }
+            }
+            nearest
+        };
+        let stress_apart = apart(&run(&parts, at(LayoutMethod::Stress), 1));
+        assert!(
+            stress_apart > 2.0 * stress::EDGE - 2.0 * 40.0,
+            "{stress_apart}"
+        );
+        let layered_apart = apart(&run(&parts, at(LayoutMethod::Layered), 1));
+        assert!(layered_apart >= 2.0 * 80.0 - 1e-6, "{layered_apart}");
+        // Layered: two products side by side, twice the gap apart.
+        let out = run(&import("J0: A -> B + C; 1"), at(LayoutMethod::Layered), 1);
+        let (b, c) = (
+            out.find_species("B").unwrap(),
+            out.find_species("C").unwrap(),
+        );
+        assert_eq!(b.center.y, c.center.y);
+        assert!(
+            ((b.center.x - c.center.x).abs() - b.width - 2.0 * layered::GAP).abs() < 1e-6,
+            "{:?} {:?}",
+            b.center,
+            c.center
+        );
+        // Layered: room beside a junction for a regulator and for
+        // cofactors, twice as wide.
+        let m = import("species M = 1\nJ0: A -> B; k*M*A\nJ1: A -> D; 1\nk = 1");
+        let out = run(&m, at(LayoutMethod::Layered), 1);
+        let (j0, j1) = (
+            out.find_reaction("J0").unwrap().junction,
+            out.find_reaction("J1").unwrap().junction,
+        );
+        let w = out.find_species("M").unwrap().width;
+        let room = JUNCTION_WIDTH + (w + 2.0 * layered::GAP) + 2.0 * layered::GAP;
+        assert!((j0.x - j1.x).abs() >= room - 1e-6, "{j0:?} {j1:?}");
+        let mut g = import("J0: A + ATP -> B + ADP; 1\nJ1: A + ATP -> D + ADP; 1");
+        separate_cofactors(&mut g);
+        let out = run(
+            &g,
+            LayoutParams {
+                separate_cofactors: true,
+                ..at(LayoutMethod::Layered)
+            },
+            1,
+        );
+        let (j0, j1) = (
+            out.find_reaction("J0").unwrap().junction,
+            out.find_reaction("J1").unwrap().junction,
+        );
+        assert!(
+            (j0.x - j1.x).abs()
+                >= JUNCTION_WIDTH + 2.0 * BESIDE_ROOM * 2.0 + 2.0 * layered::GAP - 1e-6,
+            "{j0:?} {j1:?}"
+        );
+    }
+
+    #[test]
+    fn spacing_moves_cofactors_and_scatters_wider() {
+        // A cofactor beside its reaction goes twice as far at 200%.
+        let mut m = glycolysis("");
+        separate_cofactors(&mut m);
+        let beside = satellites(&m);
+        let distance = |scale: f64| {
+            let mut m = m.clone();
+            place_satellites(&mut m, &beside, scale);
+            let r = m.find_reaction(&beside[0].reaction).unwrap();
+            m.find_species(&beside[0].id)
+                .unwrap()
+                .center
+                .distance(r.junction)
+        };
+        assert!((distance(2.0) - 2.0 * distance(1.0)).abs() < 1e-9);
+        // Randomize scatters over a field twice the size.
+        let params = LayoutParams {
+            randomize: true,
+            spacing: 2.0,
+            ..LayoutParams::default()
+        };
+        let r = LayoutRun::new(&m, params, 4);
+        for n in &r.nodes {
+            if let NodeKind::Species(_) = n.kind {
+                let p = n.pos;
+                assert!(p.x >= 2.0 * RANDOM_MIN && p.x < 2.0 * RANDOM_MAX, "{p:?}");
+            }
+        }
     }
 
     #[test]

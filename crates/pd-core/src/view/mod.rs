@@ -109,6 +109,9 @@ pub struct DiagramView {
     chain_report: Option<String>,
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
+    /// The layout spacing, as a share (docs/layout-tab-design.md T3): used
+    /// by Straighten Chain; the app sets it with the Layout tab's slider.
+    pub layout_spacing: f64,
     /// Modifier arcs drawn (S §7.6).
     /// Where the last context menu was asked for, in world coordinates:
     /// Add Corner Point puts its point there (S §5.7.1).
@@ -436,6 +439,7 @@ impl DiagramView {
             show_grid: false,
             snap_to_grid: false,
             show_null_species: true,
+            layout_spacing: 1.0,
             selected_reaction_colour: crate::render::constants::SELECTED_REACTION,
             default_bezier: true,
             default_smooth: true,

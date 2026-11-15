@@ -19,7 +19,8 @@
 
 use crate::geometry::{Pt, pt};
 
-/// The gap between neighbours in a layer, and between layers.
+/// The gap between neighbours in a layer, and between layers, at 100%
+/// spacing.
 pub(super) const GAP: f64 = 40.0;
 pub(super) const LAYER_GAP: f64 = 50.0;
 /// The width given a corner point of a long line.
@@ -35,6 +36,8 @@ const PART_GAP: f64 = 80.0;
 pub(super) struct Graph {
     pub size: Vec<Pt>,
     pub lines: Vec<(usize, usize)>,
+    /// The spacing: every gap times this.
+    pub scale: f64,
 }
 
 /// The result: a centre for each node, and for each line its corner points
@@ -87,11 +90,12 @@ pub(super) fn lay_out(g: &Graph) -> Placed {
         boxes.push(lay_out_part(g, members, &mut placed));
     }
     // The largest first, in rows about as wide as all would be square.
+    let part_gap = PART_GAP * g.scale;
     let mut order: Vec<usize> = (0..parts.len()).collect();
     order.sort_by_key(|&p| (std::cmp::Reverse(parts[p].len()), parts[p][0]));
     let area: f64 = boxes
         .iter()
-        .map(|(lo, hi)| (hi.x - lo.x + PART_GAP) * (hi.y - lo.y + PART_GAP))
+        .map(|(lo, hi)| (hi.x - lo.x + part_gap) * (hi.y - lo.y + part_gap))
         .sum();
     let width = area
         .sqrt()
@@ -103,11 +107,11 @@ pub(super) fn lay_out(g: &Graph) -> Placed {
         let (w, h) = (hi.x - lo.x, hi.y - lo.y);
         if cx > 0.0 && cx + w > width {
             cx = 0.0;
-            cy += row + PART_GAP;
+            cy += row + part_gap;
             row = 0.0;
         }
         shift[p] = pt(cx, cy) - lo;
-        cx += w + PART_GAP;
+        cx += w + part_gap;
         row = row.max(h);
     }
     for (i, q) in placed.pos.iter_mut().enumerate() {
@@ -242,13 +246,13 @@ fn lay_out_part(g: &Graph, members: &[usize], placed: &mut Placed) -> (Pt, Pt) {
     let mut y = vec![0.0; layers];
     let height = |l: usize| rows[l].iter().map(|&v| size[v].y).fold(0.0, f64::max);
     for l in 1..layers {
-        y[l] = y[l - 1] + height(l - 1) / 2.0 + height(l) / 2.0 + LAYER_GAP;
+        y[l] = y[l - 1] + height(l - 1) / 2.0 + height(l) / 2.0 + LAYER_GAP * g.scale;
     }
 
     // Places across: packed first, then each layer towards its neighbours.
     let mut x = vec![0.0; total];
     for row in &rows {
-        let at = fit(row, &size, &vec![0.0; row.len()]);
+        let at = fit(row, &size, &vec![0.0; row.len()], GAP * g.scale);
         for (&v, a) in row.iter().zip(at) {
             x[v] = a;
         }
@@ -282,7 +286,7 @@ fn lay_out_part(g: &Graph, members: &[usize], placed: &mut Placed) -> (Pt, Pt) {
                         }
                     })
                     .collect();
-                let at = fit(&rows[l], &size, &wanted);
+                let at = fit(&rows[l], &size, &wanted, GAP * g.scale);
                 for (&v, a) in rows[l].iter().zip(at) {
                     x[v] = a;
                 }
@@ -503,13 +507,13 @@ fn crossings(rows: &[Vec<usize>], below: &[Vec<usize>]) -> usize {
 }
 
 /// Places a layer's nodes, in their order, as near `wanted` as they can be
-/// with each a gap from the next: the least squares fit under those
+/// with each `gap` from the next: the least squares fit under those
 /// constraints, by pooling adjacent violators.
-fn fit(row: &[usize], size: &[Pt], wanted: &[f64]) -> Vec<f64> {
+fn fit(row: &[usize], size: &[Pt], wanted: &[f64], gap: f64) -> Vec<f64> {
     // x_k = y_k + offset_k, the y's in order.
     let mut offset = vec![0.0; row.len()];
     for k in 1..row.len() {
-        offset[k] = offset[k - 1] + size[row[k - 1]].x / 2.0 + size[row[k]].x / 2.0 + GAP;
+        offset[k] = offset[k - 1] + size[row[k - 1]].x / 2.0 + size[row[k]].x / 2.0 + gap;
     }
     // Blocks of (sum, count).
     let mut blocks: Vec<(f64, f64, usize)> = Vec::new(); // (mean, weight, members)
@@ -538,6 +542,7 @@ mod tests {
         Graph {
             size: vec![pt(80.0, 36.0); n],
             lines: lines.to_vec(),
+            scale: 1.0,
         }
     }
 
@@ -690,10 +695,10 @@ mod tests {
     fn the_fit_keeps_order_and_gaps() {
         let size = vec![pt(80.0, 36.0); 3];
         // All want 0: spread evenly about it.
-        let x = fit(&[0, 1, 2], &size, &[0.0, 0.0, 0.0]);
+        let x = fit(&[0, 1, 2], &size, &[0.0, 0.0, 0.0], GAP);
         assert_eq!(x, vec![-120.0, 0.0, 120.0]);
         // Far apart already: left alone.
-        let x = fit(&[0, 1, 2], &size, &[0.0, 500.0, 1000.0]);
+        let x = fit(&[0, 1, 2], &size, &[0.0, 500.0, 1000.0], GAP);
         assert_eq!(x, vec![0.0, 500.0, 1000.0]);
     }
 
