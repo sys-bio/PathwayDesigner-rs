@@ -107,6 +107,11 @@ pub struct DiagramView {
     /// What the last Straighten Chain did, until the app takes it
     /// ([`DiagramView::take_chain_report`]).
     chain_report: Option<String>,
+    /// The chain Straighten Chain last put on a line, in order, and which
+    /// way, for re-spacing it (docs/layout-tab-design.md T5).
+    last_chain: Option<(arrange::Chain, bool)>,
+    /// The model before a re-spacing drag began.
+    respacing: Option<Box<Model>>,
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
     /// The layout spacing, as a share (docs/layout-tab-design.md T3): used
@@ -434,6 +439,8 @@ impl DiagramView {
             write_functions_in: false,
             removed: Vec::new(),
             chain_report: None,
+            last_chain: None,
+            respacing: None,
             context_point: None,
             show_reversible: true,
             show_grid: false,

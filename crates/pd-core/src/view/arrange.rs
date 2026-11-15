@@ -469,6 +469,38 @@ impl DiagramView {
             );
             return ViewResponse::default();
         }
+        let before = self.model.clone();
+        self.place_chain(&chain, vertical);
+        self.last_chain = Some((chain.clone(), vertical));
+        let left: Vec<&Id> = sel
+            .iter()
+            .filter(|id| !chain.iter().any(|(c, _)| c == *id))
+            .collect();
+        self.chain_report = Some(if left.is_empty() {
+            format!("Straightened {} species", chain.len())
+        } else {
+            let names: Vec<&str> = left.iter().map(|id| id.as_str()).collect();
+            format!(
+                "Straightened {} species; not on one chain with them, left where they were: {}",
+                chain.len(),
+                names.join(", ")
+            )
+        });
+        if self.model == before {
+            return ViewResponse::default();
+        }
+        let label = if vertical {
+            Arrange::StraightenVertically.label()
+        } else {
+            Arrange::StraightenHorizontally.label()
+        };
+        self.record(label, before)
+    }
+
+    /// Puts `chain` on its line (Straighten Chain without the finding and the
+    /// undo step): from its first species, down if `vertical`, a step apart
+    /// at the view's spacing; its reactions straight between.
+    fn place_chain(&mut self, chain: &[(Id, Option<Id>)], vertical: bool) {
         let m = &self.model;
         let centre = |id: &str| m.find_species(id).map_or(Pt::ZERO, |s| s.center);
         let axis = if vertical { pt(0.0, 1.0) } else { pt(1.0, 0.0) };
@@ -486,7 +518,6 @@ impl DiagramView {
         let step = (widest + 2.0 * CHAIN_LEG) * spacing;
         let place = |i: usize| first + axis * (step * i as f64);
 
-        let before = self.model.clone();
         // The species, in order.
         let mut moved: Vec<(Id, Pt)> = Vec::new();
         for (i, (id, _)) in chain.iter().enumerate() {
@@ -516,7 +547,7 @@ impl DiagramView {
                 continue;
             };
             let j = (a + b) * 0.5;
-            let others = self.drawn_only_for(reaction, &chain);
+            let others = self.drawn_only_for(reaction, chain);
             for id in &others {
                 if let Some(s) = self.model.find_species_mut(id) {
                     s.center += j - old;
@@ -547,29 +578,61 @@ impl DiagramView {
         }
         let ids: Vec<Id> = moved.iter().map(|(id, _)| id.clone()).collect();
         crate::compartments::reassign(&mut self.model, &ids);
-        let left: Vec<&Id> = sel
-            .iter()
-            .filter(|id| !chain.iter().any(|(c, _)| c == *id))
-            .collect();
-        self.chain_report = Some(if left.is_empty() {
-            format!("Straightened {} species", chain.len())
-        } else {
-            let names: Vec<&str> = left.iter().map(|id| id.as_str()).collect();
-            format!(
-                "Straightened {} species; not on one chain with them, left where they were: {}",
-                chain.len(),
-                names.join(", ")
-            )
-        });
-        if self.model == before {
+    }
+
+    /// Whether the chain last straightened is still all selected: the
+    /// Layout tab's Spacing then re-spaces it (docs/layout-tab-design.md T5).
+    pub fn can_respace_chain(&self) -> bool {
+        self.layout.is_none()
+            && self.last_chain.as_ref().is_some_and(|(chain, _)| {
+                chain
+                    .iter()
+                    .all(|(id, _)| self.model.find_species(id).is_some_and(|s| s.selected))
+            })
+    }
+
+    /// Starts re-spacing the chain last straightened, for a slider drag: the
+    /// changes until [`DiagramView::end_respace`] are one undo step.
+    pub fn begin_respace(&mut self) {
+        if self.can_respace_chain() && self.respacing.is_none() {
+            self.respacing = Some(Box::new(self.model.clone()));
+        }
+    }
+
+    /// Puts the chain last straightened on its line again at the view's
+    /// spacing (`layout_spacing`), the same way round. Records nothing until
+    /// [`DiagramView::end_respace`]; outside a drag it records the step at
+    /// once.
+    pub fn respace_chain(&mut self) -> ViewResponse {
+        if !self.can_respace_chain() {
             return ViewResponse::default();
         }
-        let label = if vertical {
-            Arrange::StraightenVertically.label()
+        let dragging = self.respacing.is_some();
+        if !dragging {
+            self.begin_respace();
+        }
+        if let Some((chain, vertical)) = self.last_chain.clone() {
+            self.place_chain(&chain, vertical);
+        }
+        if dragging {
+            ViewResponse {
+                repaint: true,
+                ..ViewResponse::default()
+            }
         } else {
-            Arrange::StraightenHorizontally.label()
+            self.end_respace()
+        }
+    }
+
+    /// Ends a re-spacing: one undo step, *Respace Chain*, if anything moved.
+    pub fn end_respace(&mut self) -> ViewResponse {
+        let Some(before) = self.respacing.take() else {
+            return ViewResponse::default();
         };
-        self.record(label, before)
+        if self.model == *before {
+            return ViewResponse::default();
+        }
+        self.record("Respace Chain", *before)
     }
 
     /// The species of `reaction`, as reactants and products, that are not on
@@ -814,6 +877,10 @@ impl DiagramView {
         }
     }
 }
+
+/// A chain of species, in order, each with the reaction that joins it to the
+/// one before (none for the first).
+pub(super) type Chain = Vec<(Id, Option<Id>)>;
 
 /// Straighten Chain: how far a junction sits from each box beside it on the
 /// line, at 100% spacing.
@@ -1665,5 +1732,58 @@ mod tests {
             to_reactant.y > 0.0 && to_product.y < 0.0,
             "{to_reactant:?} {to_product:?}"
         );
+    }
+
+    #[test]
+    fn a_chain_just_straightened_is_respaced_in_one_step_per_drag() {
+        let at = [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(120.0, 90.0)),
+            ("C", pt(-60.0, 230.0)),
+            ("D", pt(40.0, 400.0)),
+        ];
+        let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
+        assert!(!v.can_respace_chain(), "nothing straightened yet");
+        v.arrange(Arrange::StraightenVertically);
+        assert!(v.can_respace_chain());
+        let step = |v: &DiagramView| {
+            v.model().find_species("B").unwrap().center.y
+                - v.model().find_species("A").unwrap().center.y
+        };
+        let one = step(&v);
+        // A drag through 150% to 200%: one undo step, at 200%.
+        v.begin_respace();
+        v.layout_spacing = 1.5;
+        v.respace_chain();
+        assert!((step(&v) - 1.5 * one).abs() < 1e-9);
+        v.layout_spacing = 2.0;
+        v.respace_chain();
+        assert_eq!(
+            v.undo_description(),
+            Some("Straighten Chain Vertically"),
+            "not yet"
+        );
+        v.end_respace();
+        assert!((step(&v) - 2.0 * one).abs() < 1e-9);
+        assert_eq!(v.undo_description(), Some("Respace Chain"));
+        assert_eq!(
+            v.model().find_species("A").unwrap().center,
+            pt(0.0, 0.0),
+            "A stays"
+        );
+        v.undo();
+        assert!((step(&v) - one).abs() < 1e-9, "the whole drag undone");
+        // Not selected any more (undo clears it): nothing to re-space.
+        assert!(!v.can_respace_chain());
+        let before = v.model().clone();
+        v.respace_chain();
+        assert_eq!(*v.model(), before);
+        // Outside a drag, one change is one step at once.
+        let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
+        v.arrange(Arrange::StraightenVertically);
+        v.layout_spacing = 0.5;
+        v.respace_chain();
+        assert_eq!(v.undo_description(), Some("Respace Chain"));
+        assert!((step(&v) - 0.5 * one).abs() < 1e-9);
     }
 }

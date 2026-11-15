@@ -17,12 +17,15 @@ const KEY_REVERSIBLE: &str = "pathwayDesigner.showReversible";
 const KEY_GRID: &str = "pathwayDesigner.showGrid";
 const KEY_SNAP: &str = "pathwayDesigner.snapToGrid";
 const KEY_LAYOUT_METHOD: &str = "pathwayDesigner.layoutMethod";
+const KEY_LAYOUT_SPACING: &str = "pathwayDesigner.layoutSpacing";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preferences {
     /// The auto-layout's method, chosen beside its button and remembered
     /// (docs/layout-algorithms-design.md L3).
     pub layout_method: LayoutMethod,
+    /// The Layout tab's Spacing, in percent (docs/layout-tab-design.md T6).
+    pub layout_spacing: u32,
     /// Draw null nodes and the legs that touch them.
     pub show_null_species: bool,
     /// Saving SBML and Antimony writes functions into the formulas that use
@@ -50,6 +53,7 @@ impl Default for Preferences {
             show_grid: false,
             snap_to_grid: false,
             layout_method: LayoutMethod::Stress,
+            layout_spacing: 100,
         }
     }
 }
@@ -75,6 +79,13 @@ impl Preferences {
             {
                 p.layout_method = m;
             }
+            if let Some(n) = s
+                .get_string(KEY_LAYOUT_SPACING)
+                .and_then(|n| n.parse::<u32>().ok())
+                .filter(|n| (50..=200).contains(n))
+            {
+                p.layout_spacing = n;
+            }
             if let Some(c) = s
                 .get_string(KEY_SELECTED_REACTION)
                 .and_then(|h| from_hex(&h))
@@ -93,6 +104,7 @@ impl Preferences {
         storage.set_string(KEY_GRID, self.show_grid.to_string());
         storage.set_string(KEY_SNAP, self.snap_to_grid.to_string());
         storage.set_string(KEY_LAYOUT_METHOD, self.layout_method.key().to_owned());
+        storage.set_string(KEY_LAYOUT_SPACING, self.layout_spacing.to_string());
     }
 }
 
@@ -137,13 +149,20 @@ mod tests {
             show_grid: true,
             snap_to_grid: true,
             layout_method: LayoutMethod::Layered,
+            layout_spacing: 150,
         };
         p.save(&mut m);
+        assert_eq!(m.0["pathwayDesigner.layoutSpacing"], "150");
         assert_eq!(m.0["pathwayDesigner.layoutMethod"], "layered");
         assert_eq!(m.0["pathwayDesigner.writeFunctionsIn"], "true");
         assert_eq!(m.0["pathwayDesigner.showReversible"], "false");
         assert_eq!(m.0["pathwayDesigner.showGrid"], "true");
         assert_eq!(m.0["pathwayDesigner.snapToGrid"], "true");
         assert_eq!(Preferences::load(Some(&m)), p);
+        // A spacing out of bounds, or not a number, is the default.
+        for bad in ["999", "10", "wide"] {
+            m.0.insert("pathwayDesigner.layoutSpacing".into(), bad.into());
+            assert_eq!(Preferences::load(Some(&m)).layout_spacing, 100, "{bad}");
+        }
     }
 }

@@ -6,7 +6,7 @@
 use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
 use pd_core::geometry::Pt;
 use pd_core::geometry::pt;
-use pd_core::layout::LayoutParams;
+use pd_core::layout::{LayoutMethod, LayoutParams, MAX_SPACING, MIN_SPACING};
 use pd_core::render::constants::ZOOM_STEP;
 use pd_core::view::{Arrange, DiagramView, Request, Tool, ViewEvent};
 
@@ -178,6 +178,9 @@ pub(crate) enum RightTab {
     /// Annotate Species from Names, while it searches and is reviewed
     /// (docs/chebi-lookup-design.md C6); there only then.
     Annotate,
+    /// Auto-layout's method and options, Spacing and Straighten Chain
+    /// (docs/layout-tab-design.md).
+    Layout,
 }
 
 /// Why Layered is greyed out (docs/layout-algorithms-design.md L5).
@@ -346,6 +349,8 @@ impl PathwayApp {
         app.view.show_grid = app.prefs.show_grid;
         app.view.snap_to_grid = app.prefs.snap_to_grid;
         app.layout_params.method = app.prefs.layout_method;
+        app.layout_params.spacing = f64::from(app.prefs.layout_spacing) / 100.0;
+        app.view.layout_spacing = app.layout_params.spacing;
         app.view.set_my_styles(crate::my_styles::load(cc.storage));
         app.perform(Action::OpenSample(START_SAMPLE));
         app.notice = None;
@@ -1271,11 +1276,23 @@ impl PathwayApp {
             }
             return;
         }
-        // Layered moves everything, so with species locked it isn't offered
-        // (docs/layout-algorithms-design.md L5).
+        self.auto_layout_button(ui);
+        // The method, its options and Spacing are in the Layout tab
+        // (docs/layout-tab-design.md T2).
+        if ui
+            .button("Layout…")
+            .on_hover_text("The layout method, its options, spacing and Straighten Chain")
+            .clicked()
+        {
+            self.right_tab = RightTab::Layout;
+        }
+    }
+
+    /// Auto-layout, greyed while Layered is chosen and species are locked
+    /// (docs/layout-algorithms-design.md L5).
+    fn auto_layout_button(&mut self, ui: &mut egui::Ui) {
         let locked = self.view.model().species().iter().any(|s| s.locked);
-        let layered = pd_core::layout::LayoutMethod::Layered;
-        let blocked = locked && self.layout_params.method == layered;
+        let blocked = locked && self.layout_params.method == LayoutMethod::Layered;
         if ui
             .add_enabled(!blocked, egui::Button::new("Auto-layout"))
             .on_hover_text("Lay out the diagram; locked nodes stay where they are")
@@ -1284,40 +1301,115 @@ impl PathwayApp {
         {
             self.start_layout();
         }
+    }
+
+    /// The Layout tab (docs/layout-tab-design.md T1): Auto-layout with its
+    /// method and options, Spacing, and Straighten Chain.
+    fn layout_tab(&mut self, ui: &mut egui::Ui) {
+        let locked = self.view.model().species().iter().any(|s| s.locked);
+        self.auto_layout_button(ui);
+        ui.add_space(4.0);
         // The method (docs/layout-algorithms-design.md L3), remembered.
-        let method = &mut self.layout_params.method;
-        egui::ComboBox::from_id_salt("layout-method")
-            .selected_text(method.name())
-            .show_ui(ui, |ui| {
-                for m in pd_core::layout::LayoutMethod::ALL {
-                    let offered = !(locked && m == layered);
-                    let item = ui
-                        .add_enabled(offered, egui::Button::selectable(*method == m, m.name()))
-                        .on_hover_text(m.hint())
-                        .on_disabled_hover_text(UNLOCK_FOR_LAYERED);
-                    if item.clicked() {
-                        *method = m;
+        ui.horizontal(|ui| {
+            ui.label("Method");
+            let method = &mut self.layout_params.method;
+            egui::ComboBox::from_id_salt("layout-method")
+                .selected_text(method.name())
+                .show_ui(ui, |ui| {
+                    for m in LayoutMethod::ALL {
+                        let offered = !(locked && m == LayoutMethod::Layered);
+                        let item = ui
+                            .add_enabled(offered, egui::Button::selectable(*method == m, m.name()))
+                            .on_hover_text(m.hint())
+                            .on_disabled_hover_text(UNLOCK_FOR_LAYERED);
+                        if item.clicked() {
+                            *method = m;
+                        }
                     }
-                }
-            })
-            .response
-            .on_hover_text(format!("Layout method: {}", method.hint()));
-        ui.checkbox(&mut self.layout_params.deckard, "Deckard")
-            .on_hover_text("Afterwards, shape the Bézier curves with the Deckard & Bergmann pass");
-        let organic = self.layout_params.method == pd_core::layout::LayoutMethod::Organic;
-        ui.add_enabled(
-            organic,
-            egui::Checkbox::new(&mut self.layout_params.randomize, "Randomize"),
-        )
-        .on_hover_text("Scatter the unlocked species at random before the layout")
-        .on_disabled_hover_text("Only the Organic layout starts from where things are");
+                })
+                .response
+                .on_hover_text(format!("Layout method: {}", method.hint()));
+        });
+        ui.label(egui::RichText::new(self.layout_params.method.hint()).weak());
+        ui.add_space(4.0);
         ui.checkbox(
             &mut self.layout_params.separate_cofactors,
             "Separate cofactors",
         )
         .on_hover_text(
             "Draw ATP, NADH, water and other cofactors once for each reaction, \
-                 beside it, as metabolic maps do",
+             beside it, as metabolic maps do",
+        );
+        ui.checkbox(&mut self.layout_params.deckard, "Deckard")
+            .on_hover_text("Afterwards, shape the Bézier curves with the Deckard & Bergmann pass");
+        let organic = self.layout_params.method == LayoutMethod::Organic;
+        ui.add_enabled(
+            organic,
+            egui::Checkbox::new(&mut self.layout_params.randomize, "Randomize"),
+        )
+        .on_hover_text("Scatter the unlocked species at random before the layout")
+        .on_disabled_hover_text("Only the Organic layout starts from where things are");
+
+        // Spacing (T3), as a percentage; it re-spaces a chain just
+        // straightened while it stays selected (T5).
+        ui.add_space(8.0);
+        let mut percent = (self.layout_params.scale() * 100.0).round();
+        let slider = ui
+            .horizontal(|ui| {
+                ui.label("Spacing");
+                ui.add(
+                    egui::Slider::new(&mut percent, MIN_SPACING * 100.0..=MAX_SPACING * 100.0)
+                        .step_by(5.0)
+                        .suffix("%"),
+                )
+                .on_hover_text("How far apart things go, for Auto-layout and Straighten Chain")
+            })
+            .inner;
+        let spacing = percent / 100.0;
+        if spacing != self.layout_params.spacing {
+            self.layout_params.spacing = spacing;
+            self.view.layout_spacing = spacing;
+        }
+        if slider.drag_started() {
+            self.view.begin_respace();
+        }
+        if slider.changed() {
+            self.view.respace_chain();
+        }
+        if slider.drag_stopped() {
+            self.view.end_respace();
+        }
+        let hint = if self.view.can_respace_chain() {
+            "Moving it re-spaces the chain just straightened."
+        } else {
+            "For the next Auto-layout or Straighten Chain."
+        };
+        ui.label(egui::RichText::new(hint).weak());
+
+        // Straighten Chain (SPECIFICATION §7.5.2).
+        ui.add_space(8.0);
+        ui.separator();
+        ui.label("Straighten Chain");
+        ui.horizontal(|ui| {
+            for (cmd, name) in [
+                (Arrange::StraightenVertically, "Vertically"),
+                (Arrange::StraightenHorizontally, "Horizontally"),
+            ] {
+                if ui
+                    .add_enabled(self.view.can_arrange(cmd), egui::Button::new(name))
+                    .on_hover_text(cmd.label())
+                    .on_disabled_hover_text("Select two or more species joined by reactions")
+                    .clicked()
+                {
+                    self.view.arrange(cmd);
+                }
+            }
+        });
+        ui.label(
+            egui::RichText::new(
+                "Select species joined by reactions: they go on one line in reaction order.",
+            )
+            .weak(),
         );
     }
 
@@ -1974,6 +2066,7 @@ impl eframe::App for PathwayApp {
         self.prefs.show_grid = self.view.show_grid;
         self.prefs.snap_to_grid = self.view.snap_to_grid;
         self.prefs.layout_method = self.layout_params.method;
+        self.prefs.layout_spacing = (self.layout_params.scale() * 100.0).round() as u32;
         self.prefs.save(storage);
         crate::my_styles::save(self.view.my_styles(), storage);
         self.autosave(storage);
@@ -2070,6 +2163,7 @@ impl eframe::App for PathwayApp {
                         (RightTab::Antimony, "Antimony"),
                         (RightTab::Styles, "Styles"),
                         (RightTab::Structure, "Structure"),
+                        (RightTab::Layout, "Layout"),
                     ] {
                         ui.selectable_value(&mut self.right_tab, tab, name);
                     }
@@ -2099,6 +2193,7 @@ impl eframe::App for PathwayApp {
                         RightTab::Styles => {
                             styles_action = crate::styles_panel::show(ui, &mut self.view);
                         }
+                        RightTab::Layout => self.layout_tab(ui),
                         RightTab::Annotate => {
                             annotate_action = self
                                 .annotate
@@ -2255,7 +2350,6 @@ mod tests {
     use super::*;
     use eframe::App as _;
     use eframe::egui::{Event, PointerButton, Pos2, RawInput, Rect, Vec2};
-    use pd_core::layout::LayoutMethod;
 
     struct Harness {
         app: PathwayApp,
@@ -3426,6 +3520,7 @@ end */
     #[test]
     fn auto_layout_separates_cofactors_unless_unticked() {
         let mut h = Harness::new();
+        h.app.right_tab = RightTab::Layout;
         let opts = h.app.import_options();
         h.app
             .view
@@ -3475,6 +3570,10 @@ end */
             LayoutMethod::Stress,
             "the default"
         );
+        // The toolbar's Layout… opens the tab with the method and options.
+        h.click(h.widget("Layout…"));
+        h.run(vec![]);
+        assert_eq!(h.app.right_tab, RightTab::Layout);
         // Randomize can't be ticked.
         h.click(h.widget("Randomize"));
         h.run(vec![]);
@@ -3534,6 +3633,7 @@ end */
     #[test]
     fn layered_from_the_method_list_unless_species_are_locked() {
         let mut h = Harness::new();
+        h.app.right_tab = RightTab::Layout;
         let opts = h.app.import_options();
         h.app
             .view
@@ -3615,6 +3715,85 @@ end */
             h.app.notice.as_deref(),
             Some("Straightened 3 species; not on one chain with them, left where they were: X")
         );
+    }
+
+    /// docs/layout-tab-design.md: Straighten Chain from the Layout tab, then
+    /// Spacing re-spaces that chain while it stays selected, in one undo
+    /// step, and is remembered.
+    #[test]
+    fn the_layout_tab_straightens_and_respaces_a_chain() {
+        let mut h = Harness::new();
+        h.size = egui::vec2(1400.0, 900.0);
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("J0: A -> B; 1\nJ1: B -> C; 1", &opts)
+            .unwrap();
+        let mut m = h.app.view.model().clone();
+        for (id, at) in [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(150.0, 120.0)),
+            ("C", pt(-80.0, 260.0)),
+        ] {
+            let s = m.find_species_mut(id).unwrap();
+            s.center = at;
+            s.selected = true;
+        }
+        h.app.view.set_model(m);
+        h.app.right_tab = RightTab::Layout;
+        h.run(vec![]);
+        h.text("For the next Auto-layout or Straighten Chain.");
+        h.click(h.widget("Vertically"));
+        h.run(vec![]);
+        let step = |h: &Harness| {
+            let m = h.app.view.model();
+            m.find_species("B").unwrap().center.y - m.find_species("A").unwrap().center.y
+        };
+        let one = step(&h);
+        assert_eq!(
+            h.app.view.undo_description(),
+            Some("Straighten Chain Vertically")
+        );
+        h.text("Moving it re-spaces the chain just straightened.");
+        // Click the slider's right end: 200%.
+        let slider = h
+            .access
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .map(|(_, n)| n)
+            .find(|n| n.role() == egui::accesskit::Role::Slider)
+            .and_then(|n| n.bounds())
+            .expect("the Spacing slider");
+        h.click(Pos2::new(
+            slider.x1 as f32 - 1.0,
+            ((slider.y0 + slider.y1) / 2.0) as f32,
+        ));
+        h.run(vec![]);
+        assert_eq!(h.app.layout_params.spacing, 2.0);
+        assert_eq!(h.app.view.layout_spacing, 2.0);
+        assert!((step(&h) - 2.0 * one).abs() < 1e-6, "{} {one}", step(&h));
+        assert_eq!(h.app.view.undo_description(), Some("Respace Chain"));
+        h.app.view.undo();
+        assert!((step(&h) - one).abs() < 1e-6, "one step");
+        // Remembered.
+        let mut store = std::collections::HashMap::new();
+        struct Store<'a>(&'a mut std::collections::HashMap<String, String>);
+        impl eframe::Storage for Store<'_> {
+            fn get_string(&self, key: &str) -> Option<String> {
+                self.0.get(key).cloned()
+            }
+            fn set_string(&mut self, key: &str, value: String) {
+                self.0.insert(key.to_owned(), value);
+            }
+            fn remove_string(&mut self, key: &str) {
+                self.0.remove(key);
+            }
+            fn flush(&mut self) {}
+        }
+        eframe::App::save(&mut h.app, &mut Store(&mut store));
+        assert_eq!(store["pathwayDesigner.layoutSpacing"], "200");
     }
 
     #[test]
@@ -3940,6 +4119,40 @@ end */
         h.key(Key::ArrowLeft, Modifiers::ALT);
         h.key(Key::ArrowUp, Modifiers::ALT.plus(Modifiers::SHIFT));
         assert_eq!(h.centre("S1") - start, pt(19.0, 90.0));
+    }
+
+    /// docs/layout-tab-design.md T6: the saved method and spacing apply
+    /// from the start, to Auto-layout and to Straighten Chain.
+    #[test]
+    fn saved_layout_preferences_apply_at_start() {
+        struct Saved(std::collections::HashMap<String, String>);
+        impl eframe::Storage for Saved {
+            fn get_string(&self, key: &str) -> Option<String> {
+                self.0.get(key).cloned()
+            }
+            fn set_string(&mut self, key: &str, value: String) {
+                self.0.insert(key.to_owned(), value);
+            }
+            fn remove_string(&mut self, key: &str) {
+                self.0.remove(key);
+            }
+            fn flush(&mut self) {}
+        }
+        let saved = Saved(
+            [
+                ("pathwayDesigner.layoutMethod", "layered"),
+                ("pathwayDesigner.layoutSpacing", "150"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .collect(),
+        );
+        let mut cc = eframe::CreationContext::_new_kittest(egui::Context::default());
+        cc.storage = Some(&saved);
+        let app = PathwayApp::new(&cc);
+        assert_eq!(app.layout_params.method, LayoutMethod::Layered);
+        assert_eq!(app.layout_params.spacing, 1.5);
+        assert_eq!(app.view.layout_spacing, 1.5);
     }
 
     #[test]
@@ -5606,6 +5819,9 @@ k = 1",
     #[test]
     fn find_in_chebi_without_a_network_says_so() {
         let mut h = Harness::new();
+        // Tall enough for the message below the wrapped tab row.
+        h.size.y = 1100.0;
+        h.run(vec![]);
         h.app.gallery.fetch = offline;
         let id = h.app.view.model().species()[0].id.clone();
         h.click(h.on_screen(&id));

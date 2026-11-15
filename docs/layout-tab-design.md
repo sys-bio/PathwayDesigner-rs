@@ -7,7 +7,14 @@ T1 and T6 proposed. Step 1 built (2026-11-15): `LayoutParams::spacing`
 and `DiagramView::layout_spacing` Straighten Chain's fixed step. On the
 *E. coli* core model with cofactors separated, Stress's lines through
 species fall from 185 to 117 to 64 at 75%, 100% and 150%, its crossings
-staying at about 137; at 75%, Organic and Layered overlap more.
+staying at about 137; at 75%, Organic and Layered overlap more. Step 2 built
+(2026-11-15): the Layout tab (Auto-layout, Method and its description, the
+three ticks, Spacing 50–200% in steps of 5, Straighten Chain Vertically and
+Horizontally), the toolbar's Auto-layout and Layout…, live re-spacing of the
+chain just straightened (`DiagramView::begin_respace`, `respace_chain`,
+`end_respace`: one undo step, *Respace Chain*, per drag), and the
+preference `pathwayDesigner.layoutSpacing` (a whole percentage; out of
+bounds is 100).
 
 ## Now
 
