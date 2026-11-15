@@ -3707,10 +3707,11 @@ end */
         h.run(vec![]);
         h.click(h.widget("Straighten Chain Vertically"));
         h.run(vec![]);
+        // On one line down, centred where they were.
         let m = h.app.view.model();
-        for id in ["B", "C"] {
-            assert_eq!(m.find_species(id).unwrap().center.x, 0.0, "{id}");
-        }
+        let x = |id: &str| m.find_species(id).unwrap().center.x;
+        assert_eq!(x("A"), x("B"));
+        assert_eq!(x("B"), x("C"));
         assert_eq!(
             h.app.notice.as_deref(),
             Some("Straightened 3 species; not on one chain with them, left where they were: X")

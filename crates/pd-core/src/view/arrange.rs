@@ -446,7 +446,7 @@ impl DiagramView {
     /// Straighten Chain (down if `vertical`, else across): the longest chain
     /// the selected species make through reactions (one's reactant, the
     /// next's product), in that order, from the end that is a reactant;
-    /// put on a line from its first species, a step apart: the largest
+    /// put on a line centred where the chain was, a step apart: the largest
     /// species' size along the line plus twice [`CHAIN_LEG`], times the
     /// spacing ([`DiagramView::layout_spacing`], docs/layout-tab-design.md
     /// T4). Each reaction's junction goes halfway
@@ -498,7 +498,7 @@ impl DiagramView {
     }
 
     /// Puts `chain` on its line (Straighten Chain without the finding and the
-    /// undo step): from its first species, down if `vertical`, a step apart
+    /// undo step): centred where it is, down if `vertical`, a step apart
     /// at the view's spacing; its reactions straight between.
     fn place_chain(&mut self, chain: &[(Id, Option<Id>)], vertical: bool) {
         let m = &self.model;
@@ -508,7 +508,8 @@ impl DiagramView {
             m.find_species(id)
                 .map_or(0.0, |s| if vertical { s.height } else { s.width })
         };
-        let first = centre(&chain[0].0);
+        // Centred where the chain was: on its species' centre.
+        let mid = chain.iter().fold(Pt::ZERO, |a, (id, _)| a + centre(id)) / chain.len() as f64;
         let widest = chain.iter().map(|(id, _)| along(id)).fold(0.0, f64::max);
         let spacing = LayoutParams {
             spacing: self.layout_spacing,
@@ -516,7 +517,8 @@ impl DiagramView {
         }
         .scale();
         let step = (widest + 2.0 * CHAIN_LEG) * spacing;
-        let place = |i: usize| first + axis * (step * i as f64);
+        let half = (chain.len() - 1) as f64 / 2.0;
+        let place = |i: usize| mid + axis * (step * (i as f64 - half));
 
         // The species, in order.
         let mut moved: Vec<(Id, Pt)> = Vec::new();
@@ -1515,10 +1517,15 @@ mod tests {
         v.arrange(Arrange::StraightenVertically);
         let m = v.model();
         let c = |id: &str| m.find_species(id).unwrap().center;
-        // A stays; the rest below it in order, on its line.
-        assert_eq!(c("A"), pt(0.0, 300.0));
+        // Centred where the chain was, (25, 162.5); A on top, the rest
+        // below it in order, on one line.
+        let mid = ["A", "B", "C", "D"]
+            .iter()
+            .fold(Pt::ZERO, |a, id| a + c(id))
+            / 4.0;
+        assert!(mid.distance(pt(25.0, 162.5)) < 1e-9, "{mid:?}");
         for (a, b) in [("A", "B"), ("B", "C"), ("C", "D")] {
-            assert_eq!(c(b).x, 0.0);
+            assert_eq!(c(b).x, 25.0);
             assert!(c(b).y > c(a).y, "{b} below {a}");
         }
         // Evenly, a species' height and twice the leg apart, and the
@@ -1554,7 +1561,8 @@ mod tests {
     fn across_from_the_reactant_end_at_the_spacing() {
         // D on the left, A on the right, far apart: across from A, a
         // species' width and twice the leg a step, whatever the chain's
-        // length was; at 150% spacing, half as far again.
+        // length was, centred where it was, (450, 0); at 150% spacing, half
+        // as far again.
         let at = [
             ("A", pt(900.0, 0.0)),
             ("B", pt(600.0, 40.0)),
@@ -1566,16 +1574,16 @@ mod tests {
         let w = v.model().find_species("A").unwrap().width;
         let step = w + 2.0 * CHAIN_LEG;
         let c = |v: &DiagramView, id: &str| v.model().find_species(id).unwrap().center;
-        assert_eq!(c(&v, "A"), pt(900.0, 0.0));
-        assert_eq!(c(&v, "B"), pt(900.0 + step, 0.0));
-        assert_eq!(c(&v, "D"), pt(900.0 + 3.0 * step, 0.0));
+        assert_eq!(c(&v, "A"), pt(450.0 - 1.5 * step, 0.0));
+        assert_eq!(c(&v, "B"), pt(450.0 - 0.5 * step, 0.0));
+        assert_eq!(c(&v, "D"), pt(450.0 + 1.5 * step, 0.0));
         assert_eq!(v.undo_description(), Some("Straighten Chain Horizontally"));
         // At 150%, half as far again; kept within 50% to 200%.
         for (spacing, used) in [(1.5, 1.5), (9.0, 2.0)] {
             let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
             v.layout_spacing = spacing;
             v.arrange(Arrange::StraightenHorizontally);
-            assert_eq!(c(&v, "B"), pt(900.0 + used * step, 0.0), "{spacing}");
+            assert_eq!(c(&v, "B"), pt(450.0 - 0.5 * used * step, 0.0), "{spacing}");
         }
     }
 
@@ -1599,7 +1607,7 @@ mod tests {
         );
         assert_eq!(
             v.model().find_species("D").unwrap().center.x,
-            0.0,
+            v.model().find_species("A").unwrap().center.x,
             "D on it"
         );
         let report = v.take_chain_report().unwrap();
@@ -1676,7 +1684,7 @@ mod tests {
     #[test]
     fn found_from_either_end_it_starts_at_the_reactant() {
         // Written product end first, so D comes before A in the model: the
-        // chain still starts at A, which stays.
+        // chain still starts at A, on top.
         let text = "J2: C -> D; 1\nJ1: B -> C; 1\nJ0: A -> B; 1";
         let at = [
             ("A", pt(0.0, 0.0)),
@@ -1687,8 +1695,8 @@ mod tests {
         let mut v = chain_view(text, &at, &["A", "B", "C", "D"]);
         v.arrange(Arrange::StraightenVertically);
         let c = |id: &str| v.model().find_species(id).unwrap().center;
-        assert_eq!(c("A"), pt(0.0, 0.0));
-        assert!(c("D").y > c("C").y && c("C").y > c("B").y && c("B").y > 0.0);
+        assert!(c("D").y > c("C").y && c("C").y > c("B").y && c("B").y > c("A").y);
+        assert_eq!(c("A").x, c("D").x);
     }
 
     #[test]
@@ -1766,11 +1774,18 @@ mod tests {
         v.end_respace();
         assert!((step(&v) - 2.0 * one).abs() < 1e-9);
         assert_eq!(v.undo_description(), Some("Respace Chain"));
-        assert_eq!(
-            v.model().find_species("A").unwrap().center,
-            pt(0.0, 0.0),
-            "A stays"
-        );
+        // Re-spaced about the same centre.
+        let mid = |v: &DiagramView| {
+            ["A", "B", "C", "D"].iter().fold(Pt::ZERO, |a, id| {
+                a + v.model().find_species(id).unwrap().center
+            }) / 4.0
+        };
+        let straightened = {
+            let mut w = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
+            w.arrange(Arrange::StraightenVertically);
+            mid(&w)
+        };
+        assert!(mid(&v).distance(straightened) < 1e-9, "the centre stays");
         v.undo();
         assert!((step(&v) - one).abs() < 1e-9, "the whole drag undone");
         // Not selected any more (undo clears it): nothing to re-space.

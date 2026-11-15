@@ -2,7 +2,7 @@
 
 2026-11-15. Design; the tab itself settled with the author (rather than
 Tighten/Loosen commands or a dialog per command), and T2–T5 as proposed;
-T1 and T6 proposed. Step 1 built (2026-11-15): `LayoutParams::spacing`
+T1 and T6 as built. Step 1 built (2026-11-15): `LayoutParams::spacing`
 (kept within 50%–200%) scales every method and the room beside a reaction,
 and `DiagramView::layout_spacing` Straighten Chain's fixed step. On the
 *E. coli* core model with cofactors separated, Stress's lines through
@@ -14,7 +14,10 @@ Horizontally), the toolbar's Auto-layout and Layout…, live re-spacing of the
 chain just straightened (`DiagramView::begin_respace`, `respace_chain`,
 `end_respace`: one undo step, *Respace Chain*, per drag), and the
 preference `pathwayDesigner.layoutSpacing` (a whole percentage; out of
-bounds is 100).
+bounds is 100). After step 2, at the author's request: a straightened
+chain is centred where its species were, not run down or across from its
+first. Step 3 done (2026-11-15): help, README, SPECIFICATION §7.5.2, §10.6,
+§13.2, SPEC-Rust, release notes.
 
 ## Now
 

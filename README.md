@@ -149,12 +149,15 @@ Delphi version does, and some more (see [Status](#status)).
   reactants, long lines routed between boxes) and *Organic* (force-directed,
   animated). *Separate cofactors* draws ATP, NADH and the other cofactors once
   for each reaction, beside it, as metabolic maps do. An optional pass shapes
-  the Bézier curves; locked nodes stay where they are
-  ([docs/layout-algorithms-design.md](docs/layout-algorithms-design.md)).
+  the Bézier curves; locked nodes stay where they are. The method, the options
+  and a **Spacing** slider are in the **Layout** tab
+  ([docs/layout-algorithms-design.md](docs/layout-algorithms-design.md),
+  [docs/layout-tab-design.md](docs/layout-tab-design.md)).
 - **Align and distribute** species and junctions, **Arrange in Circle**, and
   **Straighten Chain** (vertically or horizontally): the selected species, in
-  their order along the reactions joining them, on one line, the reactions
-  straight between them.
+  their order along the reactions joining them, on one line centred where they
+  were, the reactions straight between them; Spacing then closes the chain up
+  or spreads it out as you drag.
 - A **grid** to line things up, and **Snap to grid**: dragged items, new items,
   corners, Bézier handles, names and arrow-key moves land on grid points (hold Alt
   to place freely).

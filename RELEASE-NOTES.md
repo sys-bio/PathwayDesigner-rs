@@ -22,17 +22,22 @@ version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
   each gene's entry. A gene's annotation is kept in SBML's fbc package,
   Antimony and PathwayDesigner's own file.
 
-- **Two new ways to lay out a diagram.** The list beside Auto-layout chooses
+- **Two new ways to lay out a diagram.** The Layout tab chooses
   *Stress* (now the default: distances on the screen match distances in the
   network, with far fewer crossing lines and no boxes on top of each other,
   and the same drawing every time), *Layered* (top to bottom, each reaction's
   products below its reactants, as pathways are drawn) or *Organic* (the
   force-directed layout of earlier versions).
-- **Straighten Chain.** *Arrange ▸ Straighten Chain Vertically* (or
-  *Horizontally*) puts the selected species on one line in their order along
-  the reactions that join them, however they are placed now, with each
-  reaction straight between its two and its own cofactors moved with it.
-  Species not on the chain are left where they are, and named.
+- **Straighten Chain.** *Vertically* or *Horizontally* in the Layout tab (or
+  the Arrange menu) puts the selected species on one line, centred where they
+  were, in their order along the reactions that join them, however they are
+  placed now, with each reaction straight between its two and its own
+  cofactors moved with it. Species not on the chain are left where they are,
+  and named.
+- **A Layout tab.** *Layout…* in the toolbar opens it: Auto-layout with its
+  method and options, **Spacing** (50% to 200%, remembered) for how far apart
+  things go, and Straighten Chain. Moving Spacing just after straightening a
+  chain closes it up or spreads it out as you drag.
 - **Separate cofactors**, on by default, draws ATP, NADH, water and the other
   cofactors once for each reaction that uses them, beside it, as metabolic
   maps do. On BiGG's *E. coli* core model, laid out from scratch, crossing

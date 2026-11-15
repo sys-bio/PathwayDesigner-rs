@@ -840,7 +840,8 @@ pub enum Command {
 ### 7.2 Auto-layout in steps, with no threads
 
 Auto-layout (S §10.1, and §10.3–10.5 for the Stress and Layered methods and
-separating cofactors, `LayoutParams::method`, `separate_cofactors`) is the only
+separating cofactors, `LayoutParams::method`, `separate_cofactors`, and S §10.6
+for `LayoutParams::spacing`) is the only
 operation that uses a lot of CPU. Stress runs in steps the same way and stops
 once it no longer improves; Layered is one step.
 Running it in one go would freeze the window, and a background thread isn't

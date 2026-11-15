@@ -1350,8 +1350,9 @@ recomputed). Without this, the mean movement could put the junction anywhere.
 
 *Rust version, at the author's request.* **Straighten Chain Vertically** and
 **Straighten Chain Horizontally**, in the Arrange menu after Arrange in
-Circle, and in the Alignment submenu. They work on the selected species and
-need at least 2.
+Circle, in the Alignment submenu, and as **Vertically** and **Horizontally**
+in the Layout tab (§13.2). They work on the selected species and need at
+least 2.
 
 **The chain.** Two selected species are joined when one is a reactant and the
 other a product of the same reaction. The chain is the longest run of
@@ -1363,10 +1364,12 @@ status bar names them: *Straightened 4 species; not on one chain with them,
 left where they were: X*. If no two selected species are joined, nothing
 changes and it says so.
 
-**The line.** The first species stays; the others go down (Vertically) or to
-the right (Horizontally) from it, evenly, the chain as long as it was
-(the distances from each species to the next, added up), but never closer
-than the tallest (or widest) species plus 60. Locked species stay where they are.
+**The line.** The chain goes down (Vertically) or to the right
+(Horizontally), first species first, evenly, centred on where its species
+were (the mean of their centres). Neighbours are a step apart: the tallest
+(or widest) species plus twice 60, times the layout's Spacing
+(docs/layout-tab-design.md T4), so at 100% a junction sits 60 clear of each
+box. Locked species stay where they are.
 
 **The reactions.** Each reaction joining two species of the chain gets its
 junction halfway between them, its handles automatic, its corner points
@@ -1376,6 +1379,11 @@ recomputed. Its other reactants and products that no other reaction draws
 (its own cofactors, say), and that are not locked, move with its junction.
 Other reactions follow moved species as in §7.5. One undo step, named after
 the command.
+
+**Re-spacing.** While every species of the chain last straightened is still
+selected, moving the Layout tab's Spacing puts it on its line again at the
+new spacing, the same way round, about the same centre; a whole drag of the
+slider is one undo step, *Respace Chain*.
 
 ### 7.6 View toggles (not undoable, except Modifier lines; Reversible arrowheads, Grid and Snap to grid are remembered)
 
@@ -2263,6 +2271,18 @@ out, then on the other side. With Organic each adds 2 to its junction's
 mass. With Stress every drawing is a node of its own, one line from its
 junction.
 
+### 10.6 Spacing (Rust version)
+
+docs/layout-tab-design.md T3. One share, 50% to 200% (anything outside is
+taken as the nearest bound; 100% if it is not a number), scales the
+distances of every method: Stress's line lengths and the gap between packed
+parts (§10.3); Layered's gaps between neighbours, between layers and between
+parts, and the room beside a junction (§10.4); Organic's balance of forces,
+its repulsion `Kr` multiplied by the cube of the share and its starting step
+limit by the share, so the drawing scales by it (§10.1), and Randomize's
+field; and the places of cofactors put beside their reaction (§10.5). At 100%
+every method is as described above.
+
 ---
 
 ## 11. File formats and interchange
@@ -2933,12 +2953,20 @@ changes on New, Open and Quit. The reference has none of these.
 - **Top toolbar:** New · Open · Save · Toggle Alias indicator · Auto-layout · Linear
   UniUni · Random network · Set Bézier · Smooth junction · Make Nice, then the
   checkboxes **Deckard** and **Randomize** (both off by default), which apply to
-  auto-layout. *(Rust version, docs/layout-algorithms-design.md:)* beside
-  Auto-layout, the **Method** list (Organic, Stress, Layered; Stress by
-  default, remembered as a preference, §10.3–10.4), and a **Separate
-  cofactors** tick, on by default (§10.5). Randomize is greyed for Stress and
-  Layered; with a species locked, Layered and Auto-layout with it are greyed,
-  "Unlock species to use Layered: it moves everything".
+  auto-layout. *(Rust version, docs/layout-tab-design.md:)* the toolbar has
+  **Auto-layout** and **Layout…**, which opens the **Layout** tab in the
+  right-hand panel. The tab has Auto-layout again; the **Method** list
+  (Organic, Stress, Layered; Stress by default, remembered, §10.3–10.4) with
+  a line saying what the method does; **Separate cofactors** (on by default,
+  §10.5), **Deckard** and **Randomize** (off by default); **Spacing**, a
+  slider from 50% to 200% in steps of 5 (100% by default, remembered), the
+  share of every method's own distances (§10.6); and **Straighten Chain**,
+  **Vertically** and **Horizontally** (§7.5.2), with a line saying what to
+  select. Under Spacing a line says whether moving it re-spaces the chain
+  just straightened or applies to the next Auto-layout or Straighten Chain.
+  Randomize is greyed for Stress and Layered; with a species locked, Layered
+  and Auto-layout with it are greyed, "Unlock species to use Layered: it
+  moves everything".
 - **Left tool palette** (modes): Select · Add Species · Add Text (§7.8) · Add
   Compartment (§7.9) · Add BiBi · Add UniBi · Add BiUni · Add UniUni.
 - Each tool button MUST have a tooltip. The current mode SHOULD be highlighted.

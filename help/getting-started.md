@@ -18,7 +18,8 @@ There are two ways to make a network: write it in Antimony, or draw it.
    canvas. If the text says nothing about where they go, they are placed at
    random; press **Auto-layout** under the text to arrange them.
 
-**Auto-layout** in the toolbar arranges the whole diagram. The list beside it
+**Auto-layout** in the toolbar arranges the whole diagram. **Layout…** beside
+it opens the **Layout** tab on the right, which has Auto-layout too, and
 chooses how:
 
 - **Stress** (the default) places species so that those a few reactions apart
@@ -33,14 +34,17 @@ chooses how:
 **Separate cofactors** (on by default) draws ATP, NADH, water and the other
 cofactors once for each reaction that uses them, beside it, as metabolic maps
 do, instead of once with lines to every reaction. **Deckard** shapes the
-curves afterwards. Locked species stay where they are, and Auto-layout is one
-step you can undo.
+curves afterwards. **Spacing** (50% to 200%) sets how far apart things go.
+Locked species stay where they are, and Auto-layout is one step you can undo.
 
-To put a pathway's species in a straight line, select them and choose
-**Arrange ▸ Straighten Chain Vertically** (or **Horizontally**): they go in
-their order along the reactions that join them, whatever their places now,
-with each reaction straight between its two. Selected species not on the
-chain stay where they are, and the status bar names them.
+To put a pathway's species in a straight line, select them and press
+**Vertically** or **Horizontally** under **Straighten Chain** in the Layout
+tab (or use **Arrange ▸ Straighten Chain**): they go in their order along the
+reactions that join them, whatever their places now, on a line centred where
+they were, with each reaction straight between its two. Selected species not
+on the chain stay where they are, and the status bar names them. While the
+chain is still selected, moving **Spacing** closes it up or spreads it out as
+you drag, in one step you can undo.
 
 If a line has a mistake, it is marked in the text and listed below it. Click
 the message to go to the line. The drawing is not changed until the model
