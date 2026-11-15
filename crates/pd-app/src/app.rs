@@ -1991,6 +1991,10 @@ impl eframe::App for PathwayApp {
         if let Some(notice) = removed_notice(&self.view.take_removed()) {
             self.notice = Some(notice);
         }
+        // What Straighten Chain did, and what it left off the chain.
+        if let Some(report) = self.view.take_chain_report() {
+            self.notice = Some(report);
+        }
         #[cfg(target_os = "macos")]
         self.mac_menu_commands();
         self.handle_files();
@@ -3574,6 +3578,43 @@ end */
         h.click(h.widget("Layered"));
         h.run(vec![]);
         assert_eq!(h.app.layout_params.method, LayoutMethod::Stress);
+    }
+
+    /// Arrange ▸ Straighten Chain Vertically: the selected chain on one
+    /// line, and what it did in the status bar.
+    #[test]
+    fn straighten_chain_from_the_arrange_menu() {
+        let mut h = Harness::new();
+        let opts = h.app.import_options();
+        h.app
+            .view
+            .import_antimony("J0: A -> B; 1\nJ1: B -> C; 1\nJ2: X -> Y; 1", &opts)
+            .unwrap();
+        let mut m = h.app.view.model().clone();
+        for (id, at) in [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(150.0, 120.0)),
+            ("C", pt(-80.0, 260.0)),
+        ] {
+            let s = m.find_species_mut(id).unwrap();
+            s.center = at;
+            s.selected = true;
+        }
+        m.find_species_mut("X").unwrap().selected = true;
+        h.app.view.set_model(m);
+        h.run(vec![]);
+        h.click(h.widget("Arrange"));
+        h.run(vec![]);
+        h.click(h.widget("Straighten Chain Vertically"));
+        h.run(vec![]);
+        let m = h.app.view.model();
+        for id in ["B", "C"] {
+            assert_eq!(m.find_species(id).unwrap().center.x, 0.0, "{id}");
+        }
+        assert_eq!(
+            h.app.notice.as_deref(),
+            Some("Straightened 3 species; not on one chain with them, left where they were: X")
+        );
     }
 
     #[test]

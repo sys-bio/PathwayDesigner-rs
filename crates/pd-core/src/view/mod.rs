@@ -104,6 +104,9 @@ pub struct DiagramView {
     /// like that named what was deleted), in words, until the app takes it
     /// ([`DiagramView::take_removed`], docs/sbml-app-design.md A7).
     removed: Vec<String>,
+    /// What the last Straighten Chain did, until the app takes it
+    /// ([`DiagramView::take_chain_report`]).
+    chain_report: Option<String>,
     /// Null nodes and their legs drawn (S §12).
     pub show_null_species: bool,
     /// Modifier arcs drawn (S §7.6).
@@ -427,6 +430,7 @@ impl DiagramView {
             show_rule_marks: true,
             write_functions_in: false,
             removed: Vec::new(),
+            chain_report: None,
             context_point: None,
             show_reversible: true,
             show_grid: false,

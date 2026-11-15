@@ -28,6 +28,11 @@ version at https://sys-bio.github.io/PathwayDesigner-rs/ is always the latest.
   and the same drawing every time), *Layered* (top to bottom, each reaction's
   products below its reactants, as pathways are drawn) or *Organic* (the
   force-directed layout of earlier versions).
+- **Straighten Chain.** *Arrange ▸ Straighten Chain Vertically* (or
+  *Horizontally*) puts the selected species on one line in their order along
+  the reactions that join them, however they are placed now, with each
+  reaction straight between its two and its own cofactors moved with it.
+  Species not on the chain are left where they are, and named.
 - **Separate cofactors**, on by default, draws ATP, NADH, water and the other
   cofactors once for each reaction that uses them, beside it, as metabolic
   maps do. On BiGG's *E. coli* core model, laid out from scratch, crossing

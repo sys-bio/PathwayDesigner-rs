@@ -1346,6 +1346,37 @@ the circle. Both handles are 0.35 of the leg's length.
 junction at the centre of its species and automatic handles (smooth handles
 recomputed). Without this, the mean movement could put the junction anywhere.
 
+#### 7.5.2 Straighten Chain
+
+*Rust version, at the author's request.* **Straighten Chain Vertically** and
+**Straighten Chain Horizontally**, in the Arrange menu after Arrange in
+Circle, and in the Alignment submenu. They work on the selected species and
+need at least 2.
+
+**The chain.** Two selected species are joined when one is a reactant and the
+other a product of the same reaction. The chain is the longest run of
+selected species joined one to the next (a search of at most 200,000 steps;
+ties go to the model's order), taken from the end where more of its
+reactions start, so it reads reactant to product whatever the species'
+places now. Selected species not on it are left where they are, and the
+status bar names them: *Straightened 4 species; not on one chain with them,
+left where they were: X*. If no two selected species are joined, nothing
+changes and it says so.
+
+**The line.** The first species stays; the others go down (Vertically) or to
+the right (Horizontally) from it, evenly, the chain as long as it was
+(the distances from each species to the next, added up), but never closer
+than the tallest (or widest) species plus 60. Locked species stay where they are.
+
+**The reactions.** Each reaction joining two species of the chain gets its
+junction halfway between them, its handles automatic, its corner points
+dropped, and its stem, if it has one, along the line, each end as long as it
+was, the reactant end towards the reactant; a smooth junction's handles are
+recomputed. Its other reactants and products that no other reaction draws
+(its own cofactors, say), and that are not locked, move with its junction.
+Other reactions follow moved species as in §7.5. One undo step, named after
+the command.
+
 ### 7.6 View toggles (not undoable, except Modifier lines; Reversible arrowheads, Grid and Snap to grid are remembered)
 
 - **Alias indicator** on/off. Default **on**. Turns the purple fill and dashed border

@@ -36,6 +36,12 @@ do, instead of once with lines to every reaction. **Deckard** shapes the
 curves afterwards. Locked species stay where they are, and Auto-layout is one
 step you can undo.
 
+To put a pathway's species in a straight line, select them and choose
+**Arrange ▸ Straighten Chain Vertically** (or **Horizontally**): they go in
+their order along the reactions that join them, whatever their places now,
+with each reaction straight between its two. Selected species not on the
+chain stay where they are, and the status bar names them.
+
 If a line has a mistake, it is marked in the text and listed below it. Click
 the message to go to the line. The drawing is not changed until the model
 loads without errors.

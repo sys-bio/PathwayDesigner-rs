@@ -59,10 +59,15 @@ pub enum Arrange {
     DistributeVertically,
     /// Arrange in Circle (S §7.5.1).
     Circle,
+    /// Straighten Chain: the selected species joined by reactions, in their
+    /// order along the reactions, on one line down or across, the reactions
+    /// straight between them.
+    StraightenVertically,
+    StraightenHorizontally,
 }
 
 impl Arrange {
-    pub const ALL: [Arrange; 9] = [
+    pub const ALL: [Arrange; 11] = [
         Arrange::Left,
         Arrange::Center,
         Arrange::Right,
@@ -72,11 +77,16 @@ impl Arrange {
         Arrange::DistributeHorizontally,
         Arrange::DistributeVertically,
         Arrange::Circle,
+        Arrange::StraightenVertically,
+        Arrange::StraightenHorizontally,
     ];
 
     /// True if a menu separator goes before this command.
     pub fn starts_group(self) -> bool {
-        matches!(self, Arrange::DistributeHorizontally | Arrange::Circle)
+        matches!(
+            self,
+            Arrange::DistributeHorizontally | Arrange::Circle | Arrange::StraightenVertically
+        )
     }
 
     pub fn label(self) -> &'static str {
@@ -90,6 +100,8 @@ impl Arrange {
             Arrange::DistributeHorizontally => "Distribute Horizontally",
             Arrange::DistributeVertically => "Distribute Vertically",
             Arrange::Circle => "Arrange in Circle",
+            Arrange::StraightenVertically => "Straighten Chain Vertically",
+            Arrange::StraightenHorizontally => "Straighten Chain Horizontally",
         }
     }
 
@@ -305,6 +317,12 @@ impl DiagramView {
         if cmd == Arrange::Circle {
             return self.circle_species().len() >= cmd.minimum();
         }
+        if matches!(
+            cmd,
+            Arrange::StraightenVertically | Arrange::StraightenHorizontally
+        ) {
+            return self.model.selected_species().count() >= cmd.minimum();
+        }
         self.arrange_items().len() >= cmd.minimum()
     }
 
@@ -321,6 +339,12 @@ impl DiagramView {
         }
         if cmd == Arrange::Circle {
             return self.arrange_circle();
+        }
+        if matches!(
+            cmd,
+            Arrange::StraightenVertically | Arrange::StraightenHorizontally
+        ) {
+            return self.straighten_chain(cmd == Arrange::StraightenVertically);
         }
         let sel = self.arrange_items();
         let left = sel
@@ -417,6 +441,171 @@ impl DiagramView {
             return ViewResponse::default();
         }
         self.record(cmd.label(), before)
+    }
+
+    /// Straighten Chain (down if `vertical`, else across): the longest chain
+    /// the selected species make through reactions (one's reactant, the
+    /// next's product), in that order, from the end that is a reactant;
+    /// put on a line from its first species, as long as it was along the
+    /// chain, never so close that boxes meet. Each reaction's junction goes halfway
+    /// between its two, its other species (drawn for it alone) move with
+    /// the junction, and its handles, corners and stem are made straight
+    /// along the line. Locked species stay put. One undo step; what was left
+    /// off the chain is said ([`DiagramView::take_chain_report`]).
+    fn straighten_chain(&mut self, vertical: bool) -> ViewResponse {
+        let sel: Vec<Id> = self
+            .model
+            .selected_species()
+            .map(|s| s.id.clone())
+            .collect();
+        let chain = chain_of(&self.model, &sel);
+        if chain.len() < 2 {
+            self.chain_report = Some(
+                "The selected species aren't joined by reactions, one's reactant to the \
+                 next's product"
+                    .into(),
+            );
+            return ViewResponse::default();
+        }
+        let m = &self.model;
+        let centre = |id: &str| m.find_species(id).map_or(Pt::ZERO, |s| s.center);
+        let axis = if vertical { pt(0.0, 1.0) } else { pt(1.0, 0.0) };
+        let along = |id: &str| {
+            m.find_species(id)
+                .map_or(0.0, |s| if vertical { s.height } else { s.width })
+        };
+        let first = centre(&chain[0].0);
+        // Its length along the chain, one species to the next.
+        let length: f64 = chain
+            .windows(2)
+            .map(|w| centre(&w[0].0).distance(centre(&w[1].0)))
+            .sum();
+        let widest = chain.iter().map(|(id, _)| along(id)).fold(0.0, f64::max);
+        let step = (length / (chain.len() - 1) as f64).max(widest + 2.0 * CHAIN_GAP);
+        let place = |i: usize| first + axis * (step * i as f64);
+
+        let before = self.model.clone();
+        // The species, in order.
+        let mut moved: Vec<(Id, Pt)> = Vec::new();
+        for (i, (id, _)) in chain.iter().enumerate() {
+            let Some(s) = self.model.find_species_mut(id) else {
+                continue;
+            };
+            if s.locked || s.center == place(i) {
+                continue;
+            }
+            moved.push((id.clone(), place(i) - s.center));
+            s.center = place(i);
+        }
+        self.moved_species(&moved);
+        // The reactions: junctions halfway, the rest of each with it.
+        for i in 1..chain.len() {
+            let (from, (to, reaction)) = (&chain[i - 1].0, &chain[i]);
+            let Some(reaction) = reaction else {
+                continue;
+            };
+            let (a, b) = (
+                self.model
+                    .find_species(from)
+                    .map_or(place(i - 1), |s| s.center),
+                self.model.find_species(to).map_or(place(i), |s| s.center),
+            );
+            let Some(old) = self.model.find_reaction(reaction).map(|r| r.junction) else {
+                continue;
+            };
+            let j = (a + b) * 0.5;
+            let others = self.drawn_only_for(reaction, &chain);
+            for id in &others {
+                if let Some(s) = self.model.find_species_mut(id) {
+                    s.center += j - old;
+                }
+            }
+            // Reactant first: which way the reaction runs along the line.
+            let forwards = self
+                .model
+                .find_reaction(reaction)
+                .is_some_and(|r| r.reactants.iter().any(|p| p.species == *from));
+            let way = if forwards { b - a } else { a - b };
+            let u = crate::geometry::normalize(way);
+            let Some(r) = self.model.find_reaction_mut(reaction) else {
+                continue;
+            };
+            r.junction = j;
+            crate::bezier::drop_leg_corners(r);
+            for p in r.reactants.iter_mut().chain(&mut r.products) {
+                p.ctrl_pts_set = false;
+            }
+            if let Some((s0, s1)) = r.stem {
+                r.stem = Some((u * -s0.length(), u * s1.length()));
+            }
+            if r.mode == ReactionMode::Bezier && r.junction_smooth {
+                let id = r.id.clone();
+                apply_smooth_handles(&mut self.model, &id);
+            }
+        }
+        let ids: Vec<Id> = moved.iter().map(|(id, _)| id.clone()).collect();
+        crate::compartments::reassign(&mut self.model, &ids);
+        let left: Vec<&Id> = sel
+            .iter()
+            .filter(|id| !chain.iter().any(|(c, _)| c == *id))
+            .collect();
+        self.chain_report = Some(if left.is_empty() {
+            format!("Straightened {} species", chain.len())
+        } else {
+            let names: Vec<&str> = left.iter().map(|id| id.as_str()).collect();
+            format!(
+                "Straightened {} species; not on one chain with them, left where they were: {}",
+                chain.len(),
+                names.join(", ")
+            )
+        });
+        if self.model == before {
+            return ViewResponse::default();
+        }
+        let label = if vertical {
+            Arrange::StraightenVertically.label()
+        } else {
+            Arrange::StraightenHorizontally.label()
+        };
+        self.record(label, before)
+    }
+
+    /// The species of `reaction`, as reactants and products, that are not on
+    /// `chain`, not locked, and drawn for no other reaction: they move with
+    /// its junction.
+    fn drawn_only_for(&self, reaction: &str, chain: &[(Id, Option<Id>)]) -> Vec<Id> {
+        let m = &self.model;
+        let Some(r) = m.find_reaction(reaction) else {
+            return Vec::new();
+        };
+        r.reactants
+            .iter()
+            .chain(&r.products)
+            .map(|p| p.species.clone())
+            .filter(|id| !chain.iter().any(|(c, _)| c == id))
+            .filter(|id| m.find_species(id).is_some_and(|s| !s.locked))
+            .filter(|id| {
+                !m.reactions().iter().any(|o| {
+                    o.id != reaction
+                        && o.reactants
+                            .iter()
+                            .chain(&o.products)
+                            .chain(&o.modifiers)
+                            .any(|p| p.species == *id)
+                })
+            })
+            .fold(Vec::new(), |mut out, id| {
+                if !out.contains(&id) {
+                    out.push(id);
+                }
+                out
+            })
+    }
+
+    /// What the last Straighten Chain did, in words, once: the app says it
+    /// in the status bar.
+    pub fn take_chain_report(&mut self) -> Option<String> {
+        self.chain_report.take()
     }
 
     /// Where each Linear junction is along its line, to keep it there.
@@ -620,6 +809,93 @@ impl DiagramView {
         }
         for id in smooth {
             crate::bezier::apply_smooth_inner_handles(&mut self.model, &id);
+        }
+    }
+}
+
+/// Straighten Chain: the gap kept either side of a junction between two
+/// species on the line.
+const CHAIN_GAP: f64 = 30.0;
+
+/// The longest chain among `selected` species joined by reactions (one a
+/// reactant, the next a product of the same reaction), each with the
+/// reaction that joins it to the one before (none for the first), from
+/// the end where more of its reactions start. Ties go to the order of the
+/// selection.
+fn chain_of(model: &Model, selected: &[Id]) -> Vec<(Id, Option<Id>)> {
+    let n = selected.len();
+    let at = |id: &str| selected.iter().position(|s| s == id);
+    // (other, reaction, whether it runs from this one to the other)
+    let mut next: Vec<Vec<(usize, Id, bool)>> = vec![Vec::new(); n];
+    for r in model.reactions() {
+        for a in r.reactants.iter().filter_map(|p| at(&p.species)) {
+            for b in r.products.iter().filter_map(|p| at(&p.species)) {
+                if a != b && !next[a].iter().any(|(o, _, _)| *o == b) {
+                    next[a].push((b, r.id.clone(), true));
+                    next[b].push((a, r.id.clone(), false));
+                }
+            }
+        }
+    }
+    // The longest simple path, by search, with a budget for big selections.
+    let mut best: Vec<usize> = Vec::new();
+    let mut budget = CHAIN_SEARCH;
+    for start in 0..n {
+        let mut path = vec![start];
+        let mut on = vec![false; n];
+        on[start] = true;
+        longest(start, &next, &mut path, &mut on, &mut best, &mut budget);
+    }
+    if best.len() < 2 {
+        return Vec::new();
+    }
+    // From the end more of its reactions run from.
+    let runs_forward = best
+        .windows(2)
+        .filter(|w| next[w[0]].iter().any(|(o, _, f)| *o == w[1] && *f))
+        .count();
+    if runs_forward * 2 < best.len() - 1 {
+        best.reverse();
+    }
+    best.iter()
+        .enumerate()
+        .map(|(i, &k)| {
+            let reaction = (i > 0).then(|| {
+                next[best[i - 1]]
+                    .iter()
+                    .find(|(o, _, _)| *o == k)
+                    .map(|(_, r, _)| r.clone())
+            });
+            (selected[k].clone(), reaction.flatten())
+        })
+        .collect()
+}
+
+/// How many steps the search for the longest chain may take.
+const CHAIN_SEARCH: usize = 200_000;
+
+fn longest(
+    at: usize,
+    next: &[Vec<(usize, Id, bool)>],
+    path: &mut Vec<usize>,
+    on: &mut [bool],
+    best: &mut Vec<usize>,
+    budget: &mut usize,
+) {
+    if path.len() > best.len() {
+        *best = path.clone();
+    }
+    for &(k, _, _) in &next[at] {
+        if *budget == 0 {
+            return;
+        }
+        *budget -= 1;
+        if !on[k] {
+            on[k] = true;
+            path.push(k);
+            longest(k, next, path, on, best, budget);
+            path.pop();
+            on[k] = false;
         }
     }
 }
@@ -1137,5 +1413,254 @@ mod tests {
             v.layout_step(200);
         }
         assert_eq!(v.model().species().len(), species);
+    }
+
+    /// A model from Antimony with its species at the given places and every
+    /// one of `selected` selected.
+    fn chain_view(text: &str, at: &[(&str, Pt)], selected: &[&str]) -> DiagramView {
+        let mut m = crate::antimony::import(text, &crate::antimony::ImportOptions { seed: 1 })
+            .unwrap()
+            .model;
+        for (id, p) in at {
+            m.find_species_mut(id).unwrap().center = *p;
+        }
+        for id in selected {
+            m.find_species_mut(id).unwrap().selected = true;
+        }
+        DiagramView::new(m)
+    }
+
+    const CHAIN: &str = "J0: A -> B; 1\nJ1: B -> C; 1\nJ2: C -> D; 1";
+
+    #[test]
+    fn a_chain_out_of_order_is_straightened_in_reaction_order() {
+        // D above A, C left of B: drawn out of order.
+        let at = [
+            ("A", pt(0.0, 300.0)),
+            ("B", pt(200.0, 100.0)),
+            ("C", pt(-150.0, 250.0)),
+            ("D", pt(50.0, 0.0)),
+        ];
+        let mut v = chain_view(CHAIN, &at, &["D", "B", "A", "C"]);
+        assert!(v.can_arrange(Arrange::StraightenVertically));
+        v.arrange(Arrange::StraightenVertically);
+        let m = v.model();
+        let c = |id: &str| m.find_species(id).unwrap().center;
+        // A stays; the rest below it in order, on its line.
+        assert_eq!(c("A"), pt(0.0, 300.0));
+        for (a, b) in [("A", "B"), ("B", "C"), ("C", "D")] {
+            assert_eq!(c(b).x, 0.0);
+            assert!(c(b).y > c(a).y, "{b} below {a}");
+        }
+        // Evenly, and the junctions halfway, straight.
+        let step = c("B").y - c("A").y;
+        assert!((c("D").y - c("C").y - step).abs() < 1e-9);
+        assert!(step >= m.find_species("A").unwrap().height + 2.0 * CHAIN_GAP);
+        // As long as the chain was, species to species, not end to end.
+        let was: f64 = [("A", "B"), ("B", "C"), ("C", "D")]
+            .iter()
+            .map(|(a, b)| {
+                let p = |id: &str| at.iter().find(|(i, _)| *i == id).unwrap().1;
+                p(a).distance(p(b))
+            })
+            .sum();
+        assert!((3.0 * step - was).abs() < 1e-9, "{step} {was}");
+        for (r, a, b) in [("J0", "A", "B"), ("J1", "B", "C"), ("J2", "C", "D")] {
+            let rx = m.find_reaction(r).unwrap();
+            assert_eq!(rx.junction, (c(a) + c(b)) * 0.5, "{r}");
+            assert!(
+                rx.reactants
+                    .iter()
+                    .chain(&rx.products)
+                    .all(|p| !p.ctrl_pts_set)
+            );
+        }
+        assert_eq!(v.undo_description(), Some("Straighten Chain Vertically"));
+        assert_eq!(
+            v.take_chain_report().as_deref(),
+            Some("Straightened 4 species")
+        );
+        assert_eq!(v.take_chain_report(), None, "said once");
+        v.undo();
+        assert_eq!(
+            v.model().find_species("D").unwrap().center,
+            pt(50.0, 0.0),
+            "one step"
+        );
+    }
+
+    #[test]
+    fn across_from_the_reactant_end_keeping_its_length() {
+        // D on the left, A on the right, far apart: across from A, as long
+        // as it was along the chain (300 a step).
+        let at = [
+            ("A", pt(900.0, 0.0)),
+            ("B", pt(600.0, 0.0)),
+            ("C", pt(300.0, 0.0)),
+            ("D", pt(0.0, 0.0)),
+        ];
+        let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
+        v.arrange(Arrange::StraightenHorizontally);
+        let m = v.model();
+        let c = |id: &str| m.find_species(id).unwrap().center;
+        assert_eq!(c("A"), pt(900.0, 0.0));
+        assert_eq!(c("B"), pt(1200.0, 0.0));
+        assert_eq!(c("D"), pt(1800.0, 0.0));
+        assert_eq!(v.undo_description(), Some("Straighten Chain Horizontally"));
+    }
+
+    #[test]
+    fn a_branch_leaves_one_off_and_says_so() {
+        // B also makes X: the longest chain is A, B, C (or A, B, X); the one
+        // left over stays where it was.
+        let text = "J0: A -> B; 1\nJ1: B -> C; 1\nJ2: B -> X; 1\nJ3: C -> D; 1";
+        let at = [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(10.0, 200.0)),
+            ("C", pt(-30.0, 400.0)),
+            ("D", pt(0.0, 600.0)),
+            ("X", pt(300.0, 300.0)),
+        ];
+        let mut v = chain_view(text, &at, &["A", "B", "C", "D", "X"]);
+        v.arrange(Arrange::StraightenVertically);
+        assert_eq!(
+            v.model().find_species("X").unwrap().center,
+            pt(300.0, 300.0)
+        );
+        assert_eq!(
+            v.model().find_species("D").unwrap().center.x,
+            0.0,
+            "D on it"
+        );
+        let report = v.take_chain_report().unwrap();
+        assert!(report.ends_with("left where they were: X"), "{report}");
+    }
+
+    #[test]
+    fn a_reactions_own_species_move_with_it_and_shared_ones_stay() {
+        // ATP is drawn for J0 alone and moves with J0's junction; Q is also
+        // used by J9 and stays.
+        let text = "J0: A + ATP -> B + Q; 1\nJ1: B -> C; 1\nJ9: Q -> R; 1";
+        let at = [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(300.0, 50.0)),
+            ("C", pt(500.0, -80.0)),
+            ("ATP", pt(150.0, -60.0)),
+            ("Q", pt(160.0, 120.0)),
+        ];
+        let mut v = chain_view(text, &at, &["A", "B", "C"]);
+        let j = v.model().find_reaction("J0").unwrap().junction;
+        v.arrange(Arrange::StraightenVertically);
+        let m = v.model();
+        let moved = m.find_reaction("J0").unwrap().junction - j;
+        assert_eq!(
+            m.find_species("ATP").unwrap().center,
+            pt(150.0, -60.0) + moved
+        );
+        assert_eq!(m.find_species("Q").unwrap().center, pt(160.0, 120.0));
+    }
+
+    #[test]
+    fn locked_species_stay_and_stems_lie_along_the_line() {
+        let at = [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(200.0, 150.0)),
+            ("C", pt(-100.0, 300.0)),
+            ("D", pt(50.0, 500.0)),
+        ];
+        let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
+        let mut m = v.model().clone();
+        m.find_species_mut("C").unwrap().locked = true;
+        m.find_reaction_mut("J0").unwrap().stem = Some((pt(20.0, -5.0), pt(-10.0, 30.0)));
+        v.set_model(m);
+        v.arrange(Arrange::StraightenVertically);
+        let m = v.model();
+        assert_eq!(
+            m.find_species("C").unwrap().center,
+            pt(-100.0, 300.0),
+            "locked"
+        );
+        let (a, b) = m.find_reaction("J0").unwrap().stem.unwrap();
+        let len = |p: Pt| (p.x * p.x + p.y * p.y).sqrt();
+        assert_eq!(a.x, 0.0);
+        assert_eq!(b.x, 0.0);
+        assert!(a.y < 0.0 && b.y > 0.0, "reactant end up, product end down");
+        assert!((len(a) - len(pt(20.0, -5.0))).abs() < 1e-9);
+        assert!((len(b) - len(pt(-10.0, 30.0))).abs() < 1e-9);
+    }
+
+    #[test]
+    fn species_not_joined_by_reactions_are_left_alone() {
+        let text = "J0: A -> B; 1\nJ1: C -> D; 1";
+        let mut v = chain_view(text, &[], &["A", "C"]);
+        let before = v.model().clone();
+        v.arrange(Arrange::StraightenVertically);
+        assert_eq!(*v.model(), before);
+        assert!(!v.can_undo());
+        assert!(v.take_chain_report().unwrap().contains("aren't joined"));
+        // One species selected: not offered.
+        let v = chain_view(text, &[], &["A"]);
+        assert!(!v.can_arrange(Arrange::StraightenHorizontally));
+    }
+
+    #[test]
+    fn found_from_either_end_it_starts_at_the_reactant() {
+        // Written product end first, so D comes before A in the model: the
+        // chain still starts at A, which stays.
+        let text = "J2: C -> D; 1\nJ1: B -> C; 1\nJ0: A -> B; 1";
+        let at = [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(90.0, 200.0)),
+            ("C", pt(-40.0, 420.0)),
+            ("D", pt(30.0, 600.0)),
+        ];
+        let mut v = chain_view(text, &at, &["A", "B", "C", "D"]);
+        v.arrange(Arrange::StraightenVertically);
+        let c = |id: &str| v.model().find_species(id).unwrap().center;
+        assert_eq!(c("A"), pt(0.0, 0.0));
+        assert!(c("D").y > c("C").y && c("C").y > c("B").y && c("B").y > 0.0);
+    }
+
+    #[test]
+    fn a_cramped_chain_is_spread_so_boxes_keep_apart() {
+        let at = [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(5.0, 10.0)),
+            ("C", pt(-5.0, 20.0)),
+            ("D", pt(0.0, 30.0)),
+        ];
+        let mut v = chain_view(CHAIN, &at, &["A", "B", "C", "D"]);
+        v.arrange(Arrange::StraightenVertically);
+        let m = v.model();
+        let h = m.find_species("A").unwrap().height;
+        let c = |id: &str| m.find_species(id).unwrap().center;
+        assert_eq!(c("B").y - c("A").y, h + 2.0 * CHAIN_GAP);
+    }
+
+    #[test]
+    fn handles_are_reset_and_a_backward_reaction_keeps_its_way() {
+        // A → B, then C → B: the chain A, B, C runs against J1, whose stem's
+        // reactant end points to C, below.
+        let text = "J0: A -> B; 1\nJ1: C -> B; 1";
+        let at = [
+            ("A", pt(0.0, 0.0)),
+            ("B", pt(100.0, 200.0)),
+            ("C", pt(-50.0, 400.0)),
+        ];
+        let mut v = chain_view(text, &at, &["A", "B", "C"]);
+        let mut m = v.model().clone();
+        let r = m.find_reaction_mut("J0").unwrap();
+        r.reactants[0].ctrl_pts_set = true;
+        r.reactants[0].ctrl1 = pt(500.0, 500.0);
+        m.find_reaction_mut("J1").unwrap().stem = Some((pt(0.0, -20.0), pt(0.0, 20.0)));
+        v.set_model(m);
+        v.arrange(Arrange::StraightenVertically);
+        let m = v.model();
+        assert!(!m.find_reaction("J0").unwrap().reactants[0].ctrl_pts_set);
+        let (to_reactant, to_product) = m.find_reaction("J1").unwrap().stem.unwrap();
+        assert!(
+            to_reactant.y > 0.0 && to_product.y < 0.0,
+            "{to_reactant:?} {to_product:?}"
+        );
     }
 }

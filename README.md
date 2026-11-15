@@ -151,7 +151,10 @@ Delphi version does, and some more (see [Status](#status)).
   for each reaction, beside it, as metabolic maps do. An optional pass shapes
   the Bézier curves; locked nodes stay where they are
   ([docs/layout-algorithms-design.md](docs/layout-algorithms-design.md)).
-- **Align and distribute** species and junctions, and **Arrange in Circle**.
+- **Align and distribute** species and junctions, **Arrange in Circle**, and
+  **Straighten Chain** (vertically or horizontally): the selected species, in
+  their order along the reactions joining them, on one line, the reactions
+  straight between them.
 - A **grid** to line things up, and **Snap to grid**: dragged items, new items,
   corners, Bézier handles, names and arrow-key moves land on grid points (hold Alt
   to place freely).
